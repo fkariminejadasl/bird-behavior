@@ -1,5 +1,6 @@
 # N x C x L = N x 4 x 20
 
+import time
 from datetime import datetime
 
 import numpy as np
@@ -12,6 +13,35 @@ torch.manual_seed(seed)
 
 
 class BirdModel(nn.Module):
+    def __init__(self, in_channels, mid_channels, out_channels):
+        super().__init__()
+        self.conv1 = torch.nn.Conv1d(
+            in_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.conv2 = torch.nn.Conv1d(
+            mid_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.conv3 = torch.nn.Conv1d(
+            mid_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.fc = torch.nn.Linear(mid_channels, out_channels)
+        self.bn = torch.nn.BatchNorm1d(mid_channels)
+        self.relu = torch.nn.ReLU()
+        self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
+
+    def forward(self, x):
+        # x = self.relu(self.bn(self.conv1(x)))
+        # x = self.relu(self.bn(self.conv2(x)))
+        # x = self.relu(self.bn(self.conv3(x)))
+        x = self.relu(self.conv1(x))
+        # x = self.conv1(x)
+        x = self.avgpool(x).flatten(1)
+        # x = self.relu(self.fc(x))
+        x = self.fc(x)
+        return x
+
+
+class BirdModel_(nn.Module):
     def __init__(self, in_channels, mid_channels, out_channels):
         super().__init__()
 
@@ -62,14 +92,41 @@ def write_info_in_tensorboard(writer, epoch, loss, accuracy, stage):
     writer.add_scalars("accuracy", acc_scalar_dict, epoch)
 
 
+def _count_data(loader):
+    data_len = len(loader.dataset)
+    batch_size = next(iter(loader))[-1].shape[0]
+    no_batches = int(np.ceil(data_len / batch_size))
+    start_time = time.time()
+    return data_len, batch_size, no_batches, start_time
+
+
+def _print_per_batch(
+    batch_ind, batch_size, no_batches, start_time, loss, corrects, stage, save_every=100
+):
+    if batch_ind % save_every == 0 and batch_ind != 0:
+        print(f"batch: {batch_ind}, time: {time.time()-start_time:.1f}s")
+        print(
+            f"{stage}: batch/total: {batch_ind}/{no_batches}, total loss: {loss.item():.4f}, \
+                accuracy: {corrects * 100/batch_size:.2f}, no. correct: {corrects}, bs:{batch_size}"
+        )
+        start_time = time.time()
+    return start_time
+
+
+def _print_final(
+    epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
+):
+    print(
+        f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}, accuracy: {total_accuracy:.2f}, \
+        no. correct: {running_corrects}, length data:{data_len}"
+    )
+
+
 def train_one_epoch(
     loader, model, criterion, device, epoch, no_epochs, writer, optimizer
 ):
-    data_len = len(loader.dataset)
-    # batch_size = next(iter(loader))[-1].shape[0]
-    # no_batches = int(np.ceil(data_len / batch_size))
-    # print(f"train: number of batches: {no_batches:,}")
-    # start_time = time.time()
+    stage = "train"
+    data_len, batch_size, no_batches, start_time = _count_data(loader)
 
     model.train()
     running_loss = 0
@@ -91,27 +148,22 @@ def train_one_epoch(
         running_corrects += corrects
         running_loss += loss.item()
 
-        # if i % 100 == 0 and i != 0:
-        #     print(f"{i}, {time.time()-start_time:.1f}")
-        #     print(
-        #         f"train: current/total: {i+1}/{no_batches}, total loss: {loss.item():.4f}, accuracy: {corrects * 100/batch_size:.2f}, no. correct: {corrects}, bs:{batch_size}"
-        #     )
-        #     start_time = time.time()
+        # start_time = _print_per_batch(
+        #     i, batch_size, no_batches, start_time, loss, corrects, stage
+        # )
 
     total_loss = running_loss / (i + 1)
     total_accuracy = running_corrects / data_len * 100
-    print(
-        f"train: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}, accuracy: {total_accuracy:.2f}, no. correct: {running_corrects}, length data:{len(loader.dataset)}"
+    _print_final(
+        epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
-    write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage="train")
+    write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
 
 
 @torch.no_grad()
 def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
-    data_len = len(loader.dataset)
-    # batch_size = next(iter(loader))[-1].shape[0]
-    # no_batches = int(np.ceil(data_len / batch_size))
-    # start_time = time.time()
+    stage = "valid"
+    data_len, batch_size, no_batches, start_time = _count_data(loader)
 
     model.eval()
     running_loss = 0
@@ -130,19 +182,16 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
         running_corrects += corrects
         running_loss += loss.item()
 
-        # if i % 100 == 0 and i != 0:
-        #     print(f"{i}, {time.time()-start_time:.1f}")
-        #     print(
-        #         f"eval: current/total: {i+1}/{no_batches}, total loss: {loss.item():.4f}, accuracy: {corrects * 100/batch_size:.2f}, no. correct: {corrects}, bs:{batch_size}"
-        #     )
-        #     start_time = time.time()
+        # start_time = _print_per_batch(
+        #     i, batch_size, no_batches, start_time, loss, corrects, stage
+        # )
 
     total_loss = running_loss / (i + 1)
     total_accuracy = running_corrects / data_len * 100
-    print(
-        f"eval: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}, accuracy: {total_accuracy:.2f}, no. correct: {running_corrects}, length data:{len(loader.dataset)}"
+    _print_final(
+        epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
-    write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage="valid")
+    write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
     return total_accuracy
 
 
