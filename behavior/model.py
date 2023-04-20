@@ -30,10 +30,13 @@ class BirdModel(nn.Module):
         self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+        x = self.relu(self.conv3(x))
         # x = self.relu(self.bn(self.conv1(x)))
         # x = self.relu(self.bn(self.conv2(x)))
         # x = self.relu(self.bn(self.conv3(x)))
-        x = self.relu(self.conv1(x))
+        # x = self.relu(self.conv1(x))
         # x = self.conv1(x)
         x = self.avgpool(x).flatten(1)
         # x = self.relu(self.fc(x))
@@ -122,6 +125,27 @@ def _print_final(
     )
 
 
+def _calculate_batch_stats(running_loss, running_corrects, loss, corrects):
+    running_corrects += corrects
+    running_loss += loss.item()
+    return running_corrects, running_loss
+
+
+def _calculate_total_stats(running_loss, running_corrects, data_len, i):
+    total_loss = running_loss / (i + 1)
+    total_accuracy = running_corrects / data_len * 100
+    return total_loss, total_accuracy
+
+
+def _caculate_metrics(data, labels, model, criterion, device):
+    labels = labels.to(device)
+    data = data.to(device)  # N x C x L
+    outputs = model(data)  # N x C
+    loss = criterion(outputs, labels)  # 1
+    corrects = (torch.argmax(outputs.data, 1) == labels).sum().item()
+    return loss, corrects
+
+
 def train_one_epoch(
     loader, model, criterion, device, epoch, no_epochs, writer, optimizer
 ):
@@ -134,26 +158,26 @@ def train_one_epoch(
     for i, (data, labels) in enumerate(loader):
         optimizer.zero_grad()
 
-        data = (
-            data.squeeze(1).type(torch.float32).to(device)
-        )  # dataloader change 1xCxL to Nx1xCxL
-        outputs = model(data)  # N x C
+        loss, corrects = _caculate_metrics(data, labels, model, criterion, device)
 
-        labels = labels.to(device)
-        loss = criterion(outputs, labels)  # 1
         loss.backward()
         optimizer.step()
 
-        corrects = (torch.argmax(outputs.data, 1) == labels).sum().item()
-        running_corrects += corrects
-        running_loss += loss.item()
+        running_corrects, running_loss = _calculate_batch_stats(
+            running_loss, running_corrects, loss, corrects
+        )
 
+        daata = data.permute(0, 2, 1).reshape(-1, 3)
+        print(
+            f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
+        )
         # start_time = _print_per_batch(
         #     i, batch_size, no_batches, start_time, loss, corrects, stage
         # )
 
-    total_loss = running_loss / (i + 1)
-    total_accuracy = running_corrects / data_len * 100
+    total_loss, total_accuracy = _calculate_total_stats(
+        running_loss, running_corrects, data_len, i
+    )
     _print_final(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
@@ -169,25 +193,23 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
     running_loss = 0
     running_corrects = 0
     for i, (data, labels) in enumerate(loader):
-        data = (
-            data.squeeze(1).type(torch.float32).to(device)
-        )  # dataloader change 1xCxL to Nx1xCxL
-        outputs = model(data)  # N x C
+        loss, corrects = _caculate_metrics(data, labels, model, criterion, device)
 
-        labels = labels.to(device)
+        running_corrects, running_loss = _calculate_batch_stats(
+            running_loss, running_corrects, loss, corrects
+        )
 
-        loss = criterion(outputs, labels)  # 1
+        daata = data.permute(0, 2, 1).reshape(-1, 3)
+        print(
+            f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
+        )
+        start_time = _print_per_batch(
+            i, batch_size, no_batches, start_time, loss, corrects, stage
+        )
 
-        corrects = (torch.argmax(outputs.data, 1) == labels).sum().item()
-        running_corrects += corrects
-        running_loss += loss.item()
-
-        # start_time = _print_per_batch(
-        #     i, batch_size, no_batches, start_time, loss, corrects, stage
-        # )
-
-    total_loss = running_loss / (i + 1)
-    total_accuracy = running_corrects / data_len * 100
+    total_loss, total_accuracy = _calculate_total_stats(
+        running_loss, running_corrects, data_len, i
+    )
     _print_final(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )

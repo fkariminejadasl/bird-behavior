@@ -28,34 +28,35 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/test")
-exp = 11  # sys.argv[1]
+exp = 15  # sys.argv[1]
 no_epochs = 1000  # int(sys.argv[2])
+save_every = 100
 
-train_path = Path(
-    "/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json"
-)  # train_set, tmp.json
+# train_set, tmp.json
+train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = train_path  # Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
-
-transform = torchvision.transforms.Compose(
-    [
-        torchvision.transforms.ToTensor(),
-        # torchvision.transforms.RandomHorizontalFlip(p=0.5),
-    ]
-)
-
-train_dataset = bd.BirdDataset(train_path, transform)
+batch_size = 1400
+train_dataset = bd.BirdDataset(train_path)
 train_loader = DataLoader(
-    train_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False
+    train_dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
 )
-eval_dataset = bd.BirdDataset(valid_path, transform)
+eval_dataset = bd.BirdDataset(valid_path)
 eval_loader = DataLoader(
-    eval_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False
+    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
 )
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-model = bm.BirdModel(4, 30, 10).to(device)
+"""
+torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
+dataloader change 1xCxL to Nx1xCxL
+I don't use ToTensor anymore. I put everything now in dataset instead of model.
+"""
+
+print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
+in_channel = train_dataset[0][0].shape[0]  # 3 or 4
+model = bm.BirdModel(in_channel, 30, 10).to(device)
 
 
 criterion = torch.nn.CrossEntropyLoss()
@@ -65,7 +66,10 @@ optimizer = torch.optim.SGD(
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1000, gamma=0.1)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
-print(f"device: {device}, train: {len_train:,}, valid: {len_eval:,} images")
+print(
+    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
+    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+)
 best_accuracy = 0
 with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
     for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
@@ -76,11 +80,19 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
         )
         # scheduler.step()
         accuracy = bm.evaluate(
-            eval_loader, model, criterion, device, epoch, no_epochs, writer
+            eval_loader,
+            model,
+            criterion,
+            device,
+            epoch,
+            no_epochs,
+            writer,  # TODO debug
         )
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
+        if epoch % save_every == 0:
+            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
         # save best model
         if accuracy > best_accuracy:
             best_accuracy = accuracy
@@ -90,3 +102,25 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 
 # 1-based save for epoch
 bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+
+"""
+from copy import deepcopy
+model = bm.BirdModel(3, 30, 10)
+model.load_state_dict(torch.load("/home/fatemeh/test/14_700.pth")["model"])
+orig = deepcopy(dict(model.named_parameters()))
+'conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias', 'conv3.weight', 'conv3.bias', 'fc.weight', 'fc.bias', 'bn.weight', 'bn.bias'
+
+
+def compare_tensors(orig, other):
+    for key in orig.keys():
+        if not orig[key].equal(other[key]):
+            print(key)
+
+compare_tensors(orig, dict(model.state_dict()))
+compare_tensors(orig, dict(model.named_parameters()))
+
+# The difference is in training on the batchnorm buffers (not trained values), bn.running_mean, bn.running_var, bn.num_batches_tracked.
+
+# for unit test (normalizing training data)
+# (array([0.45410261, 0.42281342, 0.49202435]), array([0.07290404, 0.04372777, 0.08819486]), array([0., 0., 0.]), array([1., 1., 1.]))
+"""
