@@ -28,23 +28,30 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/test")
-exp = 15  # sys.argv[1]
-no_epochs = 1000  # int(sys.argv[2])
-save_every = 100
+exp = 18  # sys.argv[1]
+no_epochs = 2000  # int(sys.argv[2])
+save_every = 1000
 
 # train_set, tmp.json
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
-valid_path = train_path  # Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
+valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
-batch_size = 1400
 train_dataset = bd.BirdDataset(train_path)
 train_loader = DataLoader(
-    train_dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
+    train_dataset,
+    batch_size=len(train_dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=True,
 )
 eval_dataset = bd.BirdDataset(valid_path)
 eval_loader = DataLoader(
-    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=True
+    eval_dataset,
+    batch_size=len(eval_dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=True,
 )
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -59,7 +66,9 @@ in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm.BirdModel(in_channel, 30, 10).to(device)
 
 
-criterion = torch.nn.CrossEntropyLoss()
+weights = bd.get_labels_weights(train_path)
+criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
+# criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(
     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
 )
@@ -80,13 +89,7 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
         )
         # scheduler.step()
         accuracy = bm.evaluate(
-            eval_loader,
-            model,
-            criterion,
-            device,
-            epoch,
-            no_epochs,
-            writer,  # TODO debug
+            eval_loader, model, criterion, device, epoch, no_epochs, writer
         )
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -123,4 +126,23 @@ compare_tensors(orig, dict(model.named_parameters()))
 
 # for unit test (normalizing training data)
 # (array([0.45410261, 0.42281342, 0.49202435]), array([0.07290404, 0.04372777, 0.08819486]), array([0., 0., 0.]), array([1., 1., 1.]))
+"""
+
+"""
+def get_activation(name):
+    def hook(model, input, output):
+        activation[name] = output.detach()
+    return hook
+
+# https://discuss.pytorch.org/t/register-forward-hook-after-every-n-steps/60923/3
+model.requires_grad_(False)
+activation = {}
+model.conv1.register_forward_hook(get_activation('conv1'))
+model.conv2.register_forward_hook(get_activation('conv2'))
+model.conv3.register_forward_hook(get_activation('conv3'))
+model.fc.register_forward_hook(get_activation('fc'))
+output = model(data)
+
+mm = activation['conv1'].permute(1,0,2).flatten(1)
+fig, axs = plt.subplots(10,1);[axs[i].plot(mm[j], "*") for i,j in enumerate(range(20,30))];plt.show(block=False)
 """

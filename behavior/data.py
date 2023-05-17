@@ -16,18 +16,46 @@ naive way might not work.
 all_measurements = N x L X C = 1420 x 20 x 4
 labels: portion of N
 {'SitStand': 352, 'Flap': 268, 'Float': 235, 'Soar': 203, 'TerLoco': 126, 'Pecking': 81, 'Boat': 63, 'Manouvre': 60, 'Other': 10, 'ExFlap': 4}
+labels: percentage
+{'SitStand': 25.1, 'Flap': 19.1, 'Float': 16.7, 'Soar': 14.4, 'TerLoco': 8.9, 'Pecking': 5.7, 'Boat': 4.4, 'Manouvre': 4.2, 'Other': 0.7, 'ExFlap': 0.2}
 device_ids: portion of N
 {608: 85, 805: 281, 806: 36, 871: 25, 781: 12, 782: 302, 798: 68, 754: 21, 757: 112, 534: 180, 533: 32, 537: 42, 541: 70, 606: 136}
 time stamps:
 [datetime.utcfromtimestamp(time/1000).strftime('%Y-%m-%d %H:%M:%S') for time in time_stamps]
-labels:
+labels:ids:
 {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
 {'ExFlap', 'Soar', 'Float', 'Manouvre', 'Pecking', 'SitStand', 'Flap', 'Other', 'TerLoco', 'Boat'}
+labels: ids, label: percentage, ids: percentage
+{'Boat': 3, 'ExFlap': 1, 'Flap': 0, 'Float': 4, 'Manouvre': 8, 'Other': 7, 'Pecking': 9, 'SitStand': 5, 'Soar': 2, 'TerLoco': 6}
+{'Boat': 0.044, 'ExFlap': 0.002, 'Flap': 0.191, 'Float': 0.167, 'Manouvre': 0.042, 'Other': 0.007, 'Pecking': 0.057, 'SitStand': 0.251, 'Soar': 0.144, 'TerLoco': 0.089}
+{0: 0.191, 1: 0.002, 2: 0.144, 3: 0.044, 4: 0.167, 5: 0.251, 6: 0.089, 7: 0.007, 8: 0.042, 9: 0.057}
+
+label_to_ids = bd.map_label_id_to_label(label_ids, labels)[1]
+label_counts = bd.get_stat_len_measures_per_label(all_measurements, labels)
+label_pers = {k:int((v/sum(label_counts.values()))*1000)/1000 for k, v in label_counts.items()}
+
+label_to_ids = dict(sorted(label_to_ids.items(), key=lambda x: x[0]))
+label_pers = dict(sorted(label_pers.items(), key=lambda x: x[0]))
+id_pers = dict(zip(label_to_ids.values(), label_pers.values()))
+id_pers = dict(sorted(id_pers.items(), key=lambda x: x[0]))
 """
+
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 # labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
+
+
+def get_labels_weights(train_path):
+    # Here is weights for loss calculation. I can also do sample weights in WeightedRandomSampler.
+    labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
+
+    label_ids = np.array(label_ids)
+    max_id = label_ids.max() + 1
+    class_weights = np.zeros(max_id, dtype=np.float32)
+    for i in range(max_id):
+        class_weights[i] = np.float32(1 / (label_ids == i).sum())
+    return class_weights
 
 
 def plot_measurements_per_label(labels, all_measurements, uniq_label="Soar"):
@@ -59,20 +87,29 @@ def plot_some_data(labels, label_ids, device_ids, time_stamps, all_measurements)
     unique_labels = set(labels)
     len_data = all_measurements.shape[0]
     inds = np.random.permutation(len_data)
+    data = all_measurements
+    all_measurements = (data - data.min(0)) / (data.max(0) - data.min(0))
     for unique_label in unique_labels:
         n_plots = 0
         for ind in inds:
             if labels[ind] == unique_label:
                 ms_loc = all_measurements[ind]
-                fig, axs = plt.subplots(1, 4)
-                axs[0].plot(ms_loc[:, 0], "-*")
-                axs[1].plot(ms_loc[:, 1], "-*")
-                axs[2].plot(ms_loc[:, 2], "-*")
-                axs[3].plot(ms_loc[:, 3], "-*")
-                plt.suptitle(
-                    f"label:{labels[ind]}_{label_ids[ind]}_device:{device_ids[ind]}_time:{time_stamps[ind]}",
-                    x=0.5,
+                # fig, axs = plt.subplots(1, 4)
+                # axs[0].plot(ms_loc[:, 0], "-*")
+                # axs[1].plot(ms_loc[:, 1], "-*")
+                # axs[2].plot(ms_loc[:, 2], "-*")
+                # axs[3].plot(ms_loc[:, 3], "-*")
+                # plt.suptitle(
+                #     f"label:{labels[ind]}_{label_ids[ind]}_device:{device_ids[ind]}_time:{time_stamps[ind]}",
+                #     x=0.5,
+                # )
+
+                fig, ax = plt.subplots(1, 1)
+                ax.plot(ms_loc[:, 0], "r-*", ms_loc[:, 1], "b-*", ms_loc[:, 2], "g-*")
+                plt.title(
+                    f"label:{labels[ind]}_{label_ids[ind]}_device:{device_ids[ind]}_time:{time_stamps[ind]}"
                 )
+
                 plt.show(block=False)
                 n_plots += 1
                 if n_plots == 10:
@@ -180,3 +217,10 @@ class BirdDataset(Dataset):
             data = self.transform(data)
 
         return data, label
+
+
+# 'ExFlap': 4, 'Other': 10, 'Manouvre': 60, 'Boat': 63, 'Pecking': 81
+# [1, 7, 8, 3, 9] -> change
+
+# a = [1 if i in [1, 7, 8, 3, 9] else i for i in label_ids]
+# a = [3 if i==6 else i for i in a]
