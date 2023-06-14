@@ -13,7 +13,15 @@ for that location. For now, I use accelarations and gps speed as features (4 fea
 I might encode time stamps as a 5th feature. I think I need to sort them. the 
 naive way might not work.
 
-all_measurements = N x L X C = 1420 x 20 x 4
+all_measurements = N x L X C = 1420 x 20 x 4 (train), train/valid/test:1402/1052/1051=3505 (old), ~3468 (new)
+
+[  0,   1,   2,   3,   4,   5,   6,   7,   8,   9] # classes
+[268,   4, 203,  63, 235, 352, 126,  10,  60,  81] # train
+[192,  13, 146,  60, 142, 280, 100,   6,  51,  62] # valid
+[174,  21, 152,  53, 181, 262,  92,   9,  40,  67] # test
+[634,  38, 501, 176, 558, 894, 318,  25, 151, 210] # total old
+[657,  45, 505, 178, 563, 817, 345,  28, 143, 184] # total new
+
 labels: portion of N
 {'SitStand': 352, 'Flap': 268, 'Float': 235, 'Soar': 203, 'TerLoco': 126, 'Pecking': 81, 'Boat': 63, 'Manouvre': 60, 'Other': 10, 'ExFlap': 4}
 labels: percentage
@@ -44,6 +52,13 @@ train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 # labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
+
+
+def count_labels(label_ids):
+    count = []
+    for i in range(0, 10):
+        count.append(sum([1 for label in label_ids if label == i]))
+    return count
 
 
 def get_labels_weights(train_path):
@@ -224,3 +239,79 @@ class BirdDataset(Dataset):
 
 # a = [1 if i in [1, 7, 8, 3, 9] else i for i in label_ids]
 # a = [3 if i==6 else i for i in a]
+
+
+# for new data
+def read_csv_bird_file(data_file: Path):
+    ids = []
+    inds = []
+    gps_imus = []
+    labels = []
+    confs = []
+    with open(data_file, "r") as rfile:
+        for row in rfile:
+            items = row.split("\n")[0].split(",")
+            id_ = int(items[0])
+            ind = int(items[2])
+            imu_x = float(items[3])
+            imu_y = float(items[4])
+            imu_z = float(items[5])
+            gps_speed = float(items[6])
+            item_last = items[7].split()
+            label = int(item_last[0])
+            conf = int(item_last[1])
+            ids.append(id_)
+            inds.append(ind)
+            labels.append(label)
+            confs.append(conf)
+            gps_imus.append([imu_x, imu_y, imu_z, gps_speed])
+    return ids, inds, gps_imus, labels, confs
+
+
+def stats_per_csv_file(data_file, plot=False):
+    ids, inds, gps_imus, labels, confs = read_csv_bird_file(data_file)
+    if plot:
+        agps_imus = np.array(gps_imus, dtype=np.float32)
+        _, axs = plt.subplots(4, 1, sharex=True)
+        axs[0].plot(inds)
+        axs[1].plot(labels)
+        axs[2].plot(confs)
+        axs[3].plot(
+            agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*"
+        )
+        plt.show(block=False)
+    total_data = len(labels)
+    num_no_labels = sum([1 for label in labels if label == 0])
+    num_labels = total_data - num_no_labels
+    num_data_points = num_labels / 20
+    hist = list(np.histogram(labels, bins=range(0, 12))[0])
+    print(data_file.stem)
+    print(
+        f"total: {total_data:6d}, # no labels: {num_no_labels:6d}, # labels: {num_labels:6d}, # data: {num_data_points}"
+    )
+    print(dict(zip(range(0, 11), hist)))
+    return hist, num_data_points
+
+
+"""
+# get statistics for all data
+data_dir = Path("/home/fatemeh/Downloads/bird/data")
+csv_filename = "AnM533_20120515_20120516.csv"
+
+count = 0
+hists = []
+files = list(data_dir.glob("*.csv"))
+for data_file in files:
+    hist, num_data_points = stats_per_csv_file(data_file, plot=False)
+    count += num_data_points
+    hists.append(hist)
+
+hists = np.array(hists, dtype=np.int64)
+print(hists[:, 1:])
+print(dict(zip(range(1, 11), np.sum(hists[:, 1:], axis=0))))
+print(count)
+
+labels, label_ids, device_ids, time_stamps, all_measurements = bd.read_data(bd.train_path)
+agps_imus = all_measurements.reshape(-1, 4).copy()
+_, axs = plt.subplots(2, 1, sharex=True);axs[0].plot(np.repeat(label_ids,20));axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*");plt.show(block=False)
+"""
