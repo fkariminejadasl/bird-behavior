@@ -22,6 +22,22 @@ all_measurements = N x L X C = 1420 x 20 x 4 (train), train/valid/test:1402/1052
 [634,  38, 501, 176, 558, 894, 318,  25, 151, 210] # total old
 [657,  45, 505, 178, 563, 817, 345,  28, 143, 184] # total new
 
+Flight
+	0=Flap=634
+	1=ExFlap=38
+	2=Soar=501
+	8=Manouvre/Mixed=151
+Float
+	4=Float=558
+Sit-Stand
+	5=SitStand/Stationary=894
+	3=Boat=176
+Terrestrial locomotion
+	6=Terloco/Walk=318
+	9=Pecking/Peck=210 (paper=209)
+Other
+	7=Other=25
+
 labels: portion of N
 {'SitStand': 352, 'Flap': 268, 'Float': 235, 'Soar': 203, 'TerLoco': 126, 'Pecking': 81, 'Boat': 63, 'Manouvre': 60, 'Other': 10, 'ExFlap': 4}
 labels: percentage
@@ -190,7 +206,7 @@ def read_data(json_path: Path | str):
         label = item["labelDetail"]["description"]
         label_id = item["labelDetail"]["labelId"] - 1  # change it to zero based
         device_id = item["gpsRecord"]["deviceId"]
-        time_stamp = item["gpsRecord"]["timeStamp"]
+        time_stamp = int(item["gpsRecord"]["timeStamp"] / 1000)
         measurements = get_per_location_measurements(item["gpsRecord"]["measurements"])
         labels.append(label)
         label_ids.append(label_id)
@@ -311,7 +327,41 @@ print(hists[:, 1:])
 print(dict(zip(range(1, 11), np.sum(hists[:, 1:], axis=0))))
 print(count)
 
-labels, label_ids, device_ids, time_stamps, all_measurements = bd.read_data(bd.train_path)
-agps_imus = all_measurements.reshape(-1, 4).copy()
-_, axs = plt.subplots(2, 1, sharex=True);axs[0].plot(np.repeat(label_ids,20));axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*");plt.show(block=False)
+# from datetime import datetime
+# datetime.utcfromtimestamp(1402132788).strftime('%Y-%m-%d %H:%M:%S')
+# int(datetime.strptime('2014-06-07 11:19:48', '%Y-%m-%d %H:%M:%S').strftime("%s"))
 """
+
+
+def combine_all_data():
+    labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = read_data(
+        train_path
+    )
+    labels2, label_ids2, device_ids2, time_stamps2, all_measurements2 = read_data(
+        valid_path
+    )
+    labels3, label_ids3, device_ids3, time_stamps3, all_measurements3 = read_data(
+        test_path
+    )
+    labels = labels1 + labels2 + labels3
+    label_ids = label_ids1 + label_ids2 + label_ids3
+    device_ids = device_ids1 + device_ids2 + device_ids3
+    time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+    all_measurements = np.concatenate(
+        (all_measurements1, all_measurements2, all_measurements3), axis=0
+    )
+    return labels, label_ids, device_ids, time_stamps, all_measurements
+
+
+labels, label_ids, device_ids, time_stamps, all_measurements = combine_all_data()
+label_ids = np.array(label_ids, dtype=np.int64)
+agps_imus = np.empty(shape=(0, 20, 4))
+for i in range(0, 10):
+    agps_imus = np.concatenate((agps_imus, all_measurements[label_ids == i]), axis=0)
+agps_imus = agps_imus.reshape(-1, 4)
+
+rep_labels = np.sort(np.repeat(label_ids, 20))
+_, axs = plt.subplots(2, 1, sharex=True)
+axs[0].plot(rep_labels)
+axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
+plt.show(block=False)
