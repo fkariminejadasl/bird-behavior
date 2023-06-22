@@ -38,6 +38,12 @@ Terrestrial locomotion
 Other
 	7=Other=25
 
+# imu-gps stats
+[-3.41954887, -3.03254572, -2.92030075,  0.        ] min
+[ 2.68563855,  2.93441769,  3.23596358, 22.30123518] max -> 1
+[-0.03496432, -0.10462683,  0.97874294,  4.00891258] mean -> 0.17976191
+[0.34833199, 0.1877568 , 0.33700332, 5.04326992] std -> 0.22614308
+
 labels: portion of N
 {'SitStand': 352, 'Flap': 268, 'Float': 235, 'Soar': 203, 'TerLoco': 126, 'Pecking': 81, 'Boat': 63, 'Manouvre': 60, 'Other': 10, 'ExFlap': 4}
 labels: percentage
@@ -218,6 +224,29 @@ def read_data(json_path: Path | str):
 
 
 class BirdDataset(Dataset):
+    def __init__(self, all_measurements: np.ndarray, label_ids: list, transform=None):
+        self.label_ids = label_ids
+        self.data = all_measurements.copy()
+        # normalize gps speed
+        self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
+        self.data = self.data.astype(np.float32)
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.label_ids)
+
+    def __getitem__(self, ind):
+        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
+        label = self.label_ids[ind]
+
+        if self.transform:
+            data = self.transform(data)
+
+        return data, label
+
+
+class BirdDataset_old(Dataset):
     def __init__(self, json_path: Path, transform=None):
         (
             labels,
@@ -234,10 +263,6 @@ class BirdDataset(Dataset):
         # self.data = tdata.reshape(data.shape)
         self.data = all_measurements.copy()
         # normalize gps speed
-        # [-3.41954887, -3.03254572, -2.92030075,  0.        ] min
-        # [ 2.68563855,  2.93441769,  3.23596358, 22.30123518] max -> 1
-        # [-0.03496432, -0.10462683,  0.97874294,  4.00891258] mean -> 0.17976191
-        # [0.34833199, 0.1877568 , 0.33700332, 5.04326992] std -> 0.22614308
         self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
         self.data = self.data.astype(np.float32)
 

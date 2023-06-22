@@ -27,9 +27,9 @@ model = bm.BirdModel(4, 30, 10)
 model(x)
 """
 
-save_path = Path("/home/fatemeh/test")
-exp = 20  # sys.argv[1]
-no_epochs = 4000  # int(sys.argv[2])
+save_path = Path("/home/fatemeh/Downloads/bird/result/")
+exp = 21  # sys.argv[1]
+no_epochs = 2000  # 2000  # int(sys.argv[2])
 save_every = 2000
 
 # train_set, tmp.json
@@ -37,7 +37,13 @@ train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
-train_dataset = bd.BirdDataset(train_path)
+labels, label_ids, device_ids, time_stamps, all_measurements = bd.combine_all_data()
+# TODO shuffle
+# TODO selection train/valid: 90/10
+train_dataset = bd.BirdDataset(all_measurements, label_ids)
+eval_dataset = bd.BirdDataset(all_measurements, label_ids)
+
+# train_dataset = bd.BirdDataset_old(train_path)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),
@@ -45,7 +51,7 @@ train_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-eval_dataset = bd.BirdDataset(valid_path)
+# eval_dataset = bd.BirdDataset_old(valid_path)
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=len(eval_dataset),

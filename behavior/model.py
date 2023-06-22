@@ -167,10 +167,10 @@ def train_one_epoch(
             running_loss, running_corrects, loss, corrects
         )
 
-        daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
-        print(
-            f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
-        )
+        # daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
+        # print(
+        #     f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
+        # )
         # start_time = _print_per_batch(
         #     i, batch_size, no_batches, start_time, loss, corrects, stage
         # )
@@ -199,13 +199,13 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
             running_loss, running_corrects, loss, corrects
         )
 
-        daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
-        print(
-            f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
-        )
-        start_time = _print_per_batch(
-            i, batch_size, no_batches, start_time, loss, corrects, stage
-        )
+        # daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
+        # print(
+        #     f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
+        # )
+        # start_time = _print_per_batch(
+        #     i, batch_size, no_batches, start_time, loss, corrects, stage
+        # )
 
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
