@@ -167,7 +167,7 @@ def train_one_epoch(
             running_loss, running_corrects, loss, corrects
         )
 
-        daata = data.permute(0, 2, 1).reshape(-1, 3)
+        daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
         print(
             f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
         )
@@ -199,7 +199,7 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
             running_loss, running_corrects, loss, corrects
         )
 
-        daata = data.permute(0, 2, 1).reshape(-1, 3)
+        daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
         print(
             f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
         )

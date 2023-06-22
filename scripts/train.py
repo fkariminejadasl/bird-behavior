@@ -28,9 +28,9 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/test")
-exp = 18  # sys.argv[1]
-no_epochs = 2000  # int(sys.argv[2])
-save_every = 1000
+exp = 20  # sys.argv[1]
+no_epochs = 4000  # int(sys.argv[2])
+save_every = 2000
 
 # train_set, tmp.json
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
@@ -65,14 +65,13 @@ print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm.BirdModel(in_channel, 30, 10).to(device)
 
-
-weights = bd.get_labels_weights(train_path)
-criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
-# criterion = torch.nn.CrossEntropyLoss()
+# weights = bd.get_labels_weights(train_path)
+# criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
+criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(
     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
 )
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1000, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2000, gamma=0.1)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
@@ -87,12 +86,16 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
         bm.train_one_epoch(
             train_loader, model, criterion, device, epoch, no_epochs, writer, optimizer
         )
-        # scheduler.step()
         accuracy = bm.evaluate(
             eval_loader, model, criterion, device, epoch, no_epochs, writer
         )
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
+
+        scheduler.step()
+        print(
+            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sch: {scheduler.get_last_lr()[0]}:.6f"
+        )
 
         if epoch % save_every == 0:
             bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)

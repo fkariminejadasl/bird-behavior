@@ -227,12 +227,18 @@ class BirdDataset(Dataset):
             all_measurements,
         ) = read_data(json_path)
         # TODO: for now remove gpsSpeed
-        data = all_measurements[:, :, :3].copy()
-        tdata = (data.reshape(-1, 3) - data.reshape(-1, 3).min(0)) / (
-            data.reshape(-1, 3).max(0) - data.reshape(-1, 3).min(0)
-        )
-        self.data = tdata.reshape(data.shape)
-        # self.data = all_measurements.copy()
+        # data = all_measurements[:, :, :3].copy()
+        # tdata = (data.reshape(-1, 3) - data.reshape(-1, 3).min(0)) / (
+        #     data.reshape(-1, 3).max(0) - data.reshape(-1, 3).min(0)
+        # )
+        # self.data = tdata.reshape(data.shape)
+        self.data = all_measurements.copy()
+        # normalize gps speed
+        # [-3.41954887, -3.03254572, -2.92030075,  0.        ] min
+        # [ 2.68563855,  2.93441769,  3.23596358, 22.30123518] max -> 1
+        # [-0.03496432, -0.10462683,  0.97874294,  4.00891258] mean -> 0.17976191
+        # [0.34833199, 0.1877568 , 0.33700332, 5.04326992] std -> 0.22614308
+        self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
         self.data = self.data.astype(np.float32)
 
         self.transform = transform
@@ -361,7 +367,15 @@ for i in range(0, 10):
 agps_imus = agps_imus.reshape(-1, 4)
 
 rep_labels = np.sort(np.repeat(label_ids, 20))
-_, axs = plt.subplots(2, 1, sharex=True)
+_, axs = plt.subplots(3, 1, sharex=True)
 axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
+axs[2].plot(agps_imus[:, 3])
+plt.show(block=False)
+
+agps_imus[:, 3] = agps_imus[:, 3] / agps_imus[:, 3].max()
+_, axs = plt.subplots(3, 1, sharex=True)
+axs[0].plot(rep_labels)
+axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
+axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
