@@ -384,14 +384,35 @@ def combine_all_data():
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
+def get_specific_labesl(target_labels=[0, 2, 4, 5]):
+    labels, label_ids, device_ids, time_stamps, all_measurements = combine_all_data()
+    label_ids = np.array(label_ids, dtype=np.int64)
+    agps_imus = np.empty(shape=(0, 20, 4))
+    new_ids = np.empty(shape=(0,), dtype=np.int64)
+    for i in target_labels:
+        agps_imus = np.concatenate(
+            (agps_imus, all_measurements[label_ids == i]), axis=0
+        )
+        new_ids = np.concatenate((new_ids, label_ids[label_ids == i]), axis=0)
+    inds = np.arange(new_ids.shape[0])
+    np.random.shuffle(inds)
+    new_ids = new_ids[inds]
+    agps_imus = agps_imus[inds]
+    return agps_imus, list(new_ids)
+
+
 labels, label_ids, device_ids, time_stamps, all_measurements = combine_all_data()
 label_ids = np.array(label_ids, dtype=np.int64)
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
     agps_imus = np.concatenate((agps_imus, all_measurements[label_ids == i]), axis=0)
 agps_imus = agps_imus.reshape(-1, 4)
-
 rep_labels = np.sort(np.repeat(label_ids, 20))
+
+# agps_imus, new_ids = get_specific_labesl(target_labels=[0, 2, 4, 5])
+# agps_imus = agps_imus.reshape(-1, 4)
+# rep_labels = np.repeat(new_ids, 20)
+
 _, axs = plt.subplots(3, 1, sharex=True)
 axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")

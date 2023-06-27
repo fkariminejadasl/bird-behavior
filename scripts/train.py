@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -28,20 +29,33 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 21  # sys.argv[1]
+exp = 25  # sys.argv[1]
 no_epochs = 2000  # 2000  # int(sys.argv[2])
 save_every = 2000
+train_per = 0.9
 
 # train_set, tmp.json
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
-labels, label_ids, device_ids, time_stamps, all_measurements = bd.combine_all_data()
-# TODO shuffle
-# TODO selection train/valid: 90/10
-train_dataset = bd.BirdDataset(all_measurements, label_ids)
-eval_dataset = bd.BirdDataset(all_measurements, label_ids)
+# labels, label_ids, device_ids, time_stamps, all_measurements = bd.combine_all_data()
+all_measurements, label_ids = bd.get_specific_labesl(target_labels=[0, 2, 4, 5])
+n_trainings = int(all_measurements.shape[0] * train_per)
+train_measurments = all_measurements[:n_trainings]
+valid_measurements = all_measurements[n_trainings:]
+train_labels, valid_labels = label_ids[:n_trainings], label_ids[n_trainings:]
+print(
+    len(train_labels),
+    len(valid_labels),
+    train_measurments.shape,
+    valid_measurements.shape,
+)
+
+# train_dataset = bd.BirdDataset(all_measurements, label_ids)
+# eval_dataset = deepcopy(train_dataset)
+train_dataset = bd.BirdDataset(train_measurments, train_labels)
+eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
 # train_dataset = bd.BirdDataset_old(train_path)
 train_loader = DataLoader(
