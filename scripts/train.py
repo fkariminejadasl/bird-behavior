@@ -29,18 +29,21 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 25  # sys.argv[1]
+exp = 29  # sys.argv[1]
 no_epochs = 2000  # 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
+n_classes = 4
 
 # train_set, tmp.json
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
 valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
-# labels, label_ids, device_ids, time_stamps, all_measurements = bd.combine_all_data()
-all_measurements, label_ids = bd.get_specific_labesl(target_labels=[0, 2, 4, 5])
+all_measurements, label_ids = bd.combine_all_data()
+all_measurements, label_ids = bd.get_specific_labesl(
+    all_measurements, label_ids, target_labels=[0, 2, 4, 5]
+)
 n_trainings = int(all_measurements.shape[0] * train_per)
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings:]
@@ -61,7 +64,7 @@ eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),
-    shuffle=False,
+    shuffle=True,
     num_workers=1,
     drop_last=True,
 )
@@ -83,9 +86,9 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, 30, 10).to(device)
+model = bm.BirdModel(in_channel, 30, n_classes).to(device)
 
-# weights = bd.get_labels_weights(train_path)
+# weights = bd.get_labels_weights(label_ids)
 # criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(

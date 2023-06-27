@@ -1,4 +1,3 @@
-# df["gpsRecord"][0]["longitude"] # df["longitude"].values[0]
 import json
 from pathlib import Path
 
@@ -6,6 +5,7 @@ import matplotlib.pylab as plt
 import numpy as np
 from torch.utils.data import Dataset
 
+np.random.seed(0)
 """
 about data:
 Per location, there is 20 accelaration measurements and the time stamp and gps speed are the same
@@ -83,10 +83,8 @@ def count_labels(label_ids):
     return count
 
 
-def get_labels_weights(train_path):
+def get_labels_weights(label_ids):
     # Here is weights for loss calculation. I can also do sample weights in WeightedRandomSampler.
-    labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
-
     label_ids = np.array(label_ids)
     max_id = label_ids.max() + 1
     class_weights = np.zeros(max_id, dtype=np.float32)
@@ -281,13 +279,6 @@ class BirdDataset_old(Dataset):
         return data, label
 
 
-# 'ExFlap': 4, 'Other': 10, 'Manouvre': 60, 'Boat': 63, 'Pecking': 81
-# [1, 7, 8, 3, 9] -> change
-
-# a = [1 if i in [1, 7, 8, 3, 9] else i for i in label_ids]
-# a = [3 if i==6 else i for i in a]
-
-
 # for new data
 def read_csv_bird_file(data_file: Path):
     ids = []
@@ -374,18 +365,21 @@ def combine_all_data():
     labels3, label_ids3, device_ids3, time_stamps3, all_measurements3 = read_data(
         test_path
     )
-    labels = labels1 + labels2 + labels3
     label_ids = label_ids1 + label_ids2 + label_ids3
-    device_ids = device_ids1 + device_ids2 + device_ids3
-    time_stamps = time_stamps1 + time_stamps2 + time_stamps3
     all_measurements = np.concatenate(
         (all_measurements1, all_measurements2, all_measurements3), axis=0
     )
-    return labels, label_ids, device_ids, time_stamps, all_measurements
+    # labels = labels1 + labels2 + labels3
+    # device_ids = device_ids1 + device_ids2 + device_ids3
+    # time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+    inds = np.arange(all_measurements.shape[0])
+    np.random.shuffle(inds)
+    all_measurements = all_measurements[inds]
+    label_ids = list(np.array(label_ids)[inds])
+    return all_measurements, label_ids
 
 
-def get_specific_labesl(target_labels=[0, 2, 4, 5]):
-    labels, label_ids, device_ids, time_stamps, all_measurements = combine_all_data()
+def get_specific_labesl(all_measurements, label_ids, target_labels=[0, 2, 4, 5]):
     label_ids = np.array(label_ids, dtype=np.int64)
     agps_imus = np.empty(shape=(0, 20, 4))
     new_ids = np.empty(shape=(0,), dtype=np.int64)
@@ -396,12 +390,22 @@ def get_specific_labesl(target_labels=[0, 2, 4, 5]):
         new_ids = np.concatenate((new_ids, label_ids[label_ids == i]), axis=0)
     inds = np.arange(new_ids.shape[0])
     np.random.shuffle(inds)
-    new_ids = new_ids[inds]
     agps_imus = agps_imus[inds]
-    return agps_imus, list(new_ids)
+    new_ids = list(new_ids[inds])
+    new_ids = reindex_ids(new_ids)
+    return agps_imus, new_ids
 
 
-labels, label_ids, device_ids, time_stamps, all_measurements = combine_all_data()
+def reindex_ids(label_ids):
+    unique_ids = set(label_ids)
+    label_ids = np.array(label_ids)
+    new_ids = label_ids.copy()
+    for i, unique_id in enumerate(unique_ids):
+        new_ids[label_ids == unique_id] = i
+    return list(new_ids)
+
+
+all_measurements, label_ids = combine_all_data()
 label_ids = np.array(label_ids, dtype=np.int64)
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
@@ -409,7 +413,9 @@ for i in range(0, 10):
 agps_imus = agps_imus.reshape(-1, 4)
 rep_labels = np.sort(np.repeat(label_ids, 20))
 
-# agps_imus, new_ids = get_specific_labesl(target_labels=[0, 2, 4, 5])
+# agps_imus, new_ids = get_specific_labesl(
+#     all_measurements, label_ids, target_labels=[0, 2, 4, 5]
+# )
 # agps_imus = agps_imus.reshape(-1, 4)
 # rep_labels = np.repeat(new_ids, 20)
 
