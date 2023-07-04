@@ -84,6 +84,32 @@ class BirdModel_(nn.Module):
         return x
 
 
+"""
+# a trick to use vision transformer for a sequence of 20x4 (20 size, 4 dim)
+# 1x4x20->1x3x14x14 by convtranspose2d followed by VisionTransformer(img_size=14, patch_size=1, ...
+from timm.models.vision_transformer import VisionTransformer, _cfg
+from functools import partial
+
+x = torch.rand(1,4,20).reshape(1,4,20,1)
+upsample = torch.nn.ConvTranspose2d(4, 3, 1, stride=(10,1))
+model = VisionTransformer(img_size=14, patch_size=1, embed_dim=384, depth=1, num_heads=1, mlp_ratio=4, qkv_bias=True, norm_layer=partial(torch.nn.LayerNorm, eps=1e-6))
+model.head = torch.nn.Linear(in_features=384, out_features=10, bias=True)
+model(upsample(x, output_size=torch.Size([196, 1])).reshape(1,3,14,14))
+
+This differs from ImageBind patchfiy
+https://github.com/facebookresearch/ImageBind/blob/main/models/multimodal_preprocessors.py#L667
+>>> x = torch.rand(1, 6, 2000)
+>>> m = torch.nn.Linear(48,512)
+>>> l = torch.nn.LayerNorm(normalized_shape=512)
+>>> l(m(x.unfold(-1,8,8).permute(0,2,1,3).reshape(1,250,-1))).shape
+torch.Size([1, 250, 512])
+>>> x.unfold(-1,8,8).shape
+torch.Size([1, 6, 250, 8])
+>>> x.unfold(-1,8,8).permute(0,2,1,3).reshape(1,250,-1).shape
+torch.Size([1, 250, 48])
+"""
+
+
 # since there is one model, I put all engine stuff here, not to spreed the stuff.
 
 
