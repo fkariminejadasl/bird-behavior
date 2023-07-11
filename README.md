@@ -1,2 +1,34 @@
 # bird-behavior
 bird behavior
+
+Installation
+------------
+The minimum pyton version is 3.10. If there is not a new version of python, conda is the cleanest way.
+These are only command requires in conda, which are different than python venv.
+```bash
+conda create --name bird python=3.10 # create virtualenv
+conda activate ftrack # activate
+conda deactivate # deactivate
+conda remove --name bird --all # remove the virtualenv
+```
+
+Install only requirements:
+```bash
+git clone https://github.com/fkariminejadasl/bird-behavior.git
+cd bird-behavior
+# here the conda should be activated
+pip install -r requirements.txt
+pip install -e .
+```
+
+Usage
+-----
+```bash
+git checkout make_features
+```
+
+In python: 
+```python
+from behavior import data as bd
+all_measurements, label_ids = bd.combine_all_data()
+```
