@@ -6,8 +6,8 @@ Installation
 The minimum pyton version is 3.10. If there is not a new version of python, conda is the cleanest way.
 These are only command requires in conda, which are different than python venv.
 ```bash
-conda create --name bird python=3.10 # create virtualenv
-conda activate ftrack # activate
+conda create --name bird python=3.8 -y # create virtualenv
+conda activate bird # activate
 conda deactivate # deactivate
 conda remove --name bird --all # remove the virtualenv
 ```

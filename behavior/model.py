@@ -47,6 +47,105 @@ class BirdModel(nn.Module):
         return x
 
 
+from behavior.helpers import (EinOpsRearrange, IMUPreprocessor,
+                              LearnableLogitScaling, Normalize,
+                              PatchEmbedGeneric, SelectElement)
+from behavior.transformer import MultiheadAttention, SimpleTransformer
+
+
+class BirdModelTransformer(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        out_embed_dim = 4
+        embed_dim = 512
+        num_blocks = 1  # 6
+        num_heads = 1  # 8
+        drop_path = 0.7
+        pre_transformer_ln = False
+        add_bias_kv = True
+        kernel_size = 1  # 8
+        img_size = [4, 20]  # [6, 2000]
+        in_feature = img_size[0] * kernel_size
+
+        imu_stem = PatchEmbedGeneric(
+            [
+                nn.Linear(
+                    in_features=in_feature,
+                    out_features=embed_dim,
+                    bias=False,
+                ),
+            ],
+            norm_layer=nn.LayerNorm(normalized_shape=embed_dim),
+        )
+
+        self.imu_preprocessor = IMUPreprocessor(
+            img_size=img_size,
+            num_cls_tokens=1,
+            kernel_size=kernel_size,
+            embed_dim=embed_dim,
+            imu_stem=imu_stem,
+        )
+
+        # trunk
+        self.simple_transformer = SimpleTransformer(
+            embed_dim=embed_dim,
+            num_blocks=num_blocks,
+            ffn_dropout_rate=0.0,
+            drop_path_rate=drop_path,
+            attn_target=partial(
+                MultiheadAttention,
+                embed_dim=embed_dim,
+                num_heads=num_heads,
+                bias=True,
+                add_bias_kv=add_bias_kv,
+            ),
+            pre_transformer_layer=nn.Sequential(
+                nn.LayerNorm(embed_dim, eps=1e-6)
+                if pre_transformer_ln
+                else nn.Identity(),
+                EinOpsRearrange("b l d -> l b d"),
+            ),
+            post_transformer_layer=EinOpsRearrange("l b d -> b l d"),
+        )
+
+        # head
+        self.head = nn.Sequential(
+            nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6),
+            SelectElement(index=0),
+            nn.Dropout(p=0.5),
+            nn.Linear(embed_dim, out_embed_dim, bias=False),
+        )
+
+        # postprocess
+        self.postproccess = nn.Sequential(
+            Normalize(dim=-1),
+            LearnableLogitScaling(logit_scale_init=5.0, learnable=False),
+        )
+
+    def forward(self, x):
+        # x = B x 4 x 20
+        x = self.imu_preprocessor(x)["trunk"]["tokens"]
+        x = self.simple_transformer(x)
+        x = self.head(x)
+        x = self.postproccess(x)
+        return x
+
+
+print("tst")
+"""
+m = BirdModelTransformer()
+o = m(torch.rand(2, 4, 20))
+optim = torch.optim.SGD(m.parameters(), lr=0.001, momentum=0.9)
+# criterion = torch.nn.L1Loss()
+# loss = criterion(o, torch.rand(o.shape))
+criterion = torch.nn.CrossEntropyLoss()
+loss = criterion(o, torch.randint(0, 1, (o.shape[0],)))
+optim.zero_grad()
+loss.backward()
+print(o.shape)
+"""
+
+"""
 from behavior.helpers import (
     EinOpsRearrange,
     IMUPreprocessor,
@@ -175,6 +274,7 @@ criterion = torch.nn.L1Loss()
 loss = criterion(o, torch.rand(o.shape))
 loss.backward()
 print(o.shape)
+"""
 
 
 class BirdModel_(nn.Module):
@@ -216,7 +316,7 @@ class BirdModel_(nn.Module):
         return x
 
 
-class BirdModelTransformer(nn.Module):
+class BirdModelTransformer_(nn.Module):
     # bug: Trying to backward through the graph a second time
     # specify .backward(retain_graph=True), doesn't solve the problem
     # I don't see which part has this problem
@@ -240,18 +340,18 @@ class BirdModelTransformer(nn.Module):
 
     def forward(self, x):
         x = x.unsqueeze(-1)
-        x = self.model(
-            self.upsample(x, output_size=torch.Size([196, 1])).reshape(-1, 3, 14, 14)
-        )
+        x = self.upsample(x, output_size=torch.Size([196, 1])).reshape(-1, 3, 14, 14)
+        x = self.model(x)
         return x
 
 
-m = BirdModelTransformer(4, 4)
-o = m(torch.rand(2, 4, 20))
-optim = torch.optim.SGD(m.parameters(), lr=0.001, momentum=0.9)
-loss = criterion(o, torch.rand(o.shape))
-# backpropagation RuntimeError: Trying to backward through the graph a second time
-# loss.backward()
+# criterion = torch.nn.L1Loss()
+# m = BirdModelTransformer_(4, 4)
+# o = m(torch.rand(2, 4, 20))
+# optim = torch.optim.SGD(m.parameters(), lr=0.001, momentum=0.9)
+# loss = criterion(o, torch.rand(o.shape))
+# # backpropagation RuntimeError: Trying to backward through the graph a second time
+# # loss.backward()
 
 """
 # a trick to use vision transformer for a sequence of 20x4 (20 size, 4 dim)

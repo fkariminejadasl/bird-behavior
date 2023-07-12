@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -197,7 +198,7 @@ def get_per_location_measurements(item):
     return measurements
 
 
-def read_data(json_path: Path | str):
+def read_data(json_path: Union[Path, str]):
     with open(json_path, "r") as rfile:
         data = json.load(rfile)
 

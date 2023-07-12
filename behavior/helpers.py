@@ -5,6 +5,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+from typing import Callable, Optional, Tuple
 
 import einops
 import numpy as np
@@ -130,9 +131,6 @@ class SelectEOSAndProject(nn.Module):
         x = x[torch.arange(x.shape[0]), seq_len]
         x = self.proj(x)
         return x
-
-
-from typing import Callable, List, Optional, Tuple
 
 
 class PatchEmbedGeneric(nn.Module):

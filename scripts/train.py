@@ -29,8 +29,8 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 29  # sys.argv[1]
-no_epochs = 2000  # 2000  # int(sys.argv[2])
+exp = 30  # sys.argv[1]
+no_epochs = 5  # 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 n_classes = 4
@@ -63,7 +63,7 @@ eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 # train_dataset = bd.BirdDataset_old(train_path)
 train_loader = DataLoader(
     train_dataset,
-    batch_size=len(train_dataset),
+    batch_size=2,  # len(train_dataset),
     shuffle=True,
     num_workers=1,
     drop_last=True,
@@ -71,7 +71,7 @@ train_loader = DataLoader(
 # eval_dataset = bd.BirdDataset_old(valid_path)
 eval_loader = DataLoader(
     eval_dataset,
-    batch_size=len(eval_dataset),
+    batch_size=2,  # len(eval_dataset),
     shuffle=False,
     num_workers=1,
     drop_last=True,
@@ -86,7 +86,9 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, 30, n_classes).to(device)
+# model = bm.BirdModel(in_channel, 30, n_classes).to(device)
+model = bm.BirdModelTransformer().to(device)
+# model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 
 # weights = bd.get_labels_weights(label_ids)
 # criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
