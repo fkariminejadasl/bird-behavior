@@ -2,10 +2,12 @@
 
 import time
 from datetime import datetime
+from functools import partial
 
 import numpy as np
 import torch
 import torch.nn as nn
+from timm.models.vision_transformer import VisionTransformer
 
 seed = 1234
 np.random.seed(seed)
@@ -43,6 +45,136 @@ class BirdModel(nn.Module):
         # x = self.relu(self.fc(x))
         x = self.fc(x)
         return x
+
+
+from behavior.helpers import (
+    EinOpsRearrange,
+    IMUPreprocessor,
+    LearnableLogitScaling,
+    Normalize,
+    PatchEmbedGeneric,
+    SelectElement,
+)
+from behavior.transformer import MultiheadAttention, SimpleTransformer
+
+batch_size = 2
+out_embed_dim = 4
+embed_dim = 512
+num_blocks = 1  # 6
+num_heads = 1  # 8
+drop_path = 0.7
+pre_transformer_ln = False
+add_bias_kv = True
+kernel_size = 1  # 8
+img_size = [4, 20]  # [6, 2000]
+in_feature = img_size[0] * kernel_size
+
+# preprocess: token
+imu_stem = PatchEmbedGeneric(
+    [
+        nn.Linear(
+            in_features=in_feature,
+            out_features=embed_dim,
+            bias=False,
+        ),
+    ],
+    norm_layer=nn.LayerNorm(normalized_shape=embed_dim),
+)
+
+imu_preprocessor = IMUPreprocessor(
+    img_size=img_size,
+    num_cls_tokens=1,
+    kernel_size=kernel_size,
+    embed_dim=embed_dim,
+    imu_stem=imu_stem,
+)
+
+# trunk
+simple_transformer = SimpleTransformer(
+    embed_dim=embed_dim,
+    num_blocks=num_blocks,
+    ffn_dropout_rate=0.0,
+    drop_path_rate=drop_path,
+    attn_target=partial(
+        MultiheadAttention,
+        embed_dim=embed_dim,
+        num_heads=num_heads,
+        bias=True,
+        add_bias_kv=add_bias_kv,
+    ),
+    pre_transformer_layer=nn.Sequential(
+        nn.LayerNorm(embed_dim, eps=1e-6) if pre_transformer_ln else nn.Identity(),
+        EinOpsRearrange("b l d -> l b d"),
+    ),
+    post_transformer_layer=EinOpsRearrange("l b d -> b l d"),
+)
+
+# head
+head = nn.Sequential(
+    nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6),
+    SelectElement(index=0),
+    nn.Dropout(p=0.5),
+    nn.Linear(embed_dim, out_embed_dim, bias=False),
+)
+
+# postprocess
+postproccess = nn.Sequential(
+    Normalize(dim=-1),
+    LearnableLogitScaling(logit_scale_init=5.0, learnable=False),
+)
+
+
+# before tokenize_input_and_cls_pos  2 x 250 x 48 after 2 x 251 x 512 (1 for class token)
+# ImageBind: input 2 x 6 x 2000 -> token 2 x 251 x 512 -> trunk 2 x 251 x 512 -> head 2 x 4
+# Bird data: input 2 x 4 x 20   -> token 2 x 21  x 512 -> trunk 2 x 21  x 512 -> head 2 x 4
+# sum([p.numel() for p in list(simple_transformer.parameters()) + \
+# list(imu_preprocessor.parameters()) +  list(head.parameters()) if p.requires_grad])
+# for ImageBind data 3,311,104, for bird data: 3170816
+
+# batch_size, number of tokens, channel = 2 x 250 x 512
+B, T, C = batch_size, int(img_size[1] / kernel_size), embed_dim
+o = simple_transformer(torch.rand(B, T, C))
+optim = torch.optim.SGD(simple_transformer.parameters(), lr=0.001, momentum=0.9)
+
+
+o = simple_transformer(imu_preprocessor(torch.rand(B, *img_size))["trunk"]["tokens"])
+optim = torch.optim.SGD(
+    list(simple_transformer.parameters()) + list(imu_preprocessor.parameters()),
+    lr=0.001,
+    momentum=0.9,
+)
+
+# B, *img_size = 2 x 6 x 2000
+o = head(
+    simple_transformer(imu_preprocessor(torch.rand(B, *img_size))["trunk"]["tokens"])
+)
+optim = torch.optim.SGD(
+    list(simple_transformer.parameters())
+    + list(imu_preprocessor.parameters())
+    + list(head.parameters()),
+    lr=0.001,
+    momentum=0.9,
+)
+
+o = postproccess(
+    head(
+        simple_transformer(
+            imu_preprocessor(torch.rand(B, *img_size))["trunk"]["tokens"]
+        )
+    )
+)
+optim = torch.optim.SGD(
+    list(simple_transformer.parameters())
+    + list(imu_preprocessor.parameters())
+    + list(head.parameters()),
+    lr=0.001,
+    momentum=0.9,
+)
+
+criterion = torch.nn.L1Loss()
+loss = criterion(o, torch.rand(o.shape))
+loss.backward()
+print(o.shape)
 
 
 class BirdModel_(nn.Module):
@@ -83,6 +215,43 @@ class BirdModel_(nn.Module):
         x = self.fc(x)
         return x
 
+
+class BirdModelTransformer(nn.Module):
+    # bug: Trying to backward through the graph a second time
+    # specify .backward(retain_graph=True), doesn't solve the problem
+    # I don't see which part has this problem
+    def __init__(self, in_channels=4, out_channels=10) -> None:
+        super().__init__()
+
+        self.upsample = torch.nn.ConvTranspose2d(in_channels, 3, 1, stride=(10, 1))
+        self.model = VisionTransformer(
+            img_size=14,
+            patch_size=1,
+            embed_dim=384,
+            depth=1,
+            num_heads=1,
+            mlp_ratio=4,
+            qkv_bias=True,
+            norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
+        )
+        self.model.head = torch.nn.Linear(
+            in_features=384, out_features=out_channels, bias=True
+        )
+
+    def forward(self, x):
+        x = x.unsqueeze(-1)
+        x = self.model(
+            self.upsample(x, output_size=torch.Size([196, 1])).reshape(-1, 3, 14, 14)
+        )
+        return x
+
+
+m = BirdModelTransformer(4, 4)
+o = m(torch.rand(2, 4, 20))
+optim = torch.optim.SGD(m.parameters(), lr=0.001, momentum=0.9)
+loss = criterion(o, torch.rand(o.shape))
+# backpropagation RuntimeError: Trying to backward through the graph a second time
+# loss.backward()
 
 """
 # a trick to use vision transformer for a sequence of 20x4 (20 size, 4 dim)
