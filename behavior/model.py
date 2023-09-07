@@ -27,22 +27,29 @@ class BirdModel(nn.Module):
             mid_channels, mid_channels, kernel_size=3, padding=1
         )
         self.fc = torch.nn.Linear(mid_channels, out_channels)
-        # self.bn = torch.nn.BatchNorm1d(mid_channels)
-        self.bn = torch.nn.BatchNorm1d(mid_channels, track_running_stats=False)
+        self.bn1 = torch.nn.BatchNorm1d(mid_channels)
+        self.bn2 = torch.nn.BatchNorm1d(mid_channels)
+        self.bn3 = torch.nn.BatchNorm1d(mid_channels)
         self.relu = torch.nn.ReLU()
         self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
 
+        # for m in self.modules():
+        #     if isinstance(m, torch.nn.Conv1d) and m.bias is not None:
+        #         torch.nn.init.kaiming_normal_(
+        #             m.weight, mode="fan_out", nonlinearity="relu"
+        #         )
+        #     if (
+        #         isinstance(m, (torch.nn.BatchNorm1d, torch.nn.Linear))
+        #         and m.bias is not None
+        #     ):
+        #         torch.nn.init.constant_(m.weight, 1)
+        #         torch.nn.init.constant_(m.bias, 0)
+
     def forward(self, x):
-        # x = self.relu(self.conv1(x))
-        # x = self.relu(self.conv2(x))
-        # x = self.relu(self.conv3(x))
-        x = self.relu(self.bn(self.conv1(x)))
-        x = self.relu(self.bn(self.conv2(x)))
-        x = self.relu(self.bn(self.conv3(x)))
-        # x = self.relu(self.conv1(x))
-        # x = self.conv1(x)
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x)))
         x = self.avgpool(x).flatten(1)
-        # x = self.relu(self.fc(x))
         x = self.fc(x)
         return x
 
@@ -275,45 +282,6 @@ loss = criterion(o, torch.rand(o.shape))
 loss.backward()
 print(o.shape)
 """
-
-
-class BirdModel_(nn.Module):
-    def __init__(self, in_channels, mid_channels, out_channels):
-        super().__init__()
-
-        self.conv1 = torch.nn.Conv1d(
-            in_channels, mid_channels, kernel_size=3, padding=1
-        )
-        self.conv2 = torch.nn.Conv1d(
-            mid_channels, mid_channels, kernel_size=3, padding=1
-        )
-        self.conv3 = torch.nn.Conv1d(
-            mid_channels, mid_channels, kernel_size=3, padding=1
-        )
-        self.fc = torch.nn.Linear(mid_channels, out_channels)
-        self.bn = torch.nn.BatchNorm1d(mid_channels)
-        self.relu = torch.nn.ReLU()
-        self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
-
-        for m in self.modules():
-            if isinstance(m, torch.nn.Conv1d) and m.bias is not None:
-                torch.nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu"
-                )
-            if (
-                isinstance(m, (torch.nn.BatchNorm1d, torch.nn.Linear))
-                and m.bias is not None
-            ):
-                torch.nn.init.constant_(m.weight, 1)
-                torch.nn.init.constant_(m.bias, 0)
-
-    def forward(self, x):
-        x = self.relu(self.bn(self.conv1(x)))
-        x = self.relu(self.bn(self.conv2(x)))
-        x = self.relu(self.bn(self.conv3(x)))
-        x = self.avgpool(x).flatten(1)
-        x = self.fc(x)
-        return x
 
 
 class BirdModelTransformer_(nn.Module):

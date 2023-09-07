@@ -227,7 +227,10 @@ class BirdDataset(Dataset):
         self.label_ids = label_ids
         self.data = all_measurements.copy()
         # normalize gps speed
-        self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
+        # self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
+        self.data[:, :, 3] = (
+            self.data[:, :, 3] / 22.3012351755624
+        )  # all_measurements[..., 3].max()
         self.data = self.data.astype(np.float32)
 
         self.transform = transform
@@ -407,12 +410,12 @@ def reindex_ids(label_ids):
 
 
 all_measurements, label_ids = combine_all_data()
-label_ids = np.array(label_ids, dtype=np.int64)
+alabel_ids = np.array(label_ids, dtype=np.int64)
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
-    agps_imus = np.concatenate((agps_imus, all_measurements[label_ids == i]), axis=0)
+    agps_imus = np.concatenate((agps_imus, all_measurements[alabel_ids == i]), axis=0)
 agps_imus = agps_imus.reshape(-1, 4)
-rep_labels = np.sort(np.repeat(label_ids, 20))
+rep_labels = np.sort(np.repeat(alabel_ids, 20))
 
 # agps_imus, new_ids = get_specific_labesl(
 #     all_measurements, label_ids, target_labels=[0, 2, 4, 5]
@@ -432,3 +435,13 @@ axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
 axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
+
+"""
+def test(model, n=10):
+    a = all_measurements[0:n].copy()
+    a[..., 3] = a[..., 3] / 22.3012351755624
+    a = torch.tensor(a.astype(np.float32)).transpose(2,1)
+    out = model(a)
+    print(torch.argmax(out, axis=1).tolist())
+    print(label_ids[0:n])
+"""
