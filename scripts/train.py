@@ -29,11 +29,13 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 30  # sys.argv[1]
+exp = 35  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
-n_classes = 10
+target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# target_labels = [0, 2, 4, 5]
+n_classes = len(target_labels)
 
 # train_set, tmp.json
 train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
@@ -41,9 +43,9 @@ valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.js
 test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
 
 all_measurements, label_ids = bd.combine_all_data()
-# all_measurements, label_ids = bd.get_specific_labesl(
-#     all_measurements, label_ids, target_labels=[0, 2, 4, 5]
-# )
+all_measurements, label_ids = bd.get_specific_labesl(
+    all_measurements, label_ids, target_labels
+)
 n_trainings = int(all_measurements.shape[0] * train_per)
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings:]

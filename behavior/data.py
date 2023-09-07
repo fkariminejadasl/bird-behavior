@@ -444,4 +444,9 @@ def test(model, n=10):
     out = model(a)
     print(torch.argmax(out, axis=1).tolist())
     print(label_ids[0:n])
+
+b1 = torch.concat((torch.normal(0, .01, size=(20,1)), torch.normal(0, .01, size=(20,1)), torch.normal(0, .1, size=(20,1)), torch.rand(20,1)*.001), axis=1).T.unsqueeze(0) + a1
+a2 = torch.concat((a[0:1], a[6:7]), axis=2)
+m = np.concatenate((all_measurements[0], all_measurements[5]), axis=0)
+_, axs = plt.subplots(3, 1, sharex=True);axs[1].plot(m[:, 0], "r-*", m[ :, 1], "b-*", m[:, 2], "g-*");axs[2].plot(m[:, 3]);plt.show(block=False)
 """
