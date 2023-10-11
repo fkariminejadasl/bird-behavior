@@ -136,26 +136,6 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 # 1-based save for epoch
 bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
 
-from sklearn.metrics import confusion_matrix
-
-bm.load_model("/home/fatemeh/Downloads/bird/result/30_best.pth", model, device)
-for i, (data, labels) in enumerate(eval_loader):
-    labels = labels.to(device)
-    data = data.to(device)  # N x C x L
-    outputs = model(data)  # N x C
-    pred = torch.argmax(outputs.data, 1)
-    confmat = confusion_matrix(labels.cpu().numpy(), pred.cpu().numpy())
-    print(i)
-    print(confmat)
-
-for i, (data, labels) in enumerate(train_loader):
-    labels = labels.to(device)
-    data = data.to(device)  # N x C x L
-    outputs = model(data)  # N x C
-    pred = torch.argmax(outputs.data, 1)
-    confmat = confusion_matrix(labels.cpu().numpy(), pred.cpu().numpy())
-    print(i)
-    print(confmat)
 
 """
 from copy import deepcopy
