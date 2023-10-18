@@ -61,9 +61,12 @@ ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitSta
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
-exp = 33  # sys.argv[1]
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-target_labels = [0, 2, 4, 5]
+data_per = .2
+exp = 40  # sys.argv[1]
+target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
+# target_labels = [0, 3, 4, 5, 6] # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9 
+# target_labels = [0, 2, 4, 5]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
 
@@ -76,10 +79,14 @@ all_measurements, label_ids = bd.combine_all_data()
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
-n_trainings = int(all_measurements.shape[0] * train_per)
+n_trainings = int(all_measurements.shape[0] * train_per * data_per)
+n_valid = int(all_measurements.shape[0] * data_per) - n_trainings
 train_measurments = all_measurements[:n_trainings]
-valid_measurements = all_measurements[n_trainings:]
-train_labels, valid_labels = label_ids[:n_trainings], label_ids[n_trainings:]
+valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+train_labels, valid_labels = (
+    label_ids[:n_trainings],
+    label_ids[n_trainings : n_trainings + n_valid],
+)
 print(
     len(train_labels),
     len(valid_labels),
@@ -138,8 +145,32 @@ def helper_results(data, labels):
     print(ap, loss.item(), accuracy)
     print(confmat)
 
+print(device)
+
 data, label = next(iter(train_loader))
 helper_results(data, label)
 
 data, label = next(iter(eval_loader))
 helper_results(data, label)
+
+
+# bad classes: Other, Exflap (less data), Pecking (noisy), Manuver/Mix
+
+# for i in range(len(target_labels)):
+#     inds = torch.where(labels == 3)[0]
+#     sel_labels = labels[inds]
+#     sel_prob = prob[inds]
+#     average_precision_score(sel_labels.cpu().numpy(), sel_prob.cpu().numpy())
+#     average_precision_score(    labels.cpu().numpy(),     prob.cpu().numpy())
+
+
+# y_true = np.array([0, 0, 1, 1, 2, 2])
+# y_scores = np.array([
+#     [0.7, 0.2, 0.1],
+#     [0.4, 0.3, 0.3],
+#     [0.1, 0.8, 0.1],
+#     [0.2, 0.3, 0.5],
+#     [0.4, 0.4, 0.2],
+#     [0.1, 0.2, 0.7],
+# ])
+# average_precision_score(y_true, y_scores)

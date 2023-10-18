@@ -29,11 +29,14 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 36  # sys.argv[1]
-no_epochs = 1  # int(sys.argv[2])
+exp = 41  # sys.argv[1]
+no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
-target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+data_per = 1.0
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
+target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 n_classes = len(target_labels)
 
@@ -46,10 +49,14 @@ all_measurements, label_ids = bd.combine_all_data()
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
-n_trainings = int(all_measurements.shape[0] * train_per)
+n_trainings = int(all_measurements.shape[0] * train_per * data_per)
+n_valid = int(all_measurements.shape[0] * data_per) - n_trainings
 train_measurments = all_measurements[:n_trainings]
-valid_measurements = all_measurements[n_trainings:]
-train_labels, valid_labels = label_ids[:n_trainings], label_ids[n_trainings:]
+valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+train_labels, valid_labels = (
+    label_ids[:n_trainings],
+    label_ids[n_trainings : n_trainings + n_valid],
+)
 print(
     len(train_labels),
     len(valid_labels),
