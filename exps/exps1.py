@@ -25,10 +25,11 @@ seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+
 def plot_confusion_matrix(confusion_matrix, class_names):
     plt.figure(figsize=(8, 6))
-    plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.get_cmap('Blues'))
-    plt.title('Confusion Matrix')
+    plt.imshow(confusion_matrix, interpolation="nearest", cmap=plt.get_cmap("Blues"))
+    plt.title("Confusion Matrix")
     plt.colorbar()
 
     num_classes = len(class_names)
@@ -37,10 +38,16 @@ def plot_confusion_matrix(confusion_matrix, class_names):
 
     for i in range(num_classes):
         for j in range(num_classes):
-            plt.text(j, i, str(confusion_matrix[i, j]), horizontalalignment="center", color="black" if i == j else "black")
+            plt.text(
+                j,
+                i,
+                str(confusion_matrix[i, j]),
+                horizontalalignment="center",
+                color="black",
+            )
 
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
+    plt.ylabel("True label")
+    plt.xlabel("Predicted label")
     plt.tight_layout()
 
 
@@ -55,17 +62,26 @@ def precision_recall(
     return precision, recall, f_score
 
 
-
-
-ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
+ind2name = {
+    0: "Flap",
+    1: "ExFlap",
+    2: "Soar",
+    3: "Boat",
+    4: "Float",
+    5: "SitStand",
+    6: "TerLoco",
+    7: "Other",
+    8: "Manouvre",
+    9: "Pecking",
+}
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
-data_per = .2
-exp = 40  # sys.argv[1]
-target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+data_per = 1
+exp = 36  # sys.argv[1]
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
-# target_labels = [0, 3, 4, 5, 6] # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9 
+target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
@@ -130,20 +146,34 @@ def helper_results(data, labels):
     labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C
+    prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
     pred = torch.argmax(outputs.data, 1)
     # loss and accuracy
     loss = criterion(outputs, labels)  # 1
     corrects = (pred == labels).sum().item()
-    accuracy = corrects/len(labels) * 100
+    accuracy = corrects / len(labels) * 100
+
+    labels = labels.cpu().numpy()
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+
     # confusion matrix
-    confmat = confusion_matrix(labels.cpu().numpy(), pred.cpu().numpy())
-    plot_confusion_matrix(confmat, target_labels_names);plt.show(block=False)
-    plot_confusion_matrix(confmat, target_labels);plt.show(block=False)
-    # average precision
-    prob = torch.nn.functional.softmax(outputs, dim=-1).detach()
-    ap = average_precision_score(labels.cpu().numpy(), prob.cpu().numpy())
+    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
+    plot_confusion_matrix(confmat, target_labels_names)
+    plt.show(block=False)
+    plot_confusion_matrix(confmat, target_labels)
+    plt.show(block=False)
+
+    # if one of the classes is empty
+    inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
+    if len(inds) != 0:
+        labels = np.concatenate((labels, inds))
+        prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
+
+    ap = average_precision_score(labels, prob)
     print(ap, loss.item(), accuracy)
     print(confmat)
+
 
 print(device)
 
@@ -153,6 +183,7 @@ helper_results(data, label)
 data, label = next(iter(eval_loader))
 helper_results(data, label)
 
+print(sum([p.numel() for p in model.parameters()]))
 
 # bad classes: Other, Exflap (less data), Pecking (noisy), Manuver/Mix
 

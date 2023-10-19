@@ -39,6 +39,11 @@ Terrestrial locomotion
 Other
 	7=Other=25
 
+9=Pecking (in new data, pecking replaced by):
+    10=Looking_food
+    11=Handling_mussel
+    13=StandForage
+
 # imu-gps stats
 [-3.41954887, -3.03254572, -2.92030075,  0.        ] min
 [ 2.68563855,  2.93441769,  3.23596358, 22.30123518] max -> 1
