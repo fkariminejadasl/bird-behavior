@@ -76,11 +76,6 @@ id_pers = dict(zip(label_to_ids.values(), label_pers.values()))
 id_pers = dict(sorted(id_pers.items(), key=lambda x: x[0]))
 """
 
-train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
-valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
-test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
-# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
-
 
 def count_labels(label_ids):
     count = []
@@ -364,7 +359,7 @@ print(count)
 """
 
 
-def combine_all_data():
+def combine_all_data(train_path, valid_path, test_path):
     labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = read_data(
         train_path
     )
@@ -414,7 +409,13 @@ def reindex_ids(label_ids):
     return list(new_ids)
 
 
-all_measurements, label_ids = combine_all_data()
+data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+train_path = data_path / "train_set.json"
+valid_path = data_path / "validation_set.json"
+test_path = data_path / "test_set.json"
+# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
+
+all_measurements, label_ids = combine_all_data(train_path, valid_path, test_path)
 alabel_ids = np.array(label_ids, dtype=np.int64)
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
@@ -440,6 +441,36 @@ axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
 axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
+
+# TODO read mat data
+# from scipy.io import loadmat
+# data_path = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
+# d = loadmat(data_path / "AnnAcc1600_20140520_152300-20140520_153000.mat")
+# dd = d['outputStruct']
+# dd['accX'][0][0][82][0][0] # accY, accZ contains nan and variale length 12-40
+# dd['annotations'][0][0] # ind=0 for data, ind=3 for label
+# dd['gpsSpd'][0][0]
+# np.isnan(dd['accZ'][0][0][82][0][0][-1]) # True
+# # def count_ids(ids):
+# #     count = 0
+# #     for id in ids:
+# #         id_count = sum(dd['annotations'][0][0][:,3]==id)
+# #         count += id_count
+# #     return count
+# # all_labels = 0
+# # count_remove_ids = 0
+# # count_combine_ids = 0
+# # remove_ids = [15, 16, 17, 18]
+# # combine_ids = [11, 12, 14]
+# # for i in data_path.glob("*.mat"):
+# #     d = loadmat(i)
+# #     dd = d['outputStruct']
+# #     count_remove_ids += count_ids(remove_ids)
+# #     count_combine_ids += count_ids(combine_ids)
+# #     all_labels += len(dd['annotations'][0][0][:,3])
+# #     print(i.name, set(dd['annotations'][0][0][:,3]), len(dd['annotations'][0][0][:,3]))
+# # print(all_labels, count_combine_ids, all_labels - count_remove_ids, count_remove_ids) # 919 509 616 303
+
 
 """
 def test(model, n=10):

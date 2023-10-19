@@ -30,5 +30,5 @@ git checkout make_features
 In python: 
 ```python
 from behavior import data as bd
-all_measurements, label_ids = bd.combine_all_data()
+all_measurements, label_ids = bd.combine_all_data(train_path, valid_path, test_path)
 ```

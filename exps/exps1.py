@@ -78,20 +78,22 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 36  # sys.argv[1]
+exp = 42  # sys.argv[1]
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
-target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
+# target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
 
 # train_set, tmp.json
-train_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/train_set.json")
-valid_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/validation_set.json")
-test_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/test_set.json")
+data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+train_path = data_path / "train_set.json"
+valid_path = data_path / "validation_set.json"
+test_path = data_path / "test_set.json"
 
-all_measurements, label_ids = bd.combine_all_data()
+all_measurements, label_ids = bd.combine_all_data(train_path, valid_path, test_path)
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
@@ -177,8 +179,8 @@ def helper_results(data, labels):
 
 print(device)
 
-data, label = next(iter(train_loader))
-helper_results(data, label)
+# data, label = next(iter(train_loader))
+# helper_results(data, label)
 
 data, label = next(iter(eval_loader))
 helper_results(data, label)

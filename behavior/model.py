@@ -139,7 +139,6 @@ class BirdModelTransformer(nn.Module):
         return x
 
 
-print("tst")
 """
 m = BirdModelTransformer()
 o = m(torch.rand(2, 4, 20))
