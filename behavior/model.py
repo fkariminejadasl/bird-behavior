@@ -47,9 +47,11 @@ class BirdModel(nn.Module):
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
+        x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.relu(self.bn2(self.conv2(x)))
+        x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.relu(self.bn3(self.conv3(x)))
-        # x = torch.nn.functional.dropout(x, p=0.25, training=True)
+        x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.avgpool(x).flatten(1)
         x = self.fc(x)
         return x

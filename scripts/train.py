@@ -29,15 +29,15 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 42  # sys.argv[1]
-no_epochs = 2000  # int(sys.argv[2])
+exp = 44  # sys.argv[1]
+no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
-# target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
+target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 n_classes = len(target_labels)
 
@@ -104,9 +104,10 @@ model = bm.BirdModel(in_channel, 30, n_classes).to(device)
 # weights = bd.get_labels_weights(label_ids)
 # criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
 criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(
-    filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
-)
+# optimizer = torch.optim.SGD(
+#     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
+# )
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2000, gamma=0.1)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
