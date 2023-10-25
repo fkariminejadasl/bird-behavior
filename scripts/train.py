@@ -29,17 +29,21 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 44  # sys.argv[1]
+exp = 47  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
-target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
+# target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 n_classes = len(target_labels)
+# hyperparam
+warmup_epochs = 1000
+max_lr = 3e-4
+min_lr = max_lr / 10
 
 # train_set, tmp.json
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
@@ -107,8 +111,11 @@ criterion = torch.nn.CrossEntropyLoss()
 # optimizer = torch.optim.SGD(
 #     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
 # )
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2000, gamma=0.1)
+optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    optimizer, warmup_epochs, eta_min=min_lr
+)
+# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2000, gamma=0.1)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
@@ -130,8 +137,12 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
         scheduler.step()
+        lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
+        lr_sched = scheduler.get_last_lr()[0]
+        writer.add_scalar("lr/optim", lr_optim, epoch)
+        writer.add_scalar("lr/sched", lr_sched, epoch)
         print(
-            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sch: {scheduler.get_last_lr()[0]}:.6f"
+            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
         )
 
         if epoch % save_every == 0:
