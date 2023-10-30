@@ -29,7 +29,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 47  # sys.argv[1]
+exp = 54  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -42,8 +42,10 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 n_classes = len(target_labels)
 # hyperparam
 warmup_epochs = 1000
-max_lr = 3e-4
+step_size = 2000
+max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
+weight_decay = 1e-3  # default 1e-2
 
 # train_set, tmp.json
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
@@ -111,11 +113,11 @@ criterion = torch.nn.CrossEntropyLoss()
 # optimizer = torch.optim.SGD(
 #     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
 # )
-optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-    optimizer, warmup_epochs, eta_min=min_lr
-)
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2000, gamma=0.1)
+optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+#     optimizer, warmup_epochs, eta_min=min_lr
+# )
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(

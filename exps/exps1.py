@@ -1,19 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, average_precision_score
-
-
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from typing import Iterable, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torchvision
-import tqdm
-from torch.utils import tensorboard
+from sklearn.metrics import average_precision_score, confusion_matrix
 from torch.utils.data import DataLoader
-from typing import Iterable, Tuple
 
 from behavior import data as bd
 from behavior import model as bm
@@ -24,6 +18,17 @@ from behavior import model as bm
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
+
+
+def save_data_prediction(save_path, label, pred, conf, data):
+    name = f"label: {label}, pred: {pred}, conf: {conf:.1f}"
+    _, ax = plt.subplots(1, 1)
+    ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
+    ax.set_xlim(0, 20)
+    ax.set_ylim(-3.5, 3.5)
+    plt.title(name)
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    plt.close()
 
 
 def plot_confusion_matrix(confusion_matrix, class_names):
@@ -78,7 +83,7 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 47  # sys.argv[1]
+exp = 53  # sys.argv[1]
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
@@ -86,6 +91,8 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 4, 5]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
+fail_path = save_path / f"failed/{exp}"
+fail_path.mkdir(parents=True, exist_ok=True)
 
 # train_set, tmp.json
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
@@ -163,6 +170,7 @@ def helper_results(data, labels):
     confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
     plot_confusion_matrix(confmat, target_labels_names)
     plt.show(block=False)
+    plt.savefig(fail_path / f"confusion_matrix.png", bbox_inches="tight")
     plot_confusion_matrix(confmat, target_labels)
     plt.show(block=False)
 
@@ -175,6 +183,14 @@ def helper_results(data, labels):
     ap = average_precision_score(labels, prob)
     print(ap, loss.item(), accuracy)
     print(confmat)
+
+    inds = np.where(pred != labels)[0]
+    for ind in inds:
+        label_name = target_labels_names[labels[ind]]
+        pred_name = target_labels_names[pred[ind]]
+        conf = prob[ind, pred[ind]]
+        data_item = data[ind].transpose(1, 0).cpu().numpy()
+        save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
 
 
 print(device)
