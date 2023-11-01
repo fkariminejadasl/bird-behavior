@@ -26,10 +26,14 @@ class BirdModel(nn.Module):
         self.conv3 = torch.nn.Conv1d(
             mid_channels, mid_channels, kernel_size=3, padding=1
         )
+        self.conv4 = torch.nn.Conv1d(
+            mid_channels, mid_channels, kernel_size=3, padding=1
+        )
         self.fc = torch.nn.Linear(mid_channels, out_channels)
         self.bn1 = torch.nn.BatchNorm1d(mid_channels)
         self.bn2 = torch.nn.BatchNorm1d(mid_channels)
         self.bn3 = torch.nn.BatchNorm1d(mid_channels)
+        self.bn4 = torch.nn.BatchNorm1d(mid_channels)
         self.relu = torch.nn.ReLU()
         self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
 
@@ -51,6 +55,8 @@ class BirdModel(nn.Module):
         x = self.relu(self.bn2(self.conv2(x)))
         x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.relu(self.bn3(self.conv3(x)))
+        x = torch.nn.functional.dropout(x, p=0.25, training=True)
+        x = self.relu(self.bn4(self.conv4(x)))
         x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.avgpool(x).flatten(1)
         x = self.fc(x)
