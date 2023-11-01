@@ -29,7 +29,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 54  # sys.argv[1]
+exp = 70  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -45,7 +45,9 @@ warmup_epochs = 1000
 step_size = 2000
 max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
-weight_decay = 1e-3  # default 1e-2
+weight_decay = 1e-2  # default 1e-2
+# model
+width = 30
 
 # train_set, tmp.json
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
@@ -58,7 +60,7 @@ all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
 n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-n_valid = int(all_measurements.shape[0] * data_per) - n_trainings
+n_valid = all_measurements.shape[0] - n_trainings
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
 train_labels, valid_labels = (
@@ -103,7 +105,7 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, 30, n_classes).to(device)
+model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.BirdModelTransformer().to(device)
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 
@@ -114,10 +116,24 @@ criterion = torch.nn.CrossEntropyLoss()
 #     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
 # )
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+#     optimizer, T_max=no_epochs, eta_min=min_lr
+# )
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
 #     optimizer, warmup_epochs, eta_min=min_lr
 # )
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
+# warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+#     optimizer, start_factor=0.1, end_factor=1, total_iters=warmup_epochs
+# )
+# main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+#     optimizer, T_max=no_epochs - warmup_epochs, eta_min=min_lr
+# )
+# scheduler = torch.optim.lr_scheduler.SequentialLR(
+#     optimizer,
+#     schedulers=[warmup_lr_scheduler, main_lr_scheduler],
+#     milestones=[warmup_epochs],
+# )
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(

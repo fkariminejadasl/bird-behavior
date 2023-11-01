@@ -21,13 +21,14 @@ torch.manual_seed(seed)
 
 
 def save_data_prediction(save_path, label, pred, conf, data):
+    rand = np.random.randint(0, 255, 1)[0]
     name = f"label: {label}, pred: {pred}, conf: {conf:.1f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
     ax.set_xlim(0, 20)
     ax.set_ylim(-3.5, 3.5)
     plt.title(name)
-    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    plt.savefig(save_path / f"{name}_{rand}.png", bbox_inches="tight")
     plt.close()
 
 
@@ -83,7 +84,8 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 53  # sys.argv[1]
+exp = 70  # sys.argv[1]
+width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
@@ -105,7 +107,7 @@ all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
 n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-n_valid = int(all_measurements.shape[0] * data_per) - n_trainings
+n_valid = all_measurements.shape[0] - n_trainings
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
 train_labels, valid_labels = (
@@ -144,14 +146,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 criterion = torch.nn.CrossEntropyLoss()
 
 
-print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
-in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, 30, n_classes).to(device)
+print(f"data shape: {eval_dataset[0][0].shape}")  # 3x20
+in_channel = eval_dataset[0][0].shape[0]  # 3 or 4
+model = bm.BirdModel(in_channel, width, n_classes).to(device)
 model.eval()
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 
 
-def helper_results(data, labels):
+def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
     labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C
@@ -169,10 +171,10 @@ def helper_results(data, labels):
     # confusion matrix
     confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
     plot_confusion_matrix(confmat, target_labels_names)
-    plt.show(block=False)
-    plt.savefig(fail_path / f"confusion_matrix.png", bbox_inches="tight")
+    # plt.show(block=False)
+    plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
     plot_confusion_matrix(confmat, target_labels)
-    plt.show(block=False)
+    # plt.show(block=False)
 
     # if one of the classes is empty
     inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
@@ -184,22 +186,23 @@ def helper_results(data, labels):
     print(ap, loss.item(), accuracy)
     print(confmat)
 
-    inds = np.where(pred != labels)[0]
-    for ind in inds:
-        label_name = target_labels_names[labels[ind]]
-        pred_name = target_labels_names[pred[ind]]
-        conf = prob[ind, pred[ind]]
-        data_item = data[ind].transpose(1, 0).cpu().numpy()
-        save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
+    if SAVE_FAILED:
+        inds = np.where(pred != labels)[0]
+        for ind in inds:
+            label_name = target_labels_names[labels[ind]]
+            pred_name = target_labels_names[pred[ind]]
+            conf = prob[ind, pred[ind]]
+            data_item = data[ind].transpose(1, 0).cpu().numpy()
+            save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
 
 
 print(device)
 
-# data, label = next(iter(train_loader))
-# helper_results(data, label)
+data, label = next(iter(train_loader))
+helper_results(data, label, "train", False)
 
 data, label = next(iter(eval_loader))
-helper_results(data, label)
+helper_results(data, label, "valid", False)
 
 print(sum([p.numel() for p in model.parameters()]))
 
