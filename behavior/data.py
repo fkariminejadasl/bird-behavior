@@ -354,12 +354,14 @@ print(dict(zip(range(1, 11), np.sum(hists[:, 1:], axis=0))))
 print(count)
 
 # from datetime import datetime
-# datetime.utcfromtimestamp(1402132788).strftime('%Y-%m-%d %H:%M:%S')
-# int(datetime.strptime('2014-06-07 11:19:48', '%Y-%m-%d %H:%M:%S').strftime("%s"))
+# >>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
+# 1699276091.915636
+# >>> datetime.fromtimestamp(1699276091.915636).strftime("%Y-%m-%d %H:%M:%S.%f")
+# '2023-11-06 14:08:11.915636'
 """
 
 
-def combine_all_data(train_path, valid_path, test_path):
+def combine_all_data(train_path, valid_path, test_path, return_all=False):
     labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = read_data(
         train_path
     )
@@ -373,13 +375,15 @@ def combine_all_data(train_path, valid_path, test_path):
     all_measurements = np.concatenate(
         (all_measurements1, all_measurements2, all_measurements3), axis=0
     )
-    # labels = labels1 + labels2 + labels3
-    # device_ids = device_ids1 + device_ids2 + device_ids3
-    # time_stamps = time_stamps1 + time_stamps2 + time_stamps3
     inds = np.arange(all_measurements.shape[0])
     np.random.shuffle(inds)
     all_measurements = all_measurements[inds]
     label_ids = list(np.array(label_ids)[inds])
+    if return_all:
+        # labels = labels1 + labels2 + labels3
+        device_ids = device_ids1 + device_ids2 + device_ids3
+        time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+        return all_measurements, label_ids, device_ids, time_stamps
     return all_measurements, label_ids
 
 

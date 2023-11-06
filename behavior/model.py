@@ -26,14 +26,14 @@ class BirdModel(nn.Module):
         self.conv3 = torch.nn.Conv1d(
             mid_channels, mid_channels, kernel_size=3, padding=1
         )
-        self.conv4 = torch.nn.Conv1d(
-            mid_channels, mid_channels, kernel_size=3, padding=1
-        )
+        # self.conv4 = torch.nn.Conv1d(
+        #     mid_channels, mid_channels, kernel_size=3, padding=1
+        # )
         self.fc = torch.nn.Linear(mid_channels, out_channels)
         self.bn1 = torch.nn.BatchNorm1d(mid_channels)
         self.bn2 = torch.nn.BatchNorm1d(mid_channels)
         self.bn3 = torch.nn.BatchNorm1d(mid_channels)
-        self.bn4 = torch.nn.BatchNorm1d(mid_channels)
+        # self.bn4 = torch.nn.BatchNorm1d(mid_channels)
         self.relu = torch.nn.ReLU()
         self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
 
@@ -51,14 +51,14 @@ class BirdModel(nn.Module):
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
-        identity = x
+        # identity = x
         x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.relu(self.bn2(self.conv2(x)))
         x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.relu(self.bn3(self.conv3(x)))
         x = torch.nn.functional.dropout(x, p=0.25, training=True)
-        x = self.relu(self.bn4(self.conv4(x))) + identity
-        x = torch.nn.functional.dropout(x, p=0.25, training=True)
+        # x = self.relu(self.bn4(self.conv4(x))) + identity
+        # x = torch.nn.functional.dropout(x, p=0.25, training=True)
         x = self.avgpool(x).flatten(1)
         x = self.fc(x)
         return x
@@ -71,9 +71,9 @@ from behavior.transformer import MultiheadAttention, SimpleTransformer
 
 
 class BirdModelTransformer(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, out_channels) -> None:
         super().__init__()
-        out_embed_dim = 4
+        out_embed_dim = out_channels
         embed_dim = 512
         num_blocks = 1  # 6
         num_heads = 1  # 8

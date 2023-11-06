@@ -21,14 +21,18 @@ torch.manual_seed(seed)
 
 
 def save_data_prediction(save_path, label, pred, conf, data):
-    rand = np.random.randint(0, 255, 1)[0]
-    name = f"label: {label}, pred: {pred}, conf: {conf:.1f}"
+    """
+    data: np.ndary
+        Lx4: L: length is usually 20
+    """
+    gps = data[0, -1]
+    name = f"label: {label}, pred: {pred}, conf: {conf:.1f}, gps: {gps:.4f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
     ax.set_xlim(0, 20)
     ax.set_ylim(-3.5, 3.5)
     plt.title(name)
-    plt.savefig(save_path / f"{name}_{rand}.png", bbox_inches="tight")
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
     plt.close()
 
 
@@ -82,15 +86,16 @@ ind2name = {
 }
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-train_per = 0.9
+train_per = 0.5
 data_per = 1
-exp = 71  # sys.argv[1]
+exp = 73  # sys.argv[1]
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
+target_labels = [8, 9]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
 fail_path = save_path / f"failed/{exp}"
@@ -182,7 +187,10 @@ def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
         labels = np.concatenate((labels, inds))
         prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
 
-    ap = average_precision_score(labels, prob)
+    if n_classes:
+        ap = average_precision_score(labels, np.argmax(prob, axis=1))
+    else:
+        ap = average_precision_score(labels, prob)
     print(ap, loss.item(), accuracy)
     print(confmat)
 
@@ -190,10 +198,11 @@ def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
         inds = np.where(pred != labels)[0]
         for ind in inds:
             label_name = target_labels_names[labels[ind]]
-            pred_name = target_labels_names[pred[ind]]
-            conf = prob[ind, pred[ind]]
-            data_item = data[ind].transpose(1, 0).cpu().numpy()
-            save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
+            if label_name == "Pecking":
+                pred_name = target_labels_names[pred[ind]]
+                conf = prob[ind, pred[ind]]
+                data_item = data[ind].transpose(1, 0).cpu().numpy()
+                save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
 
 
 print(device)
