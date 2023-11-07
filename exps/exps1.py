@@ -86,16 +86,16 @@ ind2name = {
 }
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-train_per = 0.5
+train_per = 0.9
 data_per = 1
-exp = 73  # sys.argv[1]
+exp = 45  # sys.argv[1]
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
-target_labels = [8, 9]
+# target_labels = [8, 9]
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
 fail_path = save_path / f"failed/{exp}"

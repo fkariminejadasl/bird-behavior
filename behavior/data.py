@@ -383,6 +383,8 @@ def combine_all_data(train_path, valid_path, test_path, return_all=False):
         # labels = labels1 + labels2 + labels3
         device_ids = device_ids1 + device_ids2 + device_ids3
         time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+        device_ids = list(np.array(device_ids)[inds])
+        time_stamps = [time_stamps[ind] for ind in inds]
         return all_measurements, label_ids, device_ids, time_stamps
     return all_measurements, label_ids
 
