@@ -20,20 +20,24 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 
-def save_data_prediction(save_path, label, pred, conf, data):
+def save_data_prediction(save_path, label, pred, conf, data, ltds):
     """
     data: np.ndary
         Lx4: L: length is usually 20
     """
+    rand = np.random.randint(0, 255, 1)[0]
     gps = data[0, -1]
-    name = f"label: {label}, pred: {pred}, conf: {conf:.1f}, gps: {gps:.4f}"
+    t = datetime.fromtimestamp(ltds[2]).strftime("%Y-%m-%d %H:%M:%S.%f")
+    name = f"label:{label}, pred:{pred}, conf:{conf:.1f},\ngps:{gps:.4f}, dev:{ltds[1]}, time:{t}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
     ax.set_xlim(0, 20)
     ax.set_ylim(-3.5, 3.5)
     plt.title(name)
-    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    name = " ".join(name.split("\n"))
+    plt.savefig(save_path / f"{name}_{rand}.png", bbox_inches="tight")
     plt.close()
+    return name
 
 
 def plot_confusion_matrix(confusion_matrix, class_names):
@@ -88,7 +92,7 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 74  # sys.argv[1]
+exp = 45  # sys.argv[1]
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -196,6 +200,7 @@ def helper_results(data, ldts, stage="valid", SAVE_FAILED=False):
     print(confmat)
 
     if SAVE_FAILED:
+        names = []
         inds = np.where(pred != labels)[0]
         for ind in inds:
             label_name = target_labels_names[labels[ind]]
@@ -203,16 +208,22 @@ def helper_results(data, ldts, stage="valid", SAVE_FAILED=False):
                 pred_name = target_labels_names[pred[ind]]
                 conf = prob[ind, pred[ind]]
                 data_item = data[ind].transpose(1, 0).cpu().numpy()
-                save_data_prediction(fail_path, label_name, pred_name, conf, data_item)
+                ldts_item = ldts[ind]
+                name = save_data_prediction(
+                    fail_path, label_name, pred_name, conf, data_item, ldts_item
+                )
+                names.append(name)
+        with open(fail_path / "results.txt", "a") as f:
+            [f.write(f"{name}\n") for name in names]
 
 
 print(device)
 
-data, labels = next(iter(train_loader))
-helper_results(data, labels, "train", False)
+data, ldts = next(iter(train_loader))
+helper_results(data, ldts, "train", True)
 
-data, labels = next(iter(eval_loader))
-helper_results(data, labels, "valid", False)
+data, ldts = next(iter(eval_loader))
+helper_results(data, ldts, "valid", True)
 
 print(sum([p.numel() for p in model.parameters()]))
 
