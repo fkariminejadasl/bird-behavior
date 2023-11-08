@@ -88,7 +88,7 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 45  # sys.argv[1]
+exp = 74  # sys.argv[1]
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -158,7 +158,8 @@ model.eval()
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 
 
-def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
+def helper_results(data, ldts, stage="valid", SAVE_FAILED=False):
+    labels = ldts[:, 0]
     labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C
@@ -187,7 +188,7 @@ def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
         labels = np.concatenate((labels, inds))
         prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
 
-    if n_classes:
+    if n_classes == 2:
         ap = average_precision_score(labels, np.argmax(prob, axis=1))
     else:
         ap = average_precision_score(labels, prob)
@@ -207,11 +208,11 @@ def helper_results(data, labels, stage="valid", SAVE_FAILED=False):
 
 print(device)
 
-data, label = next(iter(train_loader))
-helper_results(data, label, "train", False)
+data, labels = next(iter(train_loader))
+helper_results(data, labels, "train", False)
 
-data, label = next(iter(eval_loader))
-helper_results(data, label, "valid", False)
+data, labels = next(iter(eval_loader))
+helper_results(data, labels, "valid", False)
 
 print(sum([p.numel() for p in model.parameters()]))
 

@@ -223,8 +223,12 @@ def read_data(json_path: Union[Path, str]):
 
 
 class BirdDataset(Dataset):
-    def __init__(self, all_measurements: np.ndarray, label_ids: list, transform=None):
-        self.label_ids = label_ids
+    def __init__(self, all_measurements: np.ndarray, ldts: np.ndarray, transform=None):
+        """
+        dtype: all_measurements np.float32
+        dtype: ldts np.int64
+        """
+        self.ldts = np.ascontiguousarray(ldts)
         self.data = all_measurements.copy()
         # normalize gps speed
         # self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
@@ -236,51 +240,16 @@ class BirdDataset(Dataset):
         self.transform = transform
 
     def __len__(self):
-        return len(self.label_ids)
+        return self.data.shape[0]
 
     def __getitem__(self, ind):
         data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        label = self.label_ids[ind]
+        ldt = self.ldts[ind]
 
         if self.transform:
             data = self.transform(data)
 
-        return data, label
-
-
-class BirdDataset_old(Dataset):
-    def __init__(self, json_path: Path, transform=None):
-        (
-            labels,
-            self.label_ids,
-            device_ids,
-            time_stamps,
-            all_measurements,
-        ) = read_data(json_path)
-        # TODO: for now remove gpsSpeed
-        # data = all_measurements[:, :, :3].copy()
-        # tdata = (data.reshape(-1, 3) - data.reshape(-1, 3).min(0)) / (
-        #     data.reshape(-1, 3).max(0) - data.reshape(-1, 3).min(0)
-        # )
-        # self.data = tdata.reshape(data.shape)
-        self.data = all_measurements.copy()
-        # normalize gps speed
-        self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
-        self.data = self.data.astype(np.float32)
-
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.label_ids)
-
-    def __getitem__(self, ind):
-        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        label = self.label_ids[ind]
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data, label
+        return data, ldt
 
 
 # for new data
@@ -361,7 +330,7 @@ print(count)
 """
 
 
-def combine_all_data(train_path, valid_path, test_path, return_all=False):
+def combine_all_data(train_path, valid_path, test_path):
     labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = read_data(
         train_path
     )
@@ -372,47 +341,45 @@ def combine_all_data(train_path, valid_path, test_path, return_all=False):
         test_path
     )
     label_ids = label_ids1 + label_ids2 + label_ids3
+    device_ids = device_ids1 + device_ids2 + device_ids3
+    time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+    label_device_times = np.stack((label_ids, device_ids, time_stamps)).T
     all_measurements = np.concatenate(
         (all_measurements1, all_measurements2, all_measurements3), axis=0
     )
     inds = np.arange(all_measurements.shape[0])
     np.random.shuffle(inds)
     all_measurements = all_measurements[inds]
-    label_ids = list(np.array(label_ids)[inds])
-    if return_all:
-        # labels = labels1 + labels2 + labels3
-        device_ids = device_ids1 + device_ids2 + device_ids3
-        time_stamps = time_stamps1 + time_stamps2 + time_stamps3
-        device_ids = list(np.array(device_ids)[inds])
-        time_stamps = [time_stamps[ind] for ind in inds]
-        return all_measurements, label_ids, device_ids, time_stamps
-    return all_measurements, label_ids
+    label_device_times = np.array(label_device_times)[inds]
+    return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
 
 
-def get_specific_labesl(all_measurements, label_ids, target_labels=[0, 2, 4, 5]):
-    label_ids = np.array(label_ids, dtype=np.int64)
+def get_specific_labesl(all_measurements, ldts, target_labels):
+    """
+    e.g. target_labels=[0, 2, 4, 5]
+    """
     agps_imus = np.empty(shape=(0, 20, 4))
-    new_ids = np.empty(shape=(0,), dtype=np.int64)
+    new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
     for i in target_labels:
         agps_imus = np.concatenate(
-            (agps_imus, all_measurements[label_ids == i]), axis=0
+            (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
         )
-        new_ids = np.concatenate((new_ids, label_ids[label_ids == i]), axis=0)
-    inds = np.arange(new_ids.shape[0])
+        new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
+
+    inds = np.arange(new_ldts.shape[0])
     np.random.shuffle(inds)
     agps_imus = agps_imus[inds]
-    new_ids = list(new_ids[inds])
-    new_ids = reindex_ids(new_ids)
-    return agps_imus, new_ids
+    new_ldts = new_ldts[inds]
+    new_ldts = reindex_ids(new_ldts)
+    return agps_imus, new_ldts
 
 
-def reindex_ids(label_ids):
-    unique_ids = set(label_ids)
-    label_ids = np.array(label_ids)
-    new_ids = label_ids.copy()
+def reindex_ids(ldts):
+    unique_ids = set(ldts[:, 0])
+    new_ldts = ldts.copy()
     for i, unique_id in enumerate(unique_ids):
-        new_ids[label_ids == unique_id] = i
-    return list(new_ids)
+        new_ldts[ldts[:, 0] == unique_id, 0] = i
+    return new_ldts
 
 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
@@ -421,8 +388,8 @@ valid_path = data_path / "validation_set.json"
 test_path = data_path / "test_set.json"
 # labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
 
-all_measurements, label_ids = combine_all_data(train_path, valid_path, test_path)
-alabel_ids = np.array(label_ids, dtype=np.int64)
+all_measurements, ldts = combine_all_data(train_path, valid_path, test_path)
+alabel_ids = ldts[:, 0]
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
     agps_imus = np.concatenate((agps_imus, all_measurements[alabel_ids == i]), axis=0)
@@ -447,6 +414,7 @@ axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
 axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
+
 
 # TODO read mat data
 # from scipy.io import loadmat
