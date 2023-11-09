@@ -325,7 +325,7 @@ print(count)
 # from datetime import datetime
 # >>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
 # 1699276091.915636
-# >>> datetime.fromtimestamp(1699276091.915636).strftime("%Y-%m-%d %H:%M:%S.%f")
+# >>> datetime.utcfromtimestamp(1699276091.915636).strftime("%Y-%m-%d %H:%M:%S.%f")
 # '2023-11-06 14:08:11.915636'
 """
 
@@ -372,6 +372,17 @@ def get_specific_labesl(all_measurements, ldts, target_labels):
     new_ldts = new_ldts[inds]
     new_ldts = reindex_ids(new_ldts)
     return agps_imus, new_ldts
+
+
+def combine_specific_labesl(ldts, target_labels):
+    """
+    e.g. target_labels=[0, 2, 4, 5]
+    """
+    new_id = target_labels[0]
+    new_ldts = ldts.copy()
+    for i in target_labels:
+        new_ldts[ldts[:, 0] == i] = new_id
+    return new_ldts
 
 
 def reindex_ids(ldts):

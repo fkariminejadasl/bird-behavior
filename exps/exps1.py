@@ -20,15 +20,15 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 
-def save_data_prediction(save_path, label, pred, conf, data, ltds):
+def save_data_prediction(save_path, label, pred, conf, data, ldts):
     """
     data: np.ndary
         Lx4: L: length is usually 20
     """
     rand = np.random.randint(0, 255, 1)[0]
-    gps = data[0, -1]
-    t = datetime.fromtimestamp(ltds[2]).strftime("%Y-%m-%d %H:%M:%S.%f")
-    name = f"label:{label}, pred:{pred}, conf:{conf:.1f},\ngps:{gps:.4f}, dev:{ltds[1]}, time:{t}"
+    gps = np.float32(data[0, -1] * 22.3012351755624)
+    t = datetime.utcfromtimestamp(ldts[2]).strftime("%Y-%m-%d %H:%M:%S.%f")
+    name = f"time:{t}, gps:{gps:.4f}, dev:{ldts[1]},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
     ax.set_xlim(0, 20)
@@ -93,6 +93,7 @@ save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
 exp = 45  # sys.argv[1]
+save_name = "failure_pecking"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -100,9 +101,10 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 # target_labels = [8, 9]
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
 target_labels_names = [ind2name[t] for t in target_labels]
 n_classes = len(target_labels)
-fail_path = save_path / f"failed/{exp}"
+fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
 # train_set, tmp.json
@@ -112,9 +114,11 @@ valid_path = data_path / "validation_set.json"
 test_path = data_path / "test_set.json"
 
 all_measurements, label_ids = bd.combine_all_data(train_path, valid_path, test_path)
+# label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
+
 n_trainings = int(all_measurements.shape[0] * train_per * data_per)
 n_valid = all_measurements.shape[0] - n_trainings
 train_measurments = all_measurements[:n_trainings]
