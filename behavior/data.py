@@ -21,7 +21,8 @@ all_measurements = N x L X C = 1420 x 20 x 4 (train), train/valid/test:1402/1052
 [192,  13, 146,  60, 142, 280, 100,   6,  51,  62] # valid
 [174,  21, 152,  53, 181, 262,  92,   9,  40,  67] # test
 [634,  38, 501, 176, 558, 894, 318,  25, 151, 210] # total old
-[657,  45, 505, 178, 563, 817, 345,  28, 143, 184] # total new
+[657,  45, 505, 178, 563, 808, 305,  28, 143, 155] # total new 
+[657,  45, 505, 178, 563, 817, 345,  28, 143, 184] # total new with 0 confidence
 
 Flight
 	0=Flap=634
@@ -280,7 +281,7 @@ def read_csv_bird_file(data_file: Path):
 
 
 def stats_per_csv_file(data_file, plot=False):
-    ids, inds, gps_imus, labels, confs = read_csv_bird_file(data_file)
+    ids, dinds, gps_imus, labels, confs = read_csv_bird_file(data_file)
     if plot:
         agps_imus = np.array(gps_imus, dtype=np.float32)
         _, axs = plt.subplots(4, 1, sharex=True)
@@ -292,13 +293,25 @@ def stats_per_csv_file(data_file, plot=False):
         )
         plt.show(block=False)
     total_data = len(labels)
-    num_no_labels = sum([1 for label in labels if label == 0])
-    num_labels = total_data - num_no_labels
+
+    # remove zero conf and zero labels
+    lcs = np.stack((labels, confs)).T
+    inds = np.where((lcs[:, 0] != 0) & (lcs[:, 1] == 1))[0]
+
+    labels = [labels[ind] for ind in inds]
+    dinds = [dinds[ind] for ind in inds]
+    ids = [ids[ind] for ind in inds]
+
+    # # try to identify locations where indices are not divided by 20
+    # lds = np.stack((labels, dinds)).T
+    # inds = np.where(np.diff(dinds)!=1)[0] + 1
+
+    num_labels = len(labels)
     num_data_points = num_labels / 20
-    hist = list(np.histogram(labels, bins=range(0, 12))[0])
+    hist = list(np.histogram(labels, bins=range(1, 12))[0])
     print(data_file.stem)
     print(
-        f"total: {total_data:6d}, # no labels: {num_no_labels:6d}, # labels: {num_labels:6d}, # data: {num_data_points}"
+        f"total: {total_data:6d}, # labels: {num_labels:6d}, # data: {num_data_points}"
     )
     print(dict(zip(range(0, 11), hist)))
     return hist, num_data_points
@@ -313,20 +326,30 @@ count = 0
 hists = []
 files = list(data_dir.glob("*.csv"))
 for data_file in files:
-    hist, num_data_points = stats_per_csv_file(data_file, plot=False)
+    hist, num_data_points = bd.stats_per_csv_file(data_file, plot=False)
     count += num_data_points
     hists.append(hist)
 
 hists = np.array(hists, dtype=np.int64)
-print(hists[:, 1:])
-print(dict(zip(range(1, 11), np.sum(hists[:, 1:], axis=0))))
+print(hists)
+print(dict(zip(range(1, 11), np.sum(hists, axis=0))))
 print(count)
+
+count = 0
+for data_file in files:
+    ids, inds, gps_imus, labels, confs = bd.read_csv_bird_file(data_file)
+    for l, c, i in zip(labels, confs, inds):
+        if (c == 0) & (l!=0):
+            print(data_file.stem, l, c, i)
+            count += 1
+print(count) # 78=1560/20
 
 # from datetime import datetime
 # >>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
+# >>> datetime.strptime('2023-11-06 13:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc).timestamp()
 # 1699276091.915636
 # >>> datetime.utcfromtimestamp(1699276091.915636).strftime("%Y-%m-%d %H:%M:%S.%f")
-# '2023-11-06 14:08:11.915636'
+# '2023-11-06 13:08:11.915636'
 """
 
 
