@@ -450,36 +450,96 @@ axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
 
 
-# TODO read mat data
-# from scipy.io import loadmat
-# data_path = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
-# d = loadmat(data_path / "AnnAcc1600_20140520_152300-20140520_153000.mat")
-# dd = d['outputStruct']
+from datetime import datetime, timezone
+
+from scipy.io import loadmat
+
+data_path = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
+
+# dd = loadmat(data_path / "AnnAcc1600_20140520_152300-20140520_153000.mat")['outputStruct']
 # dd['accX'][0][0][82][0][0] # accY, accZ contains nan and variale length 12-40
-# dd['annotations'][0][0] # ind=0 for data, ind=3 for label
+# dd['annotations'][0][0] # ind=0 for data, ind=1-2 start-end of indices in tags, ind=3 for label
+# dd['tags'][0][0][0][82]
 # dd['gpsSpd'][0][0]
 # np.isnan(dd['accZ'][0][0][82][0][0][-1]) # True
-# # def count_ids(ids):
-# #     count = 0
-# #     for id in ids:
-# #         id_count = sum(dd['annotations'][0][0][:,3]==id)
-# #         count += id_count
-# #     return count
-# # all_labels = 0
-# # count_remove_ids = 0
-# # count_combine_ids = 0
-# # remove_ids = [15, 16, 17, 18]
-# # combine_ids = [11, 12, 14]
-# # for i in data_path.glob("*.mat"):
-# #     d = loadmat(i)
-# #     dd = d['outputStruct']
-# #     count_remove_ids += count_ids(remove_ids)
-# #     count_combine_ids += count_ids(combine_ids)
-# #     all_labels += len(dd['annotations'][0][0][:,3])
-# #     print(i.name, set(dd['annotations'][0][0][:,3]), len(dd['annotations'][0][0][:,3]))
-# # print(all_labels, count_combine_ids, all_labels - count_remove_ids, count_remove_ids) # 919 509 616 303
 
 
+def count_id(id_):
+    count = 0
+    for t in dd["tags"][0][0][0]:
+        id_count = sum(t[t[:, 0] == id_][:, 1])
+        count += id_count
+    return count
+
+
+def get_start_end_inds_one_tag(i, tag, id_):
+    inds = np.where(tag[:, 0] == id_)[0]
+    start_ends = []
+    if inds.size != 0:
+        change_id_inds = np.where(np.diff(inds) != 1)[0] + 1
+        change_inds = list(inds[change_id_inds])
+        change_inds_before = list(inds[change_id_inds - 1] + 1)
+        start_ind, end_ind = inds[0], inds[-1] + 1
+        start_ends = [
+            (i, start, end, end - start)
+            for start, end in zip(
+                [start_ind] + change_inds, change_inds_before + [end_ind]
+            )
+        ]
+    return start_ends
+
+
+def get_start_end_inds(id_):
+    all_start_ends = []
+    for i, tag in enumerate(dd["tags"][0][0][0]):
+        start_ends = get_start_end_inds_one_tag(i, tag, id_)
+        if start_ends:
+            all_start_ends += start_ends
+            print(start_ends)
+    return all_start_ends
+
+
+# {1: 968, 6: 606, 7: 17, 11: 60, 12: 36, 14: 8, 15: 1, 16: 10, 17: 1, 18: 171}
+id_count = dict()
+for id_ in [14]:  # range(1, 19):
+    counts = 0
+    for data_file in data_path.glob("*.mat"):
+        print(data_file.stem)
+        dd = loadmat(data_file)["outputStruct"]
+        all_start_ends = get_start_end_inds(id_)
+        for i, s, e, _ in all_start_ends:
+            print(dd["sampleID"][0][0][0, i])
+        counts += sum([c // 20 for i, s, e, c in all_start_ends])
+    if counts != 0:
+        id_count[id_] = counts
+
+year, month, day = (
+    dd["year"][0][0][0, 30],
+    dd["month"][0][0][0, 30],
+    dd["day"][0][0][0, 30],
+)
+hour, min, sec = dd["hour"][0][0][0, 30], dd["min"][0][0][0, 30], dd["sec"][0][0][30, 0]
+timestamp = (
+    datetime(year, month, day, hour, min, sec).replace(tzinfo=timezone.utc).timestamp()
+)
+tags = dd["tags"][0][0][0][30][49:76]
+device_id = dd["sampleID"][0][0][0, 30]  # ?
+imu_x = dd["accX"][0][0][30][0][0][49:76]
+imu_y = dd["accY"][0][0][30][0][0][49:76]
+imu_z = dd["accZ"][0][0][30][0][0][49:76]
+gps_single = dd["gpsSpd"][0][0][30, 0]
+assert len(set(tags[:, 0])) == 1
+assert set(tags[:, 1]) == {1}
+assert not any(np.isnan(imu_x))
+assert not any(np.isnan(imu_y))
+assert not any(np.isnan(imu_z))
+assert not np.isnan(gps_single)
+label = tags[0, 0]
+gps = np.repeat(gps_single, len(imu_x))
+data = np.stack((imu_x, imu_y, imu_z, gps)).T
+data = data[None, ...]  # 1x N x 4
+
+print(id_count)
 """
 def test(model, n=10):
     a = all_measurements[0:n].copy()
