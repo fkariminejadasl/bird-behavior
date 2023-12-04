@@ -416,11 +416,24 @@ def reindex_ids(ldts):
     return new_ldts
 
 
+def combine_jsons_to_one_json(json_files):
+    # input list[Path]
+    combined_data = []
+    for file_name in json_files:
+        with open(file_name, "r") as file:
+            data = json.load(file)
+            combined_data.extend(data)
+    with open(data_path / "combined.json", "w") as combined_file:
+        json.dump(combined_data, combined_file)
+
+
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 train_path = data_path / "train_set.json"
 valid_path = data_path / "validation_set.json"
 test_path = data_path / "test_set.json"
-# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(train_path)
+# combine_jsons_to_one_json([train_path, valid_path, test_path])
+# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(data_path / "combined.json")
+
 
 all_measurements, ldts = combine_all_data(train_path, valid_path, test_path)
 alabel_ids = ldts[:, 0]
@@ -464,7 +477,7 @@ data_path = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
 # np.isnan(dd['accZ'][0][0][82][0][0][-1]) # True
 
 
-def count_id(id_):
+def count_id(dd, id_):
     count = 0
     for t in dd["tags"][0][0][0]:
         id_count = sum(t[t[:, 0] == id_][:, 1])
@@ -489,7 +502,7 @@ def get_start_end_inds_one_tag(i, tag, id_):
     return start_ends
 
 
-def get_start_end_inds(id_):
+def get_start_end_inds(dd, id_):
     all_start_ends = []
     for i, tag in enumerate(dd["tags"][0][0][0]):
         start_ends = get_start_end_inds_one_tag(i, tag, id_)
@@ -499,9 +512,10 @@ def get_start_end_inds(id_):
     return all_start_ends
 
 
+"""
 # {1: 968, 6: 606, 7: 17, 11: 60, 12: 36, 14: 8, 15: 1, 16: 10, 17: 1, 18: 171}
 id_count = dict()
-for id_ in [14]:  # range(1, 19):
+for id_ in [12]:  # range(1, 19):
     counts = 0
     for data_file in data_path.glob("*.mat"):
         print(data_file.stem)
@@ -512,6 +526,7 @@ for id_ in [14]:  # range(1, 19):
         counts += sum([c // 20 for i, s, e, c in all_start_ends])
     if counts != 0:
         id_count[id_] = counts
+
 
 year, month, day = (
     dd["year"][0][0][0, 30],
@@ -537,9 +552,11 @@ assert not np.isnan(gps_single)
 label = tags[0, 0]
 gps = np.repeat(gps_single, len(imu_x))
 data = np.stack((imu_x, imu_y, imu_z, gps)).T
-data = data[None, ...]  # 1x N x 4
+data = data[None, ...]  # 1 x N x 4
 
 print(id_count)
+"""
+
 """
 def test(model, n=10):
     a = all_measurements[0:n].copy()

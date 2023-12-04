@@ -127,3 +127,21 @@ for ind in inds:
     )
 
 print("otherthing")
+
+
+data = np.stack((device_ids, time_stamps, all_measurements[:, 0, -1])).T
+sorted_indices = np.lexsort((data[:, 0], data[:, 1]))
+sorted_data = data[sorted_indices]
+# sorted_data = sorted(data, key=lambda x: (x[0], x[1]))
+with open(data_path / "times.txt", "w") as file:
+    for dev_id, ts, gps in sorted_data:
+        f_time = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S.%f")
+        _ = file.write(f"{dev_id},{f_time},{gps}\n")
+
+"""
+# check the if the set2 is subset of set1
+for i in range(len(sorted_data2)):
+    a = np.where((sorted_data[:,0] == sorted_data2[i,0])&(sorted_data[:,1] == sorted_data2[i,1])&(sorted_data[:,2] == sorted_data2[i,2]))[0]
+    if len(a) == 0:
+        print(i)
+"""
