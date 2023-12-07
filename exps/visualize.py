@@ -95,15 +95,6 @@ labels2, label_ids2, device_ids2, time_stamps2, all_measurements2, first_indexs2
 labels3, label_ids3, device_ids3, time_stamps3, all_measurements3, first_indexs3 = read_data2(test_path)
 """
 
-x_o, x_s, y_o, y_s, z_o, z_s = 419.4, 1282.6, 99.47, 1322.97, -201.18, 1322.15
-
-
-def raw2meas(x_m, y_m, z_m):
-    x_a = (x_m - x_o) / x_s
-    y_a = (y_m - y_o) / y_s
-    z_a = (z_m - z_o) / z_s
-    return x_a, y_a, z_a
-
 
 device_ids = device_ids1 + device_ids2 + device_ids3
 time_stamps = time_stamps1 + time_stamps2 + time_stamps3

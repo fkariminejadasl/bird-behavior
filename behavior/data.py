@@ -1,9 +1,12 @@
 import json
+from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Union
 
 import matplotlib.pylab as plt
 import numpy as np
+import psycopg2
 from torch.utils.data import Dataset
 
 np.random.seed(0)
@@ -426,6 +429,84 @@ def combine_jsons_to_one_json(json_files):
     with open(data_path / "combined.json", "w") as combined_file:
         json.dump(combined_data, combined_file)
 
+
+def raw2meas(x_m, y_m, z_m, *args):
+    """
+    for raw imu to measurement imu
+    """
+    x_o, x_s, y_o, y_s, z_o, z_s = args
+    x_a = (x_m - x_o) / x_s
+    y_a = (y_m - y_o) / y_s
+    z_a = (z_m - z_o) / z_s
+    return x_a, y_a, z_a
+
+
+def query_database(database_url, sql_query):
+    """
+    format of database url:
+    database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+    """
+    # connection = psycopg2.connect(dbname=database_name, user=username, password=password, host=host, port=port)
+    connection = psycopg2.connect(database_url)
+    cursor = connection.cursor()
+    cursor.execute(sql_query)
+
+    # Fetch all the rows
+    result = cursor.fetchall()
+
+    # Close the cursor and connection
+    cursor.close()
+    connection.close()
+    return result
+
+
+'''
+# Get calibration imu values from database
+device_id = 533
+sql_query = f"""
+select *
+from gps.ee_tracker_limited
+where device_info_serial = {device_id}
+"""
+database_url = "postgresql://username:password@host:port/database_name"
+result = query_database(database_url, sql_query)[0]
+# x_o, x_s, y_o, y_s, z_o, z_s = 419.4, 1282.6, 99.47, 1322.97, -201.18, 1322.15
+_, x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in result if isinstance(cell, Decimal)]
+
+# speed_2d for gpd speed
+sql_query = f"""
+SELECT *
+FROM gps.ee_tracking_speed_limited
+WHERE device_info_serial = 533 and date_time = '2012-05-27 03:50:46'
+order by date_time
+"""
+results = bd.query_database(database_url, sql_query)
+gps = results[0][-4]
+
+# get imu 
+sql_query = f"""
+SELECT *
+FROM gps.ee_acceleration_limited
+WHERE device_info_serial = 533 and date_time = '2012-05-27 03:50:46'
+order by date_time, index
+"""
+results = bd.query_database(database_url, sql_query)
+[np.round(raw2meas(*result[-3:], x_o, x_s, y_o, y_s, z_o, z_s), 8) for result in results]
+
+# 
+SELECT *
+FROM gps.ee_acceleration_limited
+WHERE device_info_serial = 533 and date_time between '2012-05-14'and '2012-05-16'
+order by date_time, index
+ 
+FROM gps.ee_tracking_speed_limited
+WHERE device_info_serial = 533 and date_time between '2012-05-14'and '2012-05-16'
+order by date_time
+ 
+select *
+from gps.ee_tracker_limited
+where device_info_serial = 533
+'''
 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 train_path = data_path / "train_set.json"
