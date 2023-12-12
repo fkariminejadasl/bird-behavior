@@ -356,23 +356,21 @@ print(count) # 78=1560/20
 """
 
 
-def combine_all_data(train_path, valid_path, test_path):
-    labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = read_data(
-        train_path
-    )
-    labels2, label_ids2, device_ids2, time_stamps2, all_measurements2 = read_data(
-        valid_path
-    )
-    labels3, label_ids3, device_ids3, time_stamps3, all_measurements3 = read_data(
-        test_path
-    )
-    label_ids = label_ids1 + label_ids2 + label_ids3
-    device_ids = device_ids1 + device_ids2 + device_ids3
-    time_stamps = time_stamps1 + time_stamps2 + time_stamps3
+def combine_jsons_to_one_json(json_files):
+    # input list[Path]
+    combined_data = []
+    for file_name in json_files:
+        with open(file_name, "r") as file:
+            data = json.load(file)
+            combined_data.extend(data)
+    with open(data_path / "combined.json", "w") as combined_file:
+        json.dump(combined_data, combined_file)
+
+
+def combine_all_data(data_file):
+    labels, label_ids, device_ids, time_stamps, all_measurements = read_data(data_file)
     label_device_times = np.stack((label_ids, device_ids, time_stamps)).T
-    all_measurements = np.concatenate(
-        (all_measurements1, all_measurements2, all_measurements3), axis=0
-    )
+
     inds = np.arange(all_measurements.shape[0])
     np.random.shuffle(inds)
     all_measurements = all_measurements[inds]
@@ -417,17 +415,6 @@ def reindex_ids(ldts):
     for i, unique_id in enumerate(unique_ids):
         new_ldts[ldts[:, 0] == unique_id, 0] = i
     return new_ldts
-
-
-def combine_jsons_to_one_json(json_files):
-    # input list[Path]
-    combined_data = []
-    for file_name in json_files:
-        with open(file_name, "r") as file:
-            data = json.load(file)
-            combined_data.extend(data)
-    with open(data_path / "combined.json", "w") as combined_file:
-        json.dump(combined_data, combined_file)
 
 
 def raw2meas(x_m, y_m, z_m, *args):
@@ -508,15 +495,18 @@ from gps.ee_tracker_limited
 where device_info_serial = 533
 '''
 
+"""
+# plot data 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-train_path = data_path / "train_set.json"
-valid_path = data_path / "validation_set.json"
-test_path = data_path / "test_set.json"
-# combine_jsons_to_one_json([train_path, valid_path, test_path])
-# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(data_path / "combined.json")
+train_file = data_path / "train_set.json"
+valid_file = data_path / "validation_set.json"
+test_file = data_path / "test_set.json"
+combined_file = data_path / "combined.json"
+# combine_jsons_to_one_json([train_file, valid_file, test_file])
+# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(combined_file)
 
 
-all_measurements, ldts = combine_all_data(train_path, valid_path, test_path)
+all_measurements, ldts = combine_all_data(combined_file)
 alabel_ids = ldts[:, 0]
 agps_imus = np.empty(shape=(0, 20, 4))
 for i in range(0, 10):
@@ -542,7 +532,7 @@ axs[0].plot(rep_labels)
 axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
 axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
-
+"""
 
 from datetime import datetime, timezone
 

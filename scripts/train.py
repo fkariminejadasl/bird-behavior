@@ -51,13 +51,10 @@ weight_decay = 1e-2  # default 1e-2
 # model
 width = 30
 
-# train_set, tmp.json
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-train_path = data_path / "train_set.json"
-valid_path = data_path / "validation_set.json"
-test_path = data_path / "test_set.json"
+combined_file = data_path / "combined.json"
 
-all_measurements, label_ids = bd.combine_all_data(train_path, valid_path, test_path)
+all_measurements, label_ids = bd.combine_all_data(combined_file)
 label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
@@ -82,7 +79,6 @@ print(
 train_dataset = bd.BirdDataset(train_measurments, train_labels)
 eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
-# train_dataset = bd.BirdDataset_old(train_path)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),
@@ -90,7 +86,6 @@ train_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-# eval_dataset = bd.BirdDataset_old(valid_path)
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=len(eval_dataset),

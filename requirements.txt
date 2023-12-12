@@ -9,3 +9,4 @@ psycopg2-binary
 timm
 torch
 torchvision
+scikit-learn>=1.3

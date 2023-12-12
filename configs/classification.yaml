@@ -1,0 +1,7 @@
+# None: means leave it empty
+data_file: /content/combined.json # Value: Path
+model_checkpoint: /content/45_best.pth # Value: Path
+save_path: /content/result # Value: Path
+# data_file: /home/fatemeh/Downloads/bird/bird/set1/data/combined.json # Value: Path
+# model_checkpoint: /home/fatemeh/Downloads/bird/result/45_best.pth # Value: Path
+# save_path: /home/fatemeh/Downloads/bird/result/failed/exp1 # Value: Path
