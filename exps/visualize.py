@@ -136,3 +136,26 @@ for i in range(len(sorted_data2)):
     if len(a) == 0:
         print(i)
 """
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+ms, ldts = bd.combine_all_data(data_path / "combined.json")
+# extraannotations_533_15052012.csv
+with open(
+    "/home/fatemeh/Downloads/bird/judy_annotations/extraannotations_533_15052012.csv",
+    "r",
+) as f:
+    _ = f.readline()
+    for r in f:
+        i = int(r.split(",")[0])
+        t = int(
+            datetime.strptime(r.split(",")[1], "%Y-%m-%dT%H:%M:%S.%fZ")
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )
+        inds = np.where((ldts[:, 1] == i) & (ldts[:, 2] == t))[0]
+        if len(inds) != 0:
+            print(r)
+            print(ldts[inds])

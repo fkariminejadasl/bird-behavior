@@ -99,10 +99,8 @@ def helper_results(
     confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
     # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
     plot_confusion_matrix(confmat, target_labels_names)
-    plt.show(block=False)
     plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
     plot_confusion_matrix(confmat, target_labels)
-    plt.show(block=False)
 
     # if one of the classes is empty
     inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
