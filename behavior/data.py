@@ -447,53 +447,85 @@ def query_database(database_url, sql_query):
     return result
 
 
-'''
-# Get calibration imu values from database
-device_id = 533
-sql_query = f"""
-select *
-from gps.ee_tracker_limited
-where device_info_serial = {device_id}
-"""
-database_url = "postgresql://username:password@host:port/database_name"
-result = query_database(database_url, sql_query)[0]
-# x_o, x_s, y_o, y_s, z_o, z_s = 419.4, 1282.6, 99.47, 1322.97, -201.18, 1322.15
-_, x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in result if isinstance(cell, Decimal)]
+def get_data(database_url, device_id, start_time, end_time):
+    """
+    Retrieve sensor data from a specified database within a given time range.
 
-# speed_2d for gpd speed
-sql_query = f"""
-SELECT *
-FROM gps.ee_tracking_speed_limited
-WHERE device_info_serial = 533 and date_time = '2012-05-27 03:50:46'
-order by date_time
-"""
-results = bd.query_database(database_url, sql_query)
-gps = results[0][-4]
+    Parameters
+    ----------
+    database_url : str
+        The URL of the database to query.
+        Example: "postgresql://username:password@host:port/database_name".
+    device_id : int
+        The unique identifier of the device whose data is being queried.
+    start_time : str
+        The start of the time range for data retrieval, formatted as '%Y-%m-%d %H:%M:%S'.
+        Example: '2012-05-27 03:50:46'.
+    end_time : str
+        The end of the time range for data retrieval, formatted as '%Y-%m-%d %H:%M:%S'.
+        Note: `start_time` and `end_time` can be the same.
 
-# get imu 
-sql_query = f"""
-SELECT *
-FROM gps.ee_acceleration_limited
-WHERE device_info_serial = 533 and date_time = '2012-05-27 03:50:46'
-order by date_time, index
-"""
-results = bd.query_database(database_url, sql_query)
-[np.round(raw2meas(*result[-3:], x_o, x_s, y_o, y_s, z_o, z_s), 8) for result in results]
+    Returns
+    -------
+    np.ndarray
+        A 2D array containing IMU data (x, y, z) and GPS 2D speed.
 
-# 
-SELECT *
-FROM gps.ee_acceleration_limited
-WHERE device_info_serial = 533 and date_time between '2012-05-14'and '2012-05-16'
-order by date_time, index
- 
-FROM gps.ee_tracking_speed_limited
-WHERE device_info_serial = 533 and date_time between '2012-05-14'and '2012-05-16'
-order by date_time
- 
-select *
-from gps.ee_tracker_limited
-where device_info_serial = 533
-'''
+    Examples
+    --------
+    >>> database_url = "postgresql://username:password@host:port/database_name"
+    >>> device_id = 541
+    >>> start_time = '2012-05-17 00:00:59'
+    >>> get_data(database_url, device_id, start_time, start_time)[40]
+    array([0.07432701, -0.13902547,  0.96671783,  1.26196257])
+
+    Notes
+    -----
+    The function queries a database to retrieve calibration IMU values, 2D GPS speed,
+    and IMU data for a specific device within a given time range. It processes this
+    data and returns it in a structured numpy array format.
+    """
+
+    # Get calibration imu values from database
+    sql_query = f"""
+    select *
+    from gps.ee_tracker_limited
+    where device_info_serial = {device_id}
+    """
+    results = query_database(database_url, sql_query)
+    assert len(results) != 0, "no data found"
+    _, x_o, x_s, y_o, y_s, z_o, z_s = [
+        float(cell) for cell in results[0] if isinstance(cell, Decimal)
+    ]
+
+    # speed_2d for gpd speed
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_tracking_speed_limited
+    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+    order by date_time
+    """
+    results = query_database(database_url, sql_query)
+    assert len(results) != 0, "no data found"
+    gps = results[0][-4]
+
+    # get imu
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_acceleration_limited
+    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+    order by date_time, index
+    """
+    results = query_database(database_url, sql_query)
+    assert len(results) != 0, "no data found"
+    imus = np.array(
+        [
+            np.round(raw2meas(*result[-3:], x_o, x_s, y_o, y_s, z_o, z_s), 8)
+            for result in results
+        ]
+    )
+    gimus = np.concatenate((imus, np.ones((len(imus), 1)) * gps), axis=1)
+    return gimus
+
 
 """
 # plot data 
