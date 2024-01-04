@@ -117,23 +117,23 @@ if __name__ == "__main__":
 
     print(device)
 
-    data, ldts = next(iter(train_loader))
-    bu.helper_results(
-        data,
-        ldts,
-        model,
-        criterion,
-        device,
-        fail_path,
-        target_labels,
-        target_labels_names,
-        n_classes,
-        stage="train",
-        SAVE_FAILED=False,
-    )
+    # data, ldts = next(iter(train_loader))
+    # bu.helper_results(
+    #     data,
+    #     ldts,
+    #     model,
+    #     criterion,
+    #     device,
+    #     fail_path,
+    #     target_labels,
+    #     target_labels_names,
+    #     n_classes,
+    #     stage="train",
+    #     SAVE_FAILED=False,
+    # )
 
     data, ldts = next(iter(eval_loader))
-    bu.helper_results(
+    bu.save_results(
         data,
         ldts,
         model,
@@ -144,7 +144,7 @@ if __name__ == "__main__":
         target_labels_names,
         n_classes,
         stage="valid",
-        SAVE_FAILED=False,
+        SAVE_FAILED=True,
     )
 
     print(sum([p.numel() for p in model.parameters()]))

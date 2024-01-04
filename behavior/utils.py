@@ -10,6 +10,8 @@ seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+gps_scale = 22.3012351755624
+
 
 def plot_confusion_matrix(confusion_matrix, class_names):
     plt.figure(figsize=(8, 6))
@@ -42,8 +44,8 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
         Lx4: L: length is usually 20
     """
     rand = np.random.randint(0, 255, 1)[0]
-    gps = np.float32(data[0, -1] * 22.3012351755624)
-    t = datetime.utcfromtimestamp(ldts[2]).strftime("%Y-%m-%d %H:%M:%S.%f")
+    gps = np.float32(data[0, -1] * gps_scale)
+    t = datetime.utcfromtimestamp(ldts[2]).strftime("%Y-%m-%d %H:%M:%S")
     name = f"time:{t}, gps:{gps:.4f}, dev:{ldts[1]},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
@@ -54,6 +56,47 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
     plt.savefig(save_path / f"{name}_{rand}.png", bbox_inches="tight")
     plt.close()
     return name
+
+
+def save_predictions_csv(save_file, data, ldts, preds, probs, target_labels_names):
+    ldts = np.array(ldts)
+    data = data.transpose(2, 1).cpu().numpy()
+    with open(save_file, "w") as rfile:
+        rfile.write("device,time,index,GPS,prediction,confidence\n")
+        for i in range(len(data)):
+            device_id = ldts[i, 1]
+            start_date = datetime.utcfromtimestamp(ldts[i, 2]).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            index = 0
+            gps = np.float32(data[i, 0, -1] * gps_scale)
+            pred = preds[i]
+            pred_name = target_labels_names[pred]
+            conf = probs[i, pred]
+            text = (
+                f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f}\n"
+            )
+            rfile.write(text)
+
+
+def load_predictions_csv(save_file):
+    device_ids = []
+    dates = []
+    indices = []
+    gpss = []
+    pred_texts = []
+    confs = []
+    with open(save_file, "r") as wfile:
+        _ = wfile.readline()
+        for row in wfile:
+            items = row.strip().split(",")
+            device_ids.append(int(items[0]))
+            dates.append(items[1])
+            indices.append(int(items[2]))
+            gpss.append(float(items[3]))
+            pred_texts.append(items[4])
+            confs.append(float(items[5]))
+    return device_ids, dates, indices, gpss, pred_texts, confs
 
 
 def precision_recall(
@@ -114,6 +157,77 @@ def helper_results(
         ap = average_precision_score(labels, prob)
     print(ap, loss.item(), accuracy)
     print(confmat)
+
+    if SAVE_FAILED:
+        names = []
+        inds = np.where(pred != labels)[0]
+        for ind in inds:
+            label_name = target_labels_names[labels[ind]]
+            if label_name == "Pecking":
+                pred_name = target_labels_names[pred[ind]]
+                conf = prob[ind, pred[ind]]
+                data_item = data[ind].transpose(1, 0).cpu().numpy()
+                ldts_item = ldts[ind]
+                name = save_data_prediction(
+                    fail_path, label_name, pred_name, conf, data_item, ldts_item
+                )
+                names.append(name)
+        with open(fail_path / "results.txt", "a") as f:
+            [f.write(f"{name}\n") for name in names]
+
+
+def save_results(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+    fail_path,
+    target_labels,
+    target_labels_names,
+    n_classes,
+    stage="valid",
+    SAVE_FAILED=False,
+):
+    labels = ldts[:, 0]
+    labels = labels.to(device)
+    data = data.to(device)  # N x C x L
+    outputs = model(data)  # N x C
+    prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+    pred = torch.argmax(outputs.data, 1)
+    # loss and accuracy
+    loss = criterion(outputs, labels)  # 1
+    corrects = (pred == labels).sum().item()
+    accuracy = corrects / len(labels) * 100
+
+    labels = labels.cpu().numpy()
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+
+    # confusion matrix
+    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
+    # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
+    plot_confusion_matrix(confmat, target_labels_names)
+    plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
+    plot_confusion_matrix(confmat, target_labels)
+
+    # if one of the classes is empty
+    inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
+    if len(inds) != 0:
+        labels = np.concatenate((labels, inds))
+        prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
+
+    if n_classes == 2:
+        ap = average_precision_score(labels, np.argmax(prob, axis=1))
+    else:
+        ap = average_precision_score(labels, prob)
+    print(ap, loss.item(), accuracy)
+    print(confmat)
+
+    # save_in_file(fail_path, pred, target_labels_names)
+    save_predictions_csv(
+        fail_path / "aaa.csv", data, ldts, pred, prob, target_labels_names
+    )
 
     if SAVE_FAILED:
         names = []
