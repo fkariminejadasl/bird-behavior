@@ -180,68 +180,27 @@ def save_results(
     data,
     ldts,
     model,
-    criterion,
     device,
     fail_path,
-    target_labels,
     target_labels_names,
-    n_classes,
-    stage="valid",
-    SAVE_FAILED=False,
 ):
-    labels = ldts[:, 0]
-    labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C
-    prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
-    pred = torch.argmax(outputs.data, 1)
-    # loss and accuracy
-    loss = criterion(outputs, labels)  # 1
-    corrects = (pred == labels).sum().item()
-    accuracy = corrects / len(labels) * 100
+    probs = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+    preds = torch.argmax(outputs.data, 1)
+    probs = probs.cpu().numpy()
+    preds = preds.cpu().numpy()
 
-    labels = labels.cpu().numpy()
-    prob = prob.cpu().numpy()
-    pred = pred.cpu().numpy()
-
-    # confusion matrix
-    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
-    # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
-    plot_confusion_matrix(confmat, target_labels_names)
-    plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
-    plot_confusion_matrix(confmat, target_labels)
-
-    # if one of the classes is empty
-    inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
-    if len(inds) != 0:
-        labels = np.concatenate((labels, inds))
-        prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
-
-    if n_classes == 2:
-        ap = average_precision_score(labels, np.argmax(prob, axis=1))
-    else:
-        ap = average_precision_score(labels, prob)
-    print(ap, loss.item(), accuracy)
-    print(confmat)
-
-    # save_in_file(fail_path, pred, target_labels_names)
     save_predictions_csv(
-        fail_path / "aaa.csv", data, ldts, pred, prob, target_labels_names
+        fail_path / "aaa.csv", data, ldts, preds, probs, target_labels_names
     )
 
-    if SAVE_FAILED:
-        names = []
-        inds = np.where(pred != labels)[0]
-        for ind in inds:
-            label_name = target_labels_names[labels[ind]]
-            if label_name == "Pecking":
-                pred_name = target_labels_names[pred[ind]]
-                conf = prob[ind, pred[ind]]
-                data_item = data[ind].transpose(1, 0).cpu().numpy()
-                ldts_item = ldts[ind]
-                name = save_data_prediction(
-                    fail_path, label_name, pred_name, conf, data_item, ldts_item
-                )
-                names.append(name)
-        with open(fail_path / "results.txt", "a") as f:
-            [f.write(f"{name}\n") for name in names]
+    # TODO saving some data
+    ind = 0
+    pred_name = target_labels_names[preds[ind]]
+    conf = probs[ind, preds[ind]]
+    data_item = data[ind].transpose(1, 0).cpu().numpy()
+    ldts_item = ldts[ind]
+    _ = save_data_prediction(
+        fail_path, pred_name, pred_name, conf, data_item, ldts_item
+    )

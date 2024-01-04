@@ -51,8 +51,6 @@ if __name__ == "__main__":
         9: "Pecking",
     }
 
-    train_per = 0.9
-    data_per = 1
     width = 30
     # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -72,33 +70,15 @@ if __name__ == "__main__":
         all_measurements, label_ids, target_labels
     )
 
-    n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-    n_valid = all_measurements.shape[0] - n_trainings
-    train_measurments = all_measurements[:n_trainings]
-    valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-    train_labels, valid_labels = (
-        label_ids[:n_trainings],
-        label_ids[n_trainings : n_trainings + n_valid],
-    )
+    valid_measurements = all_measurements
+    valid_labels = label_ids
     print(
-        len(train_labels),
         len(valid_labels),
-        train_measurments.shape,
         valid_measurements.shape,
     )
 
-    # train_dataset = bd.BirdDataset(all_measurements, label_ids)
-    # eval_dataset = deepcopy(train_dataset)
-    train_dataset = bd.BirdDataset(train_measurments, train_labels)
     eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=len(train_dataset),
-        shuffle=True,
-        num_workers=1,
-        drop_last=True,
-    )
     eval_loader = DataLoader(
         eval_dataset,
         batch_size=len(eval_dataset),
@@ -117,34 +97,14 @@ if __name__ == "__main__":
 
     print(device)
 
-    # data, ldts = next(iter(train_loader))
-    # bu.helper_results(
-    #     data,
-    #     ldts,
-    #     model,
-    #     criterion,
-    #     device,
-    #     fail_path,
-    #     target_labels,
-    #     target_labels_names,
-    #     n_classes,
-    #     stage="train",
-    #     SAVE_FAILED=False,
-    # )
-
     data, ldts = next(iter(eval_loader))
     bu.save_results(
         data,
         ldts,
         model,
-        criterion,
         device,
         fail_path,
-        target_labels,
         target_labels_names,
-        n_classes,
-        stage="valid",
-        SAVE_FAILED=True,
     )
 
     print(sum([p.numel() for p in model.parameters()]))
