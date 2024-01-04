@@ -58,17 +58,17 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
     return name
 
 
-def save_predictions_csv(save_file, data, ldts, preds, probs, target_labels_names):
-    ldts = np.array(ldts)
+def save_predictions_csv(save_file, data, idts, preds, probs, target_labels_names):
+    idts = np.array(idts)
     data = data.transpose(2, 1).cpu().numpy()
     with open(save_file, "w") as rfile:
         rfile.write("device,time,index,GPS,prediction,confidence\n")
         for i in range(len(data)):
-            device_id = ldts[i, 1]
-            start_date = datetime.utcfromtimestamp(ldts[i, 2]).strftime(
+            device_id = idts[i, 1]
+            start_date = datetime.utcfromtimestamp(idts[i, 2]).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
-            index = 0
+            index = idts[i, 0]
             gps = np.float32(data[i, 0, -1] * gps_scale)
             pred = preds[i]
             pred_name = target_labels_names[pred]
@@ -178,7 +178,7 @@ def helper_results(
 
 def save_results(
     data,
-    ldts,
+    idts,
     model,
     device,
     fail_path,
@@ -192,7 +192,7 @@ def save_results(
     preds = preds.cpu().numpy()
 
     save_predictions_csv(
-        fail_path / "aaa.csv", data, ldts, preds, probs, target_labels_names
+        fail_path / "results.csv", data, idts, preds, probs, target_labels_names
     )
 
     # TODO saving some data
@@ -200,7 +200,7 @@ def save_results(
     pred_name = target_labels_names[preds[ind]]
     conf = probs[ind, preds[ind]]
     data_item = data[ind].transpose(1, 0).cpu().numpy()
-    ldts_item = ldts[ind]
+    ldts_item = idts[ind]
     _ = save_data_prediction(
         fail_path, pred_name, pred_name, conf, data_item, ldts_item
     )

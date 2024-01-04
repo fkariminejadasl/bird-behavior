@@ -64,24 +64,19 @@ if __name__ == "__main__":
     fail_path = save_path
     fail_path.mkdir(parents=True, exist_ok=True)
 
-    all_measurements, label_ids = bd.combine_all_data(inputs.data_file)
-    # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
-    all_measurements, label_ids = bd.get_specific_labesl(
-        all_measurements, label_ids, target_labels
+    # TODO check for indices (if less than 20 or maybe a jump)
+    gimus, idts = bd.get_data(
+        inputs.database_url, inputs.device_id, inputs.start_time, inputs.end_time
     )
+    idts = idts.reshape(-1, 20, 3)[:, 0, :]
+    infer_measurements = gimus.reshape(-1, 20, 4)
+    print(infer_measurements.shape)
 
-    valid_measurements = all_measurements
-    valid_labels = label_ids
-    print(
-        len(valid_labels),
-        valid_measurements.shape,
-    )
+    infer_dataset = bd.BirdDataset(infer_measurements, idts)
 
-    eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
-
-    eval_loader = DataLoader(
-        eval_dataset,
-        batch_size=len(eval_dataset),
+    infer_loader = DataLoader(
+        infer_dataset,
+        batch_size=len(infer_dataset),
         shuffle=False,
         num_workers=1,
         drop_last=True,
@@ -89,18 +84,18 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     criterion = torch.nn.CrossEntropyLoss()
 
-    print(f"data shape: {eval_dataset[0][0].shape}")  # 3x20
-    in_channel = eval_dataset[0][0].shape[0]  # 3 or 4
+    print(f"data shape: {infer_dataset[0][0].shape}")  # 3x20
+    in_channel = infer_dataset[0][0].shape[0]  # 3 or 4
     model = bm.BirdModel(in_channel, width, n_classes).to(device)
     model.eval()
     bm.load_model(model_checkpoint, model, device)
 
     print(device)
 
-    data, ldts = next(iter(eval_loader))
+    data, _ = next(iter(infer_loader))
     bu.save_results(
         data,
-        ldts,
+        idts,
         model,
         device,
         fail_path,

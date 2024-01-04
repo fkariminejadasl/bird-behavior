@@ -1,4 +1,10 @@
 # None: means leave it empty
+# query database
+start_time: "2012-05-17 00:00:59" # Value str. It should be "year-month-day hour:minute:second"
+end_time: "2012-05-17 00:00:59" # Value str. It should be "year-month-day hour:minute:second"
+device_id: 541 # Value int. 
+database_url: "postgresql://{username}:{password}@{host}:{port}/{database_name}" # Value: str. 
+
 data_file: /content/combined.json # Value: Path
 model_checkpoint: /content/45_best.pth # Value: Path
 save_path: /content/result # Value: Path

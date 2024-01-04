@@ -467,22 +467,27 @@ def get_data(database_url, device_id, start_time, end_time):
 
     Returns
     -------
-    np.ndarray
-        A 2D array containing IMU data (x, y, z) and GPS 2D speed.
+    tuple of np.ndarray
+        The first np.ndarray is a 2D array containing IMU data (x, y, z) and GPS 2D speed.
+        The second np.ndarray consists of indices, device IDs, and timestamps.
+
 
     Examples
     --------
     >>> database_url = "postgresql://username:password@host:port/database_name"
     >>> device_id = 541
     >>> start_time = '2012-05-17 00:00:59'
-    >>> get_data(database_url, device_id, start_time, start_time)[40]
+    >>> gimus, idts = get_data(database_url, device_id, start_time, start_time)
+    >>> gimus[40]
     array([0.07432701, -0.13902547,  0.96671783,  1.26196257])
+    >>> idts[40]
+    array([40, 541, 1337212859])
 
     Notes
     -----
     The function queries a database to retrieve calibration IMU values, 2D GPS speed,
     and IMU data for a specific device within a given time range. It processes this
-    data and returns it in a structured numpy array format.
+    data and returns it in two structured numpy array format.
     """
 
     # Get calibration imu values from database
@@ -523,8 +528,15 @@ def get_data(database_url, device_id, start_time, end_time):
             for result in results
         ]
     )
+
     gimus = np.concatenate((imus, np.ones((len(imus), 1)) * gps), axis=1)
-    return gimus
+
+    indices = [result[2] - 1 for result in results]  # make indices zero-based
+    timestamps = [
+        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in results
+    ]
+    idts = np.stack((indices, len(indices) * [541], timestamps)).T.astype(np.int64)
+    return gimus, idts
 
 
 """
