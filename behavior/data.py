@@ -541,7 +541,35 @@ def get_data(database_url, device_id, start_time, end_time):
     return gimus, idts
 
 
-def identify_and_process_groups(indices):
+'''
+# example queries
+# Get calibration imu values from database
+sql_query = f"""
+select *
+from gps.ee_tracker_limited
+where device_info_serial = {device_id}
+"""
+
+# speed_2d for gpd speed
+sql_query = f"""
+SELECT *
+FROM gps.ee_tracking_speed_limited
+WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+order by date_time
+"""
+
+# get imu
+sql_query = f"""
+SELECT *
+FROM gps.ee_acceleration_limited
+WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+order by date_time, index
+"""
+results = query_database(database_url, sql_query)
+'''
+
+
+def identify_and_process_groups_(indices):
     """
     Identify, filter, and process groups of consecutive integers in a list.
 
@@ -607,16 +635,104 @@ def identify_and_process_groups(indices):
     return final_groups
 
 
+def identify_and_process_groups(data):
+    """
+    Identify, filter, and process groups of items with consecutive indices in a list.
+
+    This function processes a list of items, where each item is a list containing an index and an
+    additional value (e.g., [[1, 'a'], [2, 'b'], ...]). It identifies groups of items with
+    consecutive indices. The function filters out groups that are shorter than 20 elements. For
+    the remaining groups, it splits them into subgroups of exactly 20 elements each. Any remaining
+    items in a group after forming these subgroups are discarded.
+    1. Identify groups.
+    2. Remove groups that are shorter than 20 elements in length.
+    3. Return only the groups of indices that have exactly 20 elements. For example, if we have
+       a group like `1, 2, ..., 46`, it should be divided into two groups. The first one would be
+       `1, 2, ..., 20` and the second would be `21, 22, ..., 40`. The remaining indices,
+       `41, 42, ..., 46`, are discarded.
+
+    Parameters
+    ----------
+    data : list of list
+        A list of items, where each item is a list containing an index (int) and an additional value.
+        The indices are expected to be in a sorted and potentially grouped sequential order.
+
+    Returns
+    -------
+    list of list
+        A list containing subgroups of the input items. Each subgroup is a list of exactly
+        20 items from the original list, based on consecutive indices, and only subgroups that
+        could be fully formed (i.e., with exactly 20 elements) are included.
+
+    Examples
+    --------
+    >>> data = [[1, 'a'], [2, 'b'], ..., [46, 'x'], [1, 'y'], ..., [60, 'aa']]
+    >>> identify_and_process_groups(data)
+    [[[1, 'a'], [2, 'b'], ..., [20, 't']], [[21, 'u'], [22, 'v'], ..., [40, 'dd']]]
+
+    Notes
+    -----
+    The function assumes that the input list 'data' contains items in the format [index, value],
+    where 'index' is an integer. Groups are identified based on consecutive index sequences in this list.
+    Repeated indices are handled by associating each index with its original position in the 'data' list.
+    """
+
+    # Extract indices
+    indices = [item[0] for item in data]
+
+    # Original logic to identify and process groups
+    groups = []
+    current_group = [(indices[0], 0)]  # Store index along with its position
+
+    for i in range(1, len(indices)):
+        if indices[i] == current_group[-1][0] + 1:
+            current_group.append((indices[i], i))
+        else:
+            groups.append(current_group)
+            current_group = [(indices[i], i)]
+
+    # Add the last group
+    groups.append(current_group)
+
+    # Filter groups less than length 20
+    filtered_groups = [group for group in groups if len(group) >= 20]
+
+    # Map processed groups back to original items
+    final_groups = []
+    for group in filtered_groups:
+        for i in range(0, len(group), 20):
+            subgroup_tuples = group[i : i + 20]
+            if len(subgroup_tuples) == 20:
+                # Retrieve the original items using global index
+                subgroup = [data[t[1]] for t in subgroup_tuples]
+                final_groups.append(subgroup)
+
+    return final_groups
+
+
 def test_identify_and_process_groups():
+    # fmt: off
+    data = [[1, 20], [2, 14], [1, 50], [2, 34], [3, 28], [4, 22], [5, 18], [6, 15], [7, 14], [8, 13], [9, 12], [10, 11], [11, 10], [12, 9], [13, 8], [14, 7], [15, 6], [16, 5], [17, 4], [18, 3], [19, 2], [20, 1], [21, 50], [22, 49], [23, 48], [24, 47], [25, 46], [26, 45], [27, 44], [28, 43], [29, 42], [30, 41], [31, 40], [32, 39], [33, 38], [34, 37], [35, 36], [36, 35], [37, 34], [38, 33], [39, 32], [40, 31], [41, 30], [42, 29], [43, 28], [44, 27], [45, 26], [46, 25]]
+    # fmt: on
+    processed_groups = identify_and_process_groups(data)
+    np.testing.assert_equal(np.array(data)[2:22], np.array(processed_groups[0]))
+    np.testing.assert_equal(np.array(data)[22:42], np.array(processed_groups[1]))
+
+
+def test_identify_and_process_groups_():
     # fmt: off
     indices = [1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,1]
     # fmt: on
-    processed_groups = identify_and_process_groups(indices)
+    processed_groups = identify_and_process_groups_(indices)
     assert processed_groups[0] == list(range(1, 21))
     assert processed_groups[1] == list(range(21, 41))
     assert processed_groups[2] == list(range(1, 21))
 
 
+test_identify_and_process_groups()
+test_identify_and_process_groups_()
+print("passed")
+print("fdfd")
 """
 # plot data 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
