@@ -535,8 +535,86 @@ def get_data(database_url, device_id, start_time, end_time):
     timestamps = [
         int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in results
     ]
-    idts = np.stack((indices, len(indices) * [541], timestamps)).T.astype(np.int64)
+    idts = np.stack((indices, len(indices) * [device_id], timestamps)).T.astype(
+        np.int64
+    )
     return gimus, idts
+
+
+def identify_and_process_groups(indices):
+    """
+    Identify, filter, and process groups of consecutive integers in a list.
+
+    This function processes a list of integers, identifying groups of consecutive numbers.
+    It filters out groups that are shorter than 20 elements. For the remaining groups, it splits
+    them into subgroups of exactly 20 elements each. Any remaining elements in a group after forming
+    these subgroups are discarded.
+    1. Identify groups.
+    2. Remove groups that are shorter than 20 elements in length.
+    3. Return only the groups of indices that have exactly 20 elements. For example, if we have
+       a group like `1, 2, ..., 46`, it should be divided into two groups. The first one would be
+       `1, 2, ..., 20` and the second would be `21, 22, ..., 40`. The remaining indices,
+       `41, 42, ..., 46`, are discarded.
+
+    Parameters
+    ----------
+    indices : list of int
+        A list of integers, expected to be in a sorted order.
+
+    Returns
+    -------
+    list of list of int
+        A list containing subgroups of the input integers. Each subgroup is a list of exactly
+        20 consecutive integers from the original list, and only subgroups that could be fully
+        formed (i.e., with exactly 20 elements) are included.
+
+    Examples
+    --------
+    >>> indices = [1, 2, 3, ..., 46]
+    >>> identify_and_process_groups(indices)
+    [[1, 2, 3, ..., 20], [21, 22, 23, ..., 40]]
+
+    Notes
+    -----
+    The function assumes that the input list 'indices' is sorted and contains no duplicates.
+    Groups are identified based on consecutive number sequences in this list.
+    """
+    # Identify groups
+    groups = []
+    current_group = [indices[0]]
+
+    for i in range(1, len(indices)):
+        if indices[i] == current_group[-1] + 1:
+            current_group.append(indices[i])
+        else:
+            groups.append(current_group)
+            current_group = [indices[i]]
+
+    # Add the last group
+    groups.append(current_group)
+
+    # Filter groups less than length 20
+    filtered_groups = [group for group in groups if len(group) >= 20]
+
+    # Split and trim groups to length of 20, discarding shorter subgroups
+    final_groups = []
+    for group in filtered_groups:
+        for i in range(0, len(group), 20):
+            subgroup = group[i : i + 20]
+            if len(subgroup) == 20:
+                final_groups.append(subgroup)
+
+    return final_groups
+
+
+def test_identify_and_process_groups():
+    # fmt: off
+    indices = [1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,1]
+    # fmt: on
+    processed_groups = identify_and_process_groups(indices)
+    assert processed_groups[0] == list(range(1, 21))
+    assert processed_groups[1] == list(range(21, 41))
+    assert processed_groups[2] == list(range(1, 21))
 
 
 """
