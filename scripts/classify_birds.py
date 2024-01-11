@@ -64,7 +64,6 @@ if __name__ == "__main__":
     fail_path = save_path
     fail_path.mkdir(parents=True, exist_ok=True)
 
-    # TODO check for indices (if less than 20 or maybe a jump)
     gimus, idts = bd.get_data(
         inputs.database_url, inputs.device_id, inputs.start_time, inputs.end_time
     )
