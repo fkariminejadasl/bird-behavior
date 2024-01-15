@@ -64,7 +64,7 @@ if __name__ == "__main__":
     fail_path = save_path
     fail_path.mkdir(parents=True, exist_ok=True)
 
-    gimus, idts = bd.get_data(
+    gimus, idts, llat = bd.get_data(
         inputs.database_url, inputs.device_id, inputs.start_time, inputs.end_time
     )
     idts = idts.reshape(-1, 20, 3)[:, 0, :]
