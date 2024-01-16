@@ -97,6 +97,7 @@ if __name__ == "__main__":
         data,
         idts,
         llat,
+        model_checkpoint.stem,
         model,
         device,
         fail_path,

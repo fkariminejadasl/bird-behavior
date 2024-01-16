@@ -59,13 +59,13 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
 
 
 def save_predictions_csv(
-    save_file, data, idts, llat, preds, probs, target_labels_names
+    save_file, data, idts, llat, mod_name, preds, probs, target_labels_names
 ):
     idts = np.array(idts)
     data = data.transpose(2, 1).cpu().numpy()
     with open(save_file, "w") as rfile:
         rfile.write(
-            "device,time,index,GPS,prediction,confidence,latitude,longitude,altitude,temperature\n"
+            "device,time,index,GPS,prediction,confidence,latitude,longitude,altitude,temperature,runtime,model\n"
         )
         for i in range(len(data)):
             device_id = idts[i, 1]
@@ -78,9 +78,11 @@ def save_predictions_csv(
             pred_name = target_labels_names[pred]
             conf = probs[i, pred]
             latitude, longitude, altitude, temperature = llat[i]
+            runtime_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             text = (
                 f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f},"
-                f"{latitude:.7f},{longitude:.7f},{int(altitude)},{temperature:.1f}\n"
+                f"{latitude:.7f},{longitude:.7f},{int(altitude)},{temperature:.1f},"
+                f"{runtime_date},{mod_name}\n"
             )
             rfile.write(text)
 
@@ -186,6 +188,7 @@ def save_results(
     data,
     idts,
     llat,
+    model_checkpoint,
     model,
     device,
     fail_path,
@@ -199,7 +202,14 @@ def save_results(
     preds = preds.cpu().numpy()
 
     save_predictions_csv(
-        fail_path / "results.csv", data, idts, llat, preds, probs, target_labels_names
+        fail_path / "results.csv",
+        data,
+        idts,
+        llat,
+        model_checkpoint,
+        preds,
+        probs,
+        target_labels_names,
     )
 
     # TODO saving some data
