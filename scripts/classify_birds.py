@@ -67,6 +67,7 @@ if __name__ == "__main__":
     gimus, idts, llat = bd.get_data(
         inputs.database_url, inputs.device_id, inputs.start_time, inputs.end_time
     )
+    llat = np.array(llat).reshape(-1, 20, 4)[:, 0, :]
     idts = idts.reshape(-1, 20, 3)[:, 0, :]
     infer_measurements = gimus.reshape(-1, 20, 4)
     print(infer_measurements.shape)
@@ -95,6 +96,7 @@ if __name__ == "__main__":
     bu.save_results(
         data,
         idts,
+        llat,
         model,
         device,
         fail_path,

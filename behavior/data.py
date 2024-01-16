@@ -694,7 +694,6 @@ def test_identify_and_process_groups():
 
 
 test_identify_and_process_groups()
-print("passed")
 """
 # plot data 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
