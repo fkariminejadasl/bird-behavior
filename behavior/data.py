@@ -368,11 +368,23 @@ def combine_jsons_to_one_json(json_files):
 
 
 def combine_all_data(data_file):
+    """
+    Parameters
+    ----------
+    data_file: Path
+        json file
+
+    Returns
+    -------
+    tuple of np.ndarray
+        first: N x 20 x 4, float64
+        second: N x 3, int64
+    """
     labels, label_ids, device_ids, time_stamps, all_measurements = read_data(data_file)
     label_device_times = np.stack((label_ids, device_ids, time_stamps)).T
 
     inds = np.arange(all_measurements.shape[0])
-    np.random.shuffle(inds)
+    # np.random.shuffle(inds)
     all_measurements = all_measurements[inds]
     label_device_times = np.array(label_device_times)[inds]
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)

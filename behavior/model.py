@@ -64,9 +64,14 @@ class BirdModel(nn.Module):
         return x
 
 
-from behavior.helpers import (EinOpsRearrange, IMUPreprocessor,
-                              LearnableLogitScaling, Normalize,
-                              PatchEmbedGeneric, SelectElement)
+from behavior.helpers import (
+    EinOpsRearrange,
+    IMUPreprocessor,
+    LearnableLogitScaling,
+    Normalize,
+    PatchEmbedGeneric,
+    SelectElement,
+)
 from behavior.transformer import MultiheadAttention, SimpleTransformer
 
 

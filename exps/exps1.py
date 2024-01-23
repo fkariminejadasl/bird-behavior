@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
+from behavior import prepare as bp
 from behavior import utils as bu
 
 # import wandb
@@ -32,8 +33,8 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 45  # sys.argv[1]
-save_name = "failure_pecking2"
+exp = 76  # sys.argv[1]
+save_name = f"{exp}"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -50,7 +51,10 @@ fail_path.mkdir(parents=True, exist_ok=True)
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 combined_file = data_path / "combined.json"
 
-all_measurements, label_ids = bd.combine_all_data(combined_file)
+all_measurements, label_ids = bp.load_csv(
+    "/home/fatemeh/Downloads/bird/result/failed/exp1/set1.csv"
+)
+# all_measurements, label_ids = bd.combine_all_data(combined_file)
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels

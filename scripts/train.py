@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
+from behavior import prepare as bp
 
 # import wandb
 # wandb.init(project="uncategorized")
@@ -29,18 +30,18 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 75  # sys.argv[1]
+exp = 76  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 2, 4, 5]
 # target_labels = [8, 9]
-target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
 n_classes = len(target_labels)
 # hyperparam
 warmup_epochs = 1000
@@ -54,8 +55,11 @@ width = 30
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 combined_file = data_path / "combined.json"
 
-all_measurements, label_ids = bd.combine_all_data(combined_file)
-label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
+# all_measurements, label_ids = bd.combine_all_data(combined_file)
+all_measurements, label_ids = bp.load_csv(
+    "/home/fatemeh/Downloads/bird/result/failed/exp1/set1.csv"
+)
+# label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )

@@ -38,6 +38,15 @@ def plot_confusion_matrix(confusion_matrix, class_names):
     plt.tight_layout()
 
 
+def plot_one(data):
+    _, ax = plt.subplots(1, 1)
+    ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
+    ax.set_xlim(0, 20)
+    ax.set_ylim(-3.5, 3.5)
+    plt.show(block=False)
+    return ax
+
+
 def save_data_prediction(save_path, label, pred, conf, data, ldts):
     """
     data: np.ndary
