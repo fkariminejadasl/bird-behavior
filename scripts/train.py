@@ -30,7 +30,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 76  # sys.argv[1]
+exp = 78  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -55,10 +55,10 @@ width = 30
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 combined_file = data_path / "combined.json"
 
-# all_measurements, label_ids = bd.combine_all_data(combined_file)
-all_measurements, label_ids = bp.load_csv(
-    "/home/fatemeh/Downloads/bird/result/failed/exp1/set1.csv"
-)
+all_measurements, label_ids = bd.combine_all_data(combined_file)
+# all_measurements, label_ids = bp.load_csv(
+#     "/home/fatemeh/Downloads/bird/result/failed/exp1/set1.csv"
+# )
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels

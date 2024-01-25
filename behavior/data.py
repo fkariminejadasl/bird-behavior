@@ -384,7 +384,7 @@ def combine_all_data(data_file):
     label_device_times = np.stack((label_ids, device_ids, time_stamps)).T
 
     inds = np.arange(all_measurements.shape[0])
-    # np.random.shuffle(inds)
+    np.random.shuffle(inds)
     all_measurements = all_measurements[inds]
     label_device_times = np.array(label_device_times)[inds]
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
@@ -745,12 +745,6 @@ axs[2].plot(agps_imus[:, 3])
 plt.show(block=False)
 """
 
-from datetime import datetime, timezone
-
-from scipy.io import loadmat
-
-data_path = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
-
 # dd = loadmat(data_path / "AnnAcc1600_20140520_152300-20140520_153000.mat")['outputStruct']
 # dd['accX'][0][0][82][0][0] # accY, accZ contains nan and variale length 12-40
 # dd['annotations'][0][0] # ind=0 for data, ind=1-2 start-end of indices in tags, ind=3 for label
@@ -809,22 +803,22 @@ for id_ in [12]:  # range(1, 19):
     if counts != 0:
         id_count[id_] = counts
 
-
+i = 30
 year, month, day = (
-    dd["year"][0][0][0, 30],
-    dd["month"][0][0][0, 30],
-    dd["day"][0][0][0, 30],
+    dd["year"][0][0][0, i],
+    dd["month"][0][0][0, i],
+    dd["day"][0][0][0, i],
 )
-hour, min, sec = dd["hour"][0][0][0, 30], dd["min"][0][0][0, 30], dd["sec"][0][0][30, 0]
+hour, min, sec = dd["hour"][0][0][0, i], dd["min"][0][0][0, i], dd["sec"][0][0][i, 0]
 timestamp = (
     datetime(year, month, day, hour, min, sec).replace(tzinfo=timezone.utc).timestamp()
 )
-tags = dd["tags"][0][0][0][30][49:76]
-device_id = dd["sampleID"][0][0][0, 30]  # ?
-imu_x = dd["accX"][0][0][30][0][0][49:76]
-imu_y = dd["accY"][0][0][30][0][0][49:76]
-imu_z = dd["accZ"][0][0][30][0][0][49:76]
-gps_single = dd["gpsSpd"][0][0][30, 0]
+tags = dd["tags"][0][0][0][i][49:76]
+device_id = dd["sampleID"][0][0][0, i]  # ?
+imu_x = dd["accX"][0][0][i][0][0][49:76]
+imu_y = dd["accY"][0][0][i][0][0][49:76]
+imu_z = dd["accZ"][0][0][i][0][0][49:76]
+gps_single = dd["gpsSpd"][0][0][i, 0]
 assert len(set(tags[:, 0])) == 1
 assert set(tags[:, 1]) == {1}
 assert not any(np.isnan(imu_x))
