@@ -356,14 +356,14 @@ print(count) # 78=1560/20
 """
 
 
-def combine_jsons_to_one_json(json_files):
+def combine_jsons_to_one_json(json_files, save_file):
     # input list[Path]
     combined_data = []
     for file_name in json_files:
         with open(file_name, "r") as file:
             data = json.load(file)
             combined_data.extend(data)
-    with open(data_path / "combined.json", "w") as combined_file:
+    with open(save_file, "w") as combined_file:
         json.dump(combined_data, combined_file)
 
 
@@ -459,7 +459,7 @@ def query_database(database_url, sql_query):
     return result
 
 
-def get_data(database_url, device_id, start_time, end_time):
+def get_data(database_url, device_id, start_time, end_time, glen=20):
     """
     Retrieve sensor data from a specified database within a given time range.
 
@@ -476,12 +476,15 @@ def get_data(database_url, device_id, start_time, end_time):
     end_time : str
         The end of the time range for data retrieval, formatted as '%Y-%m-%d %H:%M:%S'.
         Note: `start_time` and `end_time` can be the same.
+    glen : int
+        Group length. Default is 20.
 
     Returns
     -------
     tuple of np.ndarray
         The first np.ndarray is a 2D array containing IMU data (x, y, z) and GPS 2D speed.
         The second np.ndarray consists of indices, device IDs, and timestamps.
+        igs, idts 2D array: Nx20 x 4, Nx20 x 3, llat: list Nx20 x 4
 
 
     Examples
@@ -512,9 +515,7 @@ def get_data(database_url, device_id, start_time, end_time):
     """
     results = query_database(database_url, sql_query)
     assert len(results) != 0, "no data found"
-    _, x_o, x_s, y_o, y_s, z_o, z_s = [
-        float(cell) for cell in results[0] if isinstance(cell, Decimal)
-    ]
+    x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in results[0][5:11]]
 
     # speed_2d for gpd speed
     sql_query = f"""
@@ -561,7 +562,7 @@ def get_data(database_url, device_id, start_time, end_time):
     ]
     # data element: index, time, imu
     data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
-    groups = identify_and_process_groups(data)
+    groups = identify_and_process_groups(data, glen)
 
     # match gps data: time, GPS 2d speed, latitude, longitude, altitude, temperature
     for group in groups:
@@ -621,7 +622,7 @@ results = query_database(database_url, sql_query)
 '''
 
 
-def identify_and_process_groups(data):
+def identify_and_process_groups(data, glen=20):
     """
     Identify, filter, and process groups of items with consecutive indices in a list.
 
@@ -642,6 +643,8 @@ def identify_and_process_groups(data):
     data : list of list
         A list of items, where each item is a list containing an index (int) and an additional value.
         The indices are expected to be in a sorted and potentially grouped sequential order.
+    glen : int
+        group length. Defult is 20.
 
     Returns
     -------
@@ -680,15 +683,15 @@ def identify_and_process_groups(data):
     # Add the last group
     groups.append(current_group)
 
-    # Filter groups less than length 20
-    filtered_groups = [group for group in groups if len(group) >= 20]
+    # Filter groups less than length glen
+    filtered_groups = [group for group in groups if len(group) >= glen]
 
     # Map processed groups back to original items
     final_groups = []
     for group in filtered_groups:
-        for i in range(0, len(group), 20):
-            subgroup_tuples = group[i : i + 20]
-            if len(subgroup_tuples) == 20:
+        for i in range(0, len(group), glen):
+            subgroup_tuples = group[i : i + glen]
+            if len(subgroup_tuples) == glen:
                 # Retrieve the original items using global index
                 subgroup = [data[t[1]] for t in subgroup_tuples]
                 final_groups.append(subgroup)
@@ -713,7 +716,7 @@ train_file = data_path / "train_set.json"
 valid_file = data_path / "validation_set.json"
 test_file = data_path / "test_set.json"
 combined_file = data_path / "combined.json"
-# combine_jsons_to_one_json([train_file, valid_file, test_file])
+# combine_jsons_to_one_json([train_file, valid_file, test_file], combined_file)
 # labels, label_ids, device_ids, time_stamps, all_measurements = read_data(combined_file)
 
 
