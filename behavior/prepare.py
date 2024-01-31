@@ -9,6 +9,20 @@ from tqdm import tqdm
 from behavior import data as bd
 from behavior import utils as bu
 
+ind2name = {
+    0: "Flap",
+    1: "ExFlap",
+    2: "Soar",
+    3: "Boat",
+    4: "Float",
+    5: "SitStand",
+    6: "TerLoco",
+    7: "Other",
+    8: "Manouvre",
+    9: "Pecking",
+}
+name2ind = {v: k for k, v in ind2name.items()}
+
 
 def find_matching_index(array, target, step=20, tolerance=1e-5):
     for i in range(0, len(array), step):
@@ -88,7 +102,7 @@ def convert_csv_files(csv_file, output_file):
 
 def write_mat_info(mat_file, save_file):
     dd = loadmat(mat_file)["outputStruct"]
-    n_data = len(dd["tags"][0][0][0])
+    n_data = dd["nOfSamples"][0][0][0][0]
     with open(save_file, "a") as f:
         for i in range(n_data):
             year, month, day, hour, min, sec = (
@@ -118,17 +132,6 @@ def write_mat_info(mat_file, save_file):
 
             item = f"{device_id},{t},{len(imu_x)},{uids},{len_ids}\n"
             f.write(item)
-
-
-def load_csv_info(csv_file):
-    jdata = []
-    with open(csv_file, "r") as f:
-        for r in f:
-            item = r.strip().split(",")
-            if item[3] == "":
-                continue
-            jdata.append(item)
-    return jdata
 
 
 def save_csv_info_from_json_zero_ind(json_file, csv_file):
@@ -161,8 +164,126 @@ def append_indices(json_file, save_file, database_url, glen=20):
         write_as_csv(save_file, device_id, start_time, ind, label, meas)
 
 
+def load_csv_info(csv_file):
+    data = []
+    with open(csv_file, "r") as f:
+        for r in f:
+            item = r.strip().split(",")
+            if item[3] == "":
+                continue
+            data.append(item)
+    return data
+
+
+def load_any_csv(csv_file, header=False):
+    data = []
+    with open(csv_file, "r") as f:
+        if header:
+            next(f)
+        for r in f:
+            item = r.strip().split(",")
+            data.append(item)
+    return data
+
+
+def save_anything_as_csv(save_file, data):
+    with open(save_file, "w") as f:
+        if isinstance(data, dict):
+            for key, value in data.items():
+                item = (*key, *value)
+                f.write(",".join(item) + "\n")
+        if isinstance(data, list):
+            for item in data:
+                f.write(",".join(item) + "\n")
+
+
+def data1_diff_data2(sdata1, sdata2):
+    data1 = {(row[0], row[1]) for row in sdata1}
+    data2 = {(row[0], row[1]) for row in sdata2}
+    return data1.difference(data2)
+
+
+def data1_common_data2(sdata1, sdata2):
+    data1 = {(row[0], row[1]) for row in sdata1}
+    data2 = {(row[0], row[1]) for row in sdata2}
+    return data1.intersection(data2)
+
+
+def data1_common_data2_labels(data1, data2):
+    """
+    data1,data2: list[list[str]]
+    returns: device,time,label1,label2
+    """
+    data = dict()
+    for row in data1:
+        data[(row[0], row[1])] = row[3]
+    found = []
+    for row in data2:
+        key = (row[0], row[1])
+        if key in data:
+            item = [row[0], row[1], data[key], row[3]]
+            found.append(item)
+    return found
+
+
+def data1_common_data2_labels_all(data1, data2, id_new_old):
+    data2_dict = {(row[0], row[1]): str(id_new_old[int(row[3])]) for row in data2}
+
+    common = defaultdict(list)
+    for row in data1:
+        key = (row[0], row[1])
+        if key in data2_dict:
+            if len(common[key]) == 0:
+                common[key] = [data2_dict[key], row[3]]
+            else:
+                if common[key][-1] != row[3]:
+                    common[key].append(row[3])
+    return common
+
+
+def data1_common_data2_labels_inds_all(
+    data1, data2, id_new_old, ignored_labels=["14", "15", "16", "17"]
+):
+    data2_dict = {
+        (row[0], row[1]): [row[4], str(id_new_old[int(row[3])])] for row in data2
+    }
+    common = []
+    for row in data1:
+        key = (row[0], row[1])
+        if key in data2_dict:
+            if row[3] not in ignored_labels:
+                item = (
+                    row[0],
+                    row[1],
+                    data2_dict[key][0],
+                    row[4],
+                    data2_dict[key][1],
+                    row[3],
+                )
+                common.append(item)
+    return common
+
+
+def change_time_string(time):
+    # '2012-05-15T12:14:14.000Z' -> '2012-05-15 12:14:14'
+    return datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.%fZ").strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+
+def count_labels_in_data(data):
+    counts = defaultdict(int)
+    for item in data:
+        labels = item[3].split("_")
+        for label in labels:
+            counts[int(label)] += 1
+    return counts
+    # {ind2name[k]:v for k, v in counts.items()}
+
+
 """ 
 # plot data
+# 33,2012-05-27 03:05:00 (18), 533,2012-05-27 03:05:00(2)
 database_url = "postgresql://username:password@host:port/database_name"
 device_id = 533
 start_time = "2012-05-15 09:47:29"
@@ -192,6 +313,7 @@ id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:1
 """
 
 """
+# in jsus data
 # device_id, start_time = 6208, '2015-07-04 10:46:22' # 18
 # device_id, start_time = 6073, '2016-06-07 12:43:47' # 17
 """
@@ -203,7 +325,6 @@ id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:1
 #  (805, 302), (806, 43), (871, 32), (1600, 54), (6011, 67), (6016, 24), (6073, 39), (6080, 63), (6206, 16), (6208, 113), (6210, 180)]
 # [(int(p.stem.split("AnnAcc")[1].split("_")[0]), loadmat(p)["outputStruct"]['annotations'][0][0].shape[0]) for p in dpath.glob("*mat")]
 # [(6208, 113), (6073, 73), (6011, 158), (6210, 271), (6016, 52), (1600, 57), (6206, 54), (6080, 141)]
-
 """
 
 """
@@ -225,16 +346,51 @@ json_file = dpath / "combined.json"
 # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 append_indices(json_file, save_file, database_url, glen=10)
 convert_csv_files(save_file, save_path /"sus_json_info.csv")
-# save_csv_info_from_json_zero_ind(json_file, Path("/home/fatemeh/Downloads/bird/data/sus_json_info_ind0.csv")
+# save_csv_info_from_json_zero_ind(dpath/"combined.json", save_path/"sus_json_info_ind0.csv")
 
 # for mat files
-for mat_file in tqdm(dpath.glob("*mat")):
+for mat_file in tqdm(dpath.glob("An*mat")):
     print(mat_file.name)
     write_mat_info(mat_file, save_path / "sus_mat_info.csv")
 
 dpath = Path("/home/fatemeh/Downloads/bird/bird/set3/data/matfiles") # the same for this path
+dpath = Path("/home/fatemeh/Downloads/bird/bird/set2/data")
+
+# judy annotations
+dpath = Path("/home/fatemeh/Downloads/bird/judy_annotations")
+data = []
+for p in dpath.glob("*csv"):
+    data.extend(load_any_csv(p, True))
+data = [[i[0],change_time_string(i[1]),'0',str(name2ind[i[2]]),'0'] for i in data]
+common = data1_common_data2_labels(sdata, data)
+common = [[i[0],i[1],'0',i[3],'0'] for i in common]
+[data.remove(i) for i in common]
+save_anything_as_csv(save_path/"judy_info.csv", data)
 """
 
+"""
+# extras
+save_path = Path("/home/fatemeh/Downloads/bird/data")
+sdata1 = load_csv_info(save_path/"set1_info.csv")
+sdata2 = load_csv_info(save_path/"set2_json_info_ind0.csv")
+
+found = data1_common_data2_labels(sdata1, sdata2)
+save_anything_as_csv(save_path/"set1_jset2_common2.csv", found)
+"""
+
+save_path = Path("/home/fatemeh/Downloads/bird/data")
+
+jdata = load_csv_info(save_path / "sus_json_info_ind0.csv")
+mdata = load_csv_info(save_path / "sus_mat_info.csv")
+sdata = load_csv_info(save_path / "set1_info.csv")
+
+count_labels_in_data(mdata)
+
+len(sdata), len(jdata), len(mdata)
+len(data1_diff_data2(mdata, sdata))
+len(data1_common_data2(jdata, mdata))
+ids = np.unique([str(i[0]) for i in mdata])
+",".join([str(i) for i in ids])
 
 """
 # jdata: 1856, sdata: 3505, mdata: 706
@@ -248,42 +404,18 @@ sdata = load_csv_info(save_path/"set1_info.csv")
 id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
 # fmt: yes
 
-data = dict()
-for row in jdata:
-    data[(row[0], row[1])] = [row[4], str(id_new_old[int(row[3])])] 
 
-found = defaultdict(list)
-for row in sdata:
-    key = (row[0], row[1])
-    if key in data:
-        if len(found[key]) == 0:
-            found[key] = [data[key][1], row[3]]
-        else:
-            if found[key][-1] != row[3]:
-                found[key].append(row[3])
-
-with open(save_path / "set1_jsus_common_labels.csv", 'w') as f:
-    for key, value in found.items():
-        item = (*key, *value)
-        f.write(','.join(item) + "\n")
+common =  data1_common_data2_labels_all(data1, data2, id_new_old)
+save_anything_as_csv(save_path / "set1_jsus_common_labels.csv", common)
 
 with open(save_path / "set1_jsus_common_labels_different.csv", 'w') as f:
-    for key, value in found.items():
+    for key, value in common.items():
         if value[0]!=value[1]:
             item = (*key, *value)
             f.write(','.join(item) + "\n")
 
-found = []
-for row in mdata:
-    key = (row[0], row[1])
-    if key in data:
-        # item = (row[0], row[1], data[key][0], row[4], data[key][1], row[3])
-        if (row[3] not in ["14", "15", "16", "17"]):
-            item = (row[0], row[1], data[key][1], row[3])
-            found.append(item)
-with open(save_path / "m_jsus_common_labels.csv", 'w') as f:
-    for item in found:
-        f.write(','.join(item) + "\n")
+common = data1_common_data2_labels_inds_all(mdata, jdata, id_new_old, ignored_labels=["14", "15", "16", "17"])
+save_anything_as_csv(save_path / "m_jsus_common_labels.csv", common)            
 """
 
 """
@@ -294,6 +426,10 @@ u_mdata = [list(row) for row in unique_rows]
 
 
 # TODO
+# csv reader for willem/set3
+# convert labels
+# set3: csv1, csv760, json 
+# willem: csv
 # check common data has the same id; 
 # put all data together 
 # remove commond part
