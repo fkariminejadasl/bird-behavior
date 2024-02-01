@@ -216,7 +216,15 @@ def read_data(json_path: Union[Path, str]):
         label_id = item["labelDetail"]["labelId"] - 1  # change it to zero based
         device_id = item["gpsRecord"]["deviceId"]
         time_stamp = int(item["gpsRecord"]["timeStamp"] / 1000)
-        measurements = get_per_location_measurements(item["gpsRecord"]["measurements"])
+        if (
+            "measurements" not in item["gpsRecord"]
+            or not item["gpsRecord"]["measurements"]
+        ):
+            measurements = []
+        else:
+            measurements = get_per_location_measurements(
+                item["gpsRecord"]["measurements"]
+            )
         labels.append(label)
         label_ids.append(label_id)
         device_ids.append(device_id)

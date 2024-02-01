@@ -134,6 +134,26 @@ def write_mat_info(mat_file, save_file):
             f.write(item)
 
 
+def write_csv_info(csv_file, save_file):
+    info = defaultdict(int)
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            t = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            if conf == "0":
+                continue
+            key = (device_id, t, str(int(label) - 1))  # zero-based
+            info[key] += 1
+    with open(save_file, "a") as f:
+        for k, v in info.items():
+            item = f"{k[0]},{k[1]},{v},{k[2]},{0}\n"
+            f.write(item)
+
+
 def save_csv_info_from_json_zero_ind(json_file, csv_file):
     # output: device, time, count, label, ind
     igs, ldts = bd.combine_all_data(json_file)
@@ -281,18 +301,6 @@ def count_labels_in_data(data):
     # {ind2name[k]:v for k, v in counts.items()}
 
 
-""" 
-# plot data
-# 33,2012-05-27 03:05:00 (18), 533,2012-05-27 03:05:00(2)
-database_url = "postgresql://username:password@host:port/database_name"
-device_id = 533
-start_time = "2012-05-15 09:47:29"
-igs, idts, llat = bd.get_data(database_url, device_id, start_time, start_time)
-bu.plot_one(igs[:20])
-bu.plot_one(igs[20:40])
-bu.plot_one(igs[40:])
-"""
-
 """
 ind2name = {
     6, 0: "Flap",
@@ -309,6 +317,8 @@ ind2name = {
 # Looking_food: 9, Handling_mussel: 10, StandForage: 11
 # values from json files. subtracted from one to become zero-based. 
 # Then some new assignment not to be the same with old scheme.
+id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
+# Flap:2, XflapL:6, XflapS:8, Soar:3, Float:7, stand:1, sit: 5, TerLoco/walk: 4, other: 9
 id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
 """
 
@@ -353,7 +363,10 @@ for mat_file in tqdm(dpath.glob("An*mat")):
     print(mat_file.name)
     write_mat_info(mat_file, save_path / "sus_mat_info.csv")
 
-dpath = Path("/home/fatemeh/Downloads/bird/bird/set3/data/matfiles") # the same for this path
+dpath = Path("/home/fatemeh/Downloads/bird/bird/set3/data/matfiles")
+bd.combine_jsons_to_one_json(list(dpath.glob("*json")), dpath/"combined.json")
+save_csv_info_from_json_zero_ind(dpath/"combined.json", save_path/"set3_json_info_ind0.csv")
+
 dpath = Path("/home/fatemeh/Downloads/bird/bird/set2/data")
 
 # judy annotations
@@ -366,30 +379,63 @@ common = data1_common_data2_labels(sdata, data)
 common = [[i[0],i[1],'0',i[3],'0'] for i in common]
 [data.remove(i) for i in common]
 save_anything_as_csv(save_path/"judy_info.csv", data)
+
+# Willem
+dpath = Path("/home/fatemeh/Downloads/bird/data_from_Willem")
+for p in dpath.glob("*csv"):
+    write_csv_info(p, save_path/"will_info_ind0.csv")
 """
 
 """
 # extras
+# set2
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 sdata1 = load_csv_info(save_path/"set1_info.csv")
 sdata2 = load_csv_info(save_path/"set2_json_info_ind0.csv")
 
-found = data1_common_data2_labels(sdata1, sdata2)
-save_anything_as_csv(save_path/"set1_jset2_common2.csv", found)
+common = data1_common_data2_labels(sdata1, sdata2)
+save_anything_as_csv(save_path/"set1_jset2_common2.csv", common)
+
+# willem
+sdata = load_csv_info(save_path / "set1_info.csv")
+wdata = load_csv_info(save_path / "will_info_ind0.csv")
+
+diff = data1_diff_data2(wdata, sdata)
+wdata_dict = {(i[0], i[1]): [i[2], i[3], i[4]] for i in wdata}
+diff_dict = {key: wdata_dict[key] for key in diff}
+save_anything_as_csv(save_path / "will_set1_diff.csv", diff_dict)
+
+common =  data1_common_data2_labels_all(sdata, wdata, {k:k for k in ind2name.keys()})
+save_anything_as_csv(save_path/"will_set1_common.csv", common)
+"""
+
+
+""" 
+# plot data
+# 33,2012-05-27 03:05:00 (18), 533,2012-05-27 03:05:00(2)
+database_url = "postgresql://username:password@host:port/database_name"
+device_id = 533
+start_time = "2012-05-15 09:47:29"
+igs, idts, llat = bd.get_data(database_url, device_id, start_time, start_time)
+bu.plot_one(igs[:20])
+bu.plot_one(igs[20:40])
+bu.plot_one(igs[40:])
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 
+
 jdata = load_csv_info(save_path / "sus_json_info_ind0.csv")
 mdata = load_csv_info(save_path / "sus_mat_info.csv")
 sdata = load_csv_info(save_path / "set1_info.csv")
+wdata = load_csv_info(save_path / "will_info_ind0.csv")
 
 count_labels_in_data(mdata)
 
 len(sdata), len(jdata), len(mdata)
 len(data1_diff_data2(mdata, sdata))
 len(data1_common_data2(jdata, mdata))
-ids = np.unique([str(i[0]) for i in mdata])
+ids = np.unique([int(i[0]) for i in mdata])
 ",".join([str(i) for i in ids])
 
 """
