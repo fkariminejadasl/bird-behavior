@@ -64,8 +64,8 @@ all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
 # make data shorter
-label_ids = np.repeat(label_ids, 2, axis=0)
-all_measurements = all_measurements.reshape(-1, 10, 4)
+# label_ids = np.repeat(label_ids, 2, axis=0)
+# all_measurements = all_measurements.reshape(-1, 10, 4)
 
 n_trainings = int(all_measurements.shape[0] * train_per * data_per)
 n_valid = all_measurements.shape[0] - n_trainings

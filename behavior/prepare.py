@@ -181,7 +181,9 @@ def append_indices(json_file, save_file, database_url, glen=20):
             print(device_id, start_time)
             continue
         ind = find_matching_index(igs[:, 0:3], meas[0, :3], 1)
-        write_as_csv(save_file, device_id, start_time, ind, label, meas)
+        index = idts[ind, 0]
+        ig = igs[ind : ind + glen]
+        write_as_csv(save_file, device_id, start_time, index, label, ig)
 
 
 def load_csv_info(csv_file):
