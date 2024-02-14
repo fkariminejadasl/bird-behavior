@@ -1,4 +1,5 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -134,8 +135,8 @@ def write_mat_info(mat_file, save_file):
             f.write(item)
 
 
-def write_csv_info(csv_file, save_file):
-    info = defaultdict(int)
+def write_w_info(csv_file, save_file):
+    info = defaultdict(list)
     with open(csv_file, "r") as f:
         for r in f:
             r = r.strip().split(", ")
@@ -146,12 +147,101 @@ def write_csv_info(csv_file, save_file):
             label, conf = r[-1].split(" ")
             if conf == "0":
                 continue
-            key = (device_id, t, str(int(label) - 1))  # zero-based
-            info[key] += 1
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            # key = (device_id, t, str(int(label) - 1))  # zero-based
+            key = (device_id, t)
+            info[key].extend([str(int(label) - 1)])  # zero-based
     with open(save_file, "a") as f:
         for k, v in info.items():
-            item = f"{k[0]},{k[1]},{v},{k[2]},{0}\n"
+            count_labels = dict(Counter(v))
+            counts = "_".join([str(i) for i in count_labels.values()])
+            labels = "_".join([i for i in count_labels.keys()])
+            item = f"{k[0]},{k[1]},{counts},{labels},{0}\n"
             f.write(item)
+
+
+def write_w_data(csv_file, save_file, database_url):
+    info = defaultdict(list)
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            t = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            if conf == "0":
+                continue
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            item = [r[2], r[3], r[4], r[5], r[6]]
+            key = (device_id, t, str(int(label) - 1))  # zero-based
+            info[key].append(item)
+    with open(save_file, "a") as f:
+        for k, values in info.items():
+            device_id = int(k[0])
+            start_time = k[1]
+            label = k[2]
+            if len(values) >= 20:  # TODO
+                max_seq_len = (len(values) // 20) * 20
+                values = values[:max_seq_len]
+                for v in values:
+                    item = f"{device_id},{start_time},{v[0]},{label},{v[1]},{v[2]},{v[3]},{v[4]}\n"
+                    f.write(item)
+            if len(values) < 14:  # TODO
+                continue
+            if 14 <= len(values) < 20:  # TODO
+                igs, idts, _ = bd.get_data(
+                    database_url, device_id, start_time, start_time
+                )
+                if len(igs) < 20:  # TODO
+                    continue
+                ig = np.array(list(map(float, values[0][1:4])))
+                ind = find_matching_index(igs[:, :3], ig, step=1)
+                if ind == -1:
+                    continue
+                max_seq_len = (len(values) // 20 + 1) * 20  # TODO
+                if (ind + max_seq_len) > len(igs):
+                    continue
+                sel_igs = igs[ind : ind + max_seq_len]
+                sel_idts = idts[ind : ind + max_seq_len]
+                for ig, idt in zip(sel_igs, sel_idts):
+                    item = f"{device_id},{start_time},{idt[0]},{label},{ig[0]:.8f},{ig[1]:.8f},{ig[2]:.8f},{ig[3]:.8f}\n"
+                    f.write(item)
+
+
+def combine(csv_files):
+    combined = defaultdict(list)
+    for csv_file in csv_files:
+        current = defaultdict(list)
+        with open(csv_file, "r") as f:
+            for r in f:
+                r = r.strip().split(",")
+                device_id = r[0]
+                date_time = r[1]
+                key = (device_id, date_time)
+                item = [r[2], r[3], r[4], r[5], r[6], r[7]]
+                current[key].append(item)
+        if len(combined) == 0:
+            combined = deepcopy(current)
+        # Replace with the largest value
+        for key, value in current.items():
+            if key in combined:
+                print(key, len(value), len(combined[key]))
+                if len(value) > len(combined[key]):
+                    combined[key] = value
+            if key not in combined:
+                combined[key] = value
+    return combined
+
+
+def save_dict_list_as_csv(save_file, data):
+    with open(save_file, "w") as f:
+        for key, values in data.items():
+            for value in values:
+                item = (*key, *value)
+                f.write(",".join(item) + "\n")
 
 
 def save_csv_info_from_json_zero_ind(json_file, csv_file):
@@ -185,7 +275,7 @@ def append_indices(json_file, save_file, database_url, glen=20):
         ig = igs[ind : ind + glen]
         write_as_csv(save_file, device_id, start_time, index, label, ig)
 
-
+# TODO tobe removed after jdata, sdata
 def load_csv_info(csv_file):
     data = []
     with open(csv_file, "r") as f:
@@ -248,19 +338,32 @@ def data1_common_data2_labels(data1, data2):
     return found
 
 
-def data1_common_data2_labels_all(data1, data2, id_new_old):
-    data2_dict = {(row[0], row[1]): str(id_new_old[int(row[3])]) for row in data2}
+def data1_common_data2_labels_all(data1, data2):
+    data2_dict = {(row[0], row[1]): row[3] for row in data2}
 
     common = defaultdict(list)
     for row in data1:
         key = (row[0], row[1])
         if key in data2_dict:
-            if len(common[key]) == 0:
-                common[key] = [data2_dict[key], row[3]]
-            else:
-                if common[key][-1] != row[3]:
-                    common[key].append(row[3])
+            common[key] = [row[3], data2_dict[key]]
+
     return common
+
+
+# TODO tobe removed after jdata, mdata
+# def data1_common_data2_labels_all(data1, data2, id_new_old):
+#     data2_dict = {(row[0], row[1]): str(id_new_old[int(row[3])]) for row in data2}
+
+#     common = defaultdict(list)
+#     for row in data1:
+#         key = (row[0], row[1])
+#         if key in data2_dict:
+#             if len(common[key]) == 0:
+#                 common[key] = [data2_dict[key], row[3]]
+#             else:
+#                 if common[key][-1] != row[3]:
+#                     common[key].append(row[3])
+#     return common
 
 
 def data1_common_data2_labels_inds_all(
@@ -324,22 +427,10 @@ id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:1
 id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
 """
 
-"""
-# in jsus data
-# device_id, start_time = 6208, '2015-07-04 10:46:22' # 18
-# device_id, start_time = 6073, '2016-06-07 12:43:47' # 17
-"""
 
 """
-# json: 1856 (10 items; 0-10 labels)
-# [(i, len(np.where(ldts[:,1]==i)[0])) for i in np.unique(ldts[:,1])]
-# [(533, 17), (534, 146), (537, 32), (541, 56), (606, 147), (608, 59), (754, 15), (757, 118), (781, 7), (782, 269), (798, 57), 
-#  (805, 302), (806, 43), (871, 32), (1600, 54), (6011, 67), (6016, 24), (6073, 39), (6080, 63), (6206, 16), (6208, 113), (6210, 180)]
-# [(int(p.stem.split("AnnAcc")[1].split("_")[0]), loadmat(p)["outputStruct"]['annotations'][0][0].shape[0]) for p in dpath.glob("*mat")]
-# [(6208, 113), (6073, 73), (6011, 158), (6210, 271), (6016, 52), (1600, 57), (6206, 54), (6080, 141)]
-"""
-
-"""
+# data
+# ====
 database_url = "postgresql://username:password@host:port/database_name"
 
 # for json files
@@ -383,34 +474,57 @@ common = [[i[0],i[1],'0',i[3],'0'] for i in common]
 save_anything_as_csv(save_path/"judy_info.csv", data)
 
 # Willem
+save_path = Path("/home/fatemeh/Downloads/bird/data")
 dpath = Path("/home/fatemeh/Downloads/bird/data_from_Willem")
 for p in dpath.glob("*csv"):
-    write_csv_info(p, save_path/"will_info_ind0.csv")
+    write_w_data(p, save_path/"w_data.csv", database_url)
+    write_w_info(p, save_path/"will_info_ind0.csv")
+
+# combine
+combined = combine([save_path/i for i in ["w_data.csv", "s_data.csv"]])
+save_dict_list_as_csv(save_path/"combined_w_s.csv", combined)
 """
 
+
 """
-# extras
-# set2
+# diff and common
+# ===============
 save_path = Path("/home/fatemeh/Downloads/bird/data")
-sdata1 = load_csv_info(save_path/"set1_info.csv")
-sdata2 = load_csv_info(save_path/"set2_json_info_ind0.csv")
 
-common = data1_common_data2_labels(sdata1, sdata2)
-save_anything_as_csv(save_path/"set1_jset2_common2.csv", common)
+# set2
+# sdata1 = load_csv_info(save_path/"set1_info.csv")
+# sdata2 = load_csv_info(save_path/"set2_json_info_ind0.csv")
+
+# common = data1_common_data2_labels(sdata1, sdata2)
+# save_anything_as_csv(save_path/"set1_jset2_common2.csv", common)
 
 # willem
-sdata = load_csv_info(save_path / "set1_info.csv")
-wdata = load_csv_info(save_path / "will_info_ind0.csv")
+sinfo = load_any_csv(save_path / "set1_info.csv")
+winfo = load_any_csv(save_path / "will_info_ind0.csv")
 
-diff = data1_diff_data2(wdata, sdata)
-wdata_dict = {(i[0], i[1]): [i[2], i[3], i[4]] for i in wdata}
-diff_dict = {key: wdata_dict[key] for key in diff}
+diff = data1_diff_data2(winfo, sinfo)
+data_dict = {(i[0], i[1]): [i[2], i[3], i[4]] for i in winfo}
+diff_dict = {key: data_dict[key] for key in diff}
 save_anything_as_csv(save_path / "will_set1_diff.csv", diff_dict)
 
-common =  data1_common_data2_labels_all(sdata, wdata, {k:k for k in ind2name.keys()})
-save_anything_as_csv(save_path/"will_set1_common.csv", common)
-"""
+diff = data1_diff_data2(sinfo, winfo)
+data_dict = {(i[0], i[1]): [i[2], i[3], i[4]] for i in sinfo}
+diff_dict = {key: data_dict[key] for key in diff}
+save_anything_as_csv(save_path / "set1_will_diff.csv", diff_dict)
 
+common = data1_common_data2_labels_all(sinfo, winfo)
+save_anything_as_csv(save_path / "will_set1_common.csv", common)
+
+# stats
+# =====
+data = load_any_csv(save_path / "combined_w_s.csv")
+data_dict = defaultdict(int)
+for i in data:
+    key = (i[0], i[1], i[3])
+    data_dict[key] += 1
+[k for k, v in data_dict.items() if v % 20 != 0]
+len(data), len(data) / 20, len(data_dict)
+"""
 
 """ 
 # plot data
@@ -424,8 +538,14 @@ bu.plot_one(igs[20:40])
 bu.plot_one(igs[40:])
 """
 
-save_path = Path("/home/fatemeh/Downloads/bird/data")
 
+"""
+dpath = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+save_path = Path("/home/fatemeh/Downloads/bird/data")
+save_file = save_path / "set1.csv"
+json_file = dpath / "combined.json"
+append_indices(json_file, save_file, database_url, glen=20)
+convert_csv_files(save_file, save_path /"set1_info.csv")
 
 jdata = load_csv_info(save_path / "sus_json_info_ind0.csv")
 mdata = load_csv_info(save_path / "sus_mat_info.csv")
@@ -439,6 +559,7 @@ len(data1_diff_data2(mdata, sdata))
 len(data1_common_data2(jdata, mdata))
 ids = np.unique([int(i[0]) for i in mdata])
 ",".join([str(i) for i in ids])
+"""
 
 """
 # jdata: 1856, sdata: 3505, mdata: 706
@@ -453,7 +574,7 @@ id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:1
 # fmt: yes
 
 
-common =  data1_common_data2_labels_all(data1, data2, id_new_old)
+common =  data1_common_data2_labels_all(sdata, jdata, id_new_old)
 save_anything_as_csv(save_path / "set1_jsus_common_labels.csv", common)
 
 with open(save_path / "set1_jsus_common_labels_different.csv", 'w') as f:
@@ -466,6 +587,21 @@ common = data1_common_data2_labels_inds_all(mdata, jdata, id_new_old, ignored_la
 save_anything_as_csv(save_path / "m_jsus_common_labels.csv", common)            
 """
 
+
+"""
+# in jsus data
+# device_id, start_time = 6208, '2015-07-04 10:46:22' # 18
+# device_id, start_time = 6073, '2016-06-07 12:43:47' # 17
+"""
+
+"""
+# json: 1856 (10 items; 0-10 labels)
+# [(i, len(np.where(ldts[:,1]==i)[0])) for i in np.unique(ldts[:,1])]
+# [(533, 17), (534, 146), (537, 32), (541, 56), (606, 147), (608, 59), (754, 15), (757, 118), (781, 7), (782, 269), (798, 57), 
+#  (805, 302), (806, 43), (871, 32), (1600, 54), (6011, 67), (6016, 24), (6073, 39), (6080, 63), (6206, 16), (6208, 113), (6210, 180)]
+# [(int(p.stem.split("AnnAcc")[1].split("_")[0]), loadmat(p)["outputStruct"]['annotations'][0][0].shape[0]) for p in dpath.glob("*mat")]
+# [(6208, 113), (6073, 73), (6011, 158), (6210, 271), (6016, 52), (1600, 57), (6206, 54), (6080, 141)]
+"""
 """
 
 # no common 
@@ -474,12 +610,8 @@ u_mdata = [list(row) for row in unique_rows]
 
 
 # TODO
-# csv reader for willem/set3
-# convert labels
-# set3: csv1, csv760, json 
-# willem: csv
-# check common data has the same id; 
-# put all data together 
-# remove commond part
-# download them
+# get all data first (m,j,w) with format set1.csv (labels corrected; short data from database; ignore short labels)
+# combine m,j,w and remove common based on (device, time)
+# mjw-s
+# mjw-s + s
 """
