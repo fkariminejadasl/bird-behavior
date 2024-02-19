@@ -23,6 +23,28 @@ ind2name = {
     9: "Pecking",
 }
 name2ind = {v: k for k, v in ind2name.items()}
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+ignored_labels = [8, 14, 15, 16, 17]
+
+"""
+ind2name = {
+# 1-base,0-base,original(old)
+    6, 5, 0: "Flap",
+    5, 4, 1: "ExFlap",
+    4, 3, 2: "Soar",
+          3: "Boat",
+    3, 2, 4: "Float",
+    2, 1, 5: "SitStand",
+    1, 0, 6: "TerLoco",
+    8, 7, 7: "Other",
+    7, 6, 8: "Manouvre",
+          9: "Pecking",
+}
+# Handling_mussel: 10 (9), StandForage: 11(10)->pecking (boat and pecking doesn't exist, looking_food: 9(8))
+# values from json files. subtracted from one to become zero-based. 
+# set3 different
+# Flap:2, XflapL:6, XflapS:8, Soar:3, Float:7, stand:1, sit: 5, TerLoco/walk: 4, other: 9 
+"""
 
 
 def find_matching_index(array, target, step=20, tolerance=1e-5):
@@ -32,13 +54,13 @@ def find_matching_index(array, target, step=20, tolerance=1e-5):
     return -1
 
 
-def write_as_csv(save_file, device_id, date, index, label, igs):
+def write_as_csv(save_file, device_id, date, label, indices, igs):
     """
     input:  device, time, index, label, imux, imuy, imuz, gps
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
     """
     with open(save_file, "a") as file:
-        for ig in igs:
+        for ig, index in zip(igs, indices):
             text = (
                 f"{device_id},{date},{index},{label},{ig[0]:.8f},{ig[1]:.8f},"
                 f"{ig[2]:.8f},{ig[3]:.8f}\n"
@@ -76,6 +98,7 @@ def load_csv(csv_file):
     return igs, ldts
 
 
+# TODO remove
 def convert_csv_files(csv_file, output_file):
     """
     input:  device, time, index, label, imux, imuy, imuz, gps
@@ -99,6 +122,33 @@ def convert_csv_files(csv_file, output_file):
         for key, count in counts.items():
             item = f"{key[0]},{key[1]},{count},{key[3]},{key[2]}\n"
             wfile.write(item)
+
+
+def write_j_info(csv_file, save_file):  # convert_csv_files
+    """
+    input:  device, time, index, label, imux, imuy, imuz, gps
+    output: device, time, count, label, ind
+    e.g.
+    input:  757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+    output: 757,2014-05-18 06:58:26,20,0,40
+    """
+
+    info = defaultdict(list)
+    with open(csv_file, "r") as rfile:
+        for row in rfile:
+            row = row.strip().split(",")
+            device_id = row[0]
+            t = row[1]
+            label = row[3]
+            key = (device_id, t)
+            info[key].extend([label])
+    with open(save_file, "w") as f:
+        for k, v in info.items():
+            count_labels = dict(Counter(v))
+            counts = "_".join([str(i) for i in count_labels.values()])
+            labels = "_".join([i for i in count_labels.keys()])
+            item = f"{k[0]},{k[1]},{counts},{labels},{0}\n"
+            f.write(item)
 
 
 def write_mat_info(mat_file, save_file):
@@ -254,13 +304,19 @@ def save_csv_info_from_json_zero_ind(json_file, csv_file):
             f.write(item)
 
 
-def append_indices(json_file, save_file, database_url, glen=20):
+def append_indices(
+    json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20
+):
+    # read json data and append indices
     # input:  device, time, index, label, imux, imuy, imuz, gps
 
     all_measurements, ldts = bd.combine_all_data(json_file)
 
     for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
-        label = ldt[0]
+        # labels read 0-based
+        if ldt[0] in ignored_labels:
+            continue
+        label = new2old_labels[ldt[0]]
         device_id = ldt[1]
         timestamp = ldt[2]
         start_time = datetime.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
@@ -271,9 +327,16 @@ def append_indices(json_file, save_file, database_url, glen=20):
             print(device_id, start_time)
             continue
         ind = find_matching_index(igs[:, 0:3], meas[0, :3], 1)
-        index = idts[ind, 0]
+        indices = idts[ind : ind + glen, 0]
         ig = igs[ind : ind + glen]
-        write_as_csv(save_file, device_id, start_time, index, label, ig)
+        if ind + glen > len(igs):
+            print("not in database; use json data", device_id, start_time, indices[0])
+            if len(meas) != glen:
+                continue
+            ig = meas
+            indices = np.concatenate((indices, -np.ones(glen - len(indices))))
+        write_as_csv(save_file, device_id, start_time, label, indices, ig)
+
 
 # TODO tobe removed after jdata, sdata
 def load_csv_info(csv_file):
@@ -351,8 +414,8 @@ def data1_common_data2_labels_all(data1, data2):
 
 
 # TODO tobe removed after jdata, mdata
-# def data1_common_data2_labels_all(data1, data2, id_new_old):
-#     data2_dict = {(row[0], row[1]): str(id_new_old[int(row[3])]) for row in data2}
+# def data1_common_data2_labels_all(data1, data2, new2old_labels):
+#     data2_dict = {(row[0], row[1]): str(new2old_labels[int(row[3])]) for row in data2}
 
 #     common = defaultdict(list)
 #     for row in data1:
@@ -367,10 +430,10 @@ def data1_common_data2_labels_all(data1, data2):
 
 
 def data1_common_data2_labels_inds_all(
-    data1, data2, id_new_old, ignored_labels=["14", "15", "16", "17"]
+    data1, data2, new2old_labels, ignored_labels=["14", "15", "16", "17"]
 ):
     data2_dict = {
-        (row[0], row[1]): [row[4], str(id_new_old[int(row[3])])] for row in data2
+        (row[0], row[1]): [row[4], str(new2old_labels[int(row[3])])] for row in data2
     }
     common = []
     for row in data1:
@@ -406,27 +469,19 @@ def count_labels_in_data(data):
     # {ind2name[k]:v for k, v in counts.items()}
 
 
-"""
-ind2name = {
-    6, 0: "Flap",
-    5, 1: "ExFlap",
-    4, 2: "Soar",
-       3: "Boat",
-    3, 4: "Float",
-    2, 5: "SitStand",
-    1, 6: "TerLoco",
-    8, 7: "Other",
-    7, 8: "Manouvre",
-       9: "Pecking",
-}
-# Looking_food: 9, Handling_mussel: 10, StandForage: 11
-# values from json files. subtracted from one to become zero-based. 
-# Then some new assignment not to be the same with old scheme.
-id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
-# Flap:2, XflapL:6, XflapS:8, Soar:3, Float:7, stand:1, sit: 5, TerLoco/walk: 4, other: 9
-id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
-"""
+database_url = "postgresql://fatemeh:HL31txURE1HrXe6@pub.e-ecology.nl:5432/eecology"
 
+# for sus json files
+dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
+save_path = Path("/home/fatemeh/Downloads/bird/data")
+save_file = save_path / "j_data.csv"  # sus_json.csv
+json_file = dpath / "combined.json"
+# append_indices(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
+# write_j_info(save_file, save_path /"j_info_ind0.csv") #sus_json_info.csv
+
+
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+ignored_labels = [8, 14, 15, 16, 17]
 
 """
 # data
@@ -438,16 +493,18 @@ dpath = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 save_file = save_path / "set1.csv"
 json_file = dpath / "combined.json"
-append_indices(json_file, save_file, database_url, glen=20)
+bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+append_indices(json_file, save_file, database_url, new2old_labels = {k:k for k in ind2name}, ignored_labels=[], glen=20)
 convert_csv_files(save_file, save_path /"set1_info.csv")
 
-# for json files
+# for json files # TODO replace
 dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 save_file = save_path /"sus_json.csv"
 json_file = dpath / "combined.json"
 # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-append_indices(json_file, save_file, database_url, glen=10)
+# append_indices(json_file, save_file, database_url, glen=10)
+append_indices(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
 convert_csv_files(save_file, save_path /"sus_json_info.csv")
 # save_csv_info_from_json_zero_ind(dpath/"combined.json", save_path/"sus_json_info_ind0.csv")
 
@@ -473,12 +530,12 @@ common = [[i[0],i[1],'0',i[3],'0'] for i in common]
 [data.remove(i) for i in common]
 save_anything_as_csv(save_path/"judy_info.csv", data)
 
-# Willem
+# Willem (w_data, w_info)
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 dpath = Path("/home/fatemeh/Downloads/bird/data_from_Willem")
 for p in dpath.glob("*csv"):
     write_w_data(p, save_path/"w_data.csv", database_url)
-    write_w_info(p, save_path/"will_info_ind0.csv")
+    write_w_info(p, save_path/"w_info_ind0.csv")
 
 # combine
 combined = combine([save_path/i for i in ["w_data.csv", "s_data.csv"]])
@@ -500,7 +557,7 @@ save_path = Path("/home/fatemeh/Downloads/bird/data")
 
 # willem
 sinfo = load_any_csv(save_path / "set1_info.csv")
-winfo = load_any_csv(save_path / "will_info_ind0.csv")
+winfo = load_any_csv(save_path / "w_info_ind0.csv")
 
 diff = data1_diff_data2(winfo, sinfo)
 data_dict = {(i[0], i[1]): [i[2], i[3], i[4]] for i in winfo}
@@ -550,7 +607,7 @@ convert_csv_files(save_file, save_path /"set1_info.csv")
 jdata = load_csv_info(save_path / "sus_json_info_ind0.csv")
 mdata = load_csv_info(save_path / "sus_mat_info.csv")
 sdata = load_csv_info(save_path / "set1_info.csv")
-wdata = load_csv_info(save_path / "will_info_ind0.csv")
+wdata = load_csv_info(save_path / "w_info_ind0.csv")
 
 count_labels_in_data(mdata)
 
@@ -570,11 +627,11 @@ mdata = load_csv_info(save_path/"sus_mat_info.csv")
 sdata = load_csv_info(save_path/"set1_info.csv")
 
 # fmt: no
-id_new_old = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8:10 , 9:11 , 10:13}
 # fmt: yes
 
 
-common =  data1_common_data2_labels_all(sdata, jdata, id_new_old)
+common =  data1_common_data2_labels_all(sdata, jdata, new2old_labels)
 save_anything_as_csv(save_path / "set1_jsus_common_labels.csv", common)
 
 with open(save_path / "set1_jsus_common_labels_different.csv", 'w') as f:
@@ -583,7 +640,7 @@ with open(save_path / "set1_jsus_common_labels_different.csv", 'w') as f:
             item = (*key, *value)
             f.write(','.join(item) + "\n")
 
-common = data1_common_data2_labels_inds_all(mdata, jdata, id_new_old, ignored_labels=["14", "15", "16", "17"])
+common = data1_common_data2_labels_inds_all(mdata, jdata, new2old_labels, ignored_labels=["14", "15", "16", "17"])
 save_anything_as_csv(save_path / "m_jsus_common_labels.csv", common)            
 """
 
