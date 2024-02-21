@@ -124,6 +124,7 @@ def convert_csv_files(csv_file, output_file):
             wfile.write(item)
 
 
+# TODO replace write_w_info and convert_csv_files and rename to write_info
 def write_j_info(csv_file, save_file):  # convert_csv_files
     """
     input:  device, time, index, label, imux, imuy, imuz, gps
@@ -151,7 +152,7 @@ def write_j_info(csv_file, save_file):  # convert_csv_files
             f.write(item)
 
 
-def write_mat_info(mat_file, save_file):
+def write_mat_info(mat_file, save_file, new2old_labels, ignored_labels):
     dd = loadmat(mat_file)["outputStruct"]
     n_data = dd["nOfSamples"][0][0][0][0]
     with open(save_file, "a") as f:
@@ -167,13 +168,20 @@ def write_mat_info(mat_file, save_file):
             t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
 
             tags = dd["tags"][0][0][0][i]
-            ids = tags[tags[:, 1] == 1][:, 0] - 1  # zero-based
-            if len(ids) == 0:
+            labels = tags[tags[:, 1] == 1][:, 0] - 1  # zero-based
+            if len(labels) == 0:
                 continue
-            uids = list(np.unique(ids))
-            len_ids = [len(ids[ids == i]) for i in uids]
-            uids = "_".join(map(str, uids))
-            len_ids = "_".join(map(str, len_ids))
+
+            # labels read 0-based
+            # TODO convert labels
+            # if ldt[0] in ignored_labels:
+            #     continue
+            # label = new2old_labels[ldt[0]]
+
+            ulabels = list(np.unique(labels))
+            len_labels = [len(labels[labels == i]) for i in ulabels]
+            ulabels = "_".join(map(str, ulabels))
+            len_labels = "_".join(map(str, len_labels))
 
             device_id = dd["sampleID"][0][0][0, i]
             imu_x = dd["accX"][0][0][i][0][0]
@@ -181,10 +189,116 @@ def write_mat_info(mat_file, save_file):
             imu_z = dd["accZ"][0][0][i][0][0]
             gps_single = dd["gpsSpd"][0][0][i, 0]
 
-            item = f"{device_id},{t},{len(imu_x)},{uids},{len_ids}\n"
+            item = f"{device_id},{t},{len_labels},{ulabels},{len(imu_x)}\n"
             f.write(item)
 
 
+def write_m_info(mat_file, save_file, new2old_labels, ignored_labels):
+    dd = loadmat(mat_file)["outputStruct"]
+    n_data = dd["nOfSamples"][0][0][0][0]
+    with open(save_file, "a") as f:
+        for i in range(n_data):
+            year, month, day, hour, min, sec = (
+                dd["year"][0][0][0, i],
+                dd["month"][0][0][0, i],
+                dd["day"][0][0][0, i],
+                dd["hour"][0][0][0, i],
+                dd["min"][0][0][0, i],
+                dd["sec"][0][0][i, 0],
+            )
+            t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
+
+            device_id = dd["sampleID"][0][0][0, i]
+            imu_x = dd["accX"][0][0][i][0][0]
+            imu_y = dd["accY"][0][0][i][0][0]
+            imu_z = dd["accZ"][0][0][i][0][0]
+            gps_single = dd["gpsSpd"][0][0][i, 0]
+            tags = dd["tags"][0][0][0][i]
+
+            labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
+            labels = list(set(labels))
+            if len(labels) == 0:
+                continue
+
+            len_labels = []
+            nlabels = []
+            for label in labels:
+                inds = np.where((tags[:, 1] == 1) & (tags[:, 0] - 1 == label))[
+                    0
+                ]  # 0-based
+                if label in ignored_labels:
+                    continue
+                nlabels.append(new2old_labels[label])
+                len_labels.append(len(inds))
+                # if len(inds) < 14:
+                #     continue
+                # if 14<=len(inds) < 20:
+                #     continue
+            if len(nlabels) == 0:
+                continue
+
+            ulabels = "_".join(map(str, nlabels))
+            len_labels = "_".join(map(str, len_labels))
+
+            item = f"{device_id},{t},{len_labels},{ulabels},{len(imu_x)}\n"
+            f.write(item)
+
+
+def write_m_data(mat_file, save_file, new2old_labels, ignored_labels):
+    """
+    index is -1: not available and not getting from database
+    """
+    items = []
+    dd = loadmat(mat_file)["outputStruct"]
+    n_data = dd["nOfSamples"][0][0][0][0]
+
+    for i in range(n_data):
+        year, month, day, hour, min, sec = (
+            dd["year"][0][0][0, i],
+            dd["month"][0][0][0, i],
+            dd["day"][0][0][0, i],
+            dd["hour"][0][0][0, i],
+            dd["min"][0][0][0, i],
+            dd["sec"][0][0][i, 0],
+        )
+        t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
+
+        device_id = dd["sampleID"][0][0][0, i]
+        imu_x = dd["accX"][0][0][i][0][0]
+        imu_y = dd["accY"][0][0][i][0][0]
+        imu_z = dd["accZ"][0][0][i][0][0]
+        gps_single = dd["gpsSpd"][0][0][i, 0]
+        tags = dd["tags"][0][0][0][i]
+
+        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
+        labels = list(set(labels))
+        if len(labels) == 0:
+            continue
+
+        len_labels = []
+        nlabels = []
+        for label in labels:
+            inds = np.where((tags[:, 1] == 1) & (tags[:, 0] - 1 == label))[0]  # 0-based
+            if label in ignored_labels:
+                continue
+            nlabel = new2old_labels[label]
+            nlabels.append(nlabel)
+            len_labels.append(len(inds))
+
+            if len(inds) < 14:
+                continue
+            if 14 <= len(inds):
+                max_len = (len(inds) // 20) * 20
+                for x, y, z in zip(imu_x[:max_len], imu_y[:max_len], imu_z[:max_len]):
+                    item = f"{device_id},{t},{-1},{nlabel},{x:.8f},{y:.8f},{z:.8f},{gps_single:.8f}\n"
+                    items.append(item)
+
+    with open(save_file, "a") as f:
+        for item in items:
+            f.write(item)
+
+
+# TODO remove replaced by write_j_info
 def write_w_info(csv_file, save_file):
     info = defaultdict(list)
     with open(csv_file, "r") as f:
@@ -237,7 +351,7 @@ def write_w_data(csv_file, save_file, database_url):
                 max_seq_len = (len(values) // 20) * 20
                 values = values[:max_seq_len]
                 for v in values:
-                    item = f"{device_id},{start_time},{v[0]},{label},{v[1]},{v[2]},{v[3]},{v[4]}\n"
+                    item = f"{device_id},{start_time},{v[0]},{label},{v[1]:.8f},{v[2]:.8f},{v[3]:.8f},{v[4]:.8f}\n"
                     f.write(item)
             if len(values) < 14:  # TODO
                 continue
@@ -294,6 +408,7 @@ def save_dict_list_as_csv(save_file, data):
                 f.write(",".join(item) + "\n")
 
 
+# TODO remove
 def save_csv_info_from_json_zero_ind(json_file, csv_file):
     # output: device, time, count, label, ind
     igs, ldts = bd.combine_all_data(json_file)
@@ -472,16 +587,28 @@ def count_labels_in_data(data):
 database_url = "postgresql://fatemeh:HL31txURE1HrXe6@pub.e-ecology.nl:5432/eecology"
 
 # for sus json files
+# TODO remove sus_json.csv, sus_json_info, sus_json_info_ind0
 dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
 save_path = Path("/home/fatemeh/Downloads/bird/data")
 save_file = save_path / "j_data.csv"  # sus_json.csv
 json_file = dpath / "combined.json"
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+ignored_labels = [8, 14, 15, 16, 17]
 # append_indices(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
 # write_j_info(save_file, save_path /"j_info_ind0.csv") #sus_json_info.csv
 
+new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
+ignored_labels = [10, 14, 15, 16, 17]
+for mat_file in tqdm(dpath.glob("An*mat")):
+    print(mat_file.name)
+    # write_mat_info(mat_file, save_path / "m_info_ind0.csv", new2old_labels, ignored_labels)
+    # write_m_info(mat_file, save_path / "m_info_ind0.csv", new2old_labels, ignored_labels)
+    write_m_data(mat_file, save_path / "m_data.csv", new2old_labels, ignored_labels)
 
-new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-ignored_labels = [8, 14, 15, 16, 17]
+# jinfo = load_any_csv(save_path / "j_info_ind0.csv")
+# minfo = load_any_csv(save_path / "m_info_ind0.csv")
+# common = data1_common_data2_labels_all(jinfo, minfo)
+# save_anything_as_csv(save_path / "j_m_common", common)
 
 """
 # data
@@ -500,7 +627,7 @@ convert_csv_files(save_file, save_path /"set1_info.csv")
 # for json files # TODO replace
 dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
 save_path = Path("/home/fatemeh/Downloads/bird/data")
-save_file = save_path /"sus_json.csv"
+save_file = save_path /"sus_json.csv"  
 json_file = dpath / "combined.json"
 # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 # append_indices(json_file, save_file, database_url, glen=10)
