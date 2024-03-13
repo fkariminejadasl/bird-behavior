@@ -492,6 +492,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     tuple of np.ndarray
         The first np.ndarray is a 2D array containing IMU data (x, y, z) and GPS 2D speed.
         The second np.ndarray consists of indices, device IDs, and timestamps.
+        The third np.ndarray consists of latitude, longitude, altitude, temperature.
         igs, idts 2D array: Nx20 x 4, Nx20 x 3, llat: list Nx20 x 4
 
 
@@ -717,6 +718,38 @@ def test_identify_and_process_groups():
 
 
 test_identify_and_process_groups()
+
+
+def load_csv(csv_file):
+    """
+    e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+
+    Returns
+    -------
+    tuple of np.ndarray
+        first: N x 20 x 4, float64
+        second: N x 3, int64
+    """
+    igs = []
+    ldts = []
+    with open(csv_file, "r") as file:
+        for row in file:
+            items = row.strip().split(",")
+            device_id = int(items[0])
+            timestamp = (
+                datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+            )
+            label = int(items[3])
+            ig = [float(i) for i in items[4:]]
+            igs.append(ig)
+            ldts.append([label, device_id, timestamp])
+    igs = np.array(igs).astype(np.float64).reshape(-1, 20, 4)
+    ldts = np.array(ldts).astype(np.int64).reshape(-1, 20, 3)[:, 0, :]
+    return igs, ldts
+
+
 """
 # plot data 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")

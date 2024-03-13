@@ -140,16 +140,17 @@ def helper_results(
     stage="valid",
     SAVE_FAILED=False,
 ):
-    labels = ldts[:, 0]
-    labels = labels.to(device)
-    data = data.to(device)  # N x C x L
-    outputs = model(data)  # N x C
-    prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
-    pred = torch.argmax(outputs.data, 1)
-    # loss and accuracy
-    loss = criterion(outputs, labels)  # 1
-    corrects = (pred == labels).sum().item()
-    accuracy = corrects / len(labels) * 100
+    with torch.no_grad():
+        labels = ldts[:, 0]
+        labels = labels.to(device)
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+        pred = torch.argmax(outputs.data, 1)
+        # loss and accuracy
+        loss = criterion(outputs, labels)  # 1
+        corrects = (pred == labels).sum().item()
+        accuracy = corrects / len(labels) * 100
 
     labels = labels.cpu().numpy()
     prob = prob.cpu().numpy()

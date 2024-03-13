@@ -6,7 +6,6 @@ from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
-from behavior import prepare as bp
 from behavior import utils as bu
 
 # import wandb
@@ -33,7 +32,7 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 77  # sys.argv[1]
+exp = 78  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -48,10 +47,12 @@ n_classes = len(target_labels)
 fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-combined_file = data_path / "combined.json"
+# data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+# combined_file = data_path / "combined.json"
 
-all_measurements, label_ids = bp.load_csv("/home/fatemeh/Downloads/bird/data/set1.csv")
+all_measurements, label_ids = bd.load_csv(
+    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+)
 # all_measurements, label_ids = bd.combine_all_data(combined_file)
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
@@ -104,8 +105,8 @@ criterion = torch.nn.CrossEntropyLoss()
 print(f"data shape: {eval_dataset[0][0].shape}")  # 3x20
 in_channel = eval_dataset[0][0].shape[0]  # 3 or 4
 model = bm.BirdModel(in_channel, width, n_classes).to(device)
-model.eval()
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
+model.eval()
 
 print(device)
 
@@ -121,7 +122,7 @@ bu.helper_results(
     target_labels_names,
     n_classes,
     stage="train",
-    SAVE_FAILED=True,
+    SAVE_FAILED=False,
 )
 
 data, ldts = next(iter(eval_loader))
