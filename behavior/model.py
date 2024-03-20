@@ -67,7 +67,7 @@ class BirdModel(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, dropout=0.0):
         super().__init__()
         self.conv1 = nn.Conv1d(
             in_channels,
@@ -90,35 +90,45 @@ class ResidualBlock(nn.Module):
                 ),
                 nn.BatchNorm1d(out_channels),
             )
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
         out = F.relu(out)
+        out = self.dropout(out)
         return out
 
 
 class ResNet1D(nn.Module):
-    def __init__(self, block, layers, channels=[4, 16, 32, 64], num_classes=10):
+    def __init__(
+        self, block, layers, channels=[4, 16, 32, 64], num_classes=10, dropout=0.0
+    ):
         super().__init__()
         self.in_channels = channels[1]
         self.conv = nn.Conv1d(
             channels[0], channels[1], kernel_size=3, stride=1, padding=1, bias=False
         )
         self.bn = nn.BatchNorm1d(channels[1])
-        self.layer1 = self.make_layer(block, channels[1], layers[0], stride=1)
-        self.layer2 = self.make_layer(block, channels[2], layers[1], stride=2)
-        self.layer3 = self.make_layer(block, channels[3], layers[2], stride=2)
+        self.layer1 = self.make_layer(
+            block, channels[1], layers[0], stride=1, dropout=dropout
+        )
+        self.layer2 = self.make_layer(
+            block, channels[2], layers[1], stride=2, dropout=dropout
+        )
+        self.layer3 = self.make_layer(
+            block, channels[3], layers[2], stride=2, dropout=dropout
+        )
         self.avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(64, num_classes)
+        self.fc = nn.Linear(channels[3], num_classes)
 
-    def make_layer(self, block, out_channels, n_layer, stride):
+    def make_layer(self, block, out_channels, n_layer, stride, dropout):
         layers = []
-        layers.append(block(self.in_channels, out_channels, stride))
+        layers.append(block(self.in_channels, out_channels, stride, dropout))
         self.in_channels = out_channels
         for _ in range(1, n_layer):
-            layers.append(block(out_channels, out_channels))
+            layers.append(block(out_channels, out_channels, dropout=dropout))
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -132,8 +142,8 @@ class ResNet1D(nn.Module):
         return out
 
 
-def ResNet18_1D(num_classes):
-    return ResNet1D(ResidualBlock, [2, 2, 2, 2], [4, 16, 32, 64], num_classes)
+def ResNet18_1D(num_classes, dropout):
+    return ResNet1D(ResidualBlock, [2, 2, 2, 2], [4, 16, 32, 64], num_classes, dropout)
 
 
 from behavior.helpers import (

@@ -29,8 +29,8 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 79  # sys.argv[1]
-no_epochs = 4000  # int(sys.argv[2])
+exp = 82  # sys.argv[1]
+no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
@@ -111,9 +111,10 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 # model = bm.BirdModel(in_channel, width, n_classes).to(device)
-model = bm.ResNet18_1D(n_classes).to(device)
+model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
 # model = bm.BirdModelTransformer(n_classes).to(device)
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
+# bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
 
 # weights = bd.get_labels_weights(label_ids)
 # criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
@@ -148,7 +149,9 @@ print(
 )
 best_accuracy = 0
 with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
+    for epoch in tqdm.tqdm(
+        range(1, no_epochs + 1)
+    ):  # tqdm.tqdm(range(4001, no_epochs + 1)):
         start_time = datetime.now()
         print(f"start time: {start_time}")
         bm.train_one_epoch(
