@@ -158,10 +158,10 @@ from behavior.transformer import MultiheadAttention, SimpleTransformer
 
 
 class BirdModelTransformer(nn.Module):
-    def __init__(self, out_channels) -> None:
+    def __init__(self, out_channels, embed_dim=512) -> None:
         super().__init__()
         out_embed_dim = out_channels
-        embed_dim = 512
+        embed_dim = embed_dim  # 512
         num_blocks = 1  # 6
         num_heads = 1  # 8
         drop_path = 0.7
