@@ -110,7 +110,8 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, width, n_classes).to(device)
+# model = bm.BirdModel(in_channel, width, n_classes).to(device)
+model = bm.ResNet18_1D(n_classes).to(device)
 # model = bm.BirdModelTransformer(n_classes).to(device)
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 
