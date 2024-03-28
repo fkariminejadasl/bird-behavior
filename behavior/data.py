@@ -499,6 +499,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     Examples
     --------
     >>> database_url = "postgresql://username:password@host:port/database_name"
+    >>> database_url = "postgresql://username:password@pub.e-ecology.nl:5432/eecology"
     >>> device_id = 541
     >>> start_time = '2012-05-17 00:00:59'
     >>> gimus, idts, llat = get_data(database_url, device_id, start_time, start_time)
@@ -517,6 +518,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     """
 
     # Get calibration imu values from database
+    # ========================================
     sql_query = f"""
     select *
     from gps.ee_tracker_limited
@@ -526,7 +528,8 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     assert len(results) != 0, "no data found"
     x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in results[0][5:11]]
 
-    # speed_2d for gpd speed
+    # Get speed_2d for gpd speed
+    # ==========================
     sql_query = f"""
     SELECT *
     FROM gps.ee_tracking_speed_limited
@@ -545,9 +548,11 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
             result[6],
         ]
         for result in results
+        if result[-4] != None  # gps speed are sometimes none
     ]
 
-    # get imu
+    # Get imu
+    # =======
     sql_query = f"""
     SELECT *
     FROM gps.ee_acceleration_limited
@@ -557,10 +562,10 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     results = query_database(database_url, sql_query)
     assert len(results) != 0, "no data found"
 
-    # filter data: remove imu data, which has nanes
+    # Filter data: remove imu data, which has nanes
     results = [result for result in results if not is_none(*result[-3:])]
 
-    # get data groups
+    # Get data groups
     indices = [result[2] - 1 for result in results]  # make indices zero-based
     timestamps = [
         int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in results
@@ -569,20 +574,29 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
         np.round(raw2meas(*result[-3:], x_o, x_s, y_o, y_s, z_o, z_s), 8)
         for result in results
     ]
-    # data element: index, time, imu
+    # data element: index, time, imu_x, imu_y, imu_z
     data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
     groups = identify_and_process_groups(data, glen)
 
-    # match gps data: time, GPS 2d speed, latitude, longitude, altitude, temperature
+    # Match gps data: time, GPS 2d speed, latitude, longitude, altitude, temperature
+    # step 1: filter out groups without corresponding gps information
+    filtered_groups = []
     for group in groups:
-        timestamps = set([i[1] for i in group])
+        timestamps = {i[1] for i in group}
         assert len(timestamps) == 1
         timestamp = timestamps.pop()
-        gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp][0]
+        gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
+        if gps:
+            filtered_groups.append((group, gps[0]))  # keep group and its gps data
+    # step 2: fxtend the items in the remaining groups
+    for group, gps in filtered_groups:
         for item in group:
             item.extend(gps)
+    # step 3: replace original groups with the filtered and processed ones
+    groups = [group for group, _ in filtered_groups]
+    assert len(groups) != 0, "no matching imu and gps"
 
-    # prepare final data
+    # Prepare final data
     igs = []  # element: imu, gps
     idts = []  # element: index, device_id, timestamp
     llat = []  # element: latitude, longitude, altitude, temperature
