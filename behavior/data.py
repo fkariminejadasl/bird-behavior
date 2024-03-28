@@ -525,7 +525,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     where device_info_serial = {device_id}
     """
     results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no data found"
+    assert len(results) != 0, "no calibration data found"
     x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in results[0][5:11]]
 
     # Get speed_2d for gpd speed
@@ -537,7 +537,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     order by date_time
     """
     results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no data found"
+    assert len(results) != 0, "no gps data found"
     times_gps_infos = [
         [
             int(result[1].replace(tzinfo=timezone.utc).timestamp()),
@@ -560,7 +560,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     order by date_time, index
     """
     results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no data found"
+    assert len(results) != 0, "no imu data found"
 
     # Filter data: remove imu data, which has nanes
     results = [result for result in results if not is_none(*result[-3:])]
@@ -583,7 +583,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     filtered_groups = []
     for group in groups:
         timestamps = {i[1] for i in group}
-        assert len(timestamps) == 1
+        assert len(timestamps) == 1, "different timestamps for a group"
         timestamp = timestamps.pop()
         gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
         if gps:
