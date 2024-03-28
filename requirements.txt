@@ -1,0 +1,12 @@
+# matplotlib==3.6.1
+# numpy==1.23.3
+einops
+matplotlib
+numpy
+tqdm
+tensorboard
+psycopg2-binary
+timm
+torch
+torchvision
+scikit-learn>=1.3
