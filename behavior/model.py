@@ -298,7 +298,7 @@ class TransformerEncoderMAE(nn.Module):
         self.norm = norm_layer(embed_dim)
 
         # classification head
-        self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
+        # self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
         self.fc = torch.nn.Linear(embed_dim, out_chans)
 
         self.initialize_weights()
@@ -346,8 +346,9 @@ class TransformerEncoderMAE(nn.Module):
         x = self.norm(x)
 
         # classification head
-        x = x.permute((0, 2, 1))  # NxLxC -> NxCxL
-        x = self.avgpool(x).squeeze(2)  # NxCxL -> NxC
+        # x = x.permute((0, 2, 1))  # NxLxC -> NxCxL
+        # x = self.avgpool(x).squeeze(2)  # NxCxL -> NxC
+        x = x[:, 0, :]
         x = self.fc(x)
         return x
 
