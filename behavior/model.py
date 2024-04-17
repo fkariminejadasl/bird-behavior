@@ -158,13 +158,16 @@ from behavior.transformer import MultiheadAttention, SimpleTransformer
 
 
 class BirdModelTransformer(nn.Module):
-    def __init__(self, out_channels, embed_dim=512) -> None:
+    def __init__(self, out_channels, embed_dim=512, drop=0.7) -> None:
         super().__init__()
         out_embed_dim = out_channels
         embed_dim = embed_dim  # 512
         num_blocks = 1  # 6
         num_heads = 8  # 8
-        drop_path = 0.7
+        drop_path = (
+            0.0  # drop_path_type == "progressive" and num_blocks=1 is always zero
+        )
+        drop = drop
         pre_transformer_ln = False
         add_bias_kv = True
         kernel_size = 1  # 8
@@ -194,14 +197,15 @@ class BirdModelTransformer(nn.Module):
         self.simple_transformer = SimpleTransformer(
             embed_dim=embed_dim,
             num_blocks=num_blocks,
-            ffn_dropout_rate=0.0,
             drop_path_rate=drop_path,
+            ffn_dropout_rate=drop,
             attn_target=partial(
                 MultiheadAttention,
                 embed_dim=embed_dim,
                 num_heads=num_heads,
                 bias=True,
                 add_bias_kv=add_bias_kv,
+                dropout=drop,
             ),
             pre_transformer_layer=nn.Sequential(
                 nn.LayerNorm(embed_dim, eps=1e-6)
@@ -266,7 +270,7 @@ class TransformerEncoderMAE(nn.Module):
         num_heads=8,
         mlp_ratio=4.0,
         norm_layer=nn.LayerNorm,
-        drop_path=0.7,
+        drop=0.7,
     ):
         super().__init__()
 
@@ -290,7 +294,9 @@ class TransformerEncoderMAE(nn.Module):
                     qkv_bias=True,
                     qk_norm=None,
                     norm_layer=norm_layer,
-                    drop_path=drop_path,
+                    drop_path=0.0,
+                    proj_drop=drop,
+                    attn_drop=drop,
                 )
                 for i in range(depth)
             ]
