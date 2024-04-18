@@ -31,8 +31,8 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 92  # sys.argv[1]
-no_epochs = 4000  # int(sys.argv[2])
+exp = 95  # sys.argv[1]
+no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
@@ -113,17 +113,18 @@ print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 # model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
-model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.1).to(device)
-# model = bm.TransformerEncoderMAE(
-#     img_size=20,
-#     in_chans=4,
-#     out_chans=9,
-#     embed_dim=16,
-#     depth=1,
-#     num_heads=8,
-#     mlp_ratio=4,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
-# ).to(device)
+# model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
+model = bm.TransformerEncoderMAE(
+    img_size=20,
+    in_chans=4,
+    out_chans=9,
+    embed_dim=16,
+    depth=1,
+    num_heads=8,
+    mlp_ratio=4,
+    drop=0.7,
+    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+).to(device)
 
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
