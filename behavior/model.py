@@ -276,9 +276,7 @@ class TransformerEncoderMAE(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        # self.patch_embed = nn.Linear(in_chans, embed_dim) # ver1,ver2
-        self.patch_embed = nn.Linear(in_chans, embed_dim, bias=False)  # ver3
-        self.norm = nn.LayerNorm(normalized_shape=embed_dim)  # ver3
+        self.patch_embed = nn.Linear(in_chans, embed_dim)
         num_patches = img_size
         self.patch_embed.num_patches = num_patches
 
@@ -303,24 +301,10 @@ class TransformerEncoderMAE(nn.Module):
                 for i in range(depth)
             ]
         )
-        # self.norm = norm_layer(embed_dim) # ver3
+        self.norm = norm_layer(embed_dim)
 
         # classification head
-        # ===> ver1: avgpool without class token; ver2: only class token
-        # self.fc = torch.nn.Linear(embed_dim, out_chans)
-        # ==> ver3: imagebind head
-        # head
-        self.head = nn.Sequential(
-            nn.LayerNorm(normalized_shape=embed_dim, eps=1e-6),
-            SelectElement(index=0),
-            nn.Dropout(p=0.5),
-            nn.Linear(embed_dim, out_chans, bias=False),
-        )
-        # postprocess
-        self.postproccess = nn.Sequential(
-            Normalize(dim=-1),
-            LearnableLogitScaling(logit_scale_init=5.0, learnable=False),
-        )
+        self.fc = torch.nn.Linear(embed_dim, out_chans)
 
         self.initialize_weights()
 
@@ -351,8 +335,7 @@ class TransformerEncoderMAE(nn.Module):
     def forward(self, x):
         x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
         # embed patches
-        # x = self.patch_embed(x) # ver1,ver2
-        x = self.norm(self.patch_embed(x))  # ver3
+        x = self.patch_embed(x)
 
         # add pos embed w/o cls token
         x = x + self.pos_embed[:, 1:, :]
@@ -365,18 +348,12 @@ class TransformerEncoderMAE(nn.Module):
         # apply Transformer blocks
         for blk in self.blocks:
             x = blk(x)
-        # x = self.norm(x) # ver1,ver2
+        x = self.norm(x)
 
         # classification head
-        # ==> ver1: with avgpool
-        # x = x[:,1:,:].mean(axis=1)  # remove class token, NxCxL -> NxC
-        # x = self.fc(x)
-        # ==> ver2: with slicing
-        # x = x[:, 0, :] # use class token
-        # x = self.fc(x)
-        # ==> ver3: imagebind
-        x = self.head(x)
-        x = self.postproccess(x)
+        # avgpool on w/o cls token
+        x = x[:, 1:, :].mean(axis=1)  # remove class token, NxCxL -> NxC
+        x = self.fc(x)
         return x
 
 

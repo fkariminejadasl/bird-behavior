@@ -31,7 +31,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 95  # sys.argv[1]
+exp = 96  # sys.argv[1]
 no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -122,7 +122,7 @@ model = bm.TransformerEncoderMAE(
     depth=1,
     num_heads=8,
     mlp_ratio=4,
-    drop=0.7,
+    drop=0.0,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
 ).to(device)
 

@@ -375,7 +375,7 @@ class TransformerEncoderMAE(nn.Module):
         num_heads=8,
         mlp_ratio=4.0,
         norm_layer=nn.LayerNorm,
-        drop_path=0.7,
+        drop=0.7,
     ):
         super().__init__()
 
@@ -399,7 +399,9 @@ class TransformerEncoderMAE(nn.Module):
                     qkv_bias=True,
                     qk_norm=None,
                     norm_layer=norm_layer,
-                    drop_path=drop_path,
+                    drop_path=0.0,
+                    proj_drop=drop,
+                    attn_drop=drop,
                 )
                 for i in range(depth)
             ]
@@ -454,8 +456,8 @@ class TransformerEncoderMAE(nn.Module):
         x = self.norm(x)
 
         # classification head
+        # avgpool on w/o cls token
         x = x[:, 1:, :].mean(axis=1)  # remove class token, NxCxL -> NxC
-        # x = x[:, 0, :] # use class token
         x = self.fc(x)
         return x
 
