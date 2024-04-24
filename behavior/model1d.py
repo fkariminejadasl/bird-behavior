@@ -76,25 +76,25 @@ class MaskedAutoencoderViT(nn.Module):
 
     def __init__(
         self,
-        img_size=224,
-        patch_size=16,
-        in_chans=3,
+        img_size=20,
+        patch_size=1,
+        in_chans=4,
         embed_dim=1024,
-        depth=24,
-        num_heads=16,
+        depth=1,
+        num_heads=8,
         decoder_embed_dim=512,
-        decoder_depth=8,
-        decoder_num_heads=16,
+        decoder_depth=1,
+        decoder_num_heads=8,
         mlp_ratio=4.0,
         norm_layer=nn.LayerNorm,
         norm_pix_loss=False,
-        drop_path=0.7,
+        drop=0.7,
     ):
         super().__init__()
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim) #me: rem
+        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim) # me: rem
         # num_patches = self.patch_embed.num_patches
         self.patch_embed = nn.Linear(in_chans, embed_dim)
         num_patches = img_size
@@ -114,7 +114,9 @@ class MaskedAutoencoderViT(nn.Module):
                     qkv_bias=True,
                     qk_norm=None,
                     norm_layer=norm_layer,
-                    drop_path=drop_path,
+                    drop_path=0.0,
+                    proj_drop=drop,
+                    attn_drop=drop,
                 )  # me:change
                 for i in range(depth)
             ]
@@ -141,7 +143,9 @@ class MaskedAutoencoderViT(nn.Module):
                     qkv_bias=True,
                     qk_norm=None,
                     norm_layer=norm_layer,
-                    drop_path=drop_path,
+                    drop_path=0.0,
+                    proj_drop=drop,
+                    attn_drop=drop,
                 )  # me: changed
                 for i in range(decoder_depth)
             ]
@@ -151,7 +155,7 @@ class MaskedAutoencoderViT(nn.Module):
         self.decoder_pred = nn.Linear(
             decoder_embed_dim, patch_size * in_chans, bias=True
         )  # decoder to patch
-        # self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch #me: rem
+        # self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch # me: rem
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -179,8 +183,8 @@ class MaskedAutoencoderViT(nn.Module):
         )
 
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        # w = self.patch_embed.proj.weight.data #me rem
-        # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1])) #me rem
+        # w = self.patch_embed.proj.weight.data # me rem
+        # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1])) # me rem
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
         torch.nn.init.normal_(self.cls_token, std=0.02)
@@ -314,7 +318,8 @@ class MaskedAutoencoderViT(nn.Module):
         pred: [N, L, p*p*3]
         mask: [N, L], 0 is keep, 1 is remove,
         """
-        # target = self.patchify(imgs) #me: rem
+        # target = self.patchify(imgs) # me: rem
+
         target = imgs.clone()
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
@@ -335,31 +340,21 @@ class MaskedAutoencoderViT(nn.Module):
 
 
 # model = MaskedAutoencoderViT(
-#         patch_size=1, embed_dim=768, depth=12, num_heads=12,
-#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
-
-# x = torch.rand(1, 224, 3)
-# y = model(x, mask_ratio=0.7)
-# print(y[1].shape)
-
-model = MaskedAutoencoderViT(
-    img_size=20,
-    in_chans=4,
-    patch_size=1,
-    embed_dim=512,
-    depth=1,
-    num_heads=4,
-    decoder_embed_dim=512,
-    decoder_depth=1,
-    decoder_num_heads=4,
-    mlp_ratio=4,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
-)
-
-x = torch.rand(1, 20, 4)
-y = model(x, mask_ratio=0.7)
-# print(y[1].shape)
+#     img_size=20,
+#     in_chans=4,
+#     patch_size=1,
+#     embed_dim=16,
+#     depth=1,
+#     num_heads=8,
+#     decoder_embed_dim=16,
+#     decoder_depth=1,
+#     decoder_num_heads=8,
+#     mlp_ratio=4,
+#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+# )
+# x = torch.rand(5, 4, 20)
+# x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+# loss, pred, mask = model(x, mask_ratio=0.7)
 
 
 class TransformerEncoderMAE(nn.Module):
@@ -462,16 +457,15 @@ class TransformerEncoderMAE(nn.Module):
         return x
 
 
-model = TransformerEncoderMAE(
-    img_size=20,
-    in_chans=4,
-    embed_dim=32,
-    depth=1,
-    num_heads=8,
-    mlp_ratio=4,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
-)
-
-x = torch.rand(1, 4, 20)
-y = model(x)
-print(y)
+# model = TransformerEncoderMAE(
+#     img_size=20,
+#     in_chans=4,
+#     embed_dim=32,
+#     depth=1,
+#     num_heads=8,
+#     mlp_ratio=4,
+#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+# )
+# x = torch.rand(1, 4, 20)
+# y = model(x)
+# print(y)
