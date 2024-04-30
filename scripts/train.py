@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
+from behavior import model1d as bm1
 
 # import wandb
 # wandb.init(project="uncategorized")
@@ -114,7 +115,7 @@ in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 # model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
 # model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
-model = bm.TransformerEncoderMAE(
+model = bm1.TransformerEncoderMAE(
     img_size=20,
     in_chans=4,
     out_chans=9,
