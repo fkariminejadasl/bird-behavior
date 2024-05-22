@@ -195,13 +195,13 @@ def helper_results(
 
 
 def save_results(
+    save_file,
     data,
     idts,
     llat,
     model_checkpoint,
     model,
     device,
-    fail_path,
     target_labels_names,
 ):
     data = data.to(device)  # N x C x L
@@ -212,7 +212,7 @@ def save_results(
     preds = preds.cpu().numpy()
 
     save_predictions_csv(
-        fail_path / "results.csv",
+        save_file,
         data,
         idts,
         llat,
@@ -222,12 +222,12 @@ def save_results(
         target_labels_names,
     )
 
-    # TODO saving some data
-    ind = 0
-    pred_name = target_labels_names[preds[ind]]
-    conf = probs[ind, preds[ind]]
-    data_item = data[ind].transpose(1, 0).cpu().numpy()
-    ldts_item = idts[ind]
-    _ = save_data_prediction(
-        fail_path, pred_name, pred_name, conf, data_item, ldts_item
-    )
+    # # TODO saving some data
+    # ind = 0
+    # pred_name = target_labels_names[preds[ind]]
+    # conf = probs[ind, preds[ind]]
+    # data_item = data[ind].transpose(1, 0).cpu().numpy()
+    # ldts_item = idts[ind]
+    # _ = save_data_prediction(
+    #     save_file.parent, pred_name, pred_name, conf, data_item, ldts_item
+    # )

@@ -240,13 +240,10 @@ class BirdDataset(Dataset):
         dtype: all_measurements np.float32
         dtype: ldts np.int64
         """
-        self.ldts = np.ascontiguousarray(ldts)
-        self.data = all_measurements.copy()
-        # normalize gps speed
-        # self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
-        self.data[:, :, 3] = (
-            self.data[:, :, 3] / 22.3012351755624
-        )  # all_measurements[..., 3].max()
+        self.ldts = np.ascontiguousarray(ldts)  # Nx3
+        self.data = all_measurements.copy()  # NxLxC C=4
+        # normalize gps speed by max
+        self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         self.data = self.data.astype(np.float32)
 
         self.transform = transform
@@ -256,7 +253,7 @@ class BirdDataset(Dataset):
 
     def __getitem__(self, ind):
         data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        ldt = self.ldts[ind]
+        ldt = self.ldts[ind]  # 3
 
         if self.transform:
             data = self.transform(data)
