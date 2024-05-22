@@ -75,7 +75,7 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "p1"  # sys.argv[1]
+exp = "p2"  # sys.argv[1]
 no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -98,6 +98,9 @@ all_measurements, label_ids = bd.load_csv(
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
+# use 80% data, the first 20% used for fine-tuning
+all_measurements = all_measurements[872:]
+label_ids = label_ids[872:]
 
 n_trainings = int(all_measurements.shape[0] * train_per * data_per)
 n_valid = all_measurements.shape[0] - n_trainings

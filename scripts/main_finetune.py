@@ -24,7 +24,7 @@ torch.manual_seed(seed)
 
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "f2"  # sys.argv[1]
+exp = "f7"  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -98,13 +98,17 @@ model = bm1.TransformerEncoderMAE(
 ).to(device)
 
 
-pmodel = torch.load("/home/fatemeh/Downloads/bird/result/p1_6000.pth")["model"]
+pmodel = torch.load("/home/fatemeh/Downloads/bird/result/p2_4000.pth")["model"]
 state_dict = model.state_dict()
 for name, p in pmodel.items():
-    if "decoder" not in name and "mask" not in name:
+    if (
+        "decoder" not in name and "mask" not in name
+    ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
         # dict(model.named_parameters())[name].requires_grad = False # freeze all layers except class head
-
+print(
+    f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
+)
 
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)

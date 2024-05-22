@@ -32,7 +32,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 96  # sys.argv[1]
+exp = 97  # sys.argv[1]
 no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9

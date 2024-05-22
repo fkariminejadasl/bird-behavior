@@ -82,7 +82,6 @@ if __name__ == "__main__":
         drop_last=True,
     )
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    criterion = torch.nn.CrossEntropyLoss()
 
     print(f"data shape: {infer_dataset[0][0].shape}")  # 3x20
     in_channel = infer_dataset[0][0].shape[0]  # 3 or 4
