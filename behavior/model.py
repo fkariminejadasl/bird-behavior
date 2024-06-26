@@ -158,13 +158,16 @@ from behavior.transformer import MultiheadAttention, SimpleTransformer
 
 
 class BirdModelTransformer(nn.Module):
-    def __init__(self, out_channels, embed_dim=512) -> None:
+    def __init__(self, out_channels, embed_dim=512, drop=0.7) -> None:
         super().__init__()
         out_embed_dim = out_channels
         embed_dim = embed_dim  # 512
         num_blocks = 1  # 6
-        num_heads = 1  # 8
-        drop_path = 0.7
+        num_heads = 8  # 8
+        drop_path = (
+            0.0  # drop_path_type == "progressive" and num_blocks=1 is always zero
+        )
+        drop = drop
         pre_transformer_ln = False
         add_bias_kv = True
         kernel_size = 1  # 8
@@ -194,14 +197,15 @@ class BirdModelTransformer(nn.Module):
         self.simple_transformer = SimpleTransformer(
             embed_dim=embed_dim,
             num_blocks=num_blocks,
-            ffn_dropout_rate=0.0,
             drop_path_rate=drop_path,
+            ffn_dropout_rate=drop,
             attn_target=partial(
                 MultiheadAttention,
                 embed_dim=embed_dim,
                 num_heads=num_heads,
                 bias=True,
                 add_bias_kv=add_bias_kv,
+                dropout=drop,
             ),
             pre_transformer_layer=nn.Sequential(
                 nn.LayerNorm(embed_dim, eps=1e-6)
@@ -233,6 +237,24 @@ class BirdModelTransformer(nn.Module):
         x = self.head(x)
         x = self.postproccess(x)
         return x
+
+
+from timm.models.vision_transformer import Block, PatchEmbed
+
+
+# encoder part of MAE
+def sincos_pos_embed(embed_dim, max_len, cls_token=False):
+    pe = torch.zeros(max_len, embed_dim)
+    position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+    div_term = torch.exp(
+        torch.arange(0, embed_dim, 2).float()
+        * (-torch.log(torch.tensor(10000.0)) / embed_dim)
+    )
+    pe[:, 0::2] = torch.sin(position * div_term)
+    pe[:, 1::2] = torch.cos(position * div_term)
+    if cls_token:
+        pe = np.concatenate([np.zeros([1, embed_dim]), pe], axis=0)
+    return pe
 
 
 """

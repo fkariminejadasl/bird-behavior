@@ -61,7 +61,7 @@ labels: percentage
 device_ids: portion of N
 {608: 85, 805: 281, 806: 36, 871: 25, 781: 12, 782: 302, 798: 68, 754: 21, 757: 112, 534: 180, 533: 32, 537: 42, 541: 70, 606: 136}
 time stamps:
-[datetime.utcfromtimestamp(time/1000).strftime('%Y-%m-%d %H:%M:%S') for time in time_stamps]
+[datetime.fromtimestamp(time/1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S') for time in time_stamps]
 labels:ids:
 {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
 {'ExFlap', 'Soar', 'Float', 'Manouvre', 'Pecking', 'SitStand', 'Flap', 'Other', 'TerLoco', 'Boat'}
@@ -240,13 +240,10 @@ class BirdDataset(Dataset):
         dtype: all_measurements np.float32
         dtype: ldts np.int64
         """
-        self.ldts = np.ascontiguousarray(ldts)
-        self.data = all_measurements.copy()
-        # normalize gps speed
-        # self.data[:, :, 3] = self.data[:, :, 3] / self.data[:, :, 3].max()
-        self.data[:, :, 3] = (
-            self.data[:, :, 3] / 22.3012351755624
-        )  # all_measurements[..., 3].max()
+        self.ldts = np.ascontiguousarray(ldts)  # Nx3
+        self.data = all_measurements.copy()  # NxLxC C=4
+        # normalize gps speed by max
+        self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         self.data = self.data.astype(np.float32)
 
         self.transform = transform
@@ -256,7 +253,7 @@ class BirdDataset(Dataset):
 
     def __getitem__(self, ind):
         data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        ldt = self.ldts[ind]
+        ldt = self.ldts[ind]  # 3
 
         if self.transform:
             data = self.transform(data)
@@ -326,42 +323,6 @@ def stats_per_csv_file(data_file, plot=False):
     )
     print(dict(zip(range(0, 11), hist)))
     return hist, num_data_points
-
-
-"""
-# get statistics for all data
-data_dir = Path("/home/fatemeh/Downloads/bird/data")
-csv_filename = "AnM533_20120515_20120516.csv"
-
-count = 0
-hists = []
-files = list(data_dir.glob("*.csv"))
-for data_file in files:
-    hist, num_data_points = bd.stats_per_csv_file(data_file, plot=False)
-    count += num_data_points
-    hists.append(hist)
-
-hists = np.array(hists, dtype=np.int64)
-print(hists)
-print(dict(zip(range(1, 11), np.sum(hists, axis=0))))
-print(count)
-
-count = 0
-for data_file in files:
-    ids, inds, gps_imus, labels, confs = bd.read_csv_bird_file(data_file)
-    for l, c, i in zip(labels, confs, inds):
-        if (c == 0) & (l!=0):
-            print(data_file.stem, l, c, i)
-            count += 1
-print(count) # 78=1560/20
-
-# from datetime import datetime
-# >>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
-# >>> datetime.strptime('2023-11-06 13:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc).timestamp()
-# 1699276091.915636
-# >>> datetime.utcfromtimestamp(1699276091.915636).strftime("%Y-%m-%d %H:%M:%S.%f")
-# '2023-11-06 13:08:11.915636'
-"""
 
 
 def combine_jsons_to_one_json(json_files, save_file):
@@ -449,10 +410,40 @@ def raw2meas(x_m, y_m, z_m, *args):
 
 
 def query_database(database_url, sql_query):
-    """
+    '''
     format of database url:
     database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+
+
+    # example queries
+    device_id = 805
+    start_time = '2015-05-27 09:19:34'
+    end_time = '2015-05-27 09:20:34'
+
+    # Get calibration imu values from database
+    sql_query = f"""
+    select *
+    from gps.ee_tracker_limited
+    where device_info_serial = {device_id}
     """
+
+    # speed_2d for gpd speed
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_tracking_speed_limited
+    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+    order by date_time
+    """
+
+    # get imu
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_acceleration_limited
+    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
+    order by date_time, index
+
+    >>> results = query_database(database_url, sql_query)
+    '''
     # connection = psycopg2.connect(dbname=database_name, user=username, password=password, host=host, port=port)
     connection = psycopg2.connect(database_url)
     cursor = connection.cursor()
@@ -588,7 +579,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
         gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
         if gps:
             filtered_groups.append((group, gps[0]))  # keep group and its gps data
-    # step 2: fxtend the items in the remaining groups
+    # step 2: extend the items in the remaining groups
     for group, gps in filtered_groups:
         for item in group:
             item.extend(gps)
@@ -615,34 +606,6 @@ def is_none(x, y, z):
     if x == None or y == None or z == None:
         return True
     return False
-
-
-'''
-# example queries
-# Get calibration imu values from database
-sql_query = f"""
-select *
-from gps.ee_tracker_limited
-where device_info_serial = {device_id}
-"""
-
-# speed_2d for gpd speed
-sql_query = f"""
-SELECT *
-FROM gps.ee_tracking_speed_limited
-WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-order by date_time
-"""
-
-# get imu
-sql_query = f"""
-SELECT *
-FROM gps.ee_acceleration_limited
-WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-order by date_time, index
-"""
-results = query_database(database_url, sql_query)
-'''
 
 
 def identify_and_process_groups(data, glen=20):
@@ -763,6 +726,8 @@ def load_csv(csv_file):
     ldts = np.array(ldts).astype(np.int64).reshape(-1, 20, 3)[:, 0, :]
     return igs, ldts
 
+
+# TODO to check and remove
 
 """
 # plot data 
@@ -904,4 +869,33 @@ b1 = torch.concat((torch.normal(0, .01, size=(20,1)), torch.normal(0, .01, size=
 a2 = torch.concat((a[0:1], a[6:7]), axis=2)
 m = np.concatenate((all_measurements[0], all_measurements[5]), axis=0)
 _, axs = plt.subplots(3, 1, sharex=True);axs[1].plot(m[:, 0], "r-*", m[ :, 1], "b-*", m[:, 2], "g-*");axs[2].plot(m[:, 3]);plt.show(block=False)
+"""
+
+
+"""
+# get statistics for all data
+data_dir = Path("/home/fatemeh/Downloads/bird/data")
+csv_filename = "AnM533_20120515_20120516.csv"
+
+count = 0
+hists = []
+files = list(data_dir.glob("*.csv"))
+for data_file in files:
+    hist, num_data_points = bd.stats_per_csv_file(data_file, plot=False)
+    count += num_data_points
+    hists.append(hist)
+
+hists = np.array(hists, dtype=np.int64)
+print(hists)
+print(dict(zip(range(1, 11), np.sum(hists, axis=0))))
+print(count)
+
+count = 0
+for data_file in files:
+    ids, inds, gps_imus, labels, confs = bd.read_csv_bird_file(data_file)
+    for l, c, i in zip(labels, confs, inds):
+        if (c == 0) & (l!=0):
+            print(data_file.stem, l, c, i)
+            count += 1
+print(count) # 78=1560/20
 """

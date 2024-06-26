@@ -90,7 +90,9 @@ def write_j_info(json_file, csv_file):
     igs, ldts = bd.combine_all_data(json_file)
     items = []
     for ig, ldt in zip(igs, ldts):
-        t = datetime.utcfromtimestamp(ldt[2]).strftime("%Y-%m-%d %H:%M:%S")
+        t = datetime.fromtimestamp(ldt[2], tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         item = f"{ldt[1]},{t},{len(ig)},{ldt[0]},0\n"
         items.append(item)
     with open(csv_file, "w") as f:
@@ -118,7 +120,9 @@ def write_j_data(
         label = new2old_labels[ldt[0]]
         device_id = ldt[1]
         timestamp = ldt[2]
-        start_time = datetime.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         igs, idts, _ = bd.get_data(
             database_url, device_id, start_time, start_time, glen
         )

@@ -1,9 +1,11 @@
 from copy import deepcopy
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torchvision
 import tqdm
 from torch.utils import tensorboard
@@ -11,6 +13,7 @@ from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
+from behavior import model1d as bm1
 
 # import wandb
 # wandb.init(project="uncategorized")
@@ -29,7 +32,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 84  # sys.argv[1]
+exp = 97  # sys.argv[1]
 no_epochs = 6000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -51,12 +54,12 @@ weight_decay = 1e-2  # default 1e-2
 # model
 width = 30
 
-data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-combined_file = data_path / "combined.json"
-all_measurements, label_ids = bd.combine_all_data(combined_file)
-# all_measurements, label_ids = bd.load_csv(
-#     "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
-# )
+# data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+# combined_file = data_path / "combined.json"
+# all_measurements, label_ids = bd.combine_all_data(combined_file)
+all_measurements, label_ids = bd.load_csv(
+    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+)
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
@@ -111,7 +114,19 @@ print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 # model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
-model = bm.BirdModelTransformer(n_classes).to(device)
+# model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
+model = bm1.TransformerEncoderMAE(
+    img_size=20,
+    in_chans=4,
+    out_chans=9,
+    embed_dim=16,
+    depth=1,
+    num_heads=8,
+    mlp_ratio=4,
+    drop=0.0,
+    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+).to(device)
+
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
 

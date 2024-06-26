@@ -1,11 +1,15 @@
-# None: means leave it empty
 # query database
-start_time: "2012-05-17 00:00:59" # Value str. It should be "year-month-day hour:minute:second"
-end_time: "2012-05-17 00:00:59" # Value str. It should be "year-month-day hour:minute:second"
-device_id: 541 # Value int. 
 database_url: "postgresql://{username}:{password}@{host}:{port}/{database_name}" # Value: str. 
 
+# input.csv: each row contains device_id,start_time,end_time separated by comma. 
+# Eg. 541,2012-05-17 00:00:59,2012-05-17 00:00:59
+#     805,2014-06-05 11:16:27,2014-06-05 11:17:27
+# start_time, end_time format is "year-month-day hour:minute:second"
+input_file: /content/input.csv # Value: Path
 model_checkpoint: /content/45_best.pth # Value: Path
 save_path: /content/result # Value: Path
+
+# For my Debugging
+# input_file: /home/fatemeh/Downloads/bird/result/failed/exp1/input.csv # Value: Path
 # model_checkpoint: /home/fatemeh/Downloads/bird/result/45_best.pth # Value: Path
 # save_path: /home/fatemeh/Downloads/bird/result/failed/exp1 # Value: Path

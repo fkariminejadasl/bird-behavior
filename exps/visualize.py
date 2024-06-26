@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -26,8 +26,9 @@ time_stamps = time_stamps1 + time_stamps2 + time_stamps3
 
 td = np.stack([time_stamps, device_ids]).T
 td = td[td[:, 0].argsort()]
-# date_strings = [datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") for ts in td[:,0]]
-date_strings = [datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d") for ts in td[:, 0]]
+date_strings = [
+    datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") for ts in td[:, 0]
+]
 
 frequency_count = Counter(date_strings)
 dates = list(frequency_count.keys())
@@ -111,7 +112,7 @@ inds = np.where(
 b = np.concatenate(all_measurements[inds, :, :3], axis=0)
 for ind in inds:
     print(
-        datetime.utcfromtimestamp(label_device_times[ind, 2]).strftime(
+        datetime.fromtimestamp(label_device_times[ind, 2], tz=timezone.utc).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         ),
         ind,
@@ -126,7 +127,9 @@ sorted_data = data[sorted_indices]
 # sorted_data = sorted(data, key=lambda x: (x[0], x[1]))
 with open(data_path / "times.txt", "w") as file:
     for dev_id, ts, gps in sorted_data:
-        f_time = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S.%f")
+        f_time = datetime.fromtimestamp(ts, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S.%f"
+        )
         _ = file.write(f"{dev_id},{f_time},{gps}\n")
 
 """

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Tuple
 
 import matplotlib.pyplot as plt
@@ -54,7 +54,7 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
     """
     rand = np.random.randint(0, 255, 1)[0]
     gps = np.float32(data[0, -1] * gps_scale)
-    t = datetime.utcfromtimestamp(ldts[2]).strftime("%Y-%m-%d %H:%M:%S")
+    t = datetime.fromtimestamp(ldts[2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     name = f"time:{t}, gps:{gps:.4f}, dev:{ldts[1]},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
@@ -78,7 +78,7 @@ def save_predictions_csv(
         )
         for i in range(len(data)):
             device_id = idts[i, 1]
-            start_date = datetime.utcfromtimestamp(idts[i, 2]).strftime(
+            start_date = datetime.fromtimestamp(idts[i, 2], tz=timezone.utc).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
             index = idts[i, 0]
@@ -87,7 +87,7 @@ def save_predictions_csv(
             pred_name = target_labels_names[pred]
             conf = probs[i, pred]
             latitude, longitude, altitude, temperature = llat[i]
-            runtime_date = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            runtime_date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             text = (
                 f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f},"
                 f"{latitude:.7f},{longitude:.7f},{int(altitude)},{temperature:.1f},"
@@ -195,13 +195,13 @@ def helper_results(
 
 
 def save_results(
+    save_file,
     data,
     idts,
     llat,
     model_checkpoint,
     model,
     device,
-    fail_path,
     target_labels_names,
 ):
     data = data.to(device)  # N x C x L
@@ -212,7 +212,7 @@ def save_results(
     preds = preds.cpu().numpy()
 
     save_predictions_csv(
-        fail_path / "results.csv",
+        save_file,
         data,
         idts,
         llat,
@@ -222,12 +222,12 @@ def save_results(
         target_labels_names,
     )
 
-    # TODO saving some data
-    ind = 0
-    pred_name = target_labels_names[preds[ind]]
-    conf = probs[ind, preds[ind]]
-    data_item = data[ind].transpose(1, 0).cpu().numpy()
-    ldts_item = idts[ind]
-    _ = save_data_prediction(
-        fail_path, pred_name, pred_name, conf, data_item, ldts_item
-    )
+    # # TODO saving some data
+    # ind = 0
+    # pred_name = target_labels_names[preds[ind]]
+    # conf = probs[ind, preds[ind]]
+    # data_item = data[ind].transpose(1, 0).cpu().numpy()
+    # ldts_item = idts[ind]
+    # _ = save_data_prediction(
+    #     save_file.parent, pred_name, pred_name, conf, data_item, ldts_item
+    # )
