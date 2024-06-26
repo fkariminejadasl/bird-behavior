@@ -579,7 +579,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
         gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
         if gps:
             filtered_groups.append((group, gps[0]))  # keep group and its gps data
-    # step 2: fxtend the items in the remaining groups
+    # step 2: extend the items in the remaining groups
     for group, gps in filtered_groups:
         for item in group:
             item.extend(gps)

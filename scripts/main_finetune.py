@@ -24,7 +24,7 @@ torch.manual_seed(seed)
 
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "f7"  # sys.argv[1]
+exp = "f8"  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9

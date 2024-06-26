@@ -47,6 +47,16 @@ FROM gps.ee_acceleration_limited
 WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
 order by date_time, index
 """
+
+device_query = """
+select device_info_serial 
+from gps.ee_tracker_limited
+"""
+
+device_start_end_query = """
+select device_info_serial, start_date, end_date 
+from gps.ee_track_session_limited etsl
+"""
 ```
 
 # Get Some Statistics
