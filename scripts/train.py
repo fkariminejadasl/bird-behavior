@@ -32,8 +32,8 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 97  # sys.argv[1]
-no_epochs = 6000  # int(sys.argv[2])
+exp = 100  # sys.argv[1]
+no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
@@ -54,6 +54,7 @@ weight_decay = 1e-2  # default 1e-2
 # model
 width = 30
 
+"""
 # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 # combined_file = data_path / "combined.json"
 # all_measurements, label_ids = bd.combine_all_data(combined_file)
@@ -83,23 +84,41 @@ print(
     valid_measurements.shape,
 )
 
+
 # train_dataset = bd.BirdDataset(all_measurements, label_ids)
 # eval_dataset = deepcopy(train_dataset)
 train_dataset = bd.BirdDataset(train_measurments, train_labels)
 eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+"""
+
+from torch.utils.data import random_split
+
+csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+csv_files = [str(csv_file) for csv_file in csv_files]
+
+dataset = bd.BirdDataset2(
+    csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20
+)
+# Calculate the sizes for training and validation datasets
+train_size = int(0.9 * len(dataset))
+val_size = len(dataset) - train_size
+
+# Use random_split to divide the dataset
+train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=len(train_dataset),
+    batch_size=8,  # len(train_dataset),
     shuffle=True,
-    num_workers=1,
+    num_workers=8,  # 1
     drop_last=True,
 )
 eval_loader = DataLoader(
     eval_dataset,
-    batch_size=len(eval_dataset),
+    batch_size=8,  # len(eval_dataset),
     shuffle=False,
-    num_workers=1,
+    num_workers=8,  # 1
     drop_last=True,
 )
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

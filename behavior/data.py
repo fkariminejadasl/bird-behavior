@@ -899,3 +899,199 @@ for data_file in files:
             count += 1
 print(count) # 78=1560/20
 """
+import csv
+import os
+
+
+def split_csv(input_file, output_dir, lines_per_file):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    with open(input_file, "r") as file:
+        count = 0
+        file_count = 1
+        output_file = open(os.path.join(output_dir, f"part_{file_count}.csv"), "w")
+
+        for line in file:
+            items = line.split(",")
+            label = int(items[3])
+            if label not in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
+                continue
+            if label in [8, 9]:
+                items[3] = str(label - 1)
+                line = ",".join(items)
+
+            if count < lines_per_file:
+                output_file.write(line)
+                count += 1
+                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
+                #     if label in [8, 9]:
+                #         items[3] = str(label-1)
+                #         line = ','.join(items)
+                # output_file.write(line)
+                # count += 1
+            else:
+                output_file.close()
+                count = 0
+                file_count += 1
+                output_file = open(
+                    os.path.join(output_dir, f"part_{file_count}.csv"), "w"
+                )
+                output_file.write(line)
+                count = 1
+                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
+                #     if label in [8, 9]:
+                #         items[3] = str(label-1)
+                #         line = ','.join(items)
+                # output_file.write(line)
+                # count = 1
+
+        output_file.close()
+
+
+# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp2', 60)
+
+
+def compute_group_counts(file_paths, group_size=20):
+    group_counts = {}
+    for file_path in file_paths:
+        with open(file_path, "r") as f:
+            reader = csv.reader(f)
+            row_count = sum(1 for row in reader)
+            group_count = row_count // group_size
+            group_counts[str(file_path)] = group_count
+    return group_counts
+
+
+# # List of CSV file paths
+# csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
+# group_counts = compute_group_counts(csv_files)
+
+# # Save group_counts to a file (or use directly)
+# import json
+# with open('/home/fatemeh/Downloads/bird/tmp/group_counts.json', 'w') as f:
+#     json.dump(group_counts, f)
+
+# for csv_file in csv_files:
+#     with open(csv_file,'r') as f:
+#         for line in f:
+#             if int(line.split(',')[3]) == 7:
+#                 print(csv_files, line)
+
+
+class BirdDataset2(Dataset):
+    def __init__(self, file_paths, group_counts_file, group_size=20, transform=None):
+        """
+        Args:
+            file_paths (list of str): List of paths to CSV files.
+            group_counts_file (str): Path to the JSON file containing group counts for each file.
+            group_size (int): Number of rows per group.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.file_paths = file_paths
+        self.group_size = group_size
+        self.transform = transform
+
+        # Load precomputed group counts
+        with open(group_counts_file, "r") as f:
+            self.group_counts = json.load(f)
+
+        self.data_index = self._create_data_index()
+
+    def _create_data_index(self):
+        """Create an index of the data based on precomputed group counts."""
+        data_index = []
+        for file_path in self.file_paths:
+            group_count = self.group_counts[file_path]
+            for i in range(group_count):
+                data_index.append((file_path, i))
+        return data_index
+
+    def __len__(self):
+        return len(self.data_index)
+
+    def _load_csv(self, file_path):
+        igs = []
+        ldts = []
+        with open(file_path, "r") as file:
+            for row in file:
+                items = row.strip().split(",")
+                device_id = int(items[0])
+                timestamp = (
+                    datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
+                    .replace(tzinfo=timezone.utc)
+                    .timestamp()
+                )
+                label = int(items[3])
+                ig = [float(i) for i in items[4:]]
+                ig[-1] /= 22.3012351755624
+                igs.append(ig)
+                ldts.append([label, device_id, timestamp])
+        igs = np.array(igs).astype(np.float32)
+        ldts = np.array(ldts).astype(np.int64)
+        return igs, ldts
+
+    def __getitem__(self, idx):
+        file_path, group_idx = self.data_index[idx]
+        start_row = group_idx * self.group_size
+
+        measurements, ldts = self._load_csv(file_path)
+        data = measurements[start_row : start_row + self.group_size]
+        ldts = ldts[start_row : start_row + self.group_size][0]
+        data = data.transpose((1, 0))  # LxC -> CxL
+
+        if self.transform:
+            data = self.transform(data)
+
+        return data, ldts
+
+
+"""
+import torch
+from torch.utils.data import DataLoader
+
+
+all_measurements, label_ids = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
+all_measurements, label_ids = get_specific_labesl(all_measurements, label_ids, [0, 1, 2, 3, 4, 5, 6, 8, 9])
+train_dataset = BirdDataset(all_measurements, label_ids)
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=2,
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+
+from torch.utils.data import random_split   
+csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
+csv_files = [str(csv_file) for csv_file in csv_files]
+
+dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
+# Calculate the sizes for training and validation datasets
+train_size = int(0.9 * len(dataset))
+val_size = len(dataset) - train_size
+
+# Use random_split to divide the dataset
+tr, val = random_split(dataset, [train_size, val_size])
+
+train_loader2 = DataLoader(
+    tr,
+    batch_size=2,
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+
+for m, l in train_loader2:
+    print(m.shape)
+val_loader2 = DataLoader(
+    val,
+    batch_size=len(val),
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+"""
