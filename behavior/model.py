@@ -520,7 +520,9 @@ def _calculate_total_stats(running_loss, running_corrects, data_len, i):
 
 
 def _caculate_metrics(data, ldts, model, criterion, device):
-    labels = ldts[:, 0]
+    labels = ldts  # ugly
+    if ldts.dim() == 2:
+        labels = ldts[:, 0]
     labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C

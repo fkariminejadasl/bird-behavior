@@ -32,7 +32,7 @@ model(x)
 """
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 100  # sys.argv[1]
+exp = 98  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -89,8 +89,66 @@ print(
 # eval_dataset = deepcopy(train_dataset)
 train_dataset = bd.BirdDataset(train_measurments, train_labels)
 eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=len(train_dataset),
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+eval_loader = DataLoader(
+    eval_dataset,
+    batch_size=len(eval_dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=True,
+)
 """
 
+# data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
+# combined_file = data_path / "combined.json"
+# all_measurements, label_ids = bd.combine_all_data(combined_file)
+all_measurements, label_ids = bd.load_csv(
+    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+)
+# label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
+all_measurements, label_ids = bd.get_specific_labesl(
+    all_measurements, label_ids, target_labels
+)
+# make data shorter
+# label_ids = np.repeat(label_ids, 2, axis=0)
+# all_measurements = all_measurements.reshape(-1, 10, 4)
+
+
+# train_dataset = bd.BirdDataset(all_measurements, label_ids)
+# eval_dataset = deepcopy(train_dataset)
+dataset = bd.BirdDataset(all_measurements, label_ids)
+# Calculate the sizes for training and validation datasets
+train_size = int(0.9 * len(dataset))
+val_size = len(dataset) - train_size
+
+# Use random_split to divide the dataset
+from torch.utils.data import random_split
+
+train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=len(train_dataset),
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+eval_loader = DataLoader(
+    eval_dataset,
+    batch_size=len(eval_dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=True,
+)
+
+"""
 from torch.utils.data import random_split
 
 csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
@@ -109,18 +167,20 @@ train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=8,  # len(train_dataset),
+    batch_size=len(train_dataset),
     shuffle=True,
-    num_workers=8,  # 1
+    num_workers=1,
     drop_last=True,
 )
 eval_loader = DataLoader(
     eval_dataset,
-    batch_size=8,  # len(eval_dataset),
+    batch_size=len(eval_dataset),
     shuffle=False,
-    num_workers=8,  # 1
+    num_workers=1,
     drop_last=True,
 )
+"""
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 """

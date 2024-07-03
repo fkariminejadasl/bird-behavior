@@ -949,9 +949,6 @@ def split_csv(input_file, output_dir, lines_per_file):
         output_file.close()
 
 
-# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp2', 60)
-
-
 def compute_group_counts(file_paths, group_size=20):
     group_counts = {}
     for file_path in file_paths:
@@ -962,6 +959,8 @@ def compute_group_counts(file_paths, group_size=20):
             group_counts[str(file_path)] = group_count
     return group_counts
 
+
+# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp2', 600)
 
 # # List of CSV file paths
 # csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
@@ -976,7 +975,7 @@ def compute_group_counts(file_paths, group_size=20):
 # for csv_file in csv_files:
 #     with open(csv_file,'r') as f:
 #         for line in f:
-#             if int(line.split(',')[3]) == 7:
+#             if int(line.split(',')[3]) == 9:
 #                 print(csv_files, line)
 
 
@@ -1017,17 +1016,18 @@ class BirdDataset2(Dataset):
         with open(file_path, "r") as file:
             for row in file:
                 items = row.strip().split(",")
-                device_id = int(items[0])
-                timestamp = (
-                    datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
-                    .replace(tzinfo=timezone.utc)
-                    .timestamp()
-                )
+                # device_id = int(items[0])
+                # timestamp = (
+                #     datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
+                #     .replace(tzinfo=timezone.utc)
+                #     .timestamp()
+                # )
                 label = int(items[3])
                 ig = [float(i) for i in items[4:]]
                 ig[-1] /= 22.3012351755624
                 igs.append(ig)
-                ldts.append([label, device_id, timestamp])
+                # ldts.append([label, device_id, timestamp])
+                ldts.append(label)
         igs = np.array(igs).astype(np.float32)
         ldts = np.array(ldts).astype(np.int64)
         return igs, ldts
@@ -1070,6 +1070,9 @@ csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
 csv_files = [str(csv_file) for csv_file in csv_files]
 
 dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
+d, l = dataset[0]
+d, l = dataset[1]
+
 # Calculate the sizes for training and validation datasets
 train_size = int(0.9 * len(dataset))
 val_size = len(dataset) - train_size
@@ -1078,9 +1081,9 @@ val_size = len(dataset) - train_size
 tr, val = random_split(dataset, [train_size, val_size])
 
 train_loader2 = DataLoader(
-    tr,
+    dataset,
     batch_size=2,
-    shuffle=True,
+    shuffle=False,
     num_workers=1,
     drop_last=True,
 )
@@ -1090,7 +1093,7 @@ for m, l in train_loader2:
 val_loader2 = DataLoader(
     val,
     batch_size=len(val),
-    shuffle=True,
+    shuffle=False,
     num_workers=1,
     drop_last=True,
 )
