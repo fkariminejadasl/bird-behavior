@@ -9,7 +9,7 @@ import torch.nn as nn
 import torchvision
 import tqdm
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 
 from behavior import data as bd
 from behavior import model as bm
@@ -31,8 +31,9 @@ model = bm.BirdModel(4, 30, 10)
 model(x)
 """
 
+
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 98  # sys.argv[1]
+exp = 101  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -69,67 +70,13 @@ all_measurements, label_ids = bd.get_specific_labesl(
 # label_ids = np.repeat(label_ids, 2, axis=0)
 # all_measurements = all_measurements.reshape(-1, 10, 4)
 
-n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-n_valid = all_measurements.shape[0] - n_trainings
-train_measurments = all_measurements[:n_trainings]
-valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-train_labels, valid_labels = (
-    label_ids[:n_trainings],
-    label_ids[n_trainings : n_trainings + n_valid],
-)
-print(
-    len(train_labels),
-    len(valid_labels),
-    train_measurments.shape,
-    valid_measurements.shape,
-)
-
-
-# train_dataset = bd.BirdDataset(all_measurements, label_ids)
-# eval_dataset = deepcopy(train_dataset)
-train_dataset = bd.BirdDataset(train_measurments, train_labels)
-eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=len(train_dataset),
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=len(eval_dataset),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-"""
-
-# data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-# combined_file = data_path / "combined.json"
-# all_measurements, label_ids = bd.combine_all_data(combined_file)
-all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
-)
-# label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
-all_measurements, label_ids = bd.get_specific_labesl(
-    all_measurements, label_ids, target_labels
-)
-# make data shorter
-# label_ids = np.repeat(label_ids, 2, axis=0)
-# all_measurements = all_measurements.reshape(-1, 10, 4)
-
 
 # train_dataset = bd.BirdDataset(all_measurements, label_ids)
 # eval_dataset = deepcopy(train_dataset)
 dataset = bd.BirdDataset(all_measurements, label_ids)
 # Calculate the sizes for training and validation datasets
-train_size = int(0.9 * len(dataset))
+train_size = int(train_per * data_per * len(dataset))
 val_size = len(dataset) - train_size
-
-# Use random_split to divide the dataset
-from torch.utils.data import random_split
 
 train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 
@@ -148,18 +95,17 @@ eval_loader = DataLoader(
     drop_last=True,
 )
 
-"""
-from torch.utils.data import random_split
-
-csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+# """
+csv_files = Path("/home/fatemeh/Downloads/bird/tmp4").glob("part*")
 csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 csv_files = [str(csv_file) for csv_file in csv_files]
 
-dataset = bd.BirdDataset2(
-    csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20
-)
+# dataset = bd.BirdDataset2(
+#     csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20
+# )
+dataset = bd.BirdDataset3(csv_files)
 # Calculate the sizes for training and validation datasets
-train_size = int(0.9 * len(dataset))
+train_size = int(train_per * data_per * len(dataset))
 val_size = len(dataset) - train_size
 
 # Use random_split to divide the dataset
@@ -179,7 +125,7 @@ eval_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-"""
+# """
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 

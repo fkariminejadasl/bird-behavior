@@ -919,7 +919,7 @@ def split_csv(input_file, output_dir, lines_per_file):
                 continue
             if label in [8, 9]:
                 items[3] = str(label - 1)
-                line = ",".join(items)
+            line = ",".join(items[3:])  # only for label and data
 
             if count < lines_per_file:
                 output_file.write(line)
@@ -960,7 +960,7 @@ def compute_group_counts(file_paths, group_size=20):
     return group_counts
 
 
-# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp2', 600)
+# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp4', 20)
 
 # # List of CSV file paths
 # csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
@@ -1047,6 +1047,51 @@ class BirdDataset2(Dataset):
         return data, ldts
 
 
+class BirdDataset3(Dataset):
+    def __init__(self, file_paths, transform=None):
+        """
+        Args:
+            file_paths (list of str): List of paths to CSV files.
+            group_counts_file (str): Path to the JSON file containing group counts for each file.
+            group_size (int): Number of rows per group.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.file_paths = file_paths
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def _load_csv(self, file_path):
+        igs = []
+        ldts = []
+        with open(file_path, "r") as file:
+            for row in file:
+                items = row.strip().split(",")
+                label = int(items[0])  # 3
+                ig = [float(i) for i in items[1:]]  # 4
+                ig[-1] /= 22.3012351755624
+                igs.append(ig)
+                ldts.append(label)
+        igs = np.array(igs).astype(np.float32)
+        ldts = np.array(ldts).astype(np.int64)
+        return igs, ldts
+
+    def __getitem__(self, idx):
+        file_path = self.file_paths[idx]
+
+        data, ldts = self._load_csv(file_path)
+        ldts = np.int64(ldts[0])
+
+        data = data.transpose((1, 0))  # LxC -> CxL
+        data = np.ascontiguousarray(data)
+
+        if self.transform:
+            data = self.transform(data)
+
+        return data, ldts
+
+
 """
 import torch
 from torch.utils.data import DataLoader
@@ -1065,11 +1110,12 @@ train_loader = DataLoader(
 )
 
 from torch.utils.data import random_split   
-csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+csv_files = Path("/home/fatemeh/Downloads/bird/tmp3").glob("part*")
 csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
 csv_files = [str(csv_file) for csv_file in csv_files]
 
-dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
+# dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
+dataset = BirdDataset3(csv_files)
 d, l = dataset[0]
 d, l = dataset[1]
 
@@ -1097,4 +1143,4 @@ val_loader2 = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-"""
+# """
