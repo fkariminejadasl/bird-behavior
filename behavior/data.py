@@ -398,22 +398,12 @@ def reindex_ids(ldts):
     return new_ldts
 
 
-def raw2meas(x_m, y_m, z_m, *args):
-    """
-    for raw imu to measurement imu
-    """
-    x_o, x_s, y_o, y_s, z_o, z_s = args
-    x_a = (x_m - x_o) / x_s
-    y_a = (y_m - y_o) / y_s
-    z_a = (z_m - z_o) / z_s
-    return x_a, y_a, z_a
-
-
 def query_database(database_url, sql_query):
     '''
+    Execute a SQL query and return the results.
+
     format of database url:
     database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
-
 
     # example queries
     device_id = 805
@@ -448,14 +438,211 @@ def query_database(database_url, sql_query):
     connection = psycopg2.connect(database_url)
     cursor = connection.cursor()
     cursor.execute(sql_query)
-
-    # Fetch all the rows
     result = cursor.fetchall()
-
-    # Close the cursor and connection
     cursor.close()
     connection.close()
     return result
+
+
+def fetch_calibration_data(database_url, device_id):
+    """
+    Fetch calibration IMU values from the database.
+    """
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_tracker_limited
+    WHERE device_info_serial = {device_id}
+    """
+    results = query_database(database_url, sql_query)
+    if len(results) == 0:
+        raise ValueError("No calibration data found")
+    return [float(cell) for cell in results[0][5:11]]
+
+
+def fetch_gps_data(database_url, device_id, start_time, end_time):
+    """
+    Fetch GPS data from the database.
+    """
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_tracking_speed_limited
+    WHERE device_info_serial = {device_id} AND date_time BETWEEN '{start_time}' AND '{end_time}'
+    ORDER BY date_time
+    """
+    results = query_database(database_url, sql_query)
+    if len(results) == 0:
+        raise ValueError("No GPS data found")
+
+    return [
+        [
+            int(result[1].replace(tzinfo=timezone.utc).timestamp()),
+            result[-4],
+            result[2],
+            result[3],
+            result[4],
+            result[6],
+        ]
+        for result in results
+        if result[-4] is not None
+    ]
+
+
+def fetch_imu_data(database_url, device_id, start_time, end_time):
+    """
+    Fetch IMU data from the database.
+    """
+    sql_query = f"""
+    SELECT *
+    FROM gps.ee_acceleration_limited
+    WHERE device_info_serial = {device_id} AND date_time BETWEEN '{start_time}' AND '{end_time}'
+    ORDER BY date_time, index
+    """
+    results = query_database(database_url, sql_query)
+    if len(results) == 0:
+        raise ValueError("No IMU data found")
+
+    return [result for result in results if not is_none(*result[-3:])]
+
+
+def raw2meas(x_m, y_m, z_m, x_o, x_s, y_o, y_s, z_o, z_s):
+    """
+    Convert raw IMU measurements (x_m, y_m, z_m) to calibrated values using calibration
+    values (x_o, x_s, y_o, y_s, z_o, z_s). All values are floats.
+    """
+    x_a = (x_m - x_o) / x_s
+    y_a = (y_m - y_o) / y_s
+    z_a = (z_m - z_o) / z_s
+    return x_a, y_a, z_a
+
+
+def is_none(x, y, z):
+    """
+    Check if any of the values are None.
+    """
+    return x is None or y is None or z is None
+
+
+def identify_and_process_groups(data, glen=20):
+    """
+    Identify and process groups of items with consecutive indices.
+
+    Parameters
+    ----------
+    data : list of list
+        A list of items, where each item is a list containing an index and additional values.
+        The indices are expected to be in a sorted and potentially grouped sequential order.
+    glen : int
+        Group length. Default is 20.
+
+    Returns
+    -------
+    list of list
+        A list containing subgroups of the input items. Each subgroup is a list of exactly
+        20 items from the original list, based on consecutive indices, and only subgroups that
+        could be fully formed (i.e., with exactly 20 elements) are included.
+
+    Examples
+    --------
+    >>> data = [[1, 'a'], [2, 'b'], ..., [46, 'x'], [1, 'y'], ..., [60, 'aa']]
+    >>> identify_and_process_groups(data)
+    [[[1, 'a'], [2, 'b'], ..., [20, 't']], [[21, 'u'], [22, 'v'], ..., [40, 'dd']]]
+    """
+    indices = [item[0] for item in data]
+    groups = []
+    current_group = [(indices[0], 0)]  # Store index along with its position
+
+    for i in range(1, len(indices)):
+        if indices[i] == current_group[-1][0] + 1:
+            current_group.append((indices[i], i))
+        else:
+            groups.append(current_group)
+            current_group = [(indices[i], i)]
+
+    groups.append(current_group)
+    filtered_groups = [group for group in groups if len(group) >= glen]
+
+    final_groups = []
+    for group in filtered_groups:
+        for i in range(0, len(group), glen):
+            subgroup_tuples = group[i : i + glen]
+            if len(subgroup_tuples) == glen:
+                subgroup = [data[t[1]] for t in subgroup_tuples]
+                final_groups.append(subgroup)
+
+    return final_groups
+
+
+def match_gps_to_groups(groups, times_gps_infos):
+    """
+    Match GPS data to IMU groups and filter out unmatched groups.
+
+    Parameters
+    ----------
+    groups : list of list
+        The IMU data groups.
+    times_gps_infos : list of list
+        The GPS data including timestamp, GPS speed, latitude, longitude, altitude, and temperature.
+
+    Returns
+    -------
+    list of list
+        The matched IMU data groups with GPS data.
+
+    Raises
+    ------
+    ValueError
+        If a group has different timestamps.
+    """
+    # Filter out groups without corresponding gps information
+    filtered_groups = []
+    for group in groups:
+        timestamps = {i[1] for i in group}
+        if len(timestamps) != 1:
+            raise ValueError("Different timestamps for a group")
+        timestamp = timestamps.pop()
+        gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
+        if gps:
+            filtered_groups.append((group, gps[0]))
+
+    # Extend the items in the remaining groups
+    for group, gps in filtered_groups:
+        for item in group:
+            item.extend(gps)
+    
+    # Replace original groups with the filtered and processed ones
+    return [group for group, _ in filtered_groups]
+
+
+def process_data(groups, device_id):
+    """
+    Process the data groups into the final format.
+
+    Parameters
+    ----------
+    groups : list of list
+        The matched IMU and GPS data groups.
+    device_id : int
+        The unique identifier of the device.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        The first np.ndarray is a 2D array containing IMU data (x, y, z) and GPS 2D speed.
+        The second np.ndarray consists of indices, device IDs, and timestamps.
+        The third np.ndarray consists of latitude, longitude, altitude, temperature.
+    """
+    igs = []  # IMU and GPS
+    idts = []  # Index, device_id, timestamp
+    llat = []  # Latitude, longitude, altitude, temperature
+
+    for group in groups:
+        for item in group:
+            igs.append(item[2:6])
+            index, timestamp = item[0], item[1]
+            idts.append([index, device_id, timestamp])
+            llat.append(item[6:])
+
+    return np.array(igs), np.array(idts, dtype=np.int64), llat
 
 
 def get_data(database_url, device_id, start_time, end_time, glen=20):
@@ -486,7 +673,6 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
         The third np.ndarray consists of latitude, longitude, altitude, temperature.
         igs, idts 2D array: Nx20 x 4, Nx20 x 3, llat: list Nx20 x 4
 
-
     Examples
     --------
     >>> database_url = "postgresql://username:password@host:port/database_name"
@@ -507,193 +693,43 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     and IMU data for a specific device within a given time range. It processes this
     data and returns it in two structured numpy array format.
     """
+    calibration_values = fetch_calibration_data(database_url, device_id)
+    gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
+    imu_data = fetch_imu_data(database_url, device_id, start_time, end_time)
 
-    # Get calibration imu values from database
-    # ========================================
-    sql_query = f"""
-    select *
-    from gps.ee_tracker_limited
-    where device_info_serial = {device_id}
-    """
-    results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no calibration data found"
-    x_o, x_s, y_o, y_s, z_o, z_s = [float(cell) for cell in results[0][5:11]]
-
-    # Get speed_2d for gpd speed
-    # ==========================
-    sql_query = f"""
-    SELECT *
-    FROM gps.ee_tracking_speed_limited
-    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-    order by date_time
-    """
-    results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no gps data found"
-    times_gps_infos = [
-        [
-            int(result[1].replace(tzinfo=timezone.utc).timestamp()),
-            result[-4],
-            result[2],
-            result[3],
-            result[4],
-            result[6],
-        ]
-        for result in results
-        if result[-4] != None  # gps speed are sometimes none
-    ]
-
-    # Get imu
-    # =======
-    sql_query = f"""
-    SELECT *
-    FROM gps.ee_acceleration_limited
-    WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-    order by date_time, index
-    """
-    results = query_database(database_url, sql_query)
-    assert len(results) != 0, "no imu data found"
-
-    # Filter data: remove imu data, which has nanes
-    results = [result for result in results if not is_none(*result[-3:])]
-
-    # Get data groups
-    indices = [result[2] - 1 for result in results]  # make indices zero-based
+    indices = [result[2] - 1 for result in imu_data]
     timestamps = [
-        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in results
+        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
     ]
     imus = [
-        np.round(raw2meas(*result[-3:], x_o, x_s, y_o, y_s, z_o, z_s), 8)
-        for result in results
+        np.round(raw2meas(*result[-3:], *calibration_values), 8) for result in imu_data
     ]
-    # data element: index, time, imu_x, imu_y, imu_z
     data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
     groups = identify_and_process_groups(data, glen)
 
-    # Match gps data: time, GPS 2d speed, latitude, longitude, altitude, temperature
-    # step 1: filter out groups without corresponding gps information
-    filtered_groups = []
-    for group in groups:
-        timestamps = {i[1] for i in group}
-        assert len(timestamps) == 1, "different timestamps for a group"
-        timestamp = timestamps.pop()
-        gps = [gt[1:] for gt in times_gps_infos if gt[0] == timestamp]
-        if gps:
-            filtered_groups.append((group, gps[0]))  # keep group and its gps data
-    # step 2: extend the items in the remaining groups
-    for group, gps in filtered_groups:
-        for item in group:
-            item.extend(gps)
-    # step 3: replace original groups with the filtered and processed ones
-    groups = [group for group, _ in filtered_groups]
-    assert len(groups) != 0, "no matching imu and gps"
+    matched_groups = match_gps_to_groups(groups, gps_data)
+    if len(matched_groups) == 0:
+        raise ValueError("No matching IMU and GPS data found")
 
-    # Prepare final data
-    igs = []  # element: imu, gps
-    idts = []  # element: index, device_id, timestamp
-    llat = []  # element: latitude, longitude, altitude, temperature
-    for group in groups:
-        for item in group:
-            igs.append(item[2:6])
-            index, timestamp = item[0], item[1]
-            idts.append([index, device_id, timestamp])
-            llat.append(item[6:])
-
-    # igs, idts 2D array: Nx20 x 4, Nx20 x 3, llat: list Nx20 x 4
-    return np.array(igs), np.array(idts, dtype=np.int64), llat
-
-
-def is_none(x, y, z):
-    if x == None or y == None or z == None:
-        return True
-    return False
-
-
-def identify_and_process_groups(data, glen=20):
-    """
-    Identify, filter, and process groups of items with consecutive indices in a list.
-
-    This function processes a list of items, where each item is a list containing an index and an
-    additional value (e.g., [[1, 'a'], [2, 'b'], ...]). It identifies groups of items with
-    consecutive indices. The function filters out groups that are shorter than 20 elements. For
-    the remaining groups, it splits them into subgroups of exactly 20 elements each. Any remaining
-    items in a group after forming these subgroups are discarded.
-    1. Identify groups.
-    2. Remove groups that are shorter than 20 elements in length.
-    3. Return only the groups of indices that have exactly 20 elements. For example, if we have
-       a group like `1, 2, ..., 46`, it should be divided into two groups. The first one would be
-       `1, 2, ..., 20` and the second would be `21, 22, ..., 40`. The remaining indices,
-       `41, 42, ..., 46`, are discarded.
-
-    Parameters
-    ----------
-    data : list of list
-        A list of items, where each item is a list containing an index (int) and an additional value.
-        The indices are expected to be in a sorted and potentially grouped sequential order.
-    glen : int
-        group length. Defult is 20.
-
-    Returns
-    -------
-    list of list
-        A list containing subgroups of the input items. Each subgroup is a list of exactly
-        20 items from the original list, based on consecutive indices, and only subgroups that
-        could be fully formed (i.e., with exactly 20 elements) are included.
-
-    Examples
-    --------
-    >>> data = [[1, 'a'], [2, 'b'], ..., [46, 'x'], [1, 'y'], ..., [60, 'aa']]
-    >>> identify_and_process_groups(data)
-    [[[1, 'a'], [2, 'b'], ..., [20, 't']], [[21, 'u'], [22, 'v'], ..., [40, 'dd']]]
-
-    Notes
-    -----
-    The function assumes that the input list 'data' contains items in the format [index, value],
-    where 'index' is an integer. Groups are identified based on consecutive index sequences in this list.
-    Repeated indices are handled by associating each index with its original position in the 'data' list.
-    """
-
-    # Extract indices
-    indices = [item[0] for item in data]
-
-    # Original logic to identify and process groups
-    groups = []
-    current_group = [(indices[0], 0)]  # Store index along with its position
-
-    for i in range(1, len(indices)):
-        if indices[i] == current_group[-1][0] + 1:
-            current_group.append((indices[i], i))
-        else:
-            groups.append(current_group)
-            current_group = [(indices[i], i)]
-
-    # Add the last group
-    groups.append(current_group)
-
-    # Filter groups less than length glen
-    filtered_groups = [group for group in groups if len(group) >= glen]
-
-    # Map processed groups back to original items
-    final_groups = []
-    for group in filtered_groups:
-        for i in range(0, len(group), glen):
-            subgroup_tuples = group[i : i + glen]
-            if len(subgroup_tuples) == glen:
-                # Retrieve the original items using global index
-                subgroup = [data[t[1]] for t in subgroup_tuples]
-                final_groups.append(subgroup)
-
-    return final_groups
+    return process_data(matched_groups, device_id)
 
 
 def test_identify_and_process_groups():
     # fmt: off
-    data = [[1, 20], [2, 14], [1, 50], [2, 34], [3, 28], [4, 22], [5, 18], [6, 15], [7, 14], [8, 13], [9, 12], [10, 11], [11, 10], [12, 9], [13, 8], [14, 7], [15, 6], [16, 5], [17, 4], [18, 3], [19, 2], [20, 1], [21, 50], [22, 49], [23, 48], [24, 47], [25, 46], [26, 45], [27, 44], [28, 43], [29, 42], [30, 41], [31, 40], [32, 39], [33, 38], [34, 37], [35, 36], [36, 35], [37, 34], [38, 33], [39, 32], [40, 31], [41, 30], [42, 29], [43, 28], [44, 27], [45, 26], [46, 25]]
+    data = [
+        [1, 20], [2, 14], [1, 50], [2, 34], [3, 28], [4, 22], [5, 18], [6, 15], [7, 14], [8, 13],
+        [9, 12], [10, 11], [11, 10], [12, 9], [13, 8], [14, 7], [15, 6], [16, 5], [17, 4], [18, 3],
+        [19, 2], [20, 1], [21, 50], [22, 49], [23, 48], [24, 47], [25, 46], [26, 45], [27, 44],
+        [28, 43], [29, 42], [30, 41], [31, 40], [32, 39], [33, 38], [34, 37], [35, 36], [36, 35],
+        [37, 34], [38, 33], [39, 32], [40, 31], [41, 30], [42, 29], [43, 28], [44, 27], [45, 26], [46, 25]
+    ]
     # fmt: on
     processed_groups = identify_and_process_groups(data)
     np.testing.assert_equal(np.array(data)[2:22], np.array(processed_groups[0]))
     np.testing.assert_equal(np.array(data)[22:42], np.array(processed_groups[1]))
 
 
+# Test the function
 test_identify_and_process_groups()
 
 
