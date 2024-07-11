@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Union
@@ -608,7 +608,7 @@ def match_gps_to_groups(groups, times_gps_infos):
     for group, gps in filtered_groups:
         for item in group:
             item.extend(gps)
-    
+
     # Replace original groups with the filtered and processed ones
     return [group for group, _ in filtered_groups]
 
@@ -731,6 +731,169 @@ def test_identify_and_process_groups():
 
 # Test the function
 test_identify_and_process_groups()
+
+
+def random_time_between(start_time_str, end_time_str, time_format="%Y-%m-%d %H:%M:%S"):
+    """
+    Generate a random time between two given times.
+
+    Parameters:
+    start_time_str (str): The start time as a string.
+    end_time_str (str): The end time as a string.
+    time_format (str): The format of the time strings.
+
+    Returns:
+    datetime: A random datetime between the start and end times.
+
+    Example:
+    >>> start = '2012-05-17 00:00:59'
+    >>> end = '2012-05-18 00:00:59'
+    """
+    # Convert the time strings to datetime objects
+    start_time = datetime.strptime(start_time_str, time_format)
+    end_time = datetime.strptime(end_time_str, time_format)
+
+    # Calculate the difference between the two times
+    time_diff = end_time - start_time
+
+    # Generate a random number of seconds between 0 and the total difference in seconds
+    random_seconds = np.random.randint(0, int(time_diff.total_seconds()))
+
+    # Add the random number of seconds to the start time to get a random time
+    random_time = start_time + timedelta(seconds=random_seconds)
+
+    return random_time
+
+
+def generate_random_time_intervals(
+    start_time_str,
+    end_time_str,
+    n_times,
+    interval_minutes=15,
+    time_format="%Y-%m-%d %H:%M:%S",
+):
+    """
+    Generate multiple random times intervals between two given times.
+
+    Parameters:
+    start_time_str (str): The start time as a string.
+    end_time_str (str): The end time as a string.
+    n_times (int): The number of random times to generate.
+    interval_minutes (int): The interval in minutes for the next time after each random time.
+    time_format (str): The format of the time strings.
+
+    Returns:
+    list of tuples: Each tuple contains a random datetime and the datetime 15 minutes later.
+
+    Example usage:
+    start = '2012-01-01 00:00:00'
+    end = '2013-01-01 00:00:00'
+    n_times = 10  # Generate 10 random times
+    random_times = generate_random_time_intervals(start, end, n_times)
+
+    for random_time, interval_time in random_times:
+        print(f"Random time: {random_time}, 15 minutes later: {interval_time}")
+    """
+    # Convert the time strings to datetime objects
+    start_time = datetime.strptime(start_time_str, time_format)
+    end_time = datetime.strptime(end_time_str, time_format)
+
+    # Calculate the difference between the two times
+    time_diff = end_time - start_time
+
+    # Generate n random times in seconds between the start and end times
+    random_seconds = np.random.randint(0, int(time_diff.total_seconds()), n_times)
+
+    random_times = [
+        start_time + timedelta(seconds=int(seconds)) for seconds in random_seconds
+    ]
+    interval = timedelta(minutes=interval_minutes)
+
+    # Create list of tuples with random time and the time 15 minutes later
+    random_times_with_intervals = [(time, time + interval) for time in random_times]
+
+    return random_times_with_intervals
+
+
+def append_to_csv(save_file, gimus, idts):
+    items = []
+    timestamp = idts[0, 2]
+    label = -1  # no label
+    device_id = idts[0, 1]
+    ftime = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    for idt, gimu in zip(idts, gimus):
+        index = idt[0]
+        item = (
+            f"{device_id},{ftime},{index},{label},{gimu[0]:.8f},{gimu[1]:.8f},"
+            f"{gimu[2]:.8f},{gimu[3]:.8f}\n"
+        )
+        items.append(item)
+
+    with open(save_file, "a") as rfile:
+        for item in items:
+            rfile.write(item)
+
+
+'''
+# Example get data from random time and device: single example
+database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+device_start_end_query = """
+select device_info_serial, start_date, end_date 
+from gps.ee_track_session_limited
+"""
+results = query_database(database_url, device_start_end_query)
+time_intervals = generate_random_time_intervals(str(results[0][1]), str(results[0][2]), 10)
+gimus, idts, llat = get_data(database_url, results[0][0], str(time_intervals[0][0]), str(time_intervals[0][1]))
+max_datetime = datetime.strptime('2024-07-08 15:01', "%Y-%m-%d %H:%M")
+
+
+# Get time from GPS data
+for result in results:
+    device_id = result[0]
+    device_query = f"""
+    SELECT *
+    FROM gps.ee_tracking_speed_limited
+    WHERE device_info_serial = {device_id} 
+    order by date_time
+    """
+    tmp = query_database(database_url, device_query)
+    print(device_id, len(tmp), str(tmp[0][1]))
+
+
+# Example get data from random time and device: single example
+save_file = Path("/home/fatemeh/Downloads/bird/tmp/file_ftime.csv")
+# rfile = open(save_file, 'a')
+count = 0
+num_devices = len(results)
+# for i in np.random.randint(0, num_devices, 20):
+#     result = results[i]
+for result in results:
+    device_id, start_time, end_time = result
+    if max_datetime < end_time:
+        end_time = max_datetime
+    if result[0] not in [640, 642, 659, 672, 676]:
+        continue
+    time_intervals = generate_random_time_intervals(str(start_time), str(end_time), 10, interval_minutes=30)
+    for time_interval in time_intervals:
+        try:
+            gimus, idts, llat = get_data(database_url, result[0], str(time_interval[0]), str(time_interval[1]), glen=60)
+            # if max(idts[:,0]) != 59: # For 60 data point
+            #     continue
+            # # append_to_csv(save_file, gimus, idts)
+            # count += 1
+            # if count == 120_000:
+            #     break
+            # rfile.write(f"{result[0]}, {time_interval[0]}, {time_interval[1]}, {gimus.shape[0]}, {max(idts[:,0])}\n")
+            print(result[0], time_interval[0], time_interval[1], gimus.shape, max(idts[:,0]))
+        except:
+            # rfile.write(f"{result[0]}, {time_interval[0]}, {time_interval[1]}\n")
+            print(result[0], time_interval[0], time_interval[1])
+            continue
+# rfile.close()
+print('wait')
+'''
 
 
 def load_csv(csv_file):
