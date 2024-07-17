@@ -9,7 +9,7 @@ import numpy as np
 import psycopg2
 from torch.utils.data import Dataset
 
-np.random.seed(0)
+# np.random.seed(0)
 """
 about data:
 Per location, there is 20 accelaration measurements and the time stamp and gps speed are the same
@@ -972,7 +972,156 @@ random_entries = get_random_entries(all_lines, num_entries)
 save_random_entries_to_file(output_file, random_entries)
 """
 
+""" 
+# TODO removed
+database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+device_id = 298
+p = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
+dates = read_dates(p)
+dates = get_random_entries(dates, 30)
+for date in dates:
+    try:
+        gimus, idts, llat = bd.get_data(database_url, device_id, date, date, glen=60)
+        print(f"{date}, {idts[0,0]},{idts.shape[0]}")
+    except Exception as e:
+        print(f"Error processing device {device_id}, item {date}: {e}")
+        continue
+print("done")
+"""
+"""
+# TODO remove
+database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+output_file = Path("/home/fatemeh/Downloads/bird/ssl/my_file.csv")
+label = -1
+device_id = 658# 298
+p = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
+dates = read_dates(p)
+dates = get_random_entries(dates, 30)
+file = open(output_file, 'w')
+for date in dates:
+    try:
+        gimus, idts, llat = get_data(database_url, device_id, item, item, glen=60)
+        if idts[0, 0] == -1: # indices can start from zero. I read them as zero-based.
+            idts[:,0] += 1
+        for gimu, idt in zip(gimus, idts):
+            item = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
+            file.write(item)
+        file.flush()
+        print(f"{item}, {idts[0,0]},{idts.shape[0]}")
+    except Exception as e:
+        print(f"Error processing device {device_id}, item {item}: {e}")
+        continue
+file.close()
+print("done")
+"""
+import concurrent.futures
+import threading
 
+
+def process_date(
+    date, database_url, device_id, label, output_lock, output_files, file_index
+):
+    try:
+        gimus, idts, llat = get_data(database_url, device_id, date, date, glen=60)
+        print(f"{date}, {idts[0,0]},{idts.shape[0]}")
+        if idts[0, 0] == -1:  # indices can start from zero. I read them as zero-based.
+            idts[:, 0] += 1
+
+        lines_to_write = []
+        for gimu, idt in zip(gimus, idts):
+            line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
+            lines_to_write.append(line)
+
+        with output_lock:
+            file = output_files[file_index]
+            for line in lines_to_write:
+                file.write(line)
+            file.flush()
+
+        return len(lines_to_write)
+    except Exception as e:
+        print(f"Error processing device {device_id}, item {date}: {e}")
+
+    return 0
+
+
+database_url = f""
+label = -1
+device_id = 658  # 298
+dates_path = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
+dates = read_dates(dates_path)
+np.random.seed(0)
+dates = get_random_entries(dates, 100)
+
+file_count = 0
+line_count = 0
+max_lines_per_file = 180  # 60000
+output_lock = threading.Lock()
+
+# output_file_template = Path(f"/home/fatemeh/Downloads/bird/ssl/{device_id}_{file_count}.csv")
+# output_files = [open(output_file_template, 'w')]
+output_file_template = "/home/fatemeh/Downloads/bird/ssl/{}_{}.csv"
+output_files = [open(output_file_template.format(device_id, file_count), "w")]
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    future_to_date = {}
+    for date in dates:
+        future = executor.submit(
+            process_date,
+            date,
+            database_url,
+            device_id,
+            label,
+            output_lock,
+            output_files,
+            file_count,
+        )
+        future_to_date[future] = date
+
+    for future in concurrent.futures.as_completed(future_to_date):
+        result_lines = future.result()
+        line_count += result_lines
+        print(f"======>{line_count}")
+        if line_count >= max_lines_per_file:
+            output_files[-1].close()
+            file_count += 1
+            line_count = 0
+            output_files.append(
+                open(output_file_template.format(device_id, file_count), "w")
+            )
+
+for file in output_files:
+    file.close()
+
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    future_to_date = {}
+    for date in dates:
+        if line_count >= max_lines_per_file:
+            output_files[-1].close()
+            file_count += 1
+            line_count = 0
+            output_files.append(open(output_file_template, "w"))
+
+        future = executor.submit(
+            process_date,
+            date,
+            database_url,
+            device_id,
+            label,
+            output_lock,
+            output_files,
+            file_count,
+        )
+        future_to_date[future] = date
+
+    for future in concurrent.futures.as_completed(future_to_date):
+        result_lines = future.result()
+        line_count += result_lines
+
+for file in output_files:
+    file.close()
+
+print("done")
 '''
 # Example get data from random time and device: single example
 database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
