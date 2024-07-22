@@ -697,7 +697,10 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
     imu_data = fetch_imu_data(database_url, device_id, start_time, end_time)
 
-    indices = [result[2] - 1 for result in imu_data]
+    # indices are zero-based
+    indices = [result[2] for result in imu_data]
+    if indices[0] == 1:  #
+        indices = [ind - 1 for ind in indices]
     timestamps = [
         int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
     ]
@@ -1002,8 +1005,6 @@ for date in dates:
     try:
         gimus, idts, llat = get_data(database_url, device_id, item, item, glen=60)
         print(f"{date}, {idts[0,0]},{idts.shape[0]}")
-        if idts[0, 0] == -1: # indices can start from zero. I read them as zero-based.
-            idts[:,0] += 1
         for gimu, idt in zip(gimus, idts):
             item = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
             file.write(item)
@@ -1014,21 +1015,20 @@ for date in dates:
         continue
 file.close()
 """
+
+
+# Fatemeh: start here
+"""
 import concurrent.futures
-import threading
 import multiprocessing
+import threading
 from functools import partial
-
-# Fatemeh: 
-
-def process_dates(dates, database_url, device_id, label, output_file):
-    file = open(output_file, 'w')
+def process_dates(dates, output_file, device_id, database_url, label):
+    file = open(output_file, "w")
     for date in dates:
         try:
             gimus, idts, _ = get_data(database_url, device_id, date, date, glen=60)
             print(f"{date}, {idts[0,0]},{idts.shape[0]}")
-            if idts[0, 0] == -1: # indices can start from zero. I read them as zero-based.
-                idts[:,0] += 1
             for gimu, idt in zip(gimus, idts):
                 line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
                 file.write(line)
@@ -1038,28 +1038,37 @@ def process_dates(dates, database_url, device_id, label, output_file):
             continue
     file.close()
 
-def wrapper_process_dates(dates_outputfile):
-    return process_dates(dates_outputfile[0], database_url, device_id, label, dates_outputfile[1])
 
-database_url = ""# f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+def wrapper_process_dates(dates_outputfile):
+    return process_dates(
+        dates_outputfile[0],
+        dates_outputfile[1],
+        dates_outputfile[2],
+        database_url,
+        label,
+    )
+
+
+n_entries = 10
+n_div = n_entries // 2
+database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
 label = -1
-device_id = 658# 298
+device_id = 658  # 298
 p = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
 dates = read_dates(p)
-dates = get_random_entries(dates, 20)
+dates = get_random_entries(dates, n_entries)
 
 dates_outputfile = []
 for i in range(2):
-    sel_dates = dates[i*10:i*10+10]
+    sel_dates = dates[i * n_div : i * n_div + n_div]
     output_file = Path(f"/home/fatemeh/Downloads/bird/ssl/{device_id}_{i}.csv")
-    dates_outputfile.append([sel_dates, output_file])
+    dates_outputfile.append([sel_dates, output_file, device_id])
 
 with multiprocessing.Pool(processes=2) as pool:
-        results = pool.map(wrapper_process_dates, dates_outputfile)
+    results = pool.map(wrapper_process_dates, dates_outputfile)
 
 print("done")
-
-
+"""
 
 '''
 # Example get data from random time and device: single example
