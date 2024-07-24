@@ -1018,11 +1018,14 @@ file.close()
 
 
 # Fatemeh: start here
-"""
+'''
 import concurrent.futures
 import multiprocessing
+import sys
 import threading
 from functools import partial
+
+
 def process_dates(dates, output_file, device_id, database_url, label):
     file = open(output_file, "w")
     for date in dates:
@@ -1039,36 +1042,49 @@ def process_dates(dates, output_file, device_id, database_url, label):
     file.close()
 
 
-def wrapper_process_dates(dates_outputfile):
-    return process_dates(
-        dates_outputfile[0],
-        dates_outputfile[1],
-        dates_outputfile[2],
-        database_url,
-        label,
+def main(task_id):
+    device_ids = [658, 298]
+
+    # Ensure task_id is within range
+    if task_id < 0 or task_id >= len(device_ids):
+        print(f"Invalid task ID: {task_id}")
+        return
+
+    device_id = device_ids[task_id]
+    save_path = Path(
+        f"/home/fatemeh/Downloads/bird/ssl"
+    )  # /zfs/omics/personal/fkarimi/ssl
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+    label = -1
+    n_entries = 10
+    n_div = n_entries // 2
+    p = Path(
+        f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv"
+    )  # /home/fkarimi/data/gpsdates
+    dates = read_dates(p)
+    dates = get_random_entries(dates, n_entries)
+
+    dates_outputfile = []
+    for i in range(2):
+        sel_dates = dates[i * n_div : i * n_div + n_div]
+        output_file = output_file = save_path / f"{device_id}_{i}.csv"
+        dates_outputfile.append((sel_dates, output_file, device_id))
+
+    partial_process_dates = partial(
+        process_dates, database_url=database_url, label=label
     )
+    with multiprocessing.Pool(processes=2) as pool:
+        results = pool.starmap(partial_process_dates, dates_outputfile)
+
+    print("done", flush=True)
 
 
-n_entries = 10
-n_div = n_entries // 2
-database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
-label = -1
-device_id = 658  # 298
-p = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
-dates = read_dates(p)
-dates = get_random_entries(dates, n_entries)
-
-dates_outputfile = []
-for i in range(2):
-    sel_dates = dates[i * n_div : i * n_div + n_div]
-    output_file = Path(f"/home/fatemeh/Downloads/bird/ssl/{device_id}_{i}.csv")
-    dates_outputfile.append([sel_dates, output_file, device_id])
-
-with multiprocessing.Pool(processes=2) as pool:
-    results = pool.map(wrapper_process_dates, dates_outputfile)
-
-print("done")
-"""
+if __name__ == "__main__":
+    task_id = int(sys.argv[1])
+    main(task_id)
+'''
 
 '''
 # Example get data from random time and device: single example
