@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -396,6 +397,39 @@ def reindex_ids(ldts):
     for i, unique_id in enumerate(unique_ids):
         new_ldts[ldts[:, 0] == unique_id, 0] = i
     return new_ldts
+
+
+def query_database_improved(database_url, sql_query, retries=5, delay=5):
+    """
+    Execute a SQL query and return the results with retry logic.
+
+    This was due to this error message:
+    Error processing device 298, date 2010-06-30 10:27:01: canceling statement due to conflict with recovery
+    DETAIL:  User query might have needed to see row versions that must be removed.
+    """
+    for attempt in range(retries):
+        try:
+            connection = psycopg2.connect(database_url)
+            cursor = connection.cursor()
+            cursor.execute(sql_query)
+            result = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            return result
+        except psycopg2.OperationalError as e:
+            if "canceling statement due to conflict with recovery" in str(e):
+                if attempt < retries - 1:
+                    print(
+                        f"Query conflict with recovery, retrying in {delay} seconds..."
+                    )
+                    time.sleep(delay)
+                else:
+                    print(
+                        "Max retries reached. Could not execute query due to recovery conflict."
+                    )
+                    raise
+            else:
+                raise
 
 
 def query_database(database_url, sql_query):
@@ -1102,16 +1136,16 @@ def compute_group_counts(file_paths, group_size=20):
     return group_counts
 
 
-# split_csv('/home/fatemeh/Downloads/bird/tmp2/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/tmp4', 20)
+# # split_csv('/home/fatemeh/Downloads/bird/test_data/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/test_data/split_20', 20)
 
 # # List of CSV file paths
-# csv_files = Path("/home/fatemeh/Downloads/bird/tmp2").glob("part*")
+# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
 # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
 # group_counts = compute_group_counts(csv_files)
 
 # # Save group_counts to a file (or use directly)
 # import json
-# with open('/home/fatemeh/Downloads/bird/tmp/group_counts.json', 'w') as f:
+# with open('/home/fatemeh/Downloads/bird/test_data/group_counts.json', 'w') as f:
 #     json.dump(group_counts, f)
 
 # for csv_file in csv_files:
@@ -1233,6 +1267,25 @@ class BirdDataset3(Dataset):
 
         return data, ldts
 
+
+# # Load in memory
+# igs, ltds = load_csv("/your_path/test_data/all_data.csv")
+# dataset = BirdDataset(igs, ltds)
+# dataset[0]
+
+# # each file has multiple data (here 30 with data size 20x4)
+# csv_files = Path("/your_path/test_data/split_600").glob("part*")
+# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+# csv_files = [str(csv_file) for csv_file in csv_files]
+# dataset = BirdDataset2(csv_files, "/your_path/test_data/group_counts.json", group_size=20)
+# dataset[0]
+
+# # one file per data (data size here 20x4)
+# csv_files = Path("/your_path/test_data/split_20").glob("part*")
+# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+# csv_files = [str(csv_file) for csv_file in csv_files]
+# dataset = BirdDataset3(csv_files)
+# dataset[0]
 
 """
 import torch

@@ -96,12 +96,13 @@ eval_loader = DataLoader(
 )
 
 # """
-csv_files = Path("/home/fatemeh/Downloads/bird/tmp4").glob("part*")
+csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
 csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 csv_files = [str(csv_file) for csv_file in csv_files]
 
+# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
 # dataset = bd.BirdDataset2(
-#     csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20
+#     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
 # )
 dataset = bd.BirdDataset3(csv_files)
 # Calculate the sizes for training and validation datasets

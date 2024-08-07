@@ -58,7 +58,7 @@ Fatemeh start here:
 """
 
 '''
-# 1. Save GPS dates per device id: 18,903,265. 671 empty
+# 1. Save GPS dates per device id: 18,903,265 (new 18,800,484). 671 empty
 save_path = Path("/home/fatemeh/Downloads/bird/gpsdates")
 save_path.mkdir(parents=True, exist_ok=True)
 database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
@@ -234,6 +234,11 @@ print('wait')
 
 
 def process_dates(dates, output_file, device_id, database_url, label):
+    """
+    dates: list[str]: eg. ['2010-06-14 16:21:51', '2010-06-02 04:36:12']
+    outputfile: Path.
+    device_id: int
+    """
     file = open(output_file, "w")
     for date in dates:
         try:
@@ -263,18 +268,21 @@ def main(task_id):
     )  # /zfs/omics/personal/fkarimi/ssl
     save_path.mkdir(parents=True, exist_ok=True)
 
-    # database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+    database_url = "postgresql://username:password@host:port/database_name"
     label = -1
-    n_entries = 10
-    n_div = n_entries // 2
     p = Path(
         f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv"
     )  # /home/fkarimi/data/gpsdates
     dates = read_dates(p)
+    n_files = 10  # 2
+    n_entries = len(dates)  # 10
+    n_div = int(np.ceil(n_entries / n_files))
     dates = get_random_entries(dates, n_entries)
 
+    # List of dates_outputfile_device_ids.
+    # Item e.g: (['2010-06-14 16:21:51', '2010-06-02 04:36:12'], Path('298_0.csv'), 298)
     dates_outputfile = []
-    for i in range(2):
+    for i in range(n_files):
         sel_dates = dates[i * n_div : i * n_div + n_div]
         output_file = output_file = save_path / f"{device_id}_{i}.csv"
         dates_outputfile.append((sel_dates, output_file, device_id))
@@ -282,7 +290,7 @@ def main(task_id):
     partial_process_dates = partial(
         process_dates, database_url=database_url, label=label
     )
-    with multiprocessing.Pool(processes=2) as pool:
+    with multiprocessing.Pool(processes=n_files) as pool:
         results = pool.starmap(partial_process_dates, dates_outputfile)
 
     print("done", flush=True)
@@ -291,3 +299,5 @@ def main(task_id):
 if __name__ == "__main__":
     task_id = int(sys.argv[1])
     main(task_id)
+
+# device 298: with 5879 gps times, has 1512 valid items. It took 70 min for 10 cores, 7MB data
