@@ -136,11 +136,11 @@ with open(output_file, 'r') as file:
     items = file.read().strip().splitlines()
     device_ids = [int(i.split(',')[0]) for i in items if int(i.split(',')[1])!=0]
 
-# 3. Save random device id and dates in a file: 2,717,252 from 59 devices
+# 3. Save random device id and dates in a file: 2,975,486 from 63 devices
 directory = Path("/home/fatemeh/Downloads/bird/gpsdates")
 output_file = Path("/home/fatemeh/Downloads/bird/ssl/random_entries.csv")
-num_entries = 2_717_252
 all_lines = read_dates_from_files(directory, device_ids)
+num_entries = len(all_lines)
 random_entries = get_random_entries(all_lines, num_entries)
 save_random_entries_to_file(output_file, random_entries)
 """
@@ -243,13 +243,13 @@ def process_dates(dates, output_file, device_id, database_url, label):
     for date in dates:
         try:
             gimus, idts, _ = get_data(database_url, device_id, date, date, glen=60)
-            print(f"{date}, {idts[0,0]},{idts.shape[0]}")
+            print(f"{date}, {idts[0,0]},{idts.shape[0]}", flush=True)
             for gimu, idt in zip(gimus, idts):
                 line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
                 file.write(line)
             file.flush()
         except Exception as e:
-            print(f"Error processing device {device_id}, date {date}: {e}")
+            print(f"Error processing device {device_id}, date {date}: {e}", flush=True)
             continue
     file.close()
 
@@ -284,7 +284,7 @@ def main(task_id):
     dates_outputfile = []
     for i in range(n_files):
         sel_dates = dates[i * n_div : i * n_div + n_div]
-        output_file = output_file = save_path / f"{device_id}_{i}.csv"
+        output_file = save_path / f"{device_id}_{i}.csv"
         dates_outputfile.append((sel_dates, output_file, device_id))
 
     partial_process_dates = partial(
