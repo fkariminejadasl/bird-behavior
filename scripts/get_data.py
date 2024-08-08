@@ -52,10 +52,12 @@ def save_random_entries_to_file(output_file, random_entries):
             file.write(f"{device_id},{time}\n")
 
 
-"""
-Fatemeh start here:
-- save file with existing entries
-"""
+def read_random_entries(file_path):
+    with open(file_path, "r") as file:
+        lines = file.read().splitlines()
+        random_entries = [tuple(line.split(",")) for line in lines]
+    return random_entries
+
 
 '''
 # 1. Save GPS dates per device id: 18,903,265 (new 18,800,484). 671 empty
@@ -232,7 +234,9 @@ for result in results:
 print('wait')
 '''
 
-
+'''
+# Tasks are based on device ids
+# ====================
 def process_dates(dates, output_file, device_id, database_url, label):
     """
     dates: list[str]: eg. ['2010-06-14 16:21:51', '2010-06-02 04:36:12']
@@ -243,7 +247,7 @@ def process_dates(dates, output_file, device_id, database_url, label):
     for date in dates:
         try:
             gimus, idts, _ = get_data(database_url, device_id, date, date, glen=60)
-            print(f"{date}, {idts[0,0]},{idts.shape[0]}", flush=True)
+            print(f"{device_id},{date},{idts[0,0]},{idts.shape[0]}", flush=True)
             for gimu, idt in zip(gimus, idts):
                 line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
                 file.write(line)
@@ -252,7 +256,6 @@ def process_dates(dates, output_file, device_id, database_url, label):
             print(f"Error processing device {device_id}, date {date}: {e}", flush=True)
             continue
     file.close()
-
 
 def main(task_id):
     device_ids = [658, 298]
@@ -268,14 +271,14 @@ def main(task_id):
     )  # /zfs/omics/personal/fkarimi/ssl
     save_path.mkdir(parents=True, exist_ok=True)
 
-    database_url = "postgresql://username:password@host:port/database_name"
+    # database_url = "postgresql://username:password@host:port/database_name"
     label = -1
     p = Path(
         f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv"
     )  # /home/fkarimi/data/gpsdates
     dates = read_dates(p)
-    n_files = 10  # 2
-    n_entries = len(dates)  # 10
+    n_files = 1 
+    n_entries = 200# len(dates)
     n_div = int(np.ceil(n_entries / n_files))
     dates = get_random_entries(dates, n_entries)
 
@@ -292,6 +295,86 @@ def main(task_id):
     )
     with multiprocessing.Pool(processes=n_files) as pool:
         results = pool.starmap(partial_process_dates, dates_outputfile)
+
+    print("done", flush=True)
+'''
+
+
+def process_dates(entries, output_file, database_url, label):
+    """
+    entries: list[tuple]: eg. [('446', '2011-03-28 18:23:18'), ...]
+    outputfile: Path.
+    """
+    file = open(output_file, "w")
+    for device_id, date in entries:
+        try:
+            gimus, idts, _ = get_data(database_url, int(device_id), date, date, glen=60)
+            print(f"{device_id},{date},{idts[0,0]},{idts.shape[0]}", flush=True)
+            for gimu, idt in zip(gimus, idts):
+                line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
+                file.write(line)
+            file.flush()
+        except Exception as e:
+            print(f"Error processing device {device_id}, date {date}: {e}")
+            continue
+    file.close()
+
+
+def main(task_id):
+    file_path = Path("/home/fatemeh/Downloads/bird/ssl/random_entries.csv")
+    save_path = Path(f"/home/fatemeh/Downloads/bird/ssl")
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    database_url = "postgresql://username:password@host:port/database_name"
+    label = -1
+
+    random_entries = read_random_entries(file_path)
+    n_files = 1
+    n_entries = 100  # len(random_entries)
+    n_div = int(np.ceil(n_entries / n_files))
+
+    # Split the entries into chunks
+    chunked_entries = [
+        random_entries[i * n_div : (i + 1) * n_div] for i in range(n_files)
+    ]
+
+    # Ensure task_id is within range
+    if task_id < 0 or task_id >= n_files:
+        print(f"Invalid task ID: {task_id}")
+        return
+
+    entries = chunked_entries[task_id]
+    output_file = save_path / f"entries_{task_id}.csv"
+
+    # No multiprocessing
+    # process_dates(entries, output_file, database_url, label)
+
+    # Use multiprocessing for parallel processing within the task
+    partial_process_dates = partial(
+        process_dates, database_url=database_url, label=label
+    )
+    num_processes = 4
+    chunk_size = int(np.ceil(len(entries) / num_processes))
+    entry_chunks = [
+        entries[i * chunk_size : (i + 1) * chunk_size] for i in range(num_processes)
+    ]
+
+    # Directory for temporary files
+    temp_dir = save_path / "temp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_files = [temp_dir / f"temp_{task_id}_{i}.csv" for i in range(num_processes)]
+
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.starmap(partial_process_dates, zip(entry_chunks, temp_files))
+
+    # Combine temporary files into the final output file
+    with open(output_file, "w") as outfile:
+        for temp_file in temp_files:
+            with open(temp_file, "r") as infile:
+                outfile.write(infile.read())
+            temp_file.unlink()  # Remove temporary file after writing
+
+    temp_dir.rmdir()  # Remove the temporary directory if empty
 
     print("done", flush=True)
 

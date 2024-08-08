@@ -1269,19 +1269,21 @@ class BirdDataset3(Dataset):
 
 
 # # Load in memory
-# igs, ltds = load_csv("/your_path/test_data/all_data.csv")
+# igs, ltds = load_csv("/home/fatemeh/Downloads/bird/test_data/all_data.csv")
 # dataset = BirdDataset(igs, ltds)
 # dataset[0]
 
 # # each file has multiple data (here 30 with data size 20x4)
-# csv_files = Path("/your_path/test_data/split_600").glob("part*")
+# csv_files = Path("/home/fatemeh/Downloads/bird/test_data//split_600").glob("part*")
 # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 # csv_files = [str(csv_file) for csv_file in csv_files]
-# dataset = BirdDataset2(csv_files, "/your_path/test_data/group_counts.json", group_size=20)
+# dataset = BirdDataset2(
+#     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
+# )
 # dataset[0]
 
 # # one file per data (data size here 20x4)
-# csv_files = Path("/your_path/test_data/split_20").glob("part*")
+# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_20").glob("part*")
 # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 # csv_files = [str(csv_file) for csv_file in csv_files]
 # dataset = BirdDataset3(csv_files)
