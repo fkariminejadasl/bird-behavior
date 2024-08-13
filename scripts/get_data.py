@@ -4,6 +4,8 @@ import sys
 import threading
 from functools import partial
 from pathlib import Path
+from tqdm import tqdm
+import time
 
 import numpy as np
 
@@ -235,7 +237,8 @@ print('wait')
 '''
 
 '''
-# Tasks are based on device ids
+# Single time query, per Device id download: Tasks are based on device ids
+# low cpu usage (server high cpu usage due to overhead)
 # ====================
 def process_dates(dates, output_file, device_id, database_url, label):
     """
@@ -297,9 +300,17 @@ def main(task_id):
         results = pool.starmap(partial_process_dates, dates_outputfile)
 
     print("done", flush=True)
+
+main(0)
+if __name__ == "__main__":
+    task_id = int(sys.argv[1])
+    main(task_id)
 '''
 
-
+'''
+# Sigle time query, download from random entries: 
+# low cpu usage (server high cpu usage due to overhead)
+# ====================
 def process_dates(entries, output_file, database_url, label):
     """
     entries: list[tuple]: eg. [('446', '2011-03-28 18:23:18'), ...]
@@ -378,9 +389,102 @@ def main(task_id):
 
     print("done", flush=True)
 
-
+main(0)
 if __name__ == "__main__":
     task_id = int(sys.argv[1])
     main(task_id)
+'''
 
-# device 298: with 5879 gps times, has 1512 valid items. It took 70 min for 10 cores, 7MB data
+
+
+from datetime import datetime, timezone
+# Time range, per device downlaod: 
+# ====================
+def process_dates(device_id, s_date, e_date, output_file, database_url, label):
+    file = open(output_file, "w")
+    try:
+        gimus, idts, _ = get_data(database_url, device_id, s_date, e_date, glen=60)
+        print(f"{device_id},{s_date},{e_date},{idts[0,0]},{idts.shape[0]}", flush=True)
+        for gimu, idt in zip(gimus, idts):
+            date = datetime.fromtimestamp(idt[2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            line = f"{device_id},{date},{int(idt[0])},{label},{gimu[0]:.8f},{gimu[1]:.8f},{gimu[2]:.8f},{gimu[3]:.8f}\n"
+            file.write(line)
+        file.flush()
+    except Exception as e:
+        print(f"Error processing device {device_id}, start date {s_date}, end date {e_date}: {e}")
+    file.close()
+
+
+def main(device_id):
+    save_path = Path(
+        f"/home/fatemeh/Downloads/bird/ssl"
+    )  # /zfs/omics/personal/fkarimi/ssl
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    database_url = "postgresql://username:password@host:port/database_name"
+    label = -1
+    p = Path(
+        f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv"
+    )  # /home/fkarimi/data/gpsdates
+    dates = read_dates(p)
+    n_entries = len(dates)
+    # n_files = 1
+    # n_div = int(np.ceil(n_entries / n_files))
+    n_div = 21000 #10000#20736#253627 #47872# 12000
+    n_files = int(np.ceil(n_entries / n_div))
+
+    # List of dates_outputfile [device, start date, end date, ouputpath].
+    # Item e.g: (658, '2011-12-12 23:45:57', '2011-12-12 23:56:48', Path('298_0.csv')
+    dates_outputfile = []
+    for i in range(n_files):
+        sel_dates = dates[i * n_div : i * n_div + n_div]
+        output_file = save_path / f"{device_id}_{i}.csv"
+        print(device_id, sel_dates[0], sel_dates[-1])
+        dates_outputfile.append((device_id, sel_dates[0], sel_dates[-1], output_file))
+
+    # n_files = 6
+    # dates_outputfile = [(device_id, "2014-07-17 11:23:46", "2014-07-31 10:00:38", save_path / f"{device_id}_{100}.csv")]
+    # dates_outputfile.append((device_id, "2015-05-29 08:04:59", "2015-06-01 14:50:39", save_path / f"{device_id}_{100}.csv"))
+    # dates_outputfile.append((device_id, "2013-10-02 15:57:42", "2014-02-26 10:58:23", save_path / f"{device_id}_{101}.csv"))
+    # dates_outputfile.append((device_id, "2014-06-16 06:56:20", "2014-06-20 09:46:51", save_path / f"{device_id}_{102}.csv"))
+    # dates_outputfile.append((device_id, "2014-06-02 16:00:40", "2014-06-08 10:43:20", save_path / f"{device_id}_{103}.csv"))
+    # dates_outputfile.append((device_id, "2014-06-08 10:43:25", "2014-06-11 09:25:16", save_path / f"{device_id}_{104}.csv"))
+    # # process_dates(device_id, "2014-07-17 11:23:46", "2014-07-31 10:00:38", output_file, database_url, label)
+    # print("===")
+
+    partial_process_dates = partial(
+        process_dates, database_url=database_url, label=label
+    )
+    with multiprocessing.Pool(processes=n_files) as pool:
+        results = pool.starmap(partial_process_dates, dates_outputfile)
+
+    # Combine temporary files into the final output file
+    combined_outfile = dates_outputfile[0][3].parent / f"{device_id}.csv"
+    with open(combined_outfile, "w") as outfile:
+        for _, _, _, output_file in dates_outputfile:
+            with open(output_file, "r") as infile:
+                outfile.write(infile.read())
+            output_file.unlink()  # Remove temporary file after writing
+
+    print("done", flush=True)
+
+
+if __name__ == "__main__":
+    avail_file = Path("/home/fatemeh/Downloads/bird/ssl/available_60points.csv")
+    with open(avail_file, 'r') as file:
+        items = file.read().strip().splitlines()
+        device_ids = [int(i.split(',')[0]) for i in items if int(i.split(',')[1])!=0]
+    # fmt: off
+    # [298, 304, 311, 320, 325, 327, 344, 446, 533, 534, 536, 537, 538, 541, 542, 604, 608, 640, 642, 644, 646, 657, 658, 659, 660, 661, 662, 663, 672, 674, 675, 676, 680, 681, 682, 683, 690, 752, 754, 781, 782, 784, 798, 868, 870, 1600, 2008, 2112, 2113, 2114, 2116, 2117, 2118, 2119, 2120, 2121, 6004, 6009, 6011, 6012, 6014, 6015, 6016]
+    # fmt: on
+
+    # device_ids = [6016]#[298, 534, 658, 6004, 6016] #[658, 298]
+    # device_ids = [298]
+    for device_id in tqdm(device_ids):
+        t0 = time.perf_counter()
+        main(device_id)
+        print(f"{device_id} took {time.perf_counter()-t0:.2f}s")
+
+# device 298: with 5879 gps times, has 1512 valid items. It took 70 min for 10 cores, 7MB data: single request
+# device 298: with 5879 gps times, has 1573 valid items. few second, 7.1MB data: batch request
+# 226 -> 63

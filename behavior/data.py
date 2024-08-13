@@ -487,7 +487,7 @@ def fetch_calibration_data(database_url, device_id):
     FROM gps.ee_tracker_limited
     WHERE device_info_serial = {device_id}
     """
-    results = query_database(database_url, sql_query)
+    results = query_database_improved(database_url, sql_query)
     if len(results) == 0:
         raise ValueError("No calibration data found")
     return [float(cell) for cell in results[0][5:11]]
@@ -503,7 +503,7 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
     WHERE device_info_serial = {device_id} AND date_time BETWEEN '{start_time}' AND '{end_time}'
     ORDER BY date_time
     """
-    results = query_database(database_url, sql_query)
+    results = query_database_improved(database_url, sql_query)
     if len(results) == 0:
         raise ValueError("No GPS data found")
 
@@ -531,7 +531,7 @@ def fetch_imu_data(database_url, device_id, start_time, end_time):
     WHERE device_info_serial = {device_id} AND date_time BETWEEN '{start_time}' AND '{end_time}'
     ORDER BY date_time, index
     """
-    results = query_database(database_url, sql_query)
+    results = query_database_improved(database_url, sql_query)
     if len(results) == 0:
         raise ValueError("No IMU data found")
 
