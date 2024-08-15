@@ -873,7 +873,7 @@ def append_to_csv(save_file, gimus, idts):
             rfile.write(item)
 
 
-def load_csv(csv_file):
+def load_csv(csv_file, g_len=20):
     """
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
 
@@ -898,8 +898,8 @@ def load_csv(csv_file):
             ig = [float(i) for i in items[4:]]
             igs.append(ig)
             ldts.append([label, device_id, timestamp])
-    igs = np.array(igs).astype(np.float64).reshape(-1, 20, 4)
-    ldts = np.array(ldts).astype(np.int64).reshape(-1, 20, 3)[:, 0, :]
+    igs = np.array(igs).astype(np.float64).reshape(-1, g_len, 4)
+    ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 3)[:, 0, :]
     return igs, ldts
 
 
