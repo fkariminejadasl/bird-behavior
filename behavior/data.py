@@ -373,7 +373,7 @@ def get_specific_labesl(all_measurements, ldts, target_labels):
         new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
 
     inds = np.arange(new_ldts.shape[0])
-    np.random.shuffle(inds)
+    # np.random.shuffle(inds)
     agps_imus = agps_imus[inds]
     new_ldts = new_ldts[inds]
     new_ldts = reindex_ids(new_ldts)

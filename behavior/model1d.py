@@ -339,6 +339,8 @@ class MaskedAutoencoderViT(nn.Module):
         return loss, pred, mask
 
 
+# model = MaskedAutoencoderViT(img_size=196, in_chans=4, patch_size=1, embed_dim=256, depth=6, num_heads=8, decoder_embed_dim=256, decoder_depth=6, decoder_num_heads=8, mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+# f"{sum(i.numel() for i in model.parameters()):,}"
 # model = MaskedAutoencoderViT(
 #     img_size=20,
 #     in_chans=4,

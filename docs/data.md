@@ -97,3 +97,15 @@ for tkey, tval in tl2.items():
 		if tkey == vkey:
 			per_rel[tkey] = round(vval/tval,2)
 ```
+
+
+#### Remove other label
+
+```python
+# {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
+import pandaas as pd
+df = pd.read_csv(Path("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"), header=None)
+filtered_df = df[df[3] != 7]
+filtered_df.loc[:, 3] = filtered_df[3].apply(lambda x: x if x < 7 else x-1)
+filtered_df.to_csv('/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv', header=False, index=False)
+```
