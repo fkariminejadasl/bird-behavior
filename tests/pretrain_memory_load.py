@@ -122,6 +122,27 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
 # import wandb
 # wandb.init(project="uncategorized")
 
+print(
+    f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
+)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# nvidia-smi -i 0 # also show properties
+
+
+def get_gpu_memory():
+    # Total memory currently allocated by tensors
+    allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
+    # Total memory reserved by the caching allocator (may be more than allocated_memory)
+    reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
+    # Total memory available on the GPU
+    total_memory = torch.cuda.get_device_properties(0).total_memory / (
+        1024**3
+    )  # in GB
+    print(f"Allocated memory: {allocated_memory:.2f} GB")
+    print(f"Reserved memory: {reserved_memory:.2f} GB")
+    print(f"Total GPU memory: {total_memory:.2f} GB")
+
+
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -178,7 +199,6 @@ eval_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4

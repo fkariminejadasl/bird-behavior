@@ -6,6 +6,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+"""
+Only pandas can run with large data.
+"""
+
 directory = Path("/home/fatemeh/Downloads/bird/ssl/final")
 # directory = Path("/home/fatemeh/Downloads/bird/ssl/tmp3")
 
