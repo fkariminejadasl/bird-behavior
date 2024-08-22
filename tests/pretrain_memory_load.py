@@ -141,6 +141,7 @@ def get_gpu_memory():
     print(f"Allocated memory: {allocated_memory:.2f} GB")
     print(f"Reserved memory: {reserved_memory:.2f} GB")
     print(f"Total GPU memory: {total_memory:.2f} GB")
+    # torch.cuda.empty_cache()
 
 
 seed = 1234

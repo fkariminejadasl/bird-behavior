@@ -393,6 +393,24 @@ main(0)
 if __name__ == "__main__":
     task_id = int(sys.argv[1])
     main(task_id)
+
+"""
+# Slum with task array
+#!/bin/bash
+
+#SBATCH --job-name=result
+#SBATCH --output=test_%A_%a.out
+#SBATCH --error=test_%A_%a.err
+#SBATCH --mem-per-cpu=1G #200G
+#SBATCH --time=00:10:00 #UNLIMITED
+#SBATCH --cpus-per-task=2
+#SBATCH --array=0-1
+
+source $HOME/.bashrc
+conda activate p310
+python ~/dev/bird-behavior/scripts/get_data.py $SLURM_ARRAY_TASK_ID
+echo "finish in slurm"
+"""
 '''
 
 
