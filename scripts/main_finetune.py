@@ -9,7 +9,7 @@ import torch.nn as nn
 import torchvision
 import tqdm
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 
 from behavior import data as bd
 from behavior import model as bm
@@ -21,10 +21,11 @@ from behavior import model1d as bm1
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
+generator = torch.Generator().manual_seed(seed)  # for random_split
 
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "f8"  # sys.argv[1]
+exp = "f12"  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -47,9 +48,9 @@ all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
 
-
-n_trainings = 436  # (10% data)# int(all_measurements.shape[0] * train_per * data_per)
-n_valid = 436  # all_measurements.shape[0] - n_trainings
+# all = 4365
+n_trainings = 100  # (10% data)# int(all_measurements.shape[0] * train_per * data_per)
+n_valid = 100  # all_measurements.shape[0] - n_trainings
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
 train_labels, valid_labels = (
@@ -62,9 +63,15 @@ print(
     train_measurments.shape,
     valid_measurements.shape,
 )
-
 train_dataset = bd.BirdDataset(train_measurments, train_labels)
 eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+
+# ind_data = int(data_per * len(all_measurements))
+# all_measurements, label_ids = all_measurements[:ind_data], label_ids[:ind_data]
+# dataset = bd.BirdDataset(all_measurements, label_ids)
+# train_size = int(train_per * len(dataset))
+# val_size = len(dataset) - train_size
+# train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
 
 train_loader = DataLoader(
     train_dataset,
@@ -98,7 +105,9 @@ model = bm1.TransformerEncoderMAE(
 ).to(device)
 
 
-pmodel = torch.load("/home/fatemeh/Downloads/bird/result/p2_4000.pth")["model"]
+pmodel = torch.load(
+    "/home/fatemeh/Downloads/bird/result/p4_12000.pth", weights_only=True
+)["model"]
 state_dict = model.state_dict()
 for name, p in pmodel.items():
     if (

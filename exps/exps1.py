@@ -1,11 +1,14 @@
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+import torch.nn as nn
+from torch.utils.data import DataLoader, random_split
 
 from behavior import data as bd
 from behavior import model as bm
+from behavior import model1d as bm1
 from behavior import utils as bu
 
 # import wandb
@@ -30,9 +33,9 @@ ind2name = {
 }
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-train_per = 0.9
+train_per = 0.2
 data_per = 1
-exp = 78  # sys.argv[1]
+exp = 102  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -62,25 +65,34 @@ all_measurements, label_ids = bd.get_specific_labesl(
 # label_ids = np.repeat(label_ids, 2, axis=0)
 # all_measurements = all_measurements.reshape(-1, 10, 4)
 
-n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-n_valid = all_measurements.shape[0] - n_trainings
-train_measurments = all_measurements[:n_trainings]
-valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-train_labels, valid_labels = (
-    label_ids[:n_trainings],
-    label_ids[n_trainings : n_trainings + n_valid],
-)
-print(
-    len(train_labels),
-    len(valid_labels),
-    train_measurments.shape,
-    valid_measurements.shape,
-)
+# n_trainings = int(all_measurements.shape[0] * train_per * data_per)
+# n_valid = all_measurements.shape[0] - n_trainings
+# train_measurments = all_measurements[:n_trainings]
+# valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+# train_labels, valid_labels = (
+#     label_ids[:n_trainings],
+#     label_ids[n_trainings : n_trainings + n_valid],
+# )
+# print(
+#     len(train_labels),
+#     len(valid_labels),
+#     train_measurments.shape,
+#     valid_measurements.shape,
+# )
+
+# # train_dataset = bd.BirdDataset(all_measurements, label_ids)
+# # eval_dataset = deepcopy(train_dataset)
+# train_dataset = bd.BirdDataset(train_measurments, train_labels)
+# eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
 # train_dataset = bd.BirdDataset(all_measurements, label_ids)
 # eval_dataset = deepcopy(train_dataset)
-train_dataset = bd.BirdDataset(train_measurments, train_labels)
-eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+dataset = bd.BirdDataset(all_measurements, label_ids)
+# Calculate the sizes for training and validation datasets
+train_size = int(train_per * data_per * len(dataset))
+val_size = len(dataset) - train_size
+
+train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 
 # train_dataset = bd.BirdDataset_old(train_path)
 train_loader = DataLoader(
@@ -104,7 +116,18 @@ criterion = torch.nn.CrossEntropyLoss()
 
 print(f"data shape: {eval_dataset[0][0].shape}")  # 3x20
 in_channel = eval_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, width, n_classes).to(device)
+# model = bm.BirdModel(in_channel, width, n_classes).to(device)
+model = bm1.TransformerEncoderMAE(
+    img_size=20,
+    in_chans=4,
+    out_chans=9,
+    embed_dim=16,
+    depth=1,
+    num_heads=8,
+    mlp_ratio=4,
+    drop=0.0,
+    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+).to(device)
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 model.eval()
 

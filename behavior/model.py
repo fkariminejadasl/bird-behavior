@@ -208,9 +208,11 @@ class BirdModelTransformer(nn.Module):
                 dropout=drop,
             ),
             pre_transformer_layer=nn.Sequential(
-                nn.LayerNorm(embed_dim, eps=1e-6)
-                if pre_transformer_ln
-                else nn.Identity(),
+                (
+                    nn.LayerNorm(embed_dim, eps=1e-6)
+                    if pre_transformer_ln
+                    else nn.Identity()
+                ),
                 EinOpsRearrange("b l d -> l b d"),
             ),
             post_transformer_layer=EinOpsRearrange("l b d -> b l d"),
@@ -520,7 +522,9 @@ def _calculate_total_stats(running_loss, running_corrects, data_len, i):
 
 
 def _caculate_metrics(data, ldts, model, criterion, device):
-    labels = ldts[:, 0]
+    labels = ldts  # ugly
+    if ldts.dim() == 2:
+        labels = ldts[:, 0]
     labels = labels.to(device)
     data = data.to(device)  # N x C x L
     outputs = model(data)  # N x C
@@ -672,7 +676,9 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
 
 
 def load_model(checkpoint_path, model, device) -> None:
-    model.load_state_dict(torch.load(checkpoint_path, map_location=device)["model"])
+    model.load_state_dict(
+        torch.load(checkpoint_path, map_location=device, weights_only=True)["model"]
+    )
     return model
 
 

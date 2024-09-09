@@ -39,10 +39,13 @@ def plot_confusion_matrix(confusion_matrix, class_names):
 
 
 def plot_one(data):
+    data_len = data.shape[0]  # 20, 60, 200
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
-    ax.set_xlim(0, 20)
+    ax.set_xlim(0, data_len)
     ax.set_ylim(-3.5, 3.5)
+    plt.xticks(np.linspace(0, data_len, 5).astype(np.int64))
+    plt.title(f"gps speed: {data[0,-1]:.2f}")
     plt.show(block=False)
     return ax
 

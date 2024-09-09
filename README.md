@@ -1,12 +1,11 @@
 # bird-behavior
 bird behavior
 
-Installation
-------------
-The minimum pyton version is 3.10. If there is not a new version of python, conda is the cleanest way.
+# Installation
+The minimum pyton version is 3.10. If there is not a new version of python, conda or miniconda is the cleanest way. To install conda or miniconda follow [this instruction](https://github.com/fkariminejadasl/ml-notebooks/blob/main/tutorial/python.md#setup-python).
 These are only command requires in conda, which are different than python venv.
 ```bash
-conda create --name bird python=3.8 -y # create virtualenv
+conda create --name bird python=3.10 -y # create virtualenv
 conda activate bird # activate
 conda deactivate # deactivate
 conda remove --name bird --all # remove the virtualenv
@@ -21,14 +20,5 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-Usage
------
-```bash
-git checkout make_features
-```
-
-In python: 
-```python
-from behavior import data as bd
-labels, label_ids, device_ids, time_stamps, all_measurements = bd.read_data(data_file)
-```
+# Usage
+Look at `notebooks/classify_birds.ipynb`
