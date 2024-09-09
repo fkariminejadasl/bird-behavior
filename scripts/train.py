@@ -21,6 +21,8 @@ from behavior import model1d as bm1
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+generator = torch.Generator().manual_seed(seed)  # for random_split
 
 """
 # quick model test
@@ -33,7 +35,7 @@ model(x)
 
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 101  # sys.argv[1]
+exp = 105  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -55,7 +57,7 @@ weight_decay = 1e-2  # default 1e-2
 # model
 width = 30
 
-"""
+# """
 # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
 # combined_file = data_path / "combined.json"
 # all_measurements, label_ids = bd.combine_all_data(combined_file)
@@ -70,15 +72,30 @@ all_measurements, label_ids = bd.get_specific_labesl(
 # label_ids = np.repeat(label_ids, 2, axis=0)
 # all_measurements = all_measurements.reshape(-1, 10, 4)
 
+# all = 4365
+n_trainings = 100  # (10% data)# int(all_measurements.shape[0] * train_per * data_per)
+n_valid = 100  # all_measurements.shape[0] - n_trainings
+train_measurments = all_measurements[:n_trainings]
+valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+train_labels, valid_labels = (
+    label_ids[:n_trainings],
+    label_ids[n_trainings : n_trainings + n_valid],
+)
+print(
+    len(train_labels),
+    len(valid_labels),
+    train_measurments.shape,
+    valid_measurements.shape,
+)
+train_dataset = bd.BirdDataset(train_measurments, train_labels)
+eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
-# train_dataset = bd.BirdDataset(all_measurements, label_ids)
-# eval_dataset = deepcopy(train_dataset)
-dataset = bd.BirdDataset(all_measurements, label_ids)
-# Calculate the sizes for training and validation datasets
-train_size = int(train_per * data_per * len(dataset))
-val_size = len(dataset) - train_size
-
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
+# ind_data = int(data_per * len(all_measurements))
+# all_measurements, label_ids = all_measurements[:ind_data], label_ids[:ind_data]
+# dataset = bd.BirdDataset(all_measurements, label_ids)
+# train_size = int(train_per * len(dataset))
+# val_size = len(dataset) - train_size
+# train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
 
 train_loader = DataLoader(
     train_dataset,
@@ -95,7 +112,7 @@ eval_loader = DataLoader(
     drop_last=True,
 )
 
-# """
+"""
 csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
 csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 csv_files = [str(csv_file) for csv_file in csv_files]
@@ -126,7 +143,7 @@ eval_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-# """
+"""
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 

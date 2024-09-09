@@ -135,9 +135,7 @@ def get_gpu_memory():
     # Total memory reserved by the caching allocator (may be more than allocated_memory)
     reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
     # Total memory available on the GPU
-    total_memory = torch.cuda.get_device_properties(0).total_memory / (
-        1024**3
-    )  # in GB
+    total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # in GB
     print(f"Allocated memory: {allocated_memory:.2f} GB")
     print(f"Reserved memory: {reserved_memory:.2f} GB")
     print(f"Total GPU memory: {total_memory:.2f} GB")
@@ -147,9 +145,10 @@ def get_gpu_memory():
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
+generator = torch.Generator().manual_seed(seed)  # for random_split
 
-# save_path = Path("/home/fatemeh/Downloads/bird/result/")
-save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
+save_path = Path("/home/fatemeh/Downloads/bird/result/")
+# save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
 save_path.mkdir(parents=True, exist_ok=True)
 
 exp = "p_mem1"  # sys.argv[1]
@@ -171,8 +170,8 @@ g_len = 60
 
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
-# directory = Path("/home/fatemeh/Downloads/bird/ssl/final")
-directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
+directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
+# directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
 gimus = read_csv_files(directory)
 print(gimus.shape)
 gimus = gimus.reshape(-1, g_len, 4)
@@ -229,10 +228,12 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
     for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
         start_time = datetime.now()
         print(f"start time: {start_time}")
+        get_gpu_memory()
         train_one_epoch(
             train_loader, model, device, epoch, no_epochs, writer, optimizer
         )
         evaluate(eval_loader, model, device, epoch, no_epochs, writer)
+        get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 

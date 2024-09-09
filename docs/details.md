@@ -8,6 +8,7 @@ The code to get the data is in `scripts/get_data.py`.
 
 #### Labeled data
 The data is combination of several annotation. Since they are in different format and there was overlap between them, and mistakes, I had to make a separate data preparation script. It is in `scripts/prepare_labeled_data.py`.
+Original data is 3505 fixes of 20 length after removing the other class 3480 fixes​ remain. After combining data 4394 fixes of 20 length and after remvong the other class 4365 fixes remain.
 
 Data in memory
 ==============

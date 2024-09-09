@@ -75,9 +75,9 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "p2"  # sys.argv[1]
-no_epochs = 6000  # int(sys.argv[2])
-save_every = 2000
+exp = "p5"  # sys.argv[1]
+no_epochs = 12000  # int(sys.argv[2])
+save_every = 6000
 train_per = 0.9
 data_per = 1.0
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
@@ -85,7 +85,7 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 n_classes = len(target_labels)
 # hyperparam
 warmup_epochs = 1000
-step_size = 2000
+step_size = 6000
 max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
 weight_decay = 1e-2  # default 1e-2

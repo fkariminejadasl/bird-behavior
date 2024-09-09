@@ -7,7 +7,7 @@ This is sort of end-to-end test for classify_birds script.
 """
 
 # Load the ground truth files
-gt_path = Path("/home/fatemeh/Downloads/bird/classify_bird_3conv/gt")
+gt_path = Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/gt")
 ground_truth_1 = pd.read_csv(
     gt_path / "541_2012-05-17 00:00:59_2012-05-17 00:00:59.csv"
 )
@@ -18,7 +18,7 @@ ground_truth_3 = pd.read_csv(
 
 # Load the generated files
 # python scripts/classify_birds.py configs/classification.yaml
-result_path = Path("/home/fatemeh/Downloads/bird/classify_bird_3conv/gt")
+result_path = Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/gt")
 generated_1 = pd.read_csv(
     result_path / "541_2012-05-17 00:00:59_2012-05-17 00:00:59.csv"
 )
