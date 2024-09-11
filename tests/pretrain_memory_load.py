@@ -119,16 +119,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
 
 
-# import wandb
-# wandb.init(project="uncategorized")
-
-print(
-    f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
-)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-# nvidia-smi -i 0 # also show properties
-
-
 def get_gpu_memory():
     # Total memory currently allocated by tensors
     allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
@@ -141,19 +131,28 @@ def get_gpu_memory():
     print(f"Total GPU memory: {total_memory:.2f} GB")
     # torch.cuda.empty_cache()
 
+# import wandb
+# wandb.init(project="uncategorized")
+
+print(
+    f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
+)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# nvidia-smi -i 0 # also show properties
 
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
 generator = torch.Generator().manual_seed(seed)  # for random_split
 
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
-# save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
+# save_path = Path("/home/fatemeh/Downloads/bird/result/")
+save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
 save_path.mkdir(parents=True, exist_ok=True)
 
-exp = "p_mem1"  # sys.argv[1]
-no_epochs = 1  # int(sys.argv[2])
-save_every = 2000
+exp = "p_mem5"  # sys.argv[1]
+model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem4_500.pth"
+no_epochs = 500
+save_every = 200
 train_per = 0.9
 data_per = 1.0
 
@@ -170,8 +169,8 @@ g_len = 60
 
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
-directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
-# directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
+# directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
+directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
 gimus = read_csv_files(directory)
 print(gimus.shape)
 gimus = gimus.reshape(-1, g_len, 4)
@@ -189,15 +188,17 @@ train_loader = DataLoader(
     train_dataset,
     batch_size=min(4000, len(train_dataset)),
     shuffle=True,
-    num_workers=1,
+    num_workers=17,
     drop_last=True,
+    pin_memory=True, # fast but more memory
 )
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=min(4000, len(eval_dataset)),
     shuffle=False,
-    num_workers=1,
+    num_workers=17,
     drop_last=True,
+    pin_memory=True,
 )
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
@@ -206,15 +207,16 @@ model = bm1.MaskedAutoencoderViT(
     img_size=g_len,
     in_chans=4,
     patch_size=1,
-    embed_dim=16,
-    depth=1,
+    embed_dim=256, #16,
+    depth= 6, #1,
     num_heads=8,
-    decoder_embed_dim=16,
-    decoder_depth=1,
+    decoder_embed_dim=256, #16,
+    decoder_depth=6, #1,
     decoder_num_heads=8,
     mlp_ratio=4,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
 ).to(device)
+bm.load_model(model_checkpoint, model, device)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
@@ -224,6 +226,8 @@ print(
     f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
+print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
+
 with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
     for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
         start_time = datetime.now()
