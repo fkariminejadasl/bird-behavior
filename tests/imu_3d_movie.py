@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
 import math
+import pandas as pd
 from matplotlib.animation import FuncAnimation
 
 # Function to create a rotation matrix around X-axis
@@ -46,9 +47,17 @@ rect_vertices = np.array([[0, 0, 0],
                           [1, 1, 1],
                           [0, 1, 1]])
 
+# Read rotation angles from a CSV file
+angles_df = pd.read_csv("/home/fatemeh/Downloads/bird/test.csv", header=None)
+
 # Create a figure and 3D axis
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
+
+# # Set axis limits to [-1, 1]
+# ax.set_xlim([-1, 1])
+# ax.set_ylim([-1, 1])
+# ax.set_zlim([-1, 1])
 
 # Set axis labels
 ax.set_xlabel('X-axis')
@@ -61,18 +70,14 @@ ax.yaxis.label.set_color('green')
 ax.zaxis.label.set_color('blue')
 
 
-# Initial rotation angles
-x_deg, y_deg, z_deg = 0, 0, 0
-
 # Function to update the plot at each frame for the animation
 def update(frame):
-    global x_deg, y_deg, z_deg
-    ax.cla()  # Clear the axis to remove old cuboid
+    # Get the rotation angles for the current frame from the CSV
+    x_deg = math.degrees(angles_df[4].iloc[frame])
+    y_deg = math.degrees(angles_df[5].iloc[frame])
+    z_deg = math.degrees(angles_df[6].iloc[frame])
 
-    # Increment rotation angles for smooth animation
-    x_deg += 2  # Rotate by 2 degrees in X
-    y_deg += 2  # Rotate by 2 degrees in Y
-    z_deg += 2  # Rotate by 2 degrees in Z
+    ax.cla()  # Clear the axis to remove old cuboid
 
     # Rotate the X, Y, Z axes using the same rotation matrices
     rotated_axes = rotate_vertices(axes_vectors, x_deg, y_deg, z_deg)
@@ -102,28 +107,22 @@ def update(frame):
     return ax
 
 # Create the animation
-ani = FuncAnimation(fig, update, frames=np.arange(0, 360, 2), interval=50)
-ani.save(filename="/home/fatemeh/Downloads/bird/html_example.html", writer="html")
+ani = FuncAnimation(fig, update, frames=len(angles_df), interval=50)
+
+# Save the animation to HTML
+ani.save(filename="/home/fatemeh/Downloads/bird/html_example2.html", writer="html")
 # ani.save('/home/fatemeh/Downloads/bird/rotating_rectangle.mp4', writer='ffmpeg', fps=20)
+
 # # Show the animation
 plt.show()
 
 
-
-
-
-
-# # Set axis labels without color
-# ax.set_xlabel('X-axis')
-# ax.set_ylabel('Y-axis')
-# ax.set_zlabel('Z-axis')
-
-# # Manually set the color of axis labels
-# ax.xaxis.label.set_color('red')
-# ax.yaxis.label.set_color('green')
-# ax.zaxis.label.set_color('blue')
-
 # ax.view_init(elev=20, azim=30)
 # import matplotlib
 # matplotlib.use('TkAgg')
+# from IPython.display import HTML
+# # Convert the animation to HTML5 video
+# html_video = ani.to_html5_video()
+# # Display the video (useful in Jupyter Notebooks)
+# HTML(html_video)
 print("test")
