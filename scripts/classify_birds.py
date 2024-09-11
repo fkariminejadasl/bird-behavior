@@ -64,7 +64,8 @@ if __name__ == "__main__":
     bm.load_model(model_checkpoint, model, device)
 
     dev_st_ends = []
-    with open(input_file, "r") as rfile:
+    #  encoding='utf-8-sig' needed because of windows editor
+    with open(input_file, "r", encoding='utf-8-sig') as rfile:
         for row in rfile:
             dev, st, en = row.strip().split(",")
             dev_st_ends.append([int(dev), st, en])
@@ -105,10 +106,10 @@ if __name__ == "__main__":
         except:
             failure = f"{device_id},{start_time},{end_time}\n"
             failures.append(failure)
-            print(failure.strip())
+            print("failed:\n", failure.strip())
 
     failed_file = save_path / "failures.csv"
     with open(failed_file, "w") as wfile:
         wfile.writelines(failures)
 
-    print(sum([p.numel() for p in model.parameters()]))
+    print("model parameters: ", sum([p.numel() for p in model.parameters()]))
