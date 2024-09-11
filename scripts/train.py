@@ -18,11 +18,16 @@ from behavior import model1d as bm1
 # import wandb
 # wandb.init(project="uncategorized")
 
+# There are more into reproducibility:
+# https://pytorch.org/docs/stable/notes/randomness.html
 seed = 1234
 np.random.seed(seed)
 torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
+torch.cuda.manual_seed_all(seed) # for multiple gpu
 generator = torch.Generator().manual_seed(seed)  # for random_split
+# torch.cuda.manual_seed(seed)
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
 
 """
 # quick model test

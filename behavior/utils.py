@@ -234,3 +234,115 @@ def save_results(
     # _ = save_data_prediction(
     #     save_file.parent, pred_name, pred_name, conf, data_item, ldts_item
     # )
+
+"""
+# TODO add for per class statistics
+import numpy as np
+import pandas as pd
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_recall_fscore_support
+
+ind2name = {
+    0: "Flap",
+    1: "ExFlap",
+    2: "Soar",
+    3: "Boat",
+    4: "Float",
+    5: "SitStand",
+    6: "TerLoco",
+    7: "Other",
+    8: "Manouvre",
+    9: "Pecking",
+}
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+target_labels_names = [ind2name[t] for t in target_labels]
+
+# Confusion matrix provided by the user
+conf_matrix = np.array([
+    [ 565,    1,    0,    0,    0,    0,    0,    2,    0],
+    [   0,   36,    0,    0,    0,    0,    0,    2,    0],
+    [   0,    0,  470,    2,    4,    0,    0,   14,    0],
+    [   0,    0,    2,  159,    0,    0,    0,    0,    1],
+    [   0,    0,    6,    0,  541,    0,    0,    0,    0],
+    [   0,    1,    7,    0,    4, 1332,    4,    0,   19],
+    [   0,    0,    2,    0,    0,    2,  293,    0,    5],
+    [   0,    0,   15,    0,    0,    0,    0,  125,    1],
+    [   0,    0,    4,    1,    0,   18,   21,    2,  267]
+])
+
+# Number of classes
+num_classes = conf_matrix.shape[0]
+
+# Calculating True Positives, False Positives, False Negatives, and True Negatives for each class
+TP = np.diag(conf_matrix)
+FP = np.sum(conf_matrix, axis=0) - TP
+FN = np.sum(conf_matrix, axis=1) - TP
+
+# Calculating precision, recall, F1 score for each class
+precision = TP / (TP + FP)
+recall = TP / (TP + FN)
+f1_score = 2 * (precision * recall) / (precision + recall)
+
+# Create a DataFrame for easy display
+metrics_df = pd.DataFrame({
+    'Class': target_labels_names, #range(num_classes),
+    'True Positives (TP)': TP,
+    'False Positives (FP)': FP,
+    'False Negatives (FN)': FN,
+    'Precision': precision,
+    'Recall': recall,
+    'F1 Score': f1_score
+})
+
+print(metrics_df)
+
+# Balanced
+# ==================
+
+# Step 1: Calculate class weights based on inverse class frequencies
+class_totals = np.sum(conf_matrix, axis=1)
+total_samples = np.sum(class_totals)
+class_weights = total_samples / (num_classes * class_totals)
+
+# Step 2: Create a weighted confusion matrix by applying the class weights
+weighted_conf_matrix = conf_matrix * class_weights[:, np.newaxis]
+
+# Step 3: Recalculate True Positives, False Positives, False Negatives, and True Negatives for each class
+TP_weighted = np.diag(weighted_conf_matrix)
+FP_weighted = np.sum(weighted_conf_matrix, axis=0) - TP_weighted
+FN_weighted = np.sum(weighted_conf_matrix, axis=1) - TP_weighted
+
+# Step 4: Recalculate precision, recall, F1 score based on the weighted confusion matrix
+precision_weighted = TP_weighted / (TP_weighted + FP_weighted)
+recall_weighted = TP_weighted / (TP_weighted + FN_weighted)
+f1_score_weighted = 2 * (precision_weighted * recall_weighted) / (precision_weighted + recall_weighted)
+
+# Create a new DataFrame for weighted metrics
+weighted_metrics_df = pd.DataFrame({
+    'Class': target_labels_names,
+    'True Positives (TP)': TP_weighted,
+    'False Positives (FP)': FP_weighted,
+    'False Negatives (FN)': FN_weighted,
+    'Precision': precision_weighted,
+    'Recall': recall_weighted,
+    'F1 Score': f1_score_weighted
+})
+
+print(weighted_metrics_df)
+
+# TODO remove duplicates
+df = pd.read_csv("/home/fatemeh/Downloads/bird/combined_s_w_m_j.csv",header=None)
+duplicate_mask = df.duplicated(subset=[0,1,4,5,6,7], keep=False)
+duplicate_indices = df[duplicate_mask].index
+difs = np.where(np.diff(np.array(duplicate_indices))==1)[0]
+df.iloc[[63,83]]
+np.array(duplicate_indices)[difs]
+
+
+# Remove duplicates (s_data id_dates, combined all duplicate_indices (remove all indices not in s_data), list remaining indices and decide )
+# Train only willem data and save statistics
+# Train with combined and save statistics
+
+# removed: 
+# 6011,2015-04-30 09:10:31 (label 5, 9)  (120)
+# 6011,2015-04-30 09:10:44
+"""

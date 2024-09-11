@@ -33,9 +33,9 @@ ind2name = {
 }
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-train_per = 0.2
+train_per = 0.9
 data_per = 1
-exp = 102  # sys.argv[1]
+exp = 45  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -116,18 +116,18 @@ criterion = torch.nn.CrossEntropyLoss()
 
 print(f"data shape: {eval_dataset[0][0].shape}")  # 3x20
 in_channel = eval_dataset[0][0].shape[0]  # 3 or 4
-# model = bm.BirdModel(in_channel, width, n_classes).to(device)
-model = bm1.TransformerEncoderMAE(
-    img_size=20,
-    in_chans=4,
-    out_chans=9,
-    embed_dim=16,
-    depth=1,
-    num_heads=8,
-    mlp_ratio=4,
-    drop=0.0,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
-).to(device)
+model = bm.BirdModel(in_channel, width, n_classes).to(device)
+# model = bm1.TransformerEncoderMAE(
+#     img_size=20,
+#     in_chans=4,
+#     out_chans=9,
+#     embed_dim=16,
+#     depth=1,
+#     num_heads=8,
+#     mlp_ratio=4,
+#     drop=0.0,
+#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+# ).to(device)
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 model.eval()
 
