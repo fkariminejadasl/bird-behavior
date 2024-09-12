@@ -16,8 +16,10 @@ Install only requirements:
 git clone https://github.com/fkariminejadasl/bird-behavior.git
 cd bird-behavior
 # here the conda should be activated
-pip install -r requirements.txt
+# Install the software
 pip install -e .
+# Install everything (some requirements are needed to run in notebook)
+pip install -e .[notebook]
 ```
 
 # Usage

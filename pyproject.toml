@@ -13,9 +13,25 @@ authors = [
 ]
 urls = { "Homepage" = "https://github.com/fkariminejadasl/bird-behavior.git" }
 
+# Dependencies are copied from requirements.txt 
+dependencies = [
+    "einops",
+    "matplotlib>=3.6.1",
+    "numpy>=1.23.3",
+    "tqdm",
+    "tensorboard",
+    "psycopg2-binary",
+    "timm",
+    "torch",
+    "torchvision",
+    "scikit-learn>=1.3",
+]
+
+# pip install .[notebook]
 [project.optional-dependencies]
-dev = [
-    # List any additional dependencies for development
+notebook = [
+    "gdown>=5.2.0",
+    "requests>=2.32.3",
 ]
 
 [tool.setuptools.packages.find]
