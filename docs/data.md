@@ -20,6 +20,11 @@
 
 
 # Example Database Queries
+```database format:
+# database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
+database_url = f"postgresql://{username}:{password}@pub.e-ecology.nl:5432/eecology"
+```
+
 ```bash
 device_id = 805
 start_time = '2015-05-27 09:19:34' 

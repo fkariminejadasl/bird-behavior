@@ -26,17 +26,29 @@ def process_config(config_path):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process a config file or command-line arguments.")
+    parser = argparse.ArgumentParser(
+        description="Process a config file or command-line arguments."
+    )
 
     # Config file argument (positional)
-    parser.add_argument("config_file", type=Path, nargs='?', default=None, help="Path to the config file")
+    parser.add_argument(
+        "config_file",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="Path to the config file",
+    )
 
     # Optional arguments (command-line key-value pairs)
     parser.add_argument("--database_url", type=str, help="Database URL")
     parser.add_argument("--input_file", type=Path, help="Path to the input CSV file")
     parser.add_argument("--data_file", type=Path, help="Path to the data CSV file")
-    parser.add_argument("--model_checkpoint", type=Path, help="Path to the model checkpoint")
+    parser.add_argument(
+        "--model_checkpoint", type=Path, help="Path to the model checkpoint"
+    )
     parser.add_argument("--save_path", type=Path, help="Path to save the results")
+    parser.add_argument("--username", type=str, help="Database username")
+    parser.add_argument("--password", type=str, help="Database password")
 
     args = parser.parse_args()
 
@@ -53,12 +65,24 @@ if __name__ == "__main__":
     # Override with command-line arguments if they are provided
     cmd_args = vars(args)
     # Remove 'config_file' from cmd_args as it's not a config parameter
-    cmd_args.pop('config_file', None)
+    cmd_args.pop("config_file", None)
     # Remove None values (arguments not provided)
     cmd_args = {k: v for k, v in cmd_args.items() if v is not None}
 
     # Merge command-line arguments into inputs, overriding config file values
     inputs.update(cmd_args)
+
+    # Set default values if not provided in inputs
+    defaults = {
+        "input_file": Path("/content/input.csv"),
+        "model_checkpoint": Path("/content/45_best.pth"),
+        "save_path": Path("/content/result"),
+        # 'username' and 'password' have no defaults
+    }
+
+    for key, value in defaults.items():
+        inputs.setdefault(key, value)
+
     print("Inputs:")
     for key, value in inputs.items():
         print(f"  {key}: {value}")
@@ -68,20 +92,17 @@ if __name__ == "__main__":
     inputs = SimpleNamespace(**inputs)
 
     # Access parameters from inputs
-    if hasattr(inputs, 'input_file'):
-        input_file = Path(inputs.input_file)
-    else:
-        input_file = None
-
-    if hasattr(inputs, 'data_file'):
-        data_file = Path(inputs.data_file)
-    else:
-        data_file = None
-
+    input_file = Path(inputs.input_file) if hasattr(inputs, "input_file") else None
+    data_file = Path(inputs.data_file) if hasattr(inputs, "data_file") else None
     model_checkpoint = Path(inputs.model_checkpoint)
     save_path = Path(inputs.save_path)
 
     save_path.mkdir(parents=True, exist_ok=True)
+
+    # Fixed database parameters
+    DB_HOST = "pub.e-ecology.nl"  # database_host
+    DB_PORT = 5432  # database_port
+    DB_NAME = "eecology"  # database_name
 
     ind2name = {
         0: "Flap",
@@ -115,7 +136,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error loading data from CSV: {e}")
             exit(1)
-        
+
         # Validate loaded data
         if gimus is None or idts is None:
             print("Loaded data is None. Exiting.")
@@ -152,12 +173,26 @@ if __name__ == "__main__":
             print(f"Error during data processing or saving results: {e}")
             exit(1)
     elif input_file is not None:
-        # Read from input_file and download data from database
-        print(f"Loading data from {inputs.database_url}")
+        # Ensure username and password are provided
+        if not hasattr(inputs, "username") or not hasattr(inputs, "password"):
+            print(
+                "Error: Username and password must be provided when accessing the database."
+            )
+            exit(1)
+
+        username = inputs.username
+        password = inputs.password
+
+        # Construct the database_url
+        database_url = (
+            f"postgresql://{username}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        )
+
+        print(f"Loading data from {database_url}")
         dev_st_ends = []
         try:
             # Read device IDs and times from input_file
-            with open(input_file, "r", encoding='utf-8-sig') as rfile:
+            with open(input_file, "r", encoding="utf-8-sig") as rfile:
                 for row in rfile:
                     try:
                         dev, st, en = row.strip().split(",")
@@ -175,13 +210,15 @@ if __name__ == "__main__":
         for device_id, start_time, end_time in dev_st_ends:
             try:
                 gimus, idts, llats = bd.get_data(
-                    inputs.database_url, device_id, start_time, end_time
+                    database_url, device_id, start_time, end_time
                 )
                 llats = np.array(llats).reshape(-1, 20, 4)[:, 0, :]
                 idts = idts.reshape(-1, 20, 3)[:, 0, :]
                 gimus = gimus.reshape(-1, 20, 4)
-                                
-                print(f"Data shape {gimus.shape} for {device_id}, {start_time}, {end_time}")
+
+                print(
+                    f"Data shape {gimus.shape} for {device_id}, {start_time}, {end_time}"
+                )
 
                 infer_dataset = bd.BirdDataset(gimus, idts)
 
