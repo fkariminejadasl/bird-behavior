@@ -71,7 +71,7 @@ def save_data_prediction(save_path, label, pred, conf, data, ldts):
 
 
 def save_predictions_csv(
-    save_file, data, idts, llat, mod_name, preds, probs, target_labels_names
+    save_file, data, idts, llats, mod_name, preds, probs, target_labels_names
 ):
     idts = np.array(idts)
     data = data.transpose(2, 1).cpu().numpy()
@@ -89,13 +89,20 @@ def save_predictions_csv(
             pred = preds[i]
             pred_name = target_labels_names[pred]
             conf = probs[i, pred]
-            latitude, longitude, altitude, temperature = llat[i]
             runtime_date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-            text = (
-                f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f},"
-                f"{latitude:.7f},{longitude:.7f},{int(altitude)},{temperature:.1f},"
-                f"{runtime_date},{mod_name}\n"
-            )
+            if llats is not None:
+                latitude, longitude, altitude, temperature = llats[i]
+                text = (
+                    f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f},"
+                    f"{latitude:.7f},{longitude:.7f},{int(altitude)},{temperature:.1f},"
+                    f"{runtime_date},{mod_name}\n"
+                )
+            else:
+                text = (
+                    f"{device_id},{start_date},{index},{gps:.4f},{pred_name},{conf:.2f},"
+                    "None,None,None,None,"
+                    f"{runtime_date},{mod_name}\n"
+                )
             rfile.write(text)
 
 
@@ -201,14 +208,15 @@ def save_results(
     save_file,
     data,
     idts,
-    llat,
+    llats,
     model_checkpoint,
     model,
     device,
     target_labels_names,
 ):
     data = data.to(device)  # N x C x L
-    outputs = model(data)  # N x C
+    with torch.no_grad():
+        outputs = model(data)  # N x C
     probs = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
     preds = torch.argmax(outputs.data, 1)
     probs = probs.cpu().numpy()
@@ -218,7 +226,7 @@ def save_results(
         save_file,
         data,
         idts,
-        llat,
+        llats,
         model_checkpoint,
         preds,
         probs,
