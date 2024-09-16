@@ -21,19 +21,62 @@ def process_config(config_path):
         try:
             return yaml.safe_load(config_file)
         except yaml.YAMLError as error:
-            print(error)
+            print(f"Error reading config file: {error}")
+            exit(1)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process a config file.")
-    parser.add_argument("config_file", type=Path, help="Path to the config file")
+    parser = argparse.ArgumentParser(description="Process a config file or command-line arguments.")
+
+    # Config file argument (positional)
+    parser.add_argument("config_file", type=Path, nargs='?', default=None, help="Path to the config file")
+
+    # Optional arguments (command-line key-value pairs)
+    parser.add_argument("--database_url", type=str, help="Database URL")
+    parser.add_argument("--input_file", type=Path, help="Path to the input CSV file")
+    parser.add_argument("--data_file", type=Path, help="Path to the data CSV file")
+    parser.add_argument("--model_checkpoint", type=Path, help="Path to the model checkpoint")
+    parser.add_argument("--save_path", type=Path, help="Path to save the results")
 
     args = parser.parse_args()
-    config_path = args.config_file
-    inputs = process_config(config_path)
+
+    # Initialize inputs dictionary
+    inputs = {}
+
+    # Process config file if provided
+    if args.config_file is not None:
+        config_path = args.config_file
+        inputs = process_config(config_path)
+    else:
+        print("No config file provided.")
+
+    # Override with command-line arguments if they are provided
+    cmd_args = vars(args)
+    # Remove 'config_file' from cmd_args as it's not a config parameter
+    cmd_args.pop('config_file', None)
+    # Remove None values (arguments not provided)
+    cmd_args = {k: v for k, v in cmd_args.items() if v is not None}
+
+    # Merge command-line arguments into inputs, overriding config file values
+    inputs.update(cmd_args)
+    print("Inputs:")
     for key, value in inputs.items():
-        print(f"{key}: {value}")
+        print(f"  {key}: {value}")
+    print("\n")
+
+    # Convert inputs to SimpleNamespace for attribute-style access
     inputs = SimpleNamespace(**inputs)
+
+    # Access parameters from inputs
+    if hasattr(inputs, 'input_file'):
+        input_file = Path(inputs.input_file)
+    else:
+        input_file = None
+
+    if hasattr(inputs, 'data_file'):
+        data_file = Path(inputs.data_file)
+    else:
+        data_file = None
 
     model_checkpoint = Path(inputs.model_checkpoint)
     save_path = Path(inputs.save_path)
@@ -57,26 +100,22 @@ if __name__ == "__main__":
     target_labels_names = [ind2name[t] for t in target_labels]
     n_classes = len(target_labels)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(device)
     model = bm.BirdModel(4, 30, n_classes).to(device)
     model.eval()
     bm.load_model(model_checkpoint, model, device)
+    print(f"Using device: {device}")
+    print("Number of model parameters: ", sum([p.numel() for p in model.parameters()]))
 
-    if hasattr(inputs, "data_file") and inputs.data_file:
+    if data_file is not None:
         # Load from CSV
-        data_file = Path(inputs.data_file)
         try:
-            # Attempt to load data from CSV
             print(f"Loading data from {data_file}")
             gimus, idts = bd.load_csv(data_file)
             llats = None  # Since we don't have llats
-        except FileNotFoundError:
-            print(f"Data file not found: {data_file}")
-            exit(1)
         except Exception as e:
             print(f"Error loading data from CSV: {e}")
             exit(1)
-
+        
         # Validate loaded data
         if gimus is None or idts is None:
             print("Loaded data is None. Exiting.")
@@ -87,37 +126,38 @@ if __name__ == "__main__":
 
         print(f"Data shape: {gimus.shape}")
 
-        infer_dataset = bd.BirdDataset(gimus, idts)
-
-        infer_loader = DataLoader(
-            infer_dataset,
-            batch_size=len(infer_dataset),
-            shuffle=False,
-            num_workers=1,
-            drop_last=True,
-        )
-
-        data, _ = next(iter(infer_loader))
-        save_file = save_path / f"results.csv"
-        bu.save_results(
-            save_file,
-            data,
-            idts,
-            llats,
-            model_checkpoint.stem,
-            model,
-            device,
-            target_labels_names,
-        )
-
-    else:
+        # Proceed with data processing
+        try:
+            infer_dataset = bd.BirdDataset(gimus, idts)
+            infer_loader = DataLoader(
+                infer_dataset,
+                batch_size=len(infer_dataset),
+                shuffle=False,
+                num_workers=1,
+                drop_last=True,
+            )
+            data, _ = next(iter(infer_loader))
+            save_file = save_path / f"results.csv"
+            bu.save_results(
+                save_file,
+                data,
+                idts,
+                llats,
+                model_checkpoint.stem,
+                model,
+                device,
+                target_labels_names,
+            )
+        except Exception as e:
+            print(f"Error during data processing or saving results: {e}")
+            exit(1)
+    elif input_file is not None:
         # Read from input_file and download data from database
-        input_file = Path(inputs.input_file)
+        print(f"Loading data from {inputs.database_url}")
         dev_st_ends = []
         try:
             # Read device IDs and times from input_file
-            # encoding='utf-8-sig' needed because of windows editor
-            with open(input_file, "r", encoding="utf-8-sig") as rfile:
+            with open(input_file, "r", encoding='utf-8-sig') as rfile:
                 for row in rfile:
                     try:
                         dev, st, en = row.strip().split(",")
@@ -134,18 +174,14 @@ if __name__ == "__main__":
         failures = []
         for device_id, start_time, end_time in dev_st_ends:
             try:
-
-                # Load data from database
                 gimus, idts, llats = bd.get_data(
                     inputs.database_url, device_id, start_time, end_time
                 )
                 llats = np.array(llats).reshape(-1, 20, 4)[:, 0, :]
                 idts = idts.reshape(-1, 20, 3)[:, 0, :]
                 gimus = gimus.reshape(-1, 20, 4)
-
-                print(
-                    f"data shape {gimus.shape} for {device_id}, {start_time}, {end_time}"
-                )
+                                
+                print(f"Data shape {gimus.shape} for {device_id}, {start_time}, {end_time}")
 
                 infer_dataset = bd.BirdDataset(gimus, idts)
 
@@ -177,5 +213,6 @@ if __name__ == "__main__":
         failed_file = save_path / "failures.csv"
         with open(failed_file, "w") as wfile:
             wfile.writelines(failures)
-
-    print("model parameters: ", sum([p.numel() for p in model.parameters()]))
+    else:
+        print("Error: Neither data_file nor input_file is provided.")
+        exit(1)

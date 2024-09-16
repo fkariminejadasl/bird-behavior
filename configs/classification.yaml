@@ -11,6 +11,6 @@ database_url: "postgresql://{username}:{password}@{host}:{port}/{database_name}"
 
 # # For my Debugging
 input_file: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv # Value: Path
-# data_file: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/manouvre.csv
+data_file: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/manouvre.csv
 model_checkpoint: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth # Value: Path
 save_path: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2 # Value: Path
