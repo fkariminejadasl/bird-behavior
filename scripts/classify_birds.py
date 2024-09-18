@@ -161,7 +161,7 @@ def read_device_time_ranges(input_file):
 
 
 def process_and_save_data(
-    gimus, idts, llats, model, device, target_labels_names, save_file
+    gimus, idts, llats, model, model_name, device, target_labels_names, save_file
 ):
     """Process data and save the results."""
     try:
@@ -179,7 +179,7 @@ def process_and_save_data(
             data,
             idts,
             llats,
-            model_checkpoint.stem,
+            model_name,
             model,
             device,
             target_labels_names,
@@ -204,6 +204,7 @@ if __name__ == "__main__":
     target_labels_names = [ind2name[t] for t in target_labels]
     n_classes = len(target_labels)
     model, device = initialize_model(model_checkpoint, n_classes)
+    model_name = model_checkpoint.stem
 
     if data_file is not None:
         # Load data from CSV
@@ -212,7 +213,14 @@ if __name__ == "__main__":
             # Process and save data
             save_file = save_path / "results.csv"
             process_and_save_data(
-                gimus, idts, llats, model, device, target_labels_names, save_file
+                gimus,
+                idts,
+                llats,
+                model,
+                model_name,
+                device,
+                target_labels_names,
+                save_file,
             )
         else:
             print("Data loading failed. Exiting.")
@@ -258,6 +266,7 @@ if __name__ == "__main__":
                             idts,
                             llats,
                             model,
+                            model_name,
                             device,
                             target_labels_names,
                             save_file,

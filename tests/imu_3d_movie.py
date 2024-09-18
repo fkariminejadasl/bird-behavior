@@ -1,10 +1,16 @@
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import numpy as np
 import math
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from matplotlib.animation import FuncAnimation
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
+"""
+Make a movie from a IMU accelaration.
+"""
+
+# fmt: off
 # Function to create a rotation matrix around X-axis
 def rotation_matrix_x(degrees):
     radians = math.radians(degrees)
@@ -32,27 +38,33 @@ def rotate_vertices(vertices, x_deg, y_deg, z_deg):
     rotation_matrix = rotation_matrix_x(x_deg) @ rotation_matrix_y(y_deg) @ rotation_matrix_z(z_deg)
     return np.dot(vertices, rotation_matrix.T)
 
+
+
 # Define the initial direction vectors of the X, Y, Z axes
 axes_vectors = np.array([[1, 0, 0],  # X-axis direction
                          [0, 1, 0],  # Y-axis direction
                          [0, 0, 1]]) # Z-axis direction
-
+# fmt: on
 # Define the 3D rectangle vertices (a cuboid in this case)
-rect_vertices = np.array([[0, 0, 0],
-                          [1, 0, 0],
-                          [1, 1, 0],
-                          [0, 1, 0],
-                          [0, 0, 1],
-                          [1, 0, 1],
-                          [1, 1, 1],
-                          [0, 1, 1]])
+rect_vertices = np.array(
+    [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 0, 1],
+        [1, 1, 1],
+        [0, 1, 1],
+    ]
+)
 
 # Read rotation angles from a CSV file
-angles_df = pd.read_csv("/home/fatemeh/Downloads/bird/test.csv", header=None)
+angles_df = pd.read_csv("/home/fatemeh/Downloads/bird/manouvre.csv", header=None)
 
 # Create a figure and 3D axis
 fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+ax = fig.add_subplot(111, projection="3d")
 
 # # Set axis limits to [-1, 1]
 # ax.set_xlim([-1, 1])
@@ -60,14 +72,14 @@ ax = fig.add_subplot(111, projection='3d')
 # ax.set_zlim([-1, 1])
 
 # Set axis labels
-ax.set_xlabel('X-axis')
-ax.set_ylabel('Y-axis')
-ax.set_zlabel('Z-axis')
+ax.set_xlabel("X-axis")
+ax.set_ylabel("Y-axis")
+ax.set_zlabel("Z-axis")
 
 # Manually set the color of axis labels
-ax.xaxis.label.set_color('red')
-ax.yaxis.label.set_color('green')
-ax.zaxis.label.set_color('blue')
+ax.xaxis.label.set_color("red")
+ax.yaxis.label.set_color("green")
+ax.zaxis.label.set_color("blue")
 
 
 # Function to update the plot at each frame for the animation
@@ -81,7 +93,8 @@ def update(frame):
 
     # Rotate the X, Y, Z axes using the same rotation matrices
     rotated_axes = rotate_vertices(axes_vectors, x_deg, y_deg, z_deg)
-    
+
+    # fmt: off
     # Draw the rotated X, Y, Z axes
     ax.quiver(0, 0, 0, rotated_axes[0, 0], rotated_axes[0, 1], rotated_axes[0, 2], color='red', arrow_length_ratio=0.1)  # Rotated X-axis
     ax.quiver(0, 0, 0, rotated_axes[1, 0], rotated_axes[1, 1], rotated_axes[1, 2], color='green', arrow_length_ratio=0.1)  # Rotated Y-axis
@@ -100,18 +113,20 @@ def update(frame):
 
     # Draw the 3D rectangle (cuboid) using Poly3DCollection
     ax.add_collection3d(Poly3DCollection(faces, facecolors='cyan', linewidths=0, alpha=.25))
-    
+    # fmt: on
+
     # Set the aspect ratio to auto
-    ax.set_box_aspect([1,1,1])
-    
+    ax.set_box_aspect([1, 1, 1])
+
     return ax
+
 
 # Create the animation
 ani = FuncAnimation(fig, update, frames=len(angles_df), interval=50)
 
 # Save the animation to HTML
 ani.save(filename="/home/fatemeh/Downloads/bird/html_example2.html", writer="html")
-# ani.save('/home/fatemeh/Downloads/bird/rotating_rectangle.mp4', writer='ffmpeg', fps=20)
+# ani.save("rotating_rectangle.mp4", writer='ffmpeg', fps=20)
 
 # # Show the animation
 plt.show()

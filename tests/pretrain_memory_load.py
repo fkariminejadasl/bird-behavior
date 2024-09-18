@@ -131,6 +131,7 @@ def get_gpu_memory():
     print(f"Total GPU memory: {total_memory:.2f} GB")
     # torch.cuda.empty_cache()
 
+
 # import wandb
 # wandb.init(project="uncategorized")
 
@@ -190,7 +191,7 @@ train_loader = DataLoader(
     shuffle=True,
     num_workers=17,
     drop_last=True,
-    pin_memory=True, # fast but more memory
+    pin_memory=True,  # fast but more memory
 )
 eval_loader = DataLoader(
     eval_dataset,
@@ -207,11 +208,11 @@ model = bm1.MaskedAutoencoderViT(
     img_size=g_len,
     in_chans=4,
     patch_size=1,
-    embed_dim=256, #16,
-    depth= 6, #1,
+    embed_dim=256,  # 16,
+    depth=6,  # 1,
     num_heads=8,
-    decoder_embed_dim=256, #16,
-    decoder_depth=6, #1,
+    decoder_embed_dim=256,  # 16,
+    decoder_depth=6,  # 1,
     decoder_num_heads=8,
     mlp_ratio=4,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
