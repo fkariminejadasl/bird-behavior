@@ -1,17 +1,14 @@
-# uvicorn testapp:app --reload
-# curl -X POST "http://localhost:8000/process"   -F "input_file=/home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv"   -F "username=..."   -F "password=..." # for file use: @/home..
+import shutil  # Added for compressing results into a ZIP file
 from pathlib import Path
 
+import gradio as gr  # Added for Gradio interface
 import numpy as np
 import torch
-from fastapi import FastAPI, Form
 from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
 from behavior import utils as bu
-
-app = FastAPI()
 
 # Set random seeds for reproducibility
 seed = 1234
@@ -61,9 +58,6 @@ def read_device_time_ranges(input_file):
                 except ValueError:
                     print(f"Invalid line in input file: {row.strip()}")
         return dev_st_ends
-    except FileNotFoundError:
-        print(f"Input file not found: {input_file}")
-        return None
     except Exception as e:
         print(f"Error reading input file: {e}")
         return None
@@ -97,57 +91,42 @@ def process_and_save_data(
         print(f"Error during data processing or saving results: {e}")
 
 
-@app.post("/process")
-async def process(
-    # input_file: UploadFile = File(...),,
-    input_file: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    model_checkpoint: str = Form(
-        default="/home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth"
-    ),
-    save_path: str = Form(
-        default="/home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2"
-    ),
-):
-    # # Save the uploaded file to a temporary location
-    # input_file_path = Path("/tmp") / input_file.filename
-    # with open(input_file_path, "wb") as f:
-    #     content = await input_file.read()
-    #     f.write(content)
-
-    # # Prepare paths
-    # input_file = input_file_path
-    input_file = Path(input_file)
-    model_checkpoint = Path(model_checkpoint)
-    save_path = Path(save_path)
+# This function replaces the main block in test.py and adjusts for Gradio inputs
+def process_data(input_file, model_checkpoint, username, password):
+    """Process data and return the path to the compressed results."""
+    # Prepare paths
+    input_file = Path(input_file.name)  # Adjusted to handle Gradio File input
+    model_checkpoint = Path(
+        model_checkpoint.name
+    )  # Adjusted to handle Gradio File input
+    save_path = Path(
+        "/tmp/processed_results"
+    )  # Changed save path to a temporary directory
     save_path.mkdir(parents=True, exist_ok=True)
 
     # Prepare labels and model
     target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # Exclude 'Other'
     target_labels_names = [ind2name[t] for t in target_labels]
     n_classes = len(target_labels)
-
-    # Initialize model
     model, device = initialize_model(model_checkpoint, n_classes)
 
     # Ensure username and password are provided
     if not username or not password:
-        return {
-            "error": "Username and password must be provided when accessing the database."
-        }
+        print(
+            "Error: Username and password must be provided when accessing the database."
+        )
+        return "Error: Username and password must be provided."
     else:
         # Construct the database URL
         database_url = (
             f"postgresql://{username}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         )
         print(f"Loading data from {database_url}")
-
         # Read device IDs and time ranges
         dev_st_ends = read_device_time_ranges(input_file)
         if dev_st_ends is None:
-            print("Failed to read device time ranges. Exiting.")
-            return {"error": "Failed to read device time ranges."}
+            print("Failed to read device time ranges.")
+            return "Failed to read device time ranges."
         else:
             failures = []
             for device_id, start_time, end_time in dev_st_ends:
@@ -188,4 +167,36 @@ async def process(
                 failed_file = save_path / "failures.csv"
                 with open(failed_file, "w") as wfile:
                     wfile.writelines(failures)
-            return {"status": "Processing completed."}
+
+            # Compress the results into a ZIP file
+            zip_file_path = "/tmp/processed_results.zip"
+            shutil.make_archive(zip_file_path.replace(".zip", ""), "zip", save_path)
+
+            # Return the path of the ZIP file for download
+            return zip_file_path
+
+
+# This function replaces the command-line interface with a Gradio interface
+def run_gradio_app():
+    """Launch the Gradio app."""
+    input_file = gr.File(label="Input CSV File")
+    model_checkpoint = gr.File(label="Model Checkpoint")
+    username = gr.Textbox(label="Database Username")
+    password = gr.Textbox(label="Database Password", type="password")
+
+    interface = gr.Interface(
+        fn=process_data,
+        inputs=[input_file, model_checkpoint, username, password],
+        outputs=gr.File(label="Download Processed Results"),
+        title="Bird Behavior Classifier",
+        description=(
+            "Upload input CSV, model checkpoint, and enter DB credentials to classify bird behaviors. "
+            "The results will be saved as CSV files and made available for download."
+        ),
+    )
+
+    interface.launch(share=True, server_name="127.0.0.1", server_port=7860)
+
+
+if __name__ == "__main__":
+    run_gradio_app()

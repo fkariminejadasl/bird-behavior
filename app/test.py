@@ -43,9 +43,26 @@ def load_configuration():
     )
 
     # Optional arguments (command-line key-value pairs) without default values
-    parser.add_argument("--input_file", type=Path, help="Path to the input CSV file", default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv"))
-    parser.add_argument("--model_checkpoint", type=Path, help="Path to the model checkpoint", default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth"))
-    parser.add_argument("--save_path", type=Path, help="Path to save the results", default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2"))
+    parser.add_argument(
+        "--input_file",
+        type=Path,
+        help="Path to the input CSV file",
+        default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv"),
+    )
+    parser.add_argument(
+        "--model_checkpoint",
+        type=Path,
+        help="Path to the model checkpoint",
+        default=Path(
+            "/home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth"
+        ),
+    )
+    parser.add_argument(
+        "--save_path",
+        type=Path,
+        help="Path to save the results",
+        default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2"),
+    )
     parser.add_argument("--username", type=str, help="Database username")
     parser.add_argument("--password", type=str, help="Database password")
 
@@ -128,7 +145,6 @@ if __name__ == "__main__":
     n_classes = len(target_labels)
     model, device = initialize_model(model_checkpoint, n_classes)
 
-
     # Ensure username and password are provided
     if not inputs.username or not inputs.password:
         print(
@@ -182,4 +198,3 @@ if __name__ == "__main__":
                 failed_file = save_path / "failures.csv"
                 with open(failed_file, "w") as wfile:
                     wfile.writelines(failures)
-
