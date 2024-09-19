@@ -77,7 +77,7 @@ def save_predictions_csv(
     data = data.transpose(2, 1).cpu().numpy()
     with open(save_file, "w") as rfile:
         rfile.write(
-            "device,time,index,GPS,prediction,confidence,latitude,longitude,altitude,temperature,runtime,model\n"
+            "device_info_serial,date_time,index,speed_2d,prediction,confidence,latitude,longitude,altitude,temperature,runtime,model\n"
         )
         for i in range(len(data)):
             device_id = idts[i, 1]
