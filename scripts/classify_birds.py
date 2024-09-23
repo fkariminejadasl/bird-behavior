@@ -101,7 +101,8 @@ def load_configuration():
 
     print("Inputs:")
     for key, value in inputs.items():
-        print(f"  {key}: {value}")
+        if key not in ["username", "password"]:
+            print(f"  {key}: {value}")
     print("\n")
 
     # Convert inputs to SimpleNamespace for attribute-style access
@@ -233,7 +234,7 @@ if __name__ == "__main__":
         else:
             # Construct the database URL
             database_url = f"postgresql://{inputs.username}:{inputs.password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-            print(f"Loading data from {database_url}")
+            print(f"Loading data from database")
             # Read device IDs and time ranges
             dev_st_ends = read_device_time_ranges(input_file)
             if dev_st_ends is None:

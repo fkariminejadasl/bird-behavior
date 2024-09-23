@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from scipy.io import loadmat
 from tqdm import tqdm
 
@@ -612,3 +613,47 @@ bu.plot_one(igs[:20])
 bu.plot_one(igs[20:40])
 bu.plot_one(igs[40:])
 """
+
+
+"""
+# Duplicates identified
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/data/combined_s_w_m_j.csv", header=None)
+df_20 = df.iloc[::20]
+sel_df_20 = df_20[[0,1,4,5,6,7]]
+sel_df_20[sel_df_20.duplicated(keep=False)]
+
+# removed: 
+# 6011,2015-04-30 09:10:31 (label 5, 9-> 9 correct)  (120) 71760, 71780, 71860
+(71760, 71780, 71860), (71900, 71920), (72380, 72400)
+bu.plot_one(np.array(df[[4,5,6,7]].iloc[71760:71760+20]))
+bu.plot_one(np.array(df[[4,5,6,7]].iloc[71780:71780+20]))
+df = df.drop(df.index[71780:71780+20])
+df = df.drop(df.index[71860:71860+20])
+df.iloc[71760:71760+20, 3] = 9
+df = df.drop(df.index[71920:71920+20])
+df = df.drop(df.index[72400:72400+20])
+df.to_csv("/home/fatemeh/Downloads/bird/data/data/combined_s_w_m_j_unique.csv", header=None, index=False)
+
+# maybe for figures
+for i in range(10):
+    sel_by_label = df_20[df_20[3]==i]
+    sel_by_label[[0,1,4,5,6,7]].to_csv(f"/home/fatemeh/Downloads/{i}.csv", header=None, index=False)
+"""
+
+
+def test_duplicates(file_name):
+    # {s,w,j,m}_data.csv
+    df = pd.read_csv(f"/home/fatemeh/Downloads/bird/data/data/{file_name}", header=None)
+    subset = [0, 1, 4, 5, 6, 7]
+    unique_duplicates = df[df.duplicated(subset=subset, keep=False)].drop_duplicates()
+
+    duplicate_counting = dict()
+    for index, row in unique_duplicates.iterrows():
+        inds = df[df[subset].eq(row[subset]).all(axis=1)].index
+        duplicate_counting[index] = len(inds)
+    print(file_name)
+    return duplicate_counting
+    # mask = df.duplicated(subset=[0,1,4,5,6,7])
+    # inds = df[mask].index
+    # dup = df.loc[inds]
+    # dup.to_csv("/home/fatemeh/Downloads/dup_s.csv", header=None, index=False)

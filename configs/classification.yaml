@@ -10,7 +10,7 @@ input_file: /content/input.csv # Value: Path
 model_checkpoint: /content/45_best.pth # Value: Path
 save_path: /content/result # Value: Path
 
-# # For my Debugging
+# # # For my Debugging
 # input_file: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv # Value: Path
 # data_file: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/manouvre.csv
 # model_checkpoint: /home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth # Value: Path
