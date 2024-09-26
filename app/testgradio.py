@@ -121,7 +121,7 @@ def process_data(input_file, model_checkpoint, username, password):
         database_url = (
             f"postgresql://{username}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         )
-        print(f"Loading data from {database_url}")
+        print(f"Loading data from database")
         # Read device IDs and time ranges
         dev_st_ends = read_device_time_ranges(input_file)
         if dev_st_ends is None:
@@ -195,7 +195,9 @@ def run_gradio_app():
         ),
     )
 
-    interface.launch(share=True, server_name="127.0.0.1", server_port=7860)
+    interface.launch(
+        share=True, server_name="127.0.0.1", server_port=80
+    )  # server_port=7860)
 
 
 if __name__ == "__main__":

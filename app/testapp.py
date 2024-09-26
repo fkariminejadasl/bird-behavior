@@ -141,7 +141,7 @@ async def process(
         database_url = (
             f"postgresql://{username}:{password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         )
-        print(f"Loading data from {database_url}")
+        print("Loading data from database")
 
         # Read device IDs and time ranges
         dev_st_ends = read_device_time_ranges(input_file)
