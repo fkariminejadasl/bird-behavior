@@ -488,6 +488,10 @@ for p in dpath.glob("*csv"):
     write_w_info(p, save_path/"w_info_orig_length.csv")
 write_info(save_path/"w_data.csv", save_path /"w_info.csv")
 
+# From here: I use the pandas code: The rest is not used.
+# Not used:
+# ===========
+# 
 # Combine all
 # ===========
 combined = combine([save_path/i for i in ["s_data.csv", "w_data.csv", "m_data.csv", "j_data.csv"]])
@@ -618,27 +622,104 @@ bu.plot_one(igs[40:])
 """
 # Duplicates identified
 df = pd.read_csv("/home/fatemeh/Downloads/bird/data/data/combined_s_w_m_j.csv", header=None)
-df_20 = df.iloc[::20]
-sel_df_20 = df_20[[0,1,4,5,6,7]]
-sel_df_20[sel_df_20.duplicated(keep=False)]
 
 # removed: 
 # 6011,2015-04-30 09:10:31 (label 5, 9-> 9 correct)  (120) 71760, 71780, 71860
 (71760, 71780, 71860), (71900, 71920), (72380, 72400)
 bu.plot_one(np.array(df[[4,5,6,7]].iloc[71760:71760+20]))
 bu.plot_one(np.array(df[[4,5,6,7]].iloc[71780:71780+20]))
-df = df.drop(df.index[71780:71780+20])
-df = df.drop(df.index[71860:71860+20])
-df.iloc[71760:71760+20, 3] = 9
-df = df.drop(df.index[71920:71920+20])
-df = df.drop(df.index[72400:72400+20])
-df.to_csv("/home/fatemeh/Downloads/bird/data/data/combined_s_w_m_j_unique.csv", header=None, index=False)
 
 # maybe for figures
 for i in range(10):
     sel_by_label = df_20[df_20[3]==i]
     sel_by_label[[0,1,4,5,6,7]].to_csv(f"/home/fatemeh/Downloads/{i}.csv", header=None, index=False)
 """
+
+
+# Combine csv files
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+csv_files = [
+    save_path / i for i in ["s_data.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
+]
+df_list = []
+for csv_file in csv_files:
+    df = pd.read_csv(csv_file, header=None)
+    df_list.append(df)
+combined_df = pd.concat(df_list, ignore_index=True)
+combined_df.to_csv(save_path / "combined.csv", index=False, header=None)
+
+
+# Find duplicates
+def group_equal_elements(df, subset, indices, equal_func):
+    groups = []  # List to store groups of equal elements
+    visited = set()  # Set to track which indices we have already grouped
+
+    for i in range(len(indices)):
+        if indices[i] in visited:
+            continue  # Skip if this index is already part of a group
+
+        # Start a new group with the current index
+        current_group = [indices[i]]
+        visited.add(indices[i])
+
+        for j in range(i + 1, len(indices)):
+            IS_EQUAL = equal_func(df, subset, indices[i], indices[j])
+            if indices[j] not in visited and IS_EQUAL:
+                current_group.append(indices[j])
+                visited.add(indices[j])
+
+        # Add the group to the list of groups
+        groups.append(current_group)
+
+    return groups
+
+
+def equal_func(df, subset, ind1, ind2):
+    set1 = df[subset].iloc[ind1 : ind1 + 20].reset_index(drop=True)
+    set2 = df[subset].iloc[ind2 : ind2 + 20].reset_index(drop=True)
+    return set1.equals(set2)
+
+
+subset = [0, 1, 4, 5, 6, 7]
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+df = pd.read_csv(save_path / "combined.csv", header=None)
+df_20 = df.iloc[::20]
+sel_df_20 = df_20[subset]
+inds = sel_df_20[sel_df_20.duplicated(keep=False)].index
+
+groups = group_equal_elements(df, subset, inds, equal_func)
+groups = [list(map(int, g)) for g in groups]
+print(groups)
+
+# Collect all the indices to be dropped
+to_drop = []
+for g in groups:
+    if len(g) > 1:
+        # Collect indices to drop (ignoring the first one)
+        to_drop.extend(range(i, i + 20) for i in g[1:])
+
+# Flatten the list of indices to drop
+to_drop = [item for sublist in to_drop for item in sublist]
+
+# Drop all the collected rows at once
+df = df.drop(to_drop)
+
+df.to_csv(save_path / "combined_unique.csv", index=False, header=None)
+
+
+# with open(save_path/"groups.txt", 'w') as file:
+#     for g in groups:
+#         line = ", ".join(map(str, g))
+#         file.write(line + "\n")
+
+# for g in groups:
+#     if len(g)>1:
+#         labels = []
+#         for i in g:
+#             labels.append(int(df.iloc[i, 3]))
+#         if len(set(labels)) !=1:
+#             print(g)
+# confilicting labels: [136980, 137000, 137080], [26140, 119260]
 
 
 def test_duplicates(file_name):
