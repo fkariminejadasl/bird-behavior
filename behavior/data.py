@@ -647,7 +647,7 @@ def match_gps_to_groups(groups, times_gps_infos):
     return [group for group, _ in filtered_groups]
 
 
-def process_data(groups, device_id):
+def format_sensor_data(groups, device_id):
     """
     Process the data groups into the final format.
 
@@ -748,7 +748,7 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     if len(matched_groups) == 0:
         raise ValueError("No matching IMU and GPS data found")
 
-    return process_data(matched_groups, device_id)
+    return format_sensor_data(matched_groups, device_id)
 
 
 def test_identify_and_process_groups():
