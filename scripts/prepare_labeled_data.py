@@ -441,6 +441,9 @@ def change_time_string(time):
 
 
 """
+# Step1: create all the data separately
+# ======
+
 # data
 # ====
 database_url = "postgresql://username:password@host:port/database_name"
@@ -487,11 +490,12 @@ for p in dpath.glob("*csv"):
     write_w_data(p, save_path/"w_data.csv", database_url)
     write_w_info(p, save_path/"w_info_orig_length.csv")
 write_info(save_path/"w_data.csv", save_path /"w_info.csv")
+"""
 
-# From here: I use the pandas code: The rest is not used.
-# Not used:
-# ===========
-# 
+"""
+# !!! > This part is older version only based on id and date, result in less data.
+# !!! > This part is not used anymore. Go to step 2.
+
 # Combine all
 # ===========
 combined = combine([save_path/i for i in ["s_data.csv", "w_data.csv", "m_data.csv", "j_data.csv"]])
@@ -521,10 +525,7 @@ common = data1_common_data2_labels_all(sdata, data)
 common = [[i[0],i[1],'0',i[3],'0'] for i in common]
 [data.remove(i) for i in common]
 save_anything_as_csv(save_path/"judy_info.csv", data)
-"""
 
-
-"""
 # Diff and common
 # ===============
 save_path = Path("/home/fatemeh/Downloads/bird/data")
@@ -558,9 +559,7 @@ save_anything_as_csv(save_path / "w_s_common.csv", common)
 # minfo = load_any_csv(save_path / "m_info.csv")
 # common = data1_common_data2_labels_all(jinfo, minfo)
 # save_anything_as_csv(save_path / "j_m_common.csv", common)
-"""
 
-"""
 # Stats
 # =====
 sdata = load_any_csv(save_path / "s_data.csv")
@@ -598,15 +597,11 @@ for item in [sdata, wdata, jdata, mdata, data]:
 # 4394
 # {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
 # {0: 643, 1: 41, 2: 541, 3: 176, 4: 623, 5: 1507, 6: 342, 7: 29, 8: 150, 9: 342}
-"""
 
-"""
 # example with NULL at last item
 device_id, start_time = 6208, '2015-07-04 10:46:22' # 18
 device_id, start_time = 6073, '2016-06-07 12:43:47' # 17
-"""
 
-""" 
 # plot data
 # 33,2012-05-27 03:05:00 (18), 533,2012-05-27 03:05:00(2)
 database_url = "postgresql://username:password@host:port/database_name"
@@ -635,6 +630,9 @@ for i in range(10):
     sel_by_label[[0,1,4,5,6,7]].to_csv(f"/home/fatemeh/Downloads/{i}.csv", header=None, index=False)
 """
 
+"""
+# Step2: combine data
+# =====
 
 # Combine csv files
 save_path = Path("/home/fatemeh/Downloads/bird/data/final")
@@ -705,36 +703,70 @@ to_drop = [item for sublist in to_drop for item in sublist]
 df = df.drop(to_drop)
 
 df.to_csv(save_path / "combined_unique.csv", index=False, header=None)
+"""
+
+"""
+# Sanity check: check if each group of 20 elemetns has the same device id, date and label
+def validate_group_id_date_label(filename):
+    # This function checks if each group has the same device id, date and label
+
+    df = pd.read_csv(filename, header=None)
+
+    # Define the group size
+    group_size = 20
+
+    # Add a group number column based on row index
+    df["group_number"] = df.index // group_size
+
+    # Iterate over each group
+    for group_num, group in df.groupby("group_number"):
+        # Reset index for clarity
+        group = group.reset_index(drop=True)
+
+        # Extract the reference values from the first row
+        first_col = group.iloc[0, 0]
+        second_col = group.iloc[0, 1]
+        fourth_col = group.iloc[0, 3]
+
+        # Check if all values in the columns match the reference values
+        first_col_match = (group[0] == first_col).all()
+        second_col_match = (group[1] == second_col).all()
+        fourth_col_match = (group[3] == fourth_col).all()
+
+        # Report mismatches
+        if not (first_col_match and second_col_match and fourth_col_match):
+            print(f"Mismatch found in group {group_num + 1}:")
+            if not first_col_match:
+                print(" - First column values are not the same.")
+            if not second_col_match:
+                print(" - Second column values are not the same.")
+            if not fourth_col_match:
+                print(" - Fourth column values are not the same.")
+
+            # Optionally, display differing rows
+            differing_rows = group[
+                (group[0] != first_col)
+                | (group[1] != second_col)
+                | (group[3] != fourth_col)
+            ]
+            print("Differing rows:")
+            print(differing_rows)
+
+    # Check for incomplete final group
+    total_rows = len(df)
+    if total_rows % group_size != 0:
+        print(f"Warning: The last group contains less than {group_size} rows.")
 
 
-# with open(save_path/"groups.txt", 'w') as file:
-#     for g in groups:
-#         line = ", ".join(map(str, g))
-#         file.write(line + "\n")
-
-# for g in groups:
-#     if len(g)>1:
-#         labels = []
-#         for i in g:
-#             labels.append(int(df.iloc[i, 3]))
-#         if len(set(labels)) !=1:
-#             print(g)
-# confilicting labels: [136980, 137000, 137080], [26140, 119260]
+validate_group_id_date_label(
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
+)
 
 
-def test_duplicates(file_name):
-    # {s,w,j,m}_data.csv
-    df = pd.read_csv(f"/home/fatemeh/Downloads/bird/data/data/{file_name}", header=None)
-    subset = [0, 1, 4, 5, 6, 7]
-    unique_duplicates = df[df.duplicated(subset=subset, keep=False)].drop_duplicates()
-
-    duplicate_counting = dict()
-    for index, row in unique_duplicates.iterrows():
-        inds = df[df[subset].eq(row[subset]).all(axis=1)].index
-        duplicate_counting[index] = len(inds)
-    print(file_name)
-    return duplicate_counting
-    # mask = df.duplicated(subset=[0,1,4,5,6,7])
-    # inds = df[mask].index
-    # dup = df.loc[inds]
-    # dup.to_csv("/home/fatemeh/Downloads/dup_s.csv", header=None, index=False)
+# Grouped is the number of unique values for each group of 20 elements.
+df = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv", header=None
+)
+df["group_number"] = df.index // 20
+grouped = df.groupby("group_number")[[0, 1, 3]].nunique()
+"""

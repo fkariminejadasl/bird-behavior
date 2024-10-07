@@ -195,9 +195,7 @@ def run_gradio_app():
         ),
     )
 
-    interface.launch(
-        share=True, server_name="127.0.0.1", server_port=80
-    )  # server_port=7860)
+    interface.launch(share=True, server_name="127.0.0.1", server_port=7860)
 
 
 if __name__ == "__main__":
