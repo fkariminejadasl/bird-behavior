@@ -245,6 +245,61 @@ def save_results(
     # )
 
 
+def per_class_statistics(conf_matrix, target_labels_names):
+    # Calculating True Positives, False Positives, False Negatives, and True Negatives for each class
+    TP = np.diag(conf_matrix)
+    FP = np.sum(conf_matrix, axis=0) - TP
+    FN = np.sum(conf_matrix, axis=1) - TP
+
+    # Calculating precision, recall, F1 score for each class
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
+    f1_score = 2 * (precision * recall) / (precision + recall)
+
+    # Create a DataFrame for easy display
+    metrics_df = pd.DataFrame({
+        'Class': target_labels_names, #range(num_classes),
+        'True Positives (TP)': TP,
+        'False Positives (FP)': FP,
+        'False Negatives (FN)': FN,
+        'Precision': np.round(precision, 2),
+        'Recall': np.round(recall, 2),
+        'F1 Score': np.round(f1_score,2),
+    })
+    return metrics_df
+
+def per_class_statistics_balanced(conf_matrix, target_labels_names):
+    # Step 1: Calculate class weights based on inverse class frequencies
+    num_classes = conf_matrix.shape[0]
+    class_totals = np.sum(conf_matrix, axis=1)
+    total_samples = np.sum(class_totals)
+    class_weights = total_samples / (num_classes * class_totals)
+
+    # Step 2: Create a weighted confusion matrix by applying the class weights
+    weighted_conf_matrix = conf_matrix * class_weights[:, np.newaxis]
+
+    # Step 3: Recalculate True Positives, False Positives, False Negatives, and True Negatives for each class
+    TP_weighted = np.diag(weighted_conf_matrix)
+    FP_weighted = np.sum(weighted_conf_matrix, axis=0) - TP_weighted
+    FN_weighted = np.sum(weighted_conf_matrix, axis=1) - TP_weighted
+
+    # Step 4: Recalculate precision, recall, F1 score based on the weighted confusion matrix
+    precision_weighted = TP_weighted / (TP_weighted + FP_weighted)
+    recall_weighted = TP_weighted / (TP_weighted + FN_weighted)
+    f1_score_weighted = 2 * (precision_weighted * recall_weighted) / (precision_weighted + recall_weighted)
+
+    # Create a new DataFrame for weighted metrics
+    weighted_metrics_df = pd.DataFrame({
+        'Class': target_labels_names,
+        'True Positives (TP)': TP_weighted,
+        'False Positives (FP)': FP_weighted,
+        'False Negatives (FN)': FN_weighted,
+        'Precision': np.round(precision_weighted, 2),
+        'Recall': np.round(recall_weighted, 2),
+        'F1 Score': np.round(f1_score_weighted,2),
+    })
+    return weighted_metrics_df
+
 """
 # TODO add for per class statistics
 import numpy as np
@@ -298,12 +353,13 @@ metrics_df = pd.DataFrame({
     'True Positives (TP)': TP,
     'False Positives (FP)': FP,
     'False Negatives (FN)': FN,
-    'Precision': precision,
-    'Recall': recall,
-    'F1 Score': f1_score
+    'Precision': np.round(precision, 2),
+    'Recall': np.round(recall, 2),
+    'F1 Score': np.round(f1_score,2),
 })
 
 print(metrics_df)
+metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics.csv", index=False)
 
 # Balanced
 # ==================
@@ -332,10 +388,59 @@ weighted_metrics_df = pd.DataFrame({
     'True Positives (TP)': TP_weighted,
     'False Positives (FP)': FP_weighted,
     'False Negatives (FN)': FN_weighted,
-    'Precision': precision_weighted,
-    'Recall': recall_weighted,
-    'F1 Score': f1_score_weighted
+    'Precision': np.round(precision_weighted, 2),
+    'Recall': np.round(recall_weighted, 2),
+    'F1 Score': np.round(f1_score_weighted,2),
 })
 
 print(weighted_metrics_df)
+metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics_balanced.csv", index=False)
+"""
+
+
+"""
+sudo apt install postgresql-plpython3-14
+sudo -u postgres psql
+CREATE DATABASE test;
+\connect test;
+CREATE EXTENSION plpython3u;
+
+CREATE FUNCTION pymax (a integer, b integer)
+  RETURNS integer
+AS $$
+  if a > b:
+    return a
+  return b
+$$ LANGUAGE plpython3u;
+
+SELECT pymax(1,2);
+
+CREATE FUNCTION pymtorch ()
+  RETURNS float8
+AS $$
+  import sys
+  sys.path.append('/home/fkariminej/.local/lib/python3.10/site-packages')
+  import torch
+  x = torch.Tensor([1,3])*torch.Tensor([4,3]).to(torch.float32)
+  return x
+$$ LANGUAGE plpython3u;
+
+DROP FUNCTION pymtorch;
+
+CREATE OR REPLACE FUNCTION show_python_path()
+RETURNS text AS $$
+  import sys
+  sys.path.append('/home/fkariminej/.local/lib/python3.10/site-packages')
+  return sys.executable
+$$ LANGUAGE plpython3u;
+
+CREATE OR REPLACE FUNCTION python_version()
+    RETURNS pg_catalog.text AS $BODY$
+    import sys    
+    plpy.info(sys.version)    
+    return 'finish'
+    $BODY$
+LANGUAGE plpython3u VOLATILE SECURITY DEFINER;
+
+\q
 """

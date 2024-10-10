@@ -36,7 +36,10 @@ notebook = [
     "requests>=2.32.3",
 ]
 # for app: pip install fastapi uvicorn python-multipart gradio build
-
+# pip install .[app]
+notebook = [
+    "gradio",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
