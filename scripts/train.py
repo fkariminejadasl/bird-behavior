@@ -40,7 +40,7 @@ model(x)
 
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 105  # sys.argv[1]
+exp = 106  # sys.argv[1]
 no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
@@ -67,7 +67,7 @@ width = 30
 # combined_file = data_path / "combined.json"
 # all_measurements, label_ids = bd.combine_all_data(combined_file)
 all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
 )
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
 all_measurements, label_ids = bd.get_specific_labesl(
@@ -77,9 +77,8 @@ all_measurements, label_ids = bd.get_specific_labesl(
 # label_ids = np.repeat(label_ids, 2, axis=0)
 # all_measurements = all_measurements.reshape(-1, 10, 4)
 
-# all = 4365
-n_trainings = 100  # (10% data)# int(all_measurements.shape[0] * train_per * data_per)
-n_valid = 100  # all_measurements.shape[0] - n_trainings
+n_trainings = int(all_measurements.shape[0] * train_per * data_per) # 100  # (10% data of 4365)
+n_valid = all_measurements.shape[0] - n_trainings # 100 
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
 train_labels, valid_labels = (
@@ -160,20 +159,20 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-# model = bm.BirdModel(in_channel, width, n_classes).to(device)
+model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
 # model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
-model = bm1.TransformerEncoderMAE(
-    img_size=20,
-    in_chans=4,
-    out_chans=9,
-    embed_dim=16,
-    depth=1,
-    num_heads=8,
-    mlp_ratio=4,
-    drop=0.0,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
-).to(device)
+# model = bm1.TransformerEncoderMAE(
+#     img_size=20,
+#     in_chans=4,
+#     out_chans=9,
+#     embed_dim=16,
+#     depth=1,
+#     num_heads=8,
+#     mlp_ratio=4,
+#     drop=0.0,
+#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+# ).to(device)
 
 # model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint

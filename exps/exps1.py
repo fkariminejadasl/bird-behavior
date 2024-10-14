@@ -35,7 +35,7 @@ ind2name = {
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.9
 data_per = 1
-exp = 45  # sys.argv[1]
+exp = 106  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -54,7 +54,7 @@ fail_path.mkdir(parents=True, exist_ok=True)
 # combined_file = data_path / "combined.json"
 
 all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
 )
 # all_measurements, label_ids = bd.combine_all_data(combined_file)
 # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])

@@ -174,6 +174,11 @@ def helper_results(
     plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
     plot_confusion_matrix(confmat, target_labels)
 
+    metrics_df = per_class_statistics(confmat, target_labels_names)
+    metrics_df.to_csv(fail_path / f"per_class_metrics_{stage}.csv", index=False)
+    metrics_df = per_class_statistics_balanced(confmat, target_labels_names)
+    metrics_df.to_csv(fail_path / f"per_class_metrics_balanced_{stage}.csv", index=False)
+
     # if one of the classes is empty
     inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
     if len(inds) != 0:
@@ -266,7 +271,33 @@ def per_class_statistics(conf_matrix, target_labels_names):
         'Recall': np.round(recall, 2),
         'F1 Score': np.round(f1_score,2),
     })
-    return metrics_df
+
+    # Calculate combined metrics
+    total_TP = np.sum(TP)
+    total_FP = np.sum(FP)
+    total_FN = np.sum(FN)
+
+    # Calculating combined precision, recall, F1 score
+    combined_precision = total_TP / (total_TP + total_FP)
+    combined_recall = total_TP / (total_TP + total_FN)
+    combined_f1_score = 2 * (combined_precision * combined_recall) / (combined_precision + combined_recall)
+
+    # Append combined stats to the DataFrame
+    combined_metrics = pd.DataFrame({
+        'Class': ['Combined'],
+        'True Positives (TP)': [total_TP],
+        'False Positives (FP)': [total_FP],
+        'False Negatives (FN)': [total_FN],
+        'Precision': [np.round(combined_precision, 2)],
+        'Recall': [np.round(combined_recall, 2)],
+        'F1 Score': [np.round(combined_f1_score, 2)],
+    })
+
+    # Combine per class metrics with combined metrics
+    full_metrics_df = pd.concat([metrics_df, combined_metrics], ignore_index=True)
+
+    return full_metrics_df
+
 
 def per_class_statistics_balanced(conf_matrix, target_labels_names):
     # Step 1: Calculate class weights based on inverse class frequencies
@@ -288,17 +319,43 @@ def per_class_statistics_balanced(conf_matrix, target_labels_names):
     recall_weighted = TP_weighted / (TP_weighted + FN_weighted)
     f1_score_weighted = 2 * (precision_weighted * recall_weighted) / (precision_weighted + recall_weighted)
 
-    # Create a new DataFrame for weighted metrics
+    # Create a DataFrame for per-class weighted metrics
     weighted_metrics_df = pd.DataFrame({
         'Class': target_labels_names,
-        'True Positives (TP)': TP_weighted,
-        'False Positives (FP)': FP_weighted,
-        'False Negatives (FN)': FN_weighted,
+        'True Positives (TP)': np.int64(np.round(TP_weighted)),
+        'False Positives (FP)': np.int64(np.round(FP_weighted)),
+        'False Negatives (FN)': np.int64(np.round(FN_weighted)),
         'Precision': np.round(precision_weighted, 2),
         'Recall': np.round(recall_weighted, 2),
-        'F1 Score': np.round(f1_score_weighted,2),
+        'F1 Score': np.round(f1_score_weighted, 2),
     })
-    return weighted_metrics_df
+
+    # Step 5: Calculate combined statistics
+    total_TP_weighted = np.sum(TP_weighted)
+    total_FP_weighted = np.sum(FP_weighted)
+    total_FN_weighted = np.sum(FN_weighted)
+
+    # Calculate combined precision, recall, and F1 score
+    combined_precision_weighted = total_TP_weighted / (total_TP_weighted + total_FP_weighted)
+    combined_recall_weighted = total_TP_weighted / (total_TP_weighted + total_FN_weighted)
+    combined_f1_score_weighted = 2 * (combined_precision_weighted * combined_recall_weighted) / (combined_precision_weighted + combined_recall_weighted)
+
+    # Create a row for the combined statistics
+    combined_metrics = pd.DataFrame({
+        'Class': ['Combined'],
+        'True Positives (TP)': [np.int64(np.round(total_TP_weighted))],
+        'False Positives (FP)': [np.int64(np.round(total_FP_weighted))],
+        'False Negatives (FN)': [np.int64(np.round(total_FN_weighted))],
+        'Precision': [np.round(combined_precision_weighted, 2)],
+        'Recall': [np.round(combined_recall_weighted, 2)],
+        'F1 Score': [np.round(combined_f1_score_weighted, 2)],
+    })
+
+    # Combine per-class metrics with combined metrics
+    full_metrics_df = pd.concat([weighted_metrics_df, combined_metrics], ignore_index=True)
+
+    return full_metrics_df
+
 
 """
 # TODO add for per class statistics
@@ -334,65 +391,10 @@ conf_matrix = np.array([
     [   0,    0,    4,    1,    0,   18,   21,    2,  267]
 ])
 
-# Number of classes
-num_classes = conf_matrix.shape[0]
-
-# Calculating True Positives, False Positives, False Negatives, and True Negatives for each class
-TP = np.diag(conf_matrix)
-FP = np.sum(conf_matrix, axis=0) - TP
-FN = np.sum(conf_matrix, axis=1) - TP
-
-# Calculating precision, recall, F1 score for each class
-precision = TP / (TP + FP)
-recall = TP / (TP + FN)
-f1_score = 2 * (precision * recall) / (precision + recall)
-
-# Create a DataFrame for easy display
-metrics_df = pd.DataFrame({
-    'Class': target_labels_names, #range(num_classes),
-    'True Positives (TP)': TP,
-    'False Positives (FP)': FP,
-    'False Negatives (FN)': FN,
-    'Precision': np.round(precision, 2),
-    'Recall': np.round(recall, 2),
-    'F1 Score': np.round(f1_score,2),
-})
-
+metrics_df = per_class_statistics(conf_matrix, target_labels_names)
 print(metrics_df)
-metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics.csv", index=False)
-
-# Balanced
-# ==================
-
-# Step 1: Calculate class weights based on inverse class frequencies
-class_totals = np.sum(conf_matrix, axis=1)
-total_samples = np.sum(class_totals)
-class_weights = total_samples / (num_classes * class_totals)
-
-# Step 2: Create a weighted confusion matrix by applying the class weights
-weighted_conf_matrix = conf_matrix * class_weights[:, np.newaxis]
-
-# Step 3: Recalculate True Positives, False Positives, False Negatives, and True Negatives for each class
-TP_weighted = np.diag(weighted_conf_matrix)
-FP_weighted = np.sum(weighted_conf_matrix, axis=0) - TP_weighted
-FN_weighted = np.sum(weighted_conf_matrix, axis=1) - TP_weighted
-
-# Step 4: Recalculate precision, recall, F1 score based on the weighted confusion matrix
-precision_weighted = TP_weighted / (TP_weighted + FP_weighted)
-recall_weighted = TP_weighted / (TP_weighted + FN_weighted)
-f1_score_weighted = 2 * (precision_weighted * recall_weighted) / (precision_weighted + recall_weighted)
-
-# Create a new DataFrame for weighted metrics
-weighted_metrics_df = pd.DataFrame({
-    'Class': target_labels_names,
-    'True Positives (TP)': TP_weighted,
-    'False Positives (FP)': FP_weighted,
-    'False Negatives (FN)': FN_weighted,
-    'Precision': np.round(precision_weighted, 2),
-    'Recall': np.round(recall_weighted, 2),
-    'F1 Score': np.round(f1_score_weighted,2),
-})
-
-print(weighted_metrics_df)
-metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics_balanced.csv", index=False)
+# metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics.csv", index=False)
+metrics_df = per_class_statistics_balanced(conf_matrix, target_labels_names)
+print(metrics_df)
+# metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics_balanced.csv", index=False)
 """

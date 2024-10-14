@@ -11,6 +11,9 @@ The data is combination of several annotation. Since they are in different forma
 Original data is 3505 fixes (70100 data points) of 20 length after removing the other class 3480 fixes​ remain. After combining data 8805 fixes (176100 data points) of 20 length and after remvong the other class 8742 fixes remain.
 {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
 {0: 1488, 1: 101, 2: 1142, 3: 352, 4: 1374, 5: 2676, 6: 755, 7: 63, 8: 335, 9: 519}
+- final/s_data.csv # 3505 no others 3480
+- final/combined_unique.csv # 8805 no others 8742
+- data/combined_s_w_m_j.csv" # old 4394 no others 4365
 
 Data in memory
 ==============
