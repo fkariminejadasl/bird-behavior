@@ -14,20 +14,10 @@ from torch.utils.data import DataLoader, random_split
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
+from behavior import utils as bu
 
 # import wandb
 # wandb.init(project="uncategorized")
-
-# There are more into reproducibility:
-# https://pytorch.org/docs/stable/notes/randomness.html
-seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)  # for multiple gpu
-generator = torch.Generator().manual_seed(seed)  # for random_split
-# torch.cuda.manual_seed(seed)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
 
 """
 # quick model test
@@ -38,21 +28,14 @@ model = bm.BirdModel(4, 30, 10)
 model(x)
 """
 
-
+seed = 1234
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 106  # sys.argv[1]
-no_epochs = 2000  # int(sys.argv[2])
+exp = 108  # sys.argv[1]
+no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
-# target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
-# target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
-# target_labels = [0, 2, 4, 5]
-# target_labels = [8, 9]
-# target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
-n_classes = len(target_labels)
+n_classes = len(bu.target_labels)
 # hyperparam
 warmup_epochs = 1000
 step_size = 2000
@@ -62,94 +45,27 @@ weight_decay = 1e-2  # default 1e-2
 # model
 width = 30
 
-# """
-# data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-# combined_file = data_path / "combined.json"
-# all_measurements, label_ids = bd.combine_all_data(combined_file)
-all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
-)
-# label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
-all_measurements, label_ids = bd.get_specific_labesl(
-    all_measurements, label_ids, target_labels
-)
-# make data shorter
-# label_ids = np.repeat(label_ids, 2, axis=0)
-# all_measurements = all_measurements.reshape(-1, 10, 4)
 
-n_trainings = int(all_measurements.shape[0] * train_per * data_per) # 100  # (10% data of 4365)
-n_valid = all_measurements.shape[0] - n_trainings # 100 
-train_measurments = all_measurements[:n_trainings]
-valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-train_labels, valid_labels = (
-    label_ids[:n_trainings],
-    label_ids[n_trainings : n_trainings + n_valid],
-)
-print(
-    len(train_labels),
-    len(valid_labels),
-    train_measurments.shape,
-    valid_measurements.shape,
-)
-train_dataset = bd.BirdDataset(train_measurments, train_labels)
-eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
 
-# ind_data = int(data_per * len(all_measurements))
-# all_measurements, label_ids = all_measurements[:ind_data], label_ids[:ind_data]
-# dataset = bd.BirdDataset(all_measurements, label_ids)
-# train_size = int(train_per * len(dataset))
-# val_size = len(dataset) - train_size
-# train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=len(train_dataset),
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=len(eval_dataset),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-
-"""
-csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
-csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-csv_files = [str(csv_file) for csv_file in csv_files]
-
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
-# dataset = bd.BirdDataset2(
-#     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
-# )
-dataset = bd.BirdDataset3(csv_files)
-# Calculate the sizes for training and validation datasets
-train_size = int(train_per * data_per * len(dataset))
-val_size = len(dataset) - train_size
-
-# Use random_split to divide the dataset
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=len(train_dataset),
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=len(eval_dataset),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-"""
-
+bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, bu.target_labels)
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=len(train_dataset),
+    shuffle=True,
+    num_workers=1,
+    drop_last=True,
+)
+eval_loader = DataLoader(
+    eval_dataset,
+    batch_size=len(eval_dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=True,
+)
+
 
 """
 torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
@@ -157,7 +73,6 @@ dataloader change 1xCxL to Nx1xCxL
 I don't use ToTensor anymore. I put everything now in dataset instead of model.
 """
 
-print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
@@ -244,6 +159,40 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 # 1-based save for epoch
 bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
 
+bm.load_model(save_path / f"{exp}_best.pth", model, device)
+model.eval()
+fail_path = save_path / f"failed/{exp}"
+fail_path.mkdir(parents=True, exist_ok=True)
+
+data, ldts = next(iter(train_loader))
+bu.helper_results(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+    fail_path,
+    bu.target_labels,
+    bu.target_labels_names,
+    n_classes,
+    stage="train",
+    SAVE_FAILED=False,
+)
+
+data, ldts = next(iter(eval_loader))
+bu.helper_results(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+    fail_path,
+    bu.target_labels,
+    bu.target_labels_names,
+    n_classes,
+    stage="valid",
+    SAVE_FAILED=False,
+)
 
 """
 from copy import deepcopy

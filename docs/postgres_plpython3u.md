@@ -134,6 +134,12 @@ To facilitate authentication, create a PostgreSQL user matching your Linux syste
    sudo systemctl stop postgresql@14-main.service
    ```
 
+   You can find the services:
+
+   ```bash
+   systemctl list-units --type=service | grep postgresql
+   ```
+
 6. **Run the Script as the `postgres` User**:
 
    ```bash
@@ -173,7 +179,7 @@ To avoid manually stopping and restarting PostgreSQL every time the machine star
 1. **Create a New Systemd Service File**:
 
    ```bash
-   sudo nano /etc/systemd/system/newpostgres.service
+   sudo vi /etc/systemd/system/newpostgres.service
    ```
 
 2. **Add the Following Configuration**:

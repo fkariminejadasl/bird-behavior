@@ -8,9 +8,8 @@ from typing import Union
 import matplotlib.pylab as plt
 import numpy as np
 import psycopg2
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
-# np.random.seed(0)
 """
 about data:
 Per location, there is 20 accelaration measurements and the time stamp and gps speed are the same
@@ -902,6 +901,56 @@ def load_csv(csv_file, g_len=20):
     ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 3)[:, 0, :]
     return igs, ldts
 
+
+def prepare_train_valid_dataset(train_per, data_per, target_labels):
+    """Load and prepare data, return train and eval Dataset."""
+    # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/combined.json")
+    # all_measurements, label_ids = bd.combine_all_data(data_path)
+    all_measurements, label_ids = load_csv(
+        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"# s_data.csv"
+    )
+    # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
+    all_measurements, label_ids = get_specific_labesl(
+        all_measurements, label_ids, target_labels
+    )
+    # make data shorter
+    # label_ids = np.repeat(label_ids, 2, axis=0)
+    # all_measurements = all_measurements.reshape(-1, 10, 4)
+
+    n_trainings = int(all_measurements.shape[0] * train_per * data_per) # 100  # (10% data of 4365)
+    n_valid = all_measurements.shape[0] - n_trainings # 100 
+    train_measurments = all_measurements[:n_trainings]
+    valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+    train_labels, valid_labels = (
+        label_ids[:n_trainings],
+        label_ids[n_trainings : n_trainings + n_valid],
+    )
+
+    train_dataset = BirdDataset(train_measurments, train_labels)
+    eval_dataset = BirdDataset(valid_measurements, valid_labels)
+
+    # train_size = int(train_per * len(dataset))
+    # val_size = len(dataset) - train_size
+    # train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
+
+    # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
+    # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+    # csv_files = [str(csv_file) for csv_file in csv_files]
+
+    # # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
+    # # dataset = bd.BirdDataset2(
+    # #     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
+    # # )
+    # dataset = bd.BirdDataset3(csv_files)
+
+    print(
+        len(train_labels),
+        len(valid_labels),
+        train_measurments.shape,
+        valid_measurements.shape,
+    )
+
+    return train_dataset, eval_dataset
 
 # TODO to check and remove
 

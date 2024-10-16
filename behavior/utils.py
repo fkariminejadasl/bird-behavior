@@ -7,11 +7,40 @@ import pandas as pd
 import torch
 from sklearn.metrics import average_precision_score, confusion_matrix
 
-seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
-
 gps_scale = 22.3012351755624
+
+ind2name = {
+    0: "Flap",
+    1: "ExFlap",
+    2: "Soar",
+    3: "Boat",
+    4: "Float",
+    5: "SitStand",
+    6: "TerLoco",
+    7: "Other",
+    8: "Manouvre",
+    9: "Pecking",
+}
+
+target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
+target_labels_names = [ind2name[t] for t in target_labels]
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
+# target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
+# target_labels = [0, 2, 4, 5]
+# target_labels = [8, 9]
+# target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
+
+def set_seed(seed):
+    """Ensure reproducibility."""
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # for multiple gpu
+    generator = torch.Generator().manual_seed(seed)  # for random_split
+    # torch.cuda.manual_seed(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
 
 
 def plot_confusion_matrix(confusion_matrix, class_names):
@@ -51,22 +80,21 @@ def plot_one(data):
     return ax
 
 
-def save_data_prediction(save_path, label, pred, conf, data, ldts):
+def save_data_prediction(save_path, label, pred, conf, data, ldts, idx):
     """
     data: np.ndary
         Lx4: L: length is usually 20
     """
-    rand = np.random.randint(0, 255, 1)[0]
     gps = np.float32(data[0, -1] * gps_scale)
     t = datetime.fromtimestamp(ldts[2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    name = f"time:{t}, gps:{gps:.4f}, dev:{ldts[1]},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
+    name = f"{idx}, time:{t}, dev:{ldts[1]}, gps:{gps:.4f},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
     ax.set_xlim(0, 20)
     ax.set_ylim(-3.5, 3.5)
     plt.title(name)
     name = " ".join(name.split("\n"))
-    plt.savefig(save_path / f"{name}_{rand}.png", bbox_inches="tight")
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
     plt.close()
     return name
 
@@ -153,11 +181,11 @@ def helper_results(
 ):
     with torch.no_grad():
         labels = ldts[:, 0]
-        labels = labels.to(device)
+        labels = labels.to(device)  # N
         data = data.to(device)  # N x C x L
         outputs = model(data)  # N x C
         prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
-        pred = torch.argmax(outputs.data, 1)
+        pred = torch.argmax(outputs.data, 1) # N
         # loss and accuracy
         loss = criterion(outputs, labels)  # 1
         corrects = (pred == labels).sum().item()
@@ -189,13 +217,13 @@ def helper_results(
         ap = average_precision_score(labels, np.argmax(prob, axis=1))
     else:
         ap = average_precision_score(labels, prob)
-    print(ap, loss.item(), accuracy)
+    print(f"AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}")
     print(confmat)
 
     if SAVE_FAILED:
         names = []
         inds = np.where(pred != labels)[0]
-        for ind in inds:
+        for i, ind in enumerate(inds):
             label_name = target_labels_names[labels[ind]]
             if label_name == "Pecking":
                 pred_name = target_labels_names[pred[ind]]
@@ -203,7 +231,7 @@ def helper_results(
                 data_item = data[ind].transpose(1, 0).cpu().numpy()
                 ldts_item = ldts[ind]
                 name = save_data_prediction(
-                    fail_path, label_name, pred_name, conf, data_item, ldts_item
+                    fail_path, label_name, pred_name, conf, data_item, ldts_item, i
                 )
                 names.append(name)
         with open(fail_path / "results.txt", "a") as f:
@@ -238,16 +266,6 @@ def save_results(
         probs,
         target_labels_names,
     )
-
-    # # TODO saving some data
-    # ind = 0
-    # pred_name = target_labels_names[preds[ind]]
-    # conf = probs[ind, preds[ind]]
-    # data_item = data[ind].transpose(1, 0).cpu().numpy()
-    # ldts_item = idts[ind]
-    # _ = save_data_prediction(
-    #     save_file.parent, pred_name, pred_name, conf, data_item, ldts_item
-    # )
 
 
 def per_class_statistics(conf_matrix, target_labels_names):
@@ -356,27 +374,10 @@ def per_class_statistics_balanced(conf_matrix, target_labels_names):
 
     return full_metrics_df
 
-
 """
-# TODO add for per class statistics
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_recall_fscore_support
-
-ind2name = {
-    0: "Flap",
-    1: "ExFlap",
-    2: "Soar",
-    3: "Boat",
-    4: "Float",
-    5: "SitStand",
-    6: "TerLoco",
-    7: "Other",
-    8: "Manouvre",
-    9: "Pecking",
-}
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-target_labels_names = [ind2name[t] for t in target_labels]
 
 # Confusion matrix provided by the user
 conf_matrix = np.array([
@@ -398,3 +399,12 @@ metrics_df = per_class_statistics_balanced(conf_matrix, target_labels_names)
 print(metrics_df)
 # metrics_df.to_csv("/home/fatemeh/Downloads/per_class_metrics_balanced.csv", index=False)
 """
+
+# ind = 0
+# pred_name = target_labels_names[preds[ind]]
+# conf = probs[ind, preds[ind]]
+# data_item = data[ind].transpose(1, 0).cpu().numpy()
+# ldts_item = idts[ind]
+# _ = save_data_prediction(
+#     save_file.parent, 'float', 'pred_float', .54, data_item, ldts_item, i
+# )
