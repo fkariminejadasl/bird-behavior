@@ -1,5 +1,3 @@
-import time
-from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -8,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import torchvision
 import tqdm
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, Dataset, random_split

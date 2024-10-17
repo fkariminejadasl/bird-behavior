@@ -10,18 +10,18 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
+from behavior.utils import n_classes, target_labels, target_labels_names
 
 # import wandb
 # wandb.init(project="uncategorized")
 
 seed = 1234
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
 train_per = 0.5
 data_per = 1
 exp = 107  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
-n_classes = len(bu.target_labels)
+save_path = Path("/home/fatemeh/Downloads/bird/result/")
 fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
@@ -29,7 +29,7 @@ fail_path.mkdir(parents=True, exist_ok=True)
 bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, bu.target_labels)
+train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, target_labels)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),
@@ -71,8 +71,7 @@ bu.helper_results(
     criterion,
     device,
     fail_path,
-    bu.target_labels,
-    bu.target_labels_names,
+    target_labels_names,
     n_classes,
     stage="train",
     SAVE_FAILED=False,
@@ -86,8 +85,7 @@ bu.helper_results(
     criterion,
     device,
     fail_path,
-    bu.target_labels,
-    bu.target_labels_names,
+    target_labels_names,
     n_classes,
     stage="valid",
     SAVE_FAILED=False,
@@ -98,7 +96,7 @@ print(sum([p.numel() for p in model.parameters()]))
 
 # bad classes: Other, Exflap (less data), Pecking (noisy), Manuver/Mix
 
-# for i in range(len(bu.target_labels)):
+# for i in range(len(target_labels)):
 #     inds = torch.where(labels == 3)[0]
 #     sel_labels = labels[inds]
 #     sel_prob = prob[inds]

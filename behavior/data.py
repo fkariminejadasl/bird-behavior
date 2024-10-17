@@ -8,7 +8,7 @@ from typing import Union
 import matplotlib.pylab as plt
 import numpy as np
 import psycopg2
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
 """
 about data:
@@ -359,6 +359,14 @@ def combine_all_data(data_file):
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
 
 
+def reindex_ids(ldts):
+    unique_ids = set(ldts[:, 0])
+    new_ldts = ldts.copy()
+    for i, unique_id in enumerate(unique_ids):
+        new_ldts[ldts[:, 0] == unique_id, 0] = i
+    return new_ldts
+
+
 def get_specific_labesl(all_measurements, ldts, target_labels):
     """
     e.g. target_labels=[0, 2, 4, 5]
@@ -387,14 +395,6 @@ def combine_specific_labesl(ldts, target_labels):
     new_ldts = ldts.copy()
     for i in target_labels:
         new_ldts[ldts[:, 0] == i] = new_id
-    return new_ldts
-
-
-def reindex_ids(ldts):
-    unique_ids = set(ldts[:, 0])
-    new_ldts = ldts.copy()
-    for i, unique_id in enumerate(unique_ids):
-        new_ldts[ldts[:, 0] == unique_id, 0] = i
     return new_ldts
 
 

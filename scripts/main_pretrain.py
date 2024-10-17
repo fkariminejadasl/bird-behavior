@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision
 import tqdm
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
@@ -14,6 +13,8 @@ from torch.utils.data import DataLoader
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
+from behavior import utils as bu
+from behavior.utils import target_labels
 
 
 def write_info_in_tensorboard(writer, epoch, loss, stage):
@@ -71,8 +72,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
 # wandb.init(project="uncategorized")
 
 seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
+bu.set_seed(seed)
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 exp = "p5"  # sys.argv[1]
@@ -80,9 +80,7 @@ no_epochs = 12000  # int(sys.argv[2])
 save_every = 6000
 train_per = 0.9
 data_per = 1.0
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 
-n_classes = len(target_labels)
 # hyperparam
 warmup_epochs = 1000
 step_size = 6000

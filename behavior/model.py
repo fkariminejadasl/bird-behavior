@@ -10,9 +10,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.vision_transformer import VisionTransformer
 
+from behavior import utils as bu
+
 seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
+bu.set_seed(seed)
 
 
 class BirdModel(nn.Module):

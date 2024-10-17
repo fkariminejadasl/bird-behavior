@@ -1,4 +1,3 @@
-from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -6,23 +5,21 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision
 import tqdm
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
+from behavior import utils as bu
+from behavior.utils import target_labels
 
 # import wandb
 # wandb.init(project="uncategorized")
 
 seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
-generator = torch.Generator().manual_seed(seed)  # for random_split
-
+bu.set_seed(seed)
 
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 exp = "f12"  # sys.argv[1]
@@ -30,8 +27,6 @@ no_epochs = 2000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
-n_classes = len(target_labels)
 # hyperparam
 warmup_epochs = 1000
 step_size = 2000

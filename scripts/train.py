@@ -1,20 +1,16 @@
-from copy import deepcopy
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 
-import numpy as np
 import torch
-import torch.nn as nn
-import torchvision
 import tqdm
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
+from behavior.utils import n_classes, target_labels
 
 # import wandb
 # wandb.init(project="uncategorized")
@@ -35,7 +31,6 @@ no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
 data_per = 1.0
-n_classes = len(bu.target_labels)
 # hyperparam
 warmup_epochs = 1000
 step_size = 2000
@@ -50,7 +45,7 @@ width = 30
 bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, bu.target_labels)
+train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, target_labels)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),
@@ -172,7 +167,6 @@ bu.helper_results(
     criterion,
     device,
     fail_path,
-    bu.target_labels,
     bu.target_labels_names,
     n_classes,
     stage="train",
@@ -187,7 +181,6 @@ bu.helper_results(
     criterion,
     device,
     fail_path,
-    bu.target_labels,
     bu.target_labels_names,
     n_classes,
     stage="valid",

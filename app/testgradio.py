@@ -9,11 +9,11 @@ from torch.utils.data import DataLoader
 from behavior import data as bd
 from behavior import model as bm
 from behavior import utils as bu
+from behavior.utils import n_classes, target_labels_names
 
 # Set random seeds for reproducibility
 seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
+bu.set_seed(seed)
 
 # Fixed database parameters
 DB_HOST = "pub.e-ecology.nl"
@@ -105,9 +105,6 @@ def process_data(input_file, model_checkpoint, username, password):
     save_path.mkdir(parents=True, exist_ok=True)
 
     # Prepare labels and model
-    target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # Exclude 'Other'
-    target_labels_names = [ind2name[t] for t in target_labels]
-    n_classes = len(target_labels)
     model, device = initialize_model(model_checkpoint, n_classes)
 
     # Ensure username and password are provided

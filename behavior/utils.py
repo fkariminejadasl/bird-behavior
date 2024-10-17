@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, Tuple
 
 import matplotlib.pyplot as plt
@@ -24,6 +25,8 @@ ind2name = {
 
 target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 target_labels_names = [ind2name[t] for t in target_labels]
+new_label_inds = np.arange(len(target_labels))
+n_classes = len(target_labels_names)
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
@@ -37,7 +40,7 @@ def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)  # for multiple gpu
-    generator = torch.Generator().manual_seed(seed)  # for random_split
+    # generator = torch.Generator().manual_seed(seed)  # for random_split
     # torch.cuda.manual_seed(seed)
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
@@ -80,11 +83,12 @@ def plot_one(data):
     return ax
 
 
-def save_data_prediction(save_path, label, pred, conf, data, ldts, idx):
+def save_data_prediction(save_path: Path, label, pred, conf, data, ldts, idx):
     """
     data: np.ndary
         Lx4: L: length is usually 20
     """
+    save_path.mkdir(parents=True, exist_ok=True)
     gps = np.float32(data[0, -1] * gps_scale)
     t = datetime.fromtimestamp(ldts[2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     name = f"{idx}, time:{t}, dev:{ldts[1]}, gps:{gps:.4f},\nlabel:{label}, pred:{pred}, conf:{conf:.1f}"
@@ -172,8 +176,7 @@ def helper_results(
     model,
     criterion,
     device,
-    fail_path,
-    target_labels,
+    fail_path: Path,
     target_labels_names,
     n_classes,
     stage="valid",
@@ -196,11 +199,10 @@ def helper_results(
     pred = pred.cpu().numpy()
 
     # confusion matrix
-    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels)))
+    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels_names)))
     # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
     plot_confusion_matrix(confmat, target_labels_names)
     plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
-    plot_confusion_matrix(confmat, target_labels)
 
     metrics_df = per_class_statistics(confmat, target_labels_names)
     metrics_df.to_csv(fail_path / f"per_class_metrics_{stage}.csv", index=False)
@@ -237,6 +239,39 @@ def helper_results(
         with open(fail_path / "results.txt", "a") as f:
             [f.write(f"{name}\n") for name in names]
 
+def save_plots_for_specific_label(
+    data,
+    ldts,
+    model,
+    device,
+    fail_path: Path,
+    target_labels_names,
+    query_label = "Pecking",
+):
+    with torch.no_grad():
+        labels = ldts[:, 0]
+        labels = labels.to(device)  # N
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+        pred = torch.argmax(outputs.data, 1) # N
+
+    labels = labels.cpu().numpy()
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+
+    query_ind = [int(ind) for ind, name in zip(new_label_inds, target_labels_names) if name == query_label][0]
+    inds = np.where(labels == query_ind)[0]
+    save_path = fail_path / query_label
+    for i, ind in enumerate(inds):
+        label_name = target_labels_names[labels[ind]]
+        pred_name = target_labels_names[pred[ind]]
+        conf = prob[ind, pred[ind]]
+        data_item = data[ind].transpose(1, 0).cpu().numpy()
+        ldts_item = ldts[ind]
+        _ = save_data_prediction(
+            save_path, label_name, pred_name, conf, data_item, ldts_item, i
+        )
 
 def save_results(
     save_file,
