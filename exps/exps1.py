@@ -29,7 +29,9 @@ fail_path.mkdir(parents=True, exist_ok=True)
 bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(train_per, data_per, target_labels)
+train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+    train_per, data_per, target_labels
+)
 train_loader = DataLoader(
     train_dataset,
     batch_size=len(train_dataset),

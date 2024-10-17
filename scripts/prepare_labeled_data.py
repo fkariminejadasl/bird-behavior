@@ -630,14 +630,44 @@ for i in range(10):
     sel_by_label[[0,1,4,5,6,7]].to_csv(f"/home/fatemeh/Downloads/{i}.csv", header=None, index=False)
 """
 
+
 """
+# Before Step2:
+# =====
+# Since s_data.csv generated before. The indices are only the starting indices. Here they are changed as
+# they are in the database (zero-based).
+
+# def modify_index(group):
+#     if len(group) == 20:
+#         start_value = int(
+#             group.iloc[0, 2]
+#         )  # Get the starting value from the third column (df[2])
+#         group[2] = range(
+#             start_value, start_value + 20
+#         )  # Replace with sequential numbers
+#     return group
+
+
+# df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
+# grouped = df.groupby([0, 1, 2, 3], sort=False)  # otherwise group is sorting
+# modified_df2 = (
+#     grouped[[0, 1, 2, 3, 4, 5, 6, 7]].apply(modify_index).reset_index(drop=True)
+# )
+# modified_df2.to_csv(
+#     "/home/fatemeh/Downloads/bird/data/final/s_data_modified.csv",
+#     index=False,
+#     header=None,
+#     float_format="%.8f",
+# )
+
 # Step2: combine data
 # =====
 
 # Combine csv files
 save_path = Path("/home/fatemeh/Downloads/bird/data/final")
 csv_files = [
-    save_path / i for i in ["s_data.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
+    save_path / i
+    for i in ["s_data_modified.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
 ]
 df_list = []
 for csv_file in csv_files:
@@ -702,7 +732,9 @@ to_drop = [item for sublist in to_drop for item in sublist]
 # Drop all the collected rows at once
 df = df.drop(to_drop)
 
-df.to_csv(save_path / "combined_unique.csv", index=False, header=None)
+df.to_csv(
+    save_path / "combined_unique.csv", index=False, header=None, float_format="%.8f"
+)
 """
 
 """
@@ -761,7 +793,6 @@ def validate_group_id_date_label(filename):
 validate_group_id_date_label(
     "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
 )
-
 
 # Grouped is the number of unique values for each group of 20 elements.
 df = pd.read_csv(

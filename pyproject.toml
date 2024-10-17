@@ -37,7 +37,7 @@ notebook = [
 ]
 # for app: pip install fastapi uvicorn python-multipart gradio build
 # pip install .[app]
-notebook = [
+app = [
     "gradio",
 ]
 

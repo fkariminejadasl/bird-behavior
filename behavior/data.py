@@ -907,7 +907,7 @@ def prepare_train_valid_dataset(train_per, data_per, target_labels):
     # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/combined.json")
     # all_measurements, label_ids = bd.combine_all_data(data_path)
     all_measurements, label_ids = load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"# s_data.csv"
+        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data.csv"
     )
     # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
     all_measurements, label_ids = get_specific_labesl(
@@ -917,8 +917,10 @@ def prepare_train_valid_dataset(train_per, data_per, target_labels):
     # label_ids = np.repeat(label_ids, 2, axis=0)
     # all_measurements = all_measurements.reshape(-1, 10, 4)
 
-    n_trainings = int(all_measurements.shape[0] * train_per * data_per) # 100  # (10% data of 4365)
-    n_valid = all_measurements.shape[0] - n_trainings # 100 
+    n_trainings = int(
+        all_measurements.shape[0] * train_per * data_per
+    )  # 100  # (10% data of 4365)
+    n_valid = all_measurements.shape[0] - n_trainings  # 100
     train_measurments = all_measurements[:n_trainings]
     valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
     train_labels, valid_labels = (
@@ -951,6 +953,7 @@ def prepare_train_valid_dataset(train_per, data_per, target_labels):
     )
 
     return train_dataset, eval_dataset
+
 
 # TODO to check and remove
 

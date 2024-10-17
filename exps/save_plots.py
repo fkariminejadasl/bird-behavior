@@ -21,8 +21,8 @@ bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 measurements, ldts = bd.load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"# s_data.csv"
-    )
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data.csv"
+)
 measurements, ldts = bd.get_specific_labesl(measurements, ldts, target_labels)
 
 dataset = bd.BirdDataset(measurements, ldts)
@@ -42,12 +42,5 @@ model.eval()
 
 data, ldts = next(iter(data_loader))
 bu.save_plots_for_specific_label(
-    data,
-    ldts,
-    model,
-    device,
-    fail_path,
-    bu.target_labels_names,
-    query_label="Soar"
+    data, ldts, model, device, fail_path, bu.target_labels_names, query_label="Soar"
 )
-

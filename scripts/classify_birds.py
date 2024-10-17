@@ -21,6 +21,7 @@ DB_HOST = "pub.e-ecology.nl"
 DB_PORT = 5432
 DB_NAME = "eecology"
 
+
 def process_config(config_path):
     """Load configuration from a YAML file."""
     with open(config_path, "r") as config_file:
