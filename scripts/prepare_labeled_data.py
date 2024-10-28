@@ -52,12 +52,35 @@ ind2name = {
 """
 
 
-def find_matching_index(array, target, step=20, tolerance=1e-5):
-    for i in range(0, len(array), step):
-        if all(np.isclose(array[i], target, atol=tolerance)):
+# def find_matching_index(array, target, step=20, tolerance=1e-5):
+#     for i in range(0, len(array), step):
+#         if all(np.isclose(array[i], target, atol=tolerance)):
+#             return i
+#     return -1
+
+def find_matching_index(keys, query, glen=20, tol=1e-6):
+    """
+    find matching two rows
+    """
+    len_keys = len(keys)
+    for i in range(0, len_keys-1):
+        cond1 = all(np.isclose(keys[i], query[0], atol=tol)) 
+        cond2 = all(np.isclose(keys[i+1], query[1], atol=tol))
+        cond3 = i + glen <= len_keys
+        if cond1 & cond2 & cond3:
             return i
     return -1
 
+def test_find_matching_index():
+    df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_modified.csv", header=None)
+    # dup_inds = list(df_s[df_s.duplicated(df_s)].index)
+    dup_ind = 59621
+    device_id, start_time = df_s.iloc[dup_ind][[0, 1]] # 871, "2014-05-20 06:53:09"
+    gimus, idts, llat = bd.get_data(database_url, device_id, start_time, start_time)
+    keys = gimus[:,:3]
+    query = np.array(df_s.iloc[dup_ind:dup_ind+2][[4,5,6]])
+    i = find_matching_index(keys, query)
+    assert i == 1
 
 def write_info(csv_file, save_file):
     """
@@ -100,9 +123,8 @@ def write_j_info(json_file, csv_file):
         for item in items:
             f.write(item)
 
-
-def write_j_data(
-    json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20
+def write_j_data_orig(
+    json_file, save_file, new2old_labels, ignored_labels
 ):
     """
     read json data and append indices
@@ -124,32 +146,128 @@ def write_j_data(
         start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        igs, idts, _ = bd.get_data(
-            database_url, device_id, start_time, start_time, glen
-        )
-        if len(igs) == 0:
-            print(device_id, start_time)
-            continue
-        ind = find_matching_index(igs[:, 0:3], meas[0, :3], 1)
-        indices = idts[ind : ind + glen, 0]
-        sel_igs = igs[ind : ind + glen]
-        if ind + glen > len(igs):
-            print("not in database; use json data", device_id, start_time, indices[0])
-            if len(meas) != glen:
-                continue
-            sel_igs = meas
-            indices = np.concatenate((indices, -np.ones(glen - len(indices))))
 
-        for i, index in zip(sel_igs, indices):
+        for i in meas:
             item = (
-                f"{device_id},{start_time},{index},{label},{i[0]:.8f},{i[1]:.8f},"
-                f"{i[2]:.8f},{i[3]:.8f}\n"
+                f"{device_id},{start_time},{-1},{label},{i[0]:.6f},{i[1]:.6f},"
+                f"{i[2]:.6f},{i[3]:.6f}\n"
             )
             items.append(item)
 
     with open(save_file, "w") as f:
         for item in items:
             f.write(item)
+
+# json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv")
+# write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in ind2name}, ignored_labels=[])
+
+# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data_orig.csv")
+# json_file = dpath / "combined.json"
+# bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+# ignored_labels = [8, 14, 15, 16, 17]
+# write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels)
+
+# b = set(list(map(int, np.unique(df[0])))) #22
+# [(df[df[0]==533][1].min(), df[df[0]==i][1].max()) for i in b] 
+# [(6016, '2012-05-15 03:10:11', '2015-05-01 11:30:06'), (781, '2012-05-15 03:10:11', '2013-05-29 22:18:28'), (782, '2012-05-15 03:10:11', '2014-05-31 22:43:03'), (533, '2012-05-15 03:10:11', '2012-05-27 03:50:46'), (534, '2012-05-15 03:10:11', '2013-06-10 23:03:18'), (537, '2012-05-15 03:10:11', '2013-06-06 23:04:18'), (541, '2012-05-15 03:10:11', '2012-05-18 14:55:06'), (798, '2012-05-15 03:10:11', '2012-06-13 22:38:46'), (805, '2012-05-15 03:10:11', '2014-06-07 23:09:35'), (806, '2012-05-15 03:10:11', '2014-05-16 23:34:31'), (6073, '2012-05-15 03:10:11', '2016-06-07 12:45:07'), (6206, '2012-05-15 03:10:11', '2015-06-28 20:25:54'), (1600, '2012-05-15 03:10:11', '2014-05-20 15:28:57'), (6080, '2012-05-15 03:10:11', '2014-06-26 08:17:12'), (6208, '2012-05-15 03:10:11', '2015-07-04 10:50:16'), (6210, '2012-05-15 03:10:11', '2016-05-09 11:09:55'), (606, '2012-05-15 03:10:11', '2014-06-08 12:52:07'), (608, '2012-05-15 03:10:11', '2013-05-31 23:44:40'), (871, '2012-05-15 03:10:11', '2014-05-20 13:08:17'), (754, '2012-05-15 03:10:11', '2013-06-03 07:17:02'), (757, '2012-05-15 03:10:11', '2014-05-18 23:26:24'), (6011, '2012-05-15 03:10:11', '2015-04-30 09:31:06')]# df_m[df_m.duplicated(df_m)].index
+
+
+def write_j_data(
+    json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20
+):
+    """
+    read json data and append indices
+
+    input:  device, time, index, label, imux, imuy, imuz, gps
+    e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+    """
+
+    all_measurements, ldts = bd.combine_all_data(json_file)
+
+    file = open(save_file, "w")
+    for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
+        # labels read 0-based
+        if ldt[0] in ignored_labels:
+            continue
+        label = new2old_labels[ldt[0]]
+        device_id = ldt[1]
+        timestamp = ldt[2]
+        start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        igs, idts, _ = bd.get_data(
+            database_url, device_id, start_time, start_time, glen
+        )
+        if len(igs) == 0:
+            print("not in database", device_id, start_time, meas[0])
+            continue
+        ind = find_matching_index(igs[:, 0:3], meas[0:2, :3], glen)
+        if ind == -1:
+            print("not in database", device_id, start_time)
+            continue
+        indices = idts[ind : ind + glen, 0]
+        sel_igs = igs[ind : ind + glen]
+
+        for i, index in zip(sel_igs, indices):
+            item = (
+                f"{device_id},{start_time},{index},{label},{i[0]:.6f},{i[1]:.6f},"
+                f"{i[2]:.6f},{i[3]:.6f}\n"
+            )
+            file.write(item)
+        file.flush()
+            
+# def write_j_data(
+#     json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20
+# ):
+#     """
+#     read json data and append indices
+
+#     input:  device, time, index, label, imux, imuy, imuz, gps
+#     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+#     """
+
+#     all_measurements, ldts = bd.combine_all_data(json_file)
+
+#     items = []
+#     for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
+#         # labels read 0-based
+#         if ldt[0] in ignored_labels:
+#             continue
+#         label = new2old_labels[ldt[0]]
+#         device_id = ldt[1]
+#         timestamp = ldt[2]
+#         start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+#             "%Y-%m-%d %H:%M:%S"
+#         )
+#         igs, idts, _ = bd.get_data(
+#             database_url, device_id, start_time, start_time, glen
+#         )
+#         if len(igs) == 0:
+#             print(device_id, start_time)
+#             continue
+#         ind = find_matching_index(igs[:, 0:3], meas[0, :3], 1)
+#         indices = idts[ind : ind + glen, 0]
+#         sel_igs = igs[ind : ind + glen]
+#         if ind + glen > len(igs):
+#             print("not in database; use json data", device_id, start_time, indices[0])
+#             if len(meas) != glen:
+#                 continue
+#             sel_igs = meas
+#             indices = np.concatenate((indices, -np.ones(glen - len(indices))))
+
+#         for i, index in zip(sel_igs, indices):
+#             item = (
+#                 f"{device_id},{start_time},{index},{label},{i[0]:.8f},{i[1]:.8f},"
+#                 f"{i[2]:.8f},{i[3]:.8f}\n"
+#             )
+#             items.append(item)
+
+#     with open(save_file, "w") as f:
+#         for item in items:
+#             f.write(item)
 
 
 def write_m_info(mat_file, save_file, new2old_labels, ignored_labels):
@@ -440,6 +558,16 @@ def change_time_string(time):
     )
 
 
+# json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data.csv")
+# write_j_data(json_file, save_file, database_url, new2old_labels = {k:k for k in ind2name}, ignored_labels=[], glen=20)
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+ignored_labels = [8, 14, 15, 16, 17]
+json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data.csv")
+write_j_data(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
+
+
 """
 # Step1: create all the data separately
 # ======
@@ -451,23 +579,26 @@ save_path = Path("/home/fatemeh/Downloads/bird/data")
 
 # set1 (s_data, s_info)
 # ====================
-dpath = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-save_file = save_path / "s_data.csv"
+dpath = Path("/home/fatemeh/Downloads/bird/data/set1/data")
 json_file = dpath / "combined.json"
 bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data.csv")
 write_j_data(json_file, save_file, database_url, new2old_labels = {k:k for k in ind2name}, ignored_labels=[], glen=20)
-write_info(save_path/"s_data.csv", save_path /"s_info.csv")
+# write_info(save_path/"s_data.csv", save_path /"s_info.csv")
+
 
 # Sus (j_data, j_info)
 # ====================
-dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
-save_file = save_path / "j_data.csv"
+dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 json_file = dpath / "combined.json"
 new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
 ignored_labels = [8, 14, 15, 16, 17]
+json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data.csv")
 write_j_data(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
-write_info(save_file, save_path /"j_info.csv")
+# write_info(save_file, save_path /"j_info.csv")
 
 
 # Sus (m_data, m_info)
@@ -637,14 +768,13 @@ for i in range(10):
 # Since s_data.csv generated before. The indices are only the starting indices. Here they are changed as
 # they are in the database (zero-based).
 
+
 # def modify_index(group):
 #     if len(group) == 20:
-#         start_value = int(
-#             group.iloc[0, 2]
-#         )  # Get the starting value from the third column (df[2])
-#         group[2] = range(
-#             start_value, start_value + 20
-#         )  # Replace with sequential numbers
+#         # Get the starting value from the third column (df[2])
+#         start_value = int(group.iloc[0, 2])
+#         # Replace with sequential numbers
+#         group[2] = range(start_value, start_value + 20)
 #     return group
 
 
@@ -664,17 +794,18 @@ for i in range(10):
 # =====
 
 # Combine csv files
-save_path = Path("/home/fatemeh/Downloads/bird/data/final")
-csv_files = [
-    save_path / i
-    for i in ["s_data_modified.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
-]
-df_list = []
-for csv_file in csv_files:
-    df = pd.read_csv(csv_file, header=None)
-    df_list.append(df)
-combined_df = pd.concat(df_list, ignore_index=True)
-combined_df.to_csv(save_path / "combined.csv", index=False, header=None)
+# save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+# csv_files = [
+#     save_path / i
+#     for i in ["s_data_modified.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
+# ]
+# df_list = []
+# for csv_file in csv_files:
+#     df = pd.read_csv(csv_file, header=None)
+#     df[[4, 5, 6, 7]] = df[[4, 5, 6, 7]].round(6)
+#     df_list.append(df)
+# combined_df = pd.concat(df_list, ignore_index=True)
+# combined_df.to_csv(save_path / "combined.csv", index=False, header=None)
 
 
 # Find duplicates
@@ -682,7 +813,7 @@ def group_equal_elements(df, subset, indices, equal_func):
     groups = []  # List to store groups of equal elements
     visited = set()  # Set to track which indices we have already grouped
 
-    for i in range(len(indices)):
+    for i in tqdm(range(len(indices))):
         if indices[i] in visited:
             continue  # Skip if this index is already part of a group
 
@@ -691,16 +822,16 @@ def group_equal_elements(df, subset, indices, equal_func):
         visited.add(indices[i])
 
         for j in range(i + 1, len(indices)):
-            IS_EQUAL = equal_func(df, subset, indices[i], indices[j])
-            if indices[j] not in visited and IS_EQUAL:
-                current_group.append(indices[j])
-                visited.add(indices[j])
+            if indices[j] not in visited:
+                IS_EQUAL = equal_func(df, subset, indices[i], indices[j])
+                if IS_EQUAL:
+                    current_group.append(indices[j])
+                    visited.add(indices[j])
 
         # Add the group to the list of groups
         groups.append(current_group)
 
     return groups
-
 
 def equal_func(df, subset, ind1, ind2):
     set1 = df[subset].iloc[ind1 : ind1 + 20].reset_index(drop=True)
@@ -708,14 +839,33 @@ def equal_func(df, subset, ind1, ind2):
     return set1.equals(set2)
 
 
+def group_equal_elements_optimized(df, subset, indices):
+    hashes = {}
+    for idx in tqdm(indices):
+        # Round the float columns to avoid precision issues
+        set1 = df[subset].iloc[idx:idx + 20].reset_index(drop=True)
+        set1_rounded = set1.round(6)
+        group_rows = pd.util.hash_pandas_object(set1_rounded).values.tobytes()
+
+        if group_rows not in hashes:
+            hashes[group_rows] = []
+        hashes[group_rows].append(idx)
+
+    # Extract groups of duplicates from the hash map
+    groups = [group for group in hashes.values() if len(group) > 1]
+    
+    return groups
+
 subset = [0, 1, 4, 5, 6, 7]
 save_path = Path("/home/fatemeh/Downloads/bird/data/final")
-df = pd.read_csv(save_path / "combined.csv", header=None)
+df = pd.read_csv(save_path / "combined_unique.csv", header=None)
 df_20 = df.iloc[::20]
 sel_df_20 = df_20[subset]
 inds = sel_df_20[sel_df_20.duplicated(keep=False)].index
+print(len(inds))
 
 groups = group_equal_elements(df, subset, inds, equal_func)
+# groups = group_equal_elements_optimized(df, subset, inds)
 groups = [list(map(int, g)) for g in groups]
 print(groups)
 
@@ -733,7 +883,7 @@ to_drop = [item for sublist in to_drop for item in sublist]
 df = df.drop(to_drop)
 
 df.to_csv(
-    save_path / "combined_unique.csv", index=False, header=None, float_format="%.8f"
+    save_path / "combined_unique2.csv", index=False, header=None, float_format="%.6f"
 )
 """
 
@@ -800,4 +950,23 @@ df = pd.read_csv(
 )
 df["group_number"] = df.index // 20
 grouped = df.groupby("group_number")[[0, 1, 3]].nunique()
+"""
+
+"""
+# df = pd.read_csv("/home/fatemeh/Downloads/combined_unique.csv", header=None)
+# df2 = df[df[3]==2].copy()
+# group[[4,5,6,7]] = group[[4,5,6,7]].round(6)
+
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv", header=None)
+df8 = df[df[3]==8].copy()
+
+grouped = df8.groupby([0,1], sort=False)
+
+for name in grouped.groups.keys():
+    print(name)
+    print(grouped.get_group(name).sort_values(by=2))
+
+group = grouped.get_group((805, '2014-06-07 09:34:03')).sort_values(by=2)
+
+# 176100, 22840, 6700
 """
