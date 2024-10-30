@@ -202,7 +202,7 @@ def get_per_location_measurements(item):
     return measurements
 
 
-def read_data(json_path: Union[Path, str]):
+def read_json_data(json_path: Union[Path, str]):
     with open(json_path, "r") as rfile:
         data = json.load(rfile)
 
@@ -336,11 +336,11 @@ def combine_jsons_to_one_json(json_files, save_file):
         json.dump(combined_data, combined_file)
 
 
-def combine_all_data(data_file):
+def load_all_data_from_json(json_file):
     """
     Parameters
     ----------
-    data_file: Path
+    json_file: Path
         json file
 
     Returns
@@ -349,14 +349,17 @@ def combine_all_data(data_file):
         first: N x 20 x 4, float64
         second: N x 3, int64
     """
-    labels, label_ids, device_ids, time_stamps, all_measurements = read_data(data_file)
+    _, label_ids, device_ids, time_stamps, all_measurements = read_json_data(json_file)
     label_device_times = np.stack((label_ids, device_ids, time_stamps)).T
-
-    inds = np.arange(all_measurements.shape[0])
-    np.random.shuffle(inds)
-    all_measurements = all_measurements[inds]
-    label_device_times = np.array(label_device_times)[inds]
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
+
+
+def shuffle_data(gimus, idts):
+    inds = np.arange(gimus.shape[0])
+    np.random.shuffle(inds)
+    gimus = gimus[inds]
+    idts = idts[inds]
+    return gimus.astype(np.float64), idts.astype(np.int64)
 
 
 def reindex_ids(ldts):
@@ -905,7 +908,7 @@ def load_csv(csv_file, g_len=20):
 def prepare_train_valid_dataset(train_per, data_per, target_labels):
     """Load and prepare data, return train and eval Dataset."""
     # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/combined.json")
-    # all_measurements, label_ids = bd.combine_all_data(data_path)
+    # all_measurements, label_ids = bd.shuffle_data(*bd.load_all_data_from_json(data_path))
     all_measurements, label_ids = load_csv(
         "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data.csv"
     )
@@ -956,149 +959,6 @@ def prepare_train_valid_dataset(train_per, data_per, target_labels):
 
 
 # TODO to check and remove
-
-"""
-# plot data 
-data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-train_file = data_path / "train_set.json"
-valid_file = data_path / "validation_set.json"
-test_file = data_path / "test_set.json"
-combined_file = data_path / "combined.json"
-# combine_jsons_to_one_json([train_file, valid_file, test_file], combined_file)
-# labels, label_ids, device_ids, time_stamps, all_measurements = read_data(combined_file)
-
-
-all_measurements, ldts = combine_all_data(combined_file)
-alabel_ids = ldts[:, 0]
-agps_imus = np.empty(shape=(0, 20, 4))
-for i in range(0, 10):
-    agps_imus = np.concatenate((agps_imus, all_measurements[alabel_ids == i]), axis=0)
-agps_imus = agps_imus.reshape(-1, 4)
-rep_labels = np.sort(np.repeat(alabel_ids, 20))
-
-# agps_imus, new_ids = get_specific_labesl(
-#     all_measurements, label_ids, target_labels=[0, 2, 4, 5]
-# )
-# agps_imus = agps_imus.reshape(-1, 4)
-# rep_labels = np.repeat(new_ids, 20)
-
-_, axs = plt.subplots(3, 1, sharex=True)
-axs[0].plot(rep_labels)
-axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
-axs[2].plot(agps_imus[:, 3])
-plt.show(block=False)
-
-agps_imus[:, 3] = agps_imus[:, 3] / agps_imus[:, 3].max()
-_, axs = plt.subplots(3, 1, sharex=True)
-axs[0].plot(rep_labels)
-axs[1].plot(agps_imus[:, 0], "r-*", agps_imus[:, 1], "b-*", agps_imus[:, 2], "g-*")
-axs[2].plot(agps_imus[:, 3])
-plt.show(block=False)
-"""
-
-# dd = loadmat(data_path / "AnnAcc1600_20140520_152300-20140520_153000.mat")['outputStruct']
-# dd['accX'][0][0][82][0][0] # accY, accZ contains nan and variale length 12-40
-# dd['annotations'][0][0] # ind=0 for data, ind=1-2 start-end of indices in tags, ind=3 for label
-# dd['tags'][0][0][0][82]
-# dd['gpsSpd'][0][0]
-# np.isnan(dd['accZ'][0][0][82][0][0][-1]) # True
-
-
-def count_id(dd, id_):
-    count = 0
-    for t in dd["tags"][0][0][0]:
-        id_count = sum(t[t[:, 0] == id_][:, 1])
-        count += id_count
-    return count
-
-
-def get_start_end_inds_one_tag(i, tag, id_):
-    inds = np.where(tag[:, 0] == id_)[0]
-    start_ends = []
-    if inds.size != 0:
-        change_id_inds = np.where(np.diff(inds) != 1)[0] + 1
-        change_inds = list(inds[change_id_inds])
-        change_inds_before = list(inds[change_id_inds - 1] + 1)
-        start_ind, end_ind = inds[0], inds[-1] + 1
-        start_ends = [
-            (i, start, end, end - start)
-            for start, end in zip(
-                [start_ind] + change_inds, change_inds_before + [end_ind]
-            )
-        ]
-    return start_ends
-
-
-def get_start_end_inds(dd, id_):
-    all_start_ends = []
-    for i, tag in enumerate(dd["tags"][0][0][0]):
-        start_ends = get_start_end_inds_one_tag(i, tag, id_)
-        if start_ends:
-            all_start_ends += start_ends
-            print(start_ends)
-    return all_start_ends
-
-
-"""
-# {1: 968, 6: 606, 7: 17, 11: 60, 12: 36, 14: 8, 15: 1, 16: 10, 17: 1, 18: 171}
-id_count = dict()
-for id_ in [12]:  # range(1, 19):
-    counts = 0
-    for data_file in data_path.glob("*.mat"):
-        print(data_file.stem)
-        dd = loadmat(data_file)["outputStruct"]
-        all_start_ends = get_start_end_inds(id_)
-        for i, s, e, _ in all_start_ends:
-            print(dd["sampleID"][0][0][0, i])
-        counts += sum([c // 20 for i, s, e, c in all_start_ends])
-    if counts != 0:
-        id_count[id_] = counts
-
-i = 30
-year, month, day = (
-    dd["year"][0][0][0, i],
-    dd["month"][0][0][0, i],
-    dd["day"][0][0][0, i],
-)
-hour, min, sec = dd["hour"][0][0][0, i], dd["min"][0][0][0, i], dd["sec"][0][0][i, 0]
-timestamp = (
-    datetime(year, month, day, hour, min, sec).replace(tzinfo=timezone.utc).timestamp()
-)
-tags = dd["tags"][0][0][0][i][49:76]
-device_id = dd["sampleID"][0][0][0, i]  # ?
-imu_x = dd["accX"][0][0][i][0][0][49:76]
-imu_y = dd["accY"][0][0][i][0][0][49:76]
-imu_z = dd["accZ"][0][0][i][0][0][49:76]
-gps_single = dd["gpsSpd"][0][0][i, 0]
-assert len(set(tags[:, 0])) == 1
-assert set(tags[:, 1]) == {1}
-assert not any(np.isnan(imu_x))
-assert not any(np.isnan(imu_y))
-assert not any(np.isnan(imu_z))
-assert not np.isnan(gps_single)
-label = tags[0, 0]
-gps = np.repeat(gps_single, len(imu_x))
-data = np.stack((imu_x, imu_y, imu_z, gps)).T
-data = data[None, ...]  # 1 x N x 4
-
-print(id_count)
-"""
-
-"""
-def test(model, n=10):
-    a = all_measurements[0:n].copy()
-    a[..., 3] = a[..., 3] / 22.3012351755624
-    a = torch.tensor(a.astype(np.float32)).transpose(2,1)
-    out = model(a)
-    print(torch.argmax(out, axis=1).tolist())
-    print(label_ids[0:n])
-
-b1 = torch.concat((torch.normal(0, .01, size=(20,1)), torch.normal(0, .01, size=(20,1)), torch.normal(0, .1, size=(20,1)), torch.rand(20,1)*.001), axis=1).T.unsqueeze(0) + a1
-a2 = torch.concat((a[0:1], a[6:7]), axis=2)
-m = np.concatenate((all_measurements[0], all_measurements[5]), axis=0)
-_, axs = plt.subplots(3, 1, sharex=True);axs[1].plot(m[:, 0], "r-*", m[ :, 1], "b-*", m[:, 2], "g-*");axs[2].plot(m[:, 3]);plt.show(block=False)
-"""
-
 
 """
 # get statistics for all data

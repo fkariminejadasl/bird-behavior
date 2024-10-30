@@ -12,13 +12,13 @@ train_path = data_path / "train_set.json"
 valid_path = data_path / "validation_set.json"
 test_path = data_path / "test_set.json"
 
-labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = bd.read_data(
+labels1, label_ids1, device_ids1, time_stamps1, all_measurements1 = bd.read_json_data(
     train_path
 )
-labels2, label_ids2, device_ids2, time_stamps2, all_measurements2 = bd.read_data(
+labels2, label_ids2, device_ids2, time_stamps2, all_measurements2 = bd.read_json_data(
     valid_path
 )
-labels3, label_ids3, device_ids3, time_stamps3, all_measurements3 = bd.read_data(
+labels3, label_ids3, device_ids3, time_stamps3, all_measurements3 = bd.read_json_data(
     test_path
 )
 device_ids = device_ids1 + device_ids2 + device_ids3
@@ -48,54 +48,6 @@ for freq in unique_device:
 plt.axhline(y=533, color="g", linestyle="-", linewidth=0.8)
 plt.show(block=False)
 print("something")
-
-"""
-import json
-def get_per_location_measurements(item):
-    measurements = []
-    for measurement in item:
-        measurements.append(
-            [
-                measurement["x"],
-                measurement["y"],
-                measurement["z"],
-                measurement["gpsSpeed"],
-                measurement["index"],
-            ]
-        )
-    return measurements
-
-def read_data2(json_path):
-    with open(json_path, "r") as rfile:
-        data = json.load(rfile)
-
-    labels = []
-    label_ids = []
-    device_ids = []
-    time_stamps = []
-    all_measurements = []
-    first_indexs = []
-    for item in data:
-        label = item["labelDetail"]["description"]
-        label_id = item["labelDetail"]["labelId"] - 1  # change it to zero based
-        device_id = item["gpsRecord"]["deviceId"]
-        first_index = item["gpsRecord"]["firstIndex"]
-        time_stamp = item["gpsRecord"]["timeStamp"] % 1000
-        measurements = get_per_location_measurements(item["gpsRecord"]["measurements"])
-        labels.append(label)
-        label_ids.append(label_id)
-        device_ids.append(device_id)
-        time_stamps.append(time_stamp)
-        all_measurements.append(measurements)
-        first_indexs.append(first_index)
-    # all_measurements = np.array(all_measurements)
-    return labels, label_ids, device_ids, time_stamps, all_measurements, first_indexs
-
-labels1, label_ids1, device_ids1, time_stamps1, all_measurements1, first_indexs1 = read_data2(train_path)
-labels2, label_ids2, device_ids2, time_stamps2, all_measurements2, first_indexs2 = read_data2(valid_path)
-labels3, label_ids3, device_ids3, time_stamps3, all_measurements3, first_indexs3 = read_data2(test_path)
-"""
-
 
 device_ids = device_ids1 + device_ids2 + device_ids3
 time_stamps = time_stamps1 + time_stamps2 + time_stamps3
@@ -144,7 +96,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data")
-ms, ldts = bd.combine_all_data(data_path / "combined.json")
+ms, ldts = bd.load_all_data_from_json(data_path / "combined.json")
 # extraannotations_533_15052012.csv
 with open(
     "/home/fatemeh/Downloads/bird/judy_annotations/extraannotations_533_15052012.csv",

@@ -58,29 +58,35 @@ ind2name = {
 #             return i
 #     return -1
 
-def find_matching_index(keys, query, glen=20, tol=1e-6):
+
+def find_matching_index(keys, query, glen=20, tol=1e-5):
     """
     find matching two rows
     """
     len_keys = len(keys)
-    for i in range(0, len_keys-1):
-        cond1 = all(np.isclose(keys[i], query[0], atol=tol)) 
-        cond2 = all(np.isclose(keys[i+1], query[1], atol=tol))
+    for i in range(0, len_keys - 1):
+        cond1 = all(np.isclose(keys[i], query[0], atol=tol))
+        cond2 = all(np.isclose(keys[i + 1], query[1], atol=tol))
         cond3 = i + glen <= len_keys
         if cond1 & cond2 & cond3:
             return i
     return -1
 
+
 def test_find_matching_index():
-    df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_modified.csv", header=None)
-    # dup_inds = list(df_s[df_s.duplicated(df_s)].index)
+    database_url = "put the database address here"
+    df_s = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/s_data_modified.csv", header=None
+    )
+    # dup_inds = list(df_s[df_s.duplicated()].index)
     dup_ind = 59621
-    device_id, start_time = df_s.iloc[dup_ind][[0, 1]] # 871, "2014-05-20 06:53:09"
+    device_id, start_time = df_s.iloc[dup_ind][[0, 1]]  # 871, "2014-05-20 06:53:09"
     gimus, idts, llat = bd.get_data(database_url, device_id, start_time, start_time)
-    keys = gimus[:,:3]
-    query = np.array(df_s.iloc[dup_ind:dup_ind+2][[4,5,6]])
+    keys = gimus[:, :3]
+    query = np.array(df_s.iloc[dup_ind : dup_ind + 2][[4, 5, 6]])
     i = find_matching_index(keys, query)
     assert i == 1
+
 
 def write_info(csv_file, save_file):
     """
@@ -109,9 +115,44 @@ def write_info(csv_file, save_file):
             f.write(item)
 
 
+def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
+    """
+    Get all the data from the database (1930 requests)
+    """
+    # data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+    unique_dt = (
+        data[[0, 1]].drop_duplicates().sort_values(by=[0, 1]).reset_index(drop=True)
+    )
+
+    file = open(save_file, "w")
+    for _, row in tqdm(unique_dt.iterrows()):
+        device_id, start_time = list(row)
+        try:
+            igs, idts, _ = bd.get_data(
+                database_url, device_id, start_time, start_time, glen
+            )
+        except Exception as e:
+            print(f"Error during data processing or saving results: {e}")
+            continue
+        if len(igs) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+
+        indices = idts[:, 0]
+        sel_igs = np.round(igs, 6)
+        for i, index in zip(sel_igs, indices):
+            item = (
+                f"{device_id},{start_time},{index},-1,{i[0]:.6f},{i[1]:.6f},"
+                f"{i[2]:.6f},{i[3]:.6f}\n"
+            )
+            file.write(item)
+        file.flush()
+    file.close()
+
+
 def write_j_info(json_file, csv_file):
     # output: device, time, count, label, ind
-    igs, ldts = bd.combine_all_data(json_file)
+    igs, ldts = bd.load_all_data_from_json(json_file)
     items = []
     for ig, ldt in zip(igs, ldts):
         t = datetime.fromtimestamp(ldt[2], tz=timezone.utc).strftime(
@@ -123,17 +164,16 @@ def write_j_info(json_file, csv_file):
         for item in items:
             f.write(item)
 
-def write_j_data_orig(
-    json_file, save_file, new2old_labels, ignored_labels
-):
+
+def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
     """
-    read json data and append indices
+    read json data and save it as formatted csv file
 
     input:  device, time, index, label, imux, imuy, imuz, gps
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
     """
 
-    all_measurements, ldts = bd.combine_all_data(json_file)
+    all_measurements, ldts = bd.load_all_data_from_json(json_file)
 
     items = []
     for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
@@ -148,6 +188,7 @@ def write_j_data_orig(
         )
 
         for i in meas:
+            i = np.round(i, 6)
             item = (
                 f"{device_id},{start_time},{-1},{label},{i[0]:.6f},{i[1]:.6f},"
                 f"{i[2]:.6f},{i[3]:.6f}\n"
@@ -157,22 +198,6 @@ def write_j_data_orig(
     with open(save_file, "w") as f:
         for item in items:
             f.write(item)
-
-# json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv")
-# write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in ind2name}, ignored_labels=[])
-
-# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data_orig.csv")
-# json_file = dpath / "combined.json"
-# bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-# ignored_labels = [8, 14, 15, 16, 17]
-# write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels)
-
-# b = set(list(map(int, np.unique(df[0])))) #22
-# [(df[df[0]==533][1].min(), df[df[0]==i][1].max()) for i in b] 
-# [(6016, '2012-05-15 03:10:11', '2015-05-01 11:30:06'), (781, '2012-05-15 03:10:11', '2013-05-29 22:18:28'), (782, '2012-05-15 03:10:11', '2014-05-31 22:43:03'), (533, '2012-05-15 03:10:11', '2012-05-27 03:50:46'), (534, '2012-05-15 03:10:11', '2013-06-10 23:03:18'), (537, '2012-05-15 03:10:11', '2013-06-06 23:04:18'), (541, '2012-05-15 03:10:11', '2012-05-18 14:55:06'), (798, '2012-05-15 03:10:11', '2012-06-13 22:38:46'), (805, '2012-05-15 03:10:11', '2014-06-07 23:09:35'), (806, '2012-05-15 03:10:11', '2014-05-16 23:34:31'), (6073, '2012-05-15 03:10:11', '2016-06-07 12:45:07'), (6206, '2012-05-15 03:10:11', '2015-06-28 20:25:54'), (1600, '2012-05-15 03:10:11', '2014-05-20 15:28:57'), (6080, '2012-05-15 03:10:11', '2014-06-26 08:17:12'), (6208, '2012-05-15 03:10:11', '2015-07-04 10:50:16'), (6210, '2012-05-15 03:10:11', '2016-05-09 11:09:55'), (606, '2012-05-15 03:10:11', '2014-06-08 12:52:07'), (608, '2012-05-15 03:10:11', '2013-05-31 23:44:40'), (871, '2012-05-15 03:10:11', '2014-05-20 13:08:17'), (754, '2012-05-15 03:10:11', '2013-06-03 07:17:02'), (757, '2012-05-15 03:10:11', '2014-05-18 23:26:24'), (6011, '2012-05-15 03:10:11', '2015-04-30 09:31:06')]# df_m[df_m.duplicated(df_m)].index
 
 
 def write_j_data(
@@ -185,7 +210,7 @@ def write_j_data(
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
     """
 
-    all_measurements, ldts = bd.combine_all_data(json_file)
+    all_measurements, ldts = bd.load_all_data_from_json(json_file)
 
     file = open(save_file, "w")
     for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
@@ -198,18 +223,22 @@ def write_j_data(
         start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        igs, idts, _ = bd.get_data(
-            database_url, device_id, start_time, start_time, glen
-        )
+        try:
+            igs, idts, _ = bd.get_data(
+                database_url, device_id, start_time, start_time, glen
+            )
+        except Exception as e:
+            print(f"Error during data processing or saving results: {e}")
+            continue
         if len(igs) == 0:
             print("not in database", device_id, start_time, meas[0])
             continue
         ind = find_matching_index(igs[:, 0:3], meas[0:2, :3], glen)
         if ind == -1:
-            print("not in database", device_id, start_time)
+            print("not in database", device_id, start_time, meas[0])
             continue
         indices = idts[ind : ind + glen, 0]
-        sel_igs = igs[ind : ind + glen]
+        sel_igs = np.round(igs[ind : ind + glen], 6)
 
         for i, index in zip(sel_igs, indices):
             item = (
@@ -218,56 +247,7 @@ def write_j_data(
             )
             file.write(item)
         file.flush()
-            
-# def write_j_data(
-#     json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20
-# ):
-#     """
-#     read json data and append indices
-
-#     input:  device, time, index, label, imux, imuy, imuz, gps
-#     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
-#     """
-
-#     all_measurements, ldts = bd.combine_all_data(json_file)
-
-#     items = []
-#     for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
-#         # labels read 0-based
-#         if ldt[0] in ignored_labels:
-#             continue
-#         label = new2old_labels[ldt[0]]
-#         device_id = ldt[1]
-#         timestamp = ldt[2]
-#         start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
-#             "%Y-%m-%d %H:%M:%S"
-#         )
-#         igs, idts, _ = bd.get_data(
-#             database_url, device_id, start_time, start_time, glen
-#         )
-#         if len(igs) == 0:
-#             print(device_id, start_time)
-#             continue
-#         ind = find_matching_index(igs[:, 0:3], meas[0, :3], 1)
-#         indices = idts[ind : ind + glen, 0]
-#         sel_igs = igs[ind : ind + glen]
-#         if ind + glen > len(igs):
-#             print("not in database; use json data", device_id, start_time, indices[0])
-#             if len(meas) != glen:
-#                 continue
-#             sel_igs = meas
-#             indices = np.concatenate((indices, -np.ones(glen - len(indices))))
-
-#         for i, index in zip(sel_igs, indices):
-#             item = (
-#                 f"{device_id},{start_time},{index},{label},{i[0]:.8f},{i[1]:.8f},"
-#                 f"{i[2]:.8f},{i[3]:.8f}\n"
-#             )
-#             items.append(item)
-
-#     with open(save_file, "w") as f:
-#         for item in items:
-#             f.write(item)
+    file.close()
 
 
 def write_m_info(mat_file, save_file, new2old_labels, ignored_labels):
@@ -318,14 +298,13 @@ def write_m_info(mat_file, save_file, new2old_labels, ignored_labels):
             f.write(item)
 
 
-def write_m_data(mat_file, save_file, new2old_labels, ignored_labels, database_url):
-    """
-    index is -1: not available and not getting from database
-    """
-    items = []
+def write_m_data(
+    mat_file, save_file, new2old_labels, ignored_labels, database_url, glen=20
+):
     dd = loadmat(mat_file)["outputStruct"]
     n_data = dd["nOfSamples"][0][0][0][0]
 
+    file = open(save_file, "a")
     for i in range(n_data):
         year, month, day, hour, min, sec = (
             dd["year"][0][0][0, i],
@@ -341,7 +320,7 @@ def write_m_data(mat_file, save_file, new2old_labels, ignored_labels, database_u
         imu_x = dd["accX"][0][0][i][0][0]
         imu_y = dd["accY"][0][0][i][0][0]
         imu_z = dd["accZ"][0][0][i][0][0]
-        gps_single = dd["gpsSpd"][0][0][i, 0]
+        # gps_single = dd["gpsSpd"][0][0][i, 0]
         tags = dd["tags"][0][0][0][i]
 
         labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
@@ -363,33 +342,156 @@ def write_m_data(mat_file, save_file, new2old_labels, ignored_labels, database_u
                 else (len(inds) // 20) * 20
             )
 
-            if 14 <= len(inds) < 20:  # TODO
-                igs, idts, _ = bd.get_data(database_url, device_id, t, t)
-                if len(igs) < 20:  # TODO
+            if 14 <= len(inds):
+                ig = np.array(
+                    [[imu_x[0], imu_y[0], imu_z[0]], [imu_x[1], imu_y[1], imu_z[1]]]
+                )
+                try:
+                    igs, idts, _ = bd.get_data(database_url, device_id, t, t, glen)
+                except Exception as e:
+                    print(f"Error during data processing or saving results: {e}")
                     continue
-                ig = np.array([imu_x[0], imu_y[0], imu_z[0]])
-                ind = find_matching_index(igs[:, :3], ig, step=1)
+                if len(igs) == 0:
+                    print("not in database", device_id, t, ig[0])
+                    continue
+                ind = find_matching_index(igs[:, 0:3], ig, glen=20)
                 if ind == -1:
+                    print("not in database", device_id, t, ig[0])
                     continue
-                if (ind + max_len) > len(igs):
-                    continue
-                sel_igs = igs[ind : ind + max_len]
+                sel_igs = np.round(igs[ind : ind + max_len], 6)
                 sel_idts = idts[ind : ind + max_len]
                 for ig, idt in zip(sel_igs, sel_idts):
-                    item = f"{device_id},{t},{idt[0]},{nlabel},{ig[0]:.8f},{ig[1]:.8f},{ig[2]:.8f},{ig[3]:.8f}\n"
-                    items.append(item)
+                    item = f"{device_id},{t},{idt[0]},{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+                    file.write(item)
+            file.flush()
+    file.close()
 
-            if len(inds) >= 20:  # TODO
-                s_imu_x = imu_x[inds[0] : inds[0] + max_len]
-                s_imu_y = imu_y[inds[0] : inds[0] + max_len]
-                s_imu_z = imu_z[inds[0] : inds[0] + max_len]
-                for x, y, z in zip(s_imu_x, s_imu_y, s_imu_z):
-                    item = f"{device_id},{t},{-1},{nlabel},{x:.8f},{y:.8f},{z:.8f},{gps_single:.8f}\n"
-                    items.append(item)
 
-    with open(save_file, "a") as f:
-        for item in items:
-            f.write(item)
+def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
+    dd = loadmat(mat_file)["outputStruct"]
+    n_data = dd["nOfSamples"][0][0][0][0]
+
+    file = open(save_file, "a")
+    for i in range(n_data):
+        year, month, day, hour, min, sec = (
+            dd["year"][0][0][0, i],
+            dd["month"][0][0][0, i],
+            dd["day"][0][0][0, i],
+            dd["hour"][0][0][0, i],
+            dd["min"][0][0][0, i],
+            dd["sec"][0][0][i, 0],
+        )
+        t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
+
+        device_id = dd["sampleID"][0][0][0, i]
+        imu_x = dd["accX"][0][0][i][0][0]
+        imu_y = dd["accY"][0][0][i][0][0]
+        imu_z = dd["accZ"][0][0][i][0][0]
+        gps_single = dd["gpsSpd"][0][0][i, 0]
+        tags = dd["tags"][0][0][0][i]
+
+        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
+        if len(labels) == 0:
+            continue
+
+        for label, x, y, z in zip(labels, imu_x, imu_y, imu_z):
+            if label in ignored_labels:
+                continue
+            nlabel = new2old_labels[label]
+            if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
+                continue
+            ig = np.round(np.array([x, y, z, gps_single]), 6)
+            item = f"{device_id},{t},-1,{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+            file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_w_data(csv_file, save_file, database_url, glen=20):
+    info = defaultdict(list)
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            t = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            if conf == "0":
+                continue
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            item = [r[2], r[3], r[4], r[5], r[6]]
+            key = (device_id, t, str(int(label) - 1))  # zero-based
+            info[key].append(item)
+
+    file = open(save_file, "a")
+    for k, values in info.items():
+        device_id = int(k[0])
+        start_time = k[1]
+        label = k[2]
+
+        if len(values) < 14:
+            continue
+        max_len = (
+            (len(values) // 20 + 1) * 20
+            if 14 <= len(values) < 20
+            else (len(values) // 20) * 20
+        )
+
+        # # fix
+        # inds = np.array([int(v[0]) for v in values])
+        # ind_changes = np.where(np.diff(inds)!=1)[0]
+        # if len(ind_changes)!=0:
+
+        if 14 <= len(values):
+            ig = np.array(
+                [list(map(float, values[0][1:4])), list(map(float, values[1][1:4]))]
+            )
+            try:
+                igs, idts, _ = bd.get_data(
+                    database_url, device_id, start_time, start_time, glen
+                )
+            except Exception as e:
+                print(f"Error during data processing or saving results: {e}")
+                continue
+            if len(igs) == 0:
+                print("not in database", device_id, t, ig[0])
+                continue
+            ind = find_matching_index(igs[:, 0:3], ig, glen=20)
+            if ind == -1:
+                print("not in database", device_id, t, ig[0])
+                continue
+            sel_igs = np.round(igs[ind : ind + max_len], 6)
+            sel_idts = idts[ind : ind + max_len]
+            for ig, idt in zip(sel_igs, sel_idts):
+                item = f"{device_id},{start_time},{idt[0]},{label},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+                file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_w_data_orig(csv_file, save_file):
+    file = open(save_file, "a")
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            start_time = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            label = int(label) - 1  # zero-based
+            if conf == "0":
+                continue
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            item = (
+                f"{device_id},{start_time},{r[2]},{label},{r[3]},{r[4]},{r[5]},{r[6]}\n"
+            )
+            file.write(item)
+        file.flush()
+    file.close()
 
 
 def write_w_info(csv_file, save_file):
@@ -415,60 +517,6 @@ def write_w_info(csv_file, save_file):
             counts = "_".join([str(i) for i in count_labels.values()])
             labels = "_".join([i for i in count_labels.keys()])
             item = f"{k[0]},{k[1]},{counts},{labels},{0}\n"
-            f.write(item)
-
-
-def write_w_data(csv_file, save_file, database_url):
-    info = defaultdict(list)
-    with open(csv_file, "r") as f:
-        for r in f:
-            r = r.strip().split(", ")
-            device_id = r[0]
-            t = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            label, conf = r[-1].split(" ")
-            if conf == "0":
-                continue
-            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
-                continue
-            item = [r[2], r[3], r[4], r[5], r[6]]
-            key = (device_id, t, str(int(label) - 1))  # zero-based
-            info[key].append(item)
-    items = []
-
-    for k, values in info.items():
-        device_id = int(k[0])
-        start_time = k[1]
-        label = k[2]
-        if len(values) >= 20:  # TODO
-            max_seq_len = (len(values) // 20) * 20
-            values = values[:max_seq_len]
-            for value in values:
-                v = [float(i) for i in value]
-                item = f"{device_id},{start_time},{int(v[0])},{label},{v[1]:.8f},{v[2]:.8f},{v[3]:.8f},{v[4]:.8f}\n"
-                items.append(item)
-        if len(values) < 14:  # TODO
-            continue
-        if 14 <= len(values) < 20:  # TODO
-            igs, idts, _ = bd.get_data(database_url, device_id, start_time, start_time)
-            if len(igs) < 20:  # TODO
-                continue
-            ig = np.array(list(map(float, values[0][1:4])))
-            ind = find_matching_index(igs[:, :3], ig, step=1)
-            if ind == -1:
-                continue
-            max_seq_len = (len(values) // 20 + 1) * 20  # TODO
-            if (ind + max_seq_len) > len(igs):
-                continue
-            sel_igs = igs[ind : ind + max_seq_len]
-            sel_idts = idts[ind : ind + max_seq_len]
-            for ig, idt in zip(sel_igs, sel_idts):
-                item = f"{device_id},{start_time},{idt[0]},{label},{ig[0]:.8f},{ig[1]:.8f},{ig[2]:.8f},{ig[3]:.8f}\n"
-                items.append(item)
-
-    with open(save_file, "a") as f:
-        for item in items:
             f.write(item)
 
 
@@ -558,14 +606,26 @@ def change_time_string(time):
     )
 
 
-# json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data.csv")
-# write_j_data(json_file, save_file, database_url, new2old_labels = {k:k for k in ind2name}, ignored_labels=[], glen=20)
-new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-ignored_labels = [8, 14, 15, 16, 17]
-json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data.csv")
-write_j_data(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
+# group_sizes = a.groupby([0, 1, 2]).size()
+# groups_with_size_2 = group_sizes[group_sizes >2]
+# df_s[df_s.duplicated(df_s)].index
+
+# a = pd.concat((df_w, df_j), axis=0, ignore_index=True)
+# b = a[a.groupby([0, 1, 2, 3, 4, 5, 6, 7]).transform('size') ==2]
+# b = b.sort_values(by=[0, 1, 2], ascending=[True, True, True])
+# b.to_csv("/home/fatemeh/Downloads/bird/data/final/dup_j_s.csv", index=False, header=None, float_format="%.6f")
+# 533,2012-05-15 03:38:59
+
+# Debug: discover duplicates
+# >>> b = df_u[df_u.duplicated()].sort_values(by=[0,1,2]).groupby([0,1]).size().reset_index(name='s')
+# >>> b.to_csv("/home/fatemeh/Downloads/bird/data/final/combine_dup_size.csv", index=False, header=None, float_format="%.6f")
+# >>> b = df_u[df_u.duplicated()].sort_values(by=[0,1,2])
+# >>> b.to_csv("/home/fatemeh/Downloads/bird/data/final/combine_dup.csv", index=False, header=None, float_format="%.6f")
+# # per data or a = pd.concat((df_w, df_j), axis=0, ignore_index=True)
+#  df_j[df_j[[0,1,2,4,5,6,7]].duplicated()].sort_values(by=[0,1,2])
+# Debug: start from middle of burst
+# c = df_j[::20][2].values
+# c[np.where(c%20!=0)[0]]
 
 
 """
@@ -575,52 +635,93 @@ write_j_data(json_file, save_file, database_url, new2old_labels, ignored_labels,
 # data
 # ====
 database_url = "postgresql://username:password@host:port/database_name"
-save_path = Path("/home/fatemeh/Downloads/bird/data")
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
 
 # set1 (s_data, s_info)
 # ====================
-dpath = Path("/home/fatemeh/Downloads/bird/data/set1/data")
-json_file = dpath / "combined.json"
-bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+# dpath = Path("/home/fatemeh/Downloads/bird/data/set1/data")
+# json_file = dpath / "combined.json"
+# bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data.csv")
 write_j_data(json_file, save_file, database_url, new2old_labels = {k:k for k in ind2name}, ignored_labels=[], glen=20)
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv")
+write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in ind2name}, ignored_labels=[])
 # write_info(save_path/"s_data.csv", save_path /"s_info.csv")
 
 
 # Sus (j_data, j_info)
 # ====================
-dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-json_file = dpath / "combined.json"
+# json_file = dpath / "combined.json"
 new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
 ignored_labels = [8, 14, 15, 16, 17]
 json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data.csv")
 write_j_data(json_file, save_file, database_url, new2old_labels, ignored_labels, glen=20)
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/j_data_orig.csv")
+write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels)
 # write_info(save_file, save_path /"j_info.csv")
 
 
 # Sus (m_data, m_info)
 # ====================
-dpath = Path("/home/fatemeh/Downloads/bird/data_from_Susanne")
+dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/m_data_with_dup.csv")
 new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
 ignored_labels = [10, 14, 15, 16, 17]
 for mat_file in tqdm(dpath.glob("An*mat")):
     print(mat_file.name)
-    write_m_info(
-        mat_file, save_path / "m_info_orig_length.csv", new2old_labels, ignored_labels
-    )
-    write_m_data(mat_file, save_path / "m_data.csv", new2old_labels, ignored_labels, database_url)
-write_info(save_path/"m_data.csv", save_path /"m_info.csv")
+    write_m_data(mat_file, save_file, new2old_labels, ignored_labels, database_url)
+    # write_m_info(
+    #     mat_file, save_path / "m_info_orig_length.csv", new2old_labels, ignored_labels
+    # )
+# write_info(save_path/"m_data.csv", save_path /"m_info.csv")
+# # out of 757 burst, 747 were unique
+df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_data_with_dup.csv", header=None)
+b = df_m[~df_m.duplicated()]
+b.to_csv("/home/fatemeh/Downloads/bird/data/final/m_data.csv", index=False, header=None, float_format="%.6f")
+
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/m_data_orig.csv")
+for mat_file in tqdm(dpath.glob("An*mat")):
+    print(mat_file.name)
+    write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels)
+'''
+There are checked: by file, by sizes and by diff
+>>> b = df_m[df_m.duplicated()].sort_values(by=[0,1,2])
+>>> b.to_csv("/home/fatemeh/Downloads/bird/data/final/dup_m.csv", index=False, header=None, float_format="%.6f")
+>>> df_m[df_m.duplicated()].sort_values(by=[0,1,2]).groupby([0,1]).size()
+>>> np.diff(np.array(df_m[df_m.duplicated()].index.tolist()))
+'''
+
 
 # Willem (w_data, w_info)
 # =======================
-dpath = Path("/home/fatemeh/Downloads/bird/data_from_Willem")
+dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/w_data.csv")
 for p in dpath.glob("*csv"):
-    write_w_data(p, save_path/"w_data.csv", database_url)
-    write_w_info(p, save_path/"w_info_orig_length.csv")
-write_info(save_path/"w_data.csv", save_path /"w_info.csv")
+    print(p.name)
+    write_w_data(p, save_file, database_url)
+    # write_w_info(p, save_path/"w_info_orig_length.csv")
+# write_info(save_path/"w_data.csv", save_path /"w_info.csv")
+
+# original willem: w_data_orig
+dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv")
+for p in dpath.glob("*csv"):
+    print(p.name)
+    write_w_data_orig(p, save_file)
+
+# Get all the data
+==================
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/sjwm_all.csv")
+df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
+df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv", header=None)
+df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv", header=None)
+df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_data_orig.csv", header=None)
+data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20)
 """
 
 """
@@ -794,18 +895,17 @@ for i in range(10):
 # =====
 
 # Combine csv files
-# save_path = Path("/home/fatemeh/Downloads/bird/data/final")
-# csv_files = [
-#     save_path / i
-#     for i in ["s_data_modified.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
-# ]
-# df_list = []
-# for csv_file in csv_files:
-#     df = pd.read_csv(csv_file, header=None)
-#     df[[4, 5, 6, 7]] = df[[4, 5, 6, 7]].round(6)
-#     df_list.append(df)
-# combined_df = pd.concat(df_list, ignore_index=True)
-# combined_df.to_csv(save_path / "combined.csv", index=False, header=None)
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+combined_name = "s_w_m.csv"
+csvs_to_combine = ["s_data.csv", "w_data.csv", "m_data.csv"] #["s_data.csv", "w_data.csv", "m_data.csv", "j_data.csv"]
+csv_files = [save_path / i for i in csvs_to_combine]
+df_list = []
+for csv_file in csv_files:
+    df = pd.read_csv(csv_file, header=None)
+    df[[4, 5, 6, 7]] = df[[4, 5, 6, 7]].round(6)
+    df_list.append(df)
+combined_df = pd.concat(df_list, ignore_index=True)
+combined_df.to_csv(save_path / combined_name, index=False, header=None)
 
 
 # Find duplicates
@@ -858,14 +958,14 @@ def group_equal_elements_optimized(df, subset, indices):
 
 subset = [0, 1, 4, 5, 6, 7]
 save_path = Path("/home/fatemeh/Downloads/bird/data/final")
-df = pd.read_csv(save_path / "combined_unique.csv", header=None)
+df = pd.read_csv(save_path / combined_name, header=None)
 df_20 = df.iloc[::20]
 sel_df_20 = df_20[subset]
 inds = sel_df_20[sel_df_20.duplicated(keep=False)].index
 print(len(inds))
 
-groups = group_equal_elements(df, subset, inds, equal_func)
-# groups = group_equal_elements_optimized(df, subset, inds)
+# groups = group_equal_elements(df, subset, inds, equal_func)
+groups = group_equal_elements_optimized(df, subset, inds)
 groups = [list(map(int, g)) for g in groups]
 print(groups)
 
@@ -882,8 +982,9 @@ to_drop = [item for sublist in to_drop for item in sublist]
 # Drop all the collected rows at once
 df = df.drop(to_drop)
 
+save_name = combined_name[:-4] + "_unique.csv"
 df.to_csv(
-    save_path / "combined_unique2.csv", index=False, header=None, float_format="%.6f"
+    save_path / save_name, index=False, header=None, float_format="%.6f"
 )
 """
 

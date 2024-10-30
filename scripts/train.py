@@ -15,15 +15,6 @@ from behavior.utils import n_classes, target_labels
 # import wandb
 # wandb.init(project="uncategorized")
 
-"""
-# quick model test
-labels, label_ids, device_ids, time_stamps, all_measurements = bd.read_data(bd.json_path)
-x = torch.from_numpy(all_measurements).type(torch.float32).permute(0, 2, 1)
-x = torch.zeros((1402, 4, 20), dtype=torch.float32)
-model = bm.BirdModel(4, 30, 10)
-model(x)
-"""
-
 seed = 1234
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 exp = 108  # sys.argv[1]

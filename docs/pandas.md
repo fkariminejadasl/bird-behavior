@@ -2,8 +2,11 @@
 
 ### Simple example on grouping
 
-- group: `filter | apply`
-- general on datafram or group: `.sort_index() | .reset_index(drop=True) | .copy()`
+- group: `filter | apply | .transform('size')`
+- specific on group:  `.get_group | .groups | .groups.keys()`
+- general on datafram or group: `.sort_index() | .reset_index(drop=True), .reset_index(name="something")` 
+    `|(..., ignore_index=True) | .copy() | sort_values`
+    `| .round(4) | .drop(index) | pd.DataFrame | pd.read_csv | .to_csv | .drop_duplicates() | .duplicated()`
 
 ```python
 import pandas as pd
@@ -14,11 +17,25 @@ data = {
     "C": [5, 6, 7, 8, 9, 10, 11],
 }
 df = pd.DataFrame(data)
+df = pd.read_csv(csv_file, header=None)
+df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+df.drop_duplicated()
+# .sort_values(by=[0,1], ignore_index=True)
+# .sort_values(by=[0,1]).reset_index(drop=True)
 
 grouped = df.groupby("A")
 for name, group in grouped:
     pass
+grouped.groups.keys() # .groups is a dictionary
 grouped.size()
+group = grouped.get_group((2,)) # get a specific group by a name
+group.sort_values(by=["A","C"], ascending=[True, True])
+
+group_sizes = grouped.size()
+groups_with_size_2 = group_sizes[group_sizes == 2]
+df[df.groupby(["A", "B"]).transform('size') > 2]
+groupby(["A", "B"]).size().reset_index(name='s')
 
 filtered = df.groupby("A").filter(lambda x: len(x) > 2)
 

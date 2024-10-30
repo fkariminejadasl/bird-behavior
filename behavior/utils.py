@@ -35,6 +35,29 @@ n_classes = len(target_labels_names)
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
 
 
+def save_gimus_idts(save_file, gimus, idts):
+    wfile = open(save_file, "w")
+    for gimu, idt in zip(gimus, idts):
+        ind = idt[0]
+        device_id = idt[1]
+        date = datetime.fromtimestamp(idt[2], tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        gimus = np.round(gimus, 6)
+        line = f"{device_id},{date},{ind},{-1},{gimu[0]:.6f},{gimu[1]:.6f},{gimu[2]:.6f},{gimu[3]:.6f}\n"
+        wfile.write(line)
+    wfile.close()
+
+
+def compare_rows(row1, row2, subset):
+    row1 = row1[subset].reset_index(drop=True)
+    row2 = row2[subset].reset_index(drop=True)
+    return row1.equals(row2)
+
+
+# matches = df.apply(lambda row: compare_rows(row, query_row), axis=1)
+# matches = dow[subset].eq(query[subset]).all(axis=1)
+# dow.index[matches]
 def set_seed(seed):
     """Ensure reproducibility."""
     # https://pytorch.org/docs/stable/notes/randomness.html
@@ -80,6 +103,36 @@ def plot_one(data):
     ax.set_ylim(-3.5, 3.5)
     plt.xticks(np.linspace(0, data_len, 5).astype(np.int64))
     plt.title(f"gps speed: {data[0,-1]:.2f}")
+    plt.show(block=False)
+    return ax
+
+
+# s = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
+def plot_all(dataframe, glen=20):
+    n_plots = len(dataframe) // glen
+    fig, axs = plt.subplots(1, n_plots, figsize=(18, 4))
+    for i, ax in enumerate(axs):
+        slice = dataframe.iloc[i * glen : i * glen + glen]
+        data = slice[[4, 5, 6]].values
+        indices = slice[[2]].values.squeeze()
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
+        ax.set_xlim(indices[0], indices[-1])
+        ax.set_ylim(-3.5, 3.5)
+        ax.set_xticks(np.linspace(indices[0], indices[-1], 5).astype(np.int64))
+        label = ind2name[slice.iloc[0, 3]]
+        ax.set_title(f"label: {label}")
+    fig.suptitle(f"gps: {slice.iloc[0,7]:.2f}")  # , fontsize=16
+    plt.tight_layout()
     plt.show(block=False)
     return ax
 
