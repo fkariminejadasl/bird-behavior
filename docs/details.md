@@ -15,6 +15,16 @@ Original data is 3505 fixes (70100 data points) of 20 length after removing the 
 - final/combined_unique.csv # 8805 no others 8742
 - data/combined_s_w_m_j.csv" # old 4394 no others 4365
 
+Data preparation
+- Prepare the original data (s_data, j_data only 10 data point, w_data csv with index variable length, m_data variable length no index)
+- Get all data from database
+- Map to the closes divisilbe of 20 and get index from the database. Data is downloaded previously from databse using device id and dates. 
+
+Consideration
+- The IMU and GPS are rouned and then saved to precision of 1e-6
+- The s_data and possibly j_data are not sorted. 
+
+
 Data in memory
 ==============
 

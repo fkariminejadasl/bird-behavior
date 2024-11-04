@@ -52,25 +52,96 @@ ind2name = {
 """
 
 
-# def find_matching_index(array, target, step=20, tolerance=1e-5):
-#     for i in range(0, len(array), step):
-#         if all(np.isclose(array[i], target, atol=tolerance)):
-#             return i
-#     return -1
+# def map_to_nearest_divisible_20(start, end):
+#     # Map the start and the end to the nearest lower multiple of 20
+#     start_mapped = (start // 20) * 20
+#     end_mapped = ((end // 20) * 20) + 20
+#     return start_mapped, end_mapped
 
 
-def find_matching_index(keys, query, glen=20, tol=1e-5):
+def map_to_nearest_divisible_20(start, end):
+    return [int(round(i / 20) * 20) for i in [start, end]]
+
+
+def test_map_to_nearest_divisible_20():
+    assert map_to_nearest_divisible_20(2, 18) == [0, 20]
+    assert map_to_nearest_divisible_20(23, 37) == [20, 40]
+    assert map_to_nearest_divisible_20(35, 55) == [40, 60]
+
+
+def find_matching_index(keys, query, tol=1e-4):
     """
     find matching two rows
     """
+    precision = -int(np.log10(tol))
+    keys = np.round(keys, precision)
+    query = np.round(query, precision)
     len_keys = len(keys)
     for i in range(0, len_keys - 1):
-        cond1 = all(np.isclose(keys[i], query[0], atol=tol))
-        cond2 = all(np.isclose(keys[i + 1], query[1], atol=tol))
-        cond3 = i + glen <= len_keys
-        if cond1 & cond2 & cond3:
+        cond1 = all(np.isclose(keys[i], query[0], rtol=tol))
+        cond2 = all(np.isclose(keys[i + 1], query[1], rtol=tol))
+        if cond1 & cond2:
             return i
     return -1
+
+
+def test_find_matching_index_2():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/data_from_db.csv", header=None
+    )
+    keys = df[(df[0] == 533) & (df[1] == "2012-05-15 05:41:52")][[4, 5, 6, 7]].values
+    query = np.array(
+        [
+            [0.225012, -0.433472, 1.318443, 9.072514],
+            [0.281927, 1.049555, 0.661937, 9.072514],
+        ]
+    )
+    assert find_matching_index(keys, query) == 19
+
+
+def get_label_range(slice):
+    all_labels = slice[3].squeeze().values
+    idxs = np.where(np.diff(all_labels) != 0)[0] + 1  # len=0 or more
+    start_idxs = np.concatenate(([0], idxs), axis=0)
+    end_idxs = np.concatenate((idxs, [len(all_labels)]), axis=0)
+    label_ranges = []
+    for idx1, idx2 in zip(start_idxs, end_idxs):
+        assert len(np.unique(slice.iloc[idx1:idx2][3])) == 1
+        label = slice.iloc[idx1:idx2].iloc[0, 3]
+        index_range = [idx1, idx2]
+        label_range = [label] + index_range
+        label_range = list(map(int, label_range))
+        label_ranges.append(label_range)
+    return label_ranges
+
+
+def test_get_label_range():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/slice_w_data.csv", header=None
+    )
+    device_id, start_time = 533, "2012-05-15 05:41:52"
+    slice = df[(df[0] == device_id) & (df[1] == start_time)]
+    label_ranges = get_label_range(slice)
+    assert label_ranges == [[2, 0, 19], [8, 19, 60]]
+
+
+test_map_to_nearest_divisible_20()
+test_find_matching_index_2()
+test_get_label_range()
+
+
+# def find_matching_index(keys, query, glen=20, tol=1e-5):
+#     """
+#     find matching two rows
+#     """
+#     len_keys = len(keys)
+#     for i in range(0, len_keys - 1):
+#         cond1 = all(np.isclose(keys[i], query[0], atol=tol))
+#         cond2 = all(np.isclose(keys[i + 1], query[1], atol=tol))
+#         cond3 = i + glen <= len_keys
+#         if cond1 & cond2 & cond3:
+#             return i
+#     return -1
 
 
 def test_find_matching_index():
@@ -198,6 +269,118 @@ def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
     with open(save_file, "w") as f:
         for item in items:
             f.write(item)
+
+
+def write_unsorted_data(all_data_file, w_file, save_file, len_labeled_data):
+    df = pd.read_csv(all_data_file, header=None)
+    df_w = pd.read_csv(w_file, header=None)
+    file = open(save_file, "w")
+
+    # Sort by device, time
+    df_w = df_w.sort_values(by=[0, 1], ignore_index=True)
+    # Unique device, time
+    uniq_device_times = df_w[[0, 1]].drop_duplicates(ignore_index=True).values
+    for device_id, start_time in tqdm(uniq_device_times):
+        # device_id, start_time = 534,"2012-06-02 12:38:01"
+        slice_df = df[(df[0] == device_id) & (df[1] == start_time)]
+        keys = slice_df[[4, 5, 6, 7]].values
+        if len(keys) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+        # Get label ranges
+        slice = df_w[(df_w[0] == device_id) & (df_w[1] == start_time)]
+        for i in range(0, len(slice), len_labeled_data):
+            label = slice.iloc[i, 3]
+            st_idx, en_idx = i, i + len_labeled_data
+            # Get index: Query on IMU&GPS first two rows of label range
+            query = slice.iloc[st_idx : st_idx + 2][[4, 5, 6, 7]].values
+            ind = find_matching_index(keys, query)
+            if ind == -1:
+                print("No matching in database", device_id, start_time, query[0])
+                continue
+            # Map index range
+            st_idx, en_idx = ind, ind + len_labeled_data
+            st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
+            # Get data from database
+            s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Write data
+            for _, i in s_slice_df.iterrows():
+                item = (
+                    f"{device_id},{start_time},{i[2]},{label},{i[4]:.6f},{i[5]:.6f},"
+                    f"{i[6]:.6f},{i[7]:.6f}\n"
+                )
+                file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_sorted_data(all_data_file, w_file, save_file, min_thr):
+    df = pd.read_csv(all_data_file, header=None)
+    df_w = pd.read_csv(w_file, header=None)
+    file = open(save_file, "w")
+
+    # Sort by device, time
+    df_w = df_w.sort_values(by=[0, 1], ignore_index=True)
+    # Unique device, time
+    uniq_device_times = df_w[[0, 1]].drop_duplicates(ignore_index=True).values
+    for device_id, start_time in tqdm(uniq_device_times):
+        slice_df = df[(df[0] == device_id) & (df[1] == start_time)]
+        keys = slice_df[[4, 5, 6, 7]].values
+        if len(keys) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+        # Get label ranges
+        slice = df_w[(df_w[0] == device_id) & (df_w[1] == start_time)]
+        label_ranges = get_label_range(slice)
+        for label_range in label_ranges:
+            label = label_range[0]
+            st_idx, en_idx = label_range[1:]
+            # Drop data from database
+            len_labeled_data = en_idx - st_idx
+            if len_labeled_data < min_thr:
+                continue
+            # Get index: Query on IMU&GPS first two rows of label range
+            query = slice.iloc[st_idx : st_idx + 2][[4, 5, 6, 7]].values
+            ind = find_matching_index(keys, query)
+            if ind == -1:
+                print("No matching in database", device_id, start_time, query[0])
+                continue
+            # Map index range
+            st_idx, en_idx = ind, ind + len_labeled_data
+            st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
+            # Get data from database
+            s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Write data
+            for _, i in s_slice_df.iterrows():
+                item = (
+                    f"{device_id},{start_time},{i[2]},{label},{i[4]:.6f},{i[5]:.6f},"
+                    f"{i[6]:.6f},{i[7]:.6f}\n"
+                )
+                file.write(item)
+            file.flush()
+    file.close()
+
+
+all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv"
+orig_path = Path("/home/fatemeh/Downloads/bird/data/final/orig")
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+file_names = ["s_data", "j_data"]
+glens = [20, 10]
+for name, glen in zip(file_names, glens):
+    orig_file = orig_path / f"{name}_orig.csv"
+    save_file = save_path / f"{name}.csv"
+    print(orig_file)
+    write_unsorted_data(all_data_file, orig_file, save_file, glen)
+
+all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv"
+orig_path = Path("/home/fatemeh/Downloads/bird/data/final/orig")
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+file_names = ["m_data", "w_data"]
+for name in file_names:
+    orig_file = orig_path / f"{name}_orig.csv"
+    save_file = save_path / f"{name}.csv"
+    print(orig_file)
+    write_sorted_data(all_data_file, orig_file, save_file, min_thr=10)
 
 
 def write_j_data(
@@ -715,7 +898,7 @@ for p in dpath.glob("*csv"):
 
 # Get all the data
 ==================
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/sjwm_all.csv")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/all_database.csv")
 df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
 df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv", header=None)
 df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv", header=None)

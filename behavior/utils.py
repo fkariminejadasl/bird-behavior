@@ -145,6 +145,7 @@ def plot_all(dataframe, glen=20):
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
 def plot_all_with_map(dataframe, glen=20):
     from behavior import map as bmap
+
     n_plots = len(dataframe) // glen
     fig, axs = plt.subplots(
         2, n_plots, figsize=(16.54, 7.15), gridspec_kw={"height_ratios": [1, 2]}
