@@ -107,10 +107,13 @@ def plot_one(data):
     return ax
 
 
-# s = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
+# dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
 def plot_all(dataframe, glen=20):
     n_plots = len(dataframe) // glen
     fig, axs = plt.subplots(1, n_plots, figsize=(18, 4))
+    fig.suptitle(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0)
     for i, ax in enumerate(axs):
         slice = dataframe.iloc[i * glen : i * glen + glen]
         data = slice[[4, 5, 6]].values
@@ -128,11 +131,58 @@ def plot_all(dataframe, glen=20):
         )
         ax.set_xlim(indices[0], indices[-1])
         ax.set_ylim(-3.5, 3.5)
-        ax.set_xticks(np.linspace(indices[0], indices[-1], 5).astype(np.int64))
+        ax.set_yticks([])
+        if i == n_plots - 1:  # for last plot
+            ax.set_xticks([indices[0], indices[-1]])
+        else:
+            ax.set_xticks([indices[0]])
         label = ind2name[slice.iloc[0, 3]]
         ax.set_title(f"label: {label}")
-    fig.suptitle(f"gps: {slice.iloc[0,7]:.2f}")  # , fontsize=16
-    plt.tight_layout()
+    plt.show(block=False)
+    return ax
+
+
+# dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
+def plot_all_with_map(dataframe, glen=20):
+    from behavior import map as bmap
+    n_plots = len(dataframe) // glen
+    fig, axs = plt.subplots(
+        2, n_plots, figsize=(16.54, 7.15), gridspec_kw={"height_ratios": [1, 2]}
+    )
+    fig.suptitle(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0, hspace=0.1)
+    for i, ax in enumerate(axs[0]):
+        slice = dataframe.iloc[i * glen : i * glen + glen]
+        data = slice[[4, 5, 6]].values
+        indices = slice[[2]].values.squeeze()
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
+        ax.set_xlim(indices[0], indices[-1])
+        ax.set_ylim(-3.5, 3.5)
+        ax.set_yticks([])
+        if i == n_plots - 1:  # for last plot
+            ax.set_xticks([indices[0], indices[-1]])
+        else:
+            ax.set_xticks([indices[0]])
+        label = ind2name[slice.iloc[0, 3]]
+        # ax.set_title(f"label: {label}")
+        ax.text(indices[glen // 2], 3, f"label: {label}", ha="center", va="top")
+    map_image = bmap.get_centered_map_image(53.034065, 4.7519736)
+    ax = axs[1, 1]
+    ax.imshow(map_image)
+    ax.axis("off")
+    axs[1, 0].remove()
+    axs[1, 2].remove()
     plt.show(block=False)
     return ax
 
