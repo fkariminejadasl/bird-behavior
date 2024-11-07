@@ -7,7 +7,8 @@ Data
 The code to get the data is in `scripts/get_data.py`.
 
 #### Labeled data
-The data is combination of several annotation. Since they are in different format and there was overlap between them, and mistakes, I had to make a separate data preparation script. It is in `scripts/prepare_labeled_data.py`.
+The data is combination of several annotation. Since they are in different format and there was overlap between them, I had to make a separate data preparation script. It is in `scripts/prepare_labeled_data.py`.
+
 Original data is 3505 fixes (70100 data points) of 20 length after removing the other class 3480 fixes​ remain. After combining data 8805 fixes (176100 data points) of 20 length and after remvong the other class 8742 fixes remain.
 {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
 {0: 1488, 1: 101, 2: 1142, 3: 352, 4: 1374, 5: 2676, 6: 755, 7: 63, 8: 335, 9: 519}
@@ -16,13 +17,27 @@ Original data is 3505 fixes (70100 data points) of 20 length after removing the 
 - data/combined_s_w_m_j.csv" # old 4394 no others 4365
 
 Data preparation
-- Prepare the original data (s_data, j_data only 10 data point, w_data csv with index variable length, m_data variable length no index)
-- Get all data from database
-- Map to the closes divisilbe of 20 and get index from the database. Data is downloaded previously from databse using device id and dates. 
+
+1. Convert the original data to the CSV format
+1. Get all data from database
+1. Map to the closes divisilbe of 20 and get index from the database. Data is downloaded previously from databse using device id and dates (Previous step).
+1. Combine data
+1. Remove duplicates
 
 Consideration
-- The IMU and GPS are rouned and then saved to precision of 1e-6
+- The IMU and GPS are rouned and then saved to precision of 1e-6.
+- It is possible to have the same IMU and GPS value. This issue is resolved by looking at two IMU and GPS​
+- Data can start from the middle of burst (index not divisible by 20). This issue is resolved by mapping all data to divisible of 20.
 - The s_data and possibly j_data are not sorted. 
+- j_data, m_data: have different labels schema.​
+- j_data, s_data: 10 and 20 items per burst, repectively. 
+- m_data, w_data: data of different length.
+
+Example row of the CSV format:
+```bash
+         0                    1  2  3         4         5         6         7
+0      608  2013-05-31 02:12:41 -1  6 -1.020301 -0.305263  1.234586  0.186449
+```
 
 
 Data in memory

@@ -118,11 +118,6 @@ def test_get_label_range():
     assert label_ranges == [[2, 0, 19], [8, 19, 60]]
 
 
-test_map_to_nearest_divisible_20()
-test_find_matching_index()
-test_get_label_range()
-
-
 def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
     """
     Get all the data from the database (1930 requests)
@@ -902,6 +897,10 @@ def find_matching_index_with_len_cond(keys, query, glen=20, tol=1e-5):
     return -1
 
 
+import pytest
+
+
+@pytest.mark.ignore
 def test_find_matching_index_with_len_cond():
     database_url = "put the database address here"
     df_s = pd.read_csv(

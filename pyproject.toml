@@ -40,7 +40,17 @@ notebook = [
 app = [
     "gradio",
 ]
+# pip install .[test]
+test = [
+    "pytest",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["behavior"]
+
+# for test with markers. Use pytest -s sometest.py  -m "not ignore"
+[tool.pytest.ini_options]
+markers = [
+    "ignore: mark test as ignored",
+]
