@@ -15,10 +15,10 @@ from behavior.utils import n_classes, target_labels, target_labels_names
 # import wandb
 # wandb.init(project="uncategorized")
 
-seed = 1234
-train_per = 0.5
+seed = 32984
+train_per = 0.9
 data_per = 1
-exp = 107  # sys.argv[1]
+exp = 113  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 save_path = Path("/home/fatemeh/Downloads/bird/result/")

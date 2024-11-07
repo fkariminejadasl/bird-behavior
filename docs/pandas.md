@@ -83,7 +83,7 @@ A
 ```python
 import pandas as pd
 
-df = pd.read_csv("/home/fatemeh/Downloads/s_data.csv", header=None)
+df = pd.read_csv("s_data.csv", header=None)
 
 grouped = df.groupby([0, 1, 2, 3], sort=False)  # otherwise group is sorting
 invalid_groups = grouped.filter(lambda x: len(x) != 20)
@@ -121,11 +121,28 @@ df[[0, 1, 3, 4, 5, 6, 7]].equals(
     modified_df[[0, 1, 3, 4, 5, 6, 7]]
 )  # also for other ones
 
-modified_df2.to_csv(
-    "/home/fatemeh/Downloads/s_data_modified.csv",
-    index=False,
-    header=None,
-    float_format="%.8f",
+modified_df2.to_csv("s_data_modified.csv", index=False, header=None, float_format="%.6f")
+```
+
+#### Example above all together
+Here is the example I used before to change indices (df[2]). 
+The indices are only the starting indices (example only 20 for all group). After applying changes they become in increasing order.
+
+``` python
+def modify_index(group):
+    if len(group) == 20:
+        # Get the starting value from the third column (df[2])
+        start_value = int(group.iloc[0, 2])
+        # Replace with sequential numbers
+        group[2] = range(start_value, start_value + 20)
+    return group
+
+
+df = pd.read_csv("s_data.csv", header=None)
+grouped = df.groupby([0, 1, 2, 3], sort=False)  # otherwise group is sorting
+modified_df2 = (
+    grouped[[0, 1, 2, 3, 4, 5, 6, 7]].apply(modify_index).reset_index(drop=True)
 )
+modified_df2.to_csv("s_data_modified.csv", index=False, header=None, float_format="%.6f")
 ```
 </details>

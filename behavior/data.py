@@ -907,15 +907,16 @@ def load_csv(csv_file, g_len=20):
 
 def prepare_train_valid_dataset(train_per, data_per, target_labels):
     """Load and prepare data, return train and eval Dataset."""
-    # data_path = Path("/home/fatemeh/Downloads/bird/bird/set1/data/combined.json")
-    # all_measurements, label_ids = bd.shuffle_data(*bd.load_all_data_from_json(data_path))
+    # data_path = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+    # all_measurements, label_ids = load_all_data_from_json(data_path)
     all_measurements, label_ids = load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data.csv"
+        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data, combined_unique.csv"
     )
     # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
     all_measurements, label_ids = get_specific_labesl(
         all_measurements, label_ids, target_labels
     )
+    all_measurements, label_ids = shuffle_data(all_measurements, label_ids)
     # make data shorter
     # label_ids = np.repeat(label_ids, 2, axis=0)
     # all_measurements = all_measurements.reshape(-1, 10, 4)

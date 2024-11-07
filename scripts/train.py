@@ -15,9 +15,9 @@ from behavior.utils import n_classes, target_labels
 # import wandb
 # wandb.init(project="uncategorized")
 
-seed = 1234
+seed = 32984
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 108  # sys.argv[1]
+exp = 113  # sys.argv[1]
 no_epochs = 4000  # int(sys.argv[2])
 save_every = 2000
 train_per = 0.9
