@@ -35,8 +35,12 @@ Consideration
 
 Example row of the CSV format:
 ```bash
+# no index (index==-1)
          0                    1  2  3         4         5         6         7
 0      608  2013-05-31 02:12:41 -1  6 -1.020301 -0.305263  1.234586  0.186449
+# with index
+         0                    1  2  3         4         5         6         7
+0      608  2013-05-31 02:12:41 20  6 -1.020301 -0.305263  1.234586  0.186449
 ```
 
 
@@ -46,4 +50,17 @@ Data in memory
 #### CSV files
 
 CSV files read by pandas are more efficient that reading py pure python or csv library. It is due to memory management such as contiguous block of memory and garbage collector, for-loop inefficiency of the pure python code and overhead due to dynamic typing and so on. For data above, only pandas version worked and used only 50% of memory wille pure python and csv reader killed by the process due to huge memory consumption, even using garbage collector `gc.collect()`. The experiment is in `panda_csv_python_read_data_in_memory.py`.
+
+# Older method to generate labeled data
+The older method is sandboxed in `sandbox_prepare_label_data` branch and in `scripts/prepare_labeled_data.py` file.
+
+Older methods to generate data are:
+- Method1: combine only based on device id and dates. This part is missing a lot of data.
+- Method2: combine with device id, dates and labels. This part is has bug. 
+
+These methods are slow since it request data directly from database. The method1 and method2 have the common part in getting data from the database. But the combined part differs. 
+
+The combined part of the method 2 is the same as current method in `scripts/prepare_labeled_data.py`. 
+
+> BUG of Method2 is in `write_j_data`, `write_m_data`: The data might be 0-19, 40-59 with label1 and 20-39 label2. Then 0-40 gets label1, and 20-40 label2. This caused because the maximum length is calculated based on common labels.
 
