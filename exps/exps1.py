@@ -18,7 +18,7 @@ from behavior.utils import n_classes, target_labels, target_labels_names
 seed = 32984
 train_per = 0.9
 data_per = 1
-exp = 113  # sys.argv[1]
+exp = 112  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
@@ -29,6 +29,25 @@ fail_path.mkdir(parents=True, exist_ok=True)
 bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+criterion = torch.nn.CrossEntropyLoss()
+
+in_channel = 4  # next(iter(train_loader))[0].shape[1]
+model = bm.BirdModel(in_channel, width, n_classes).to(device)
+# model = bm1.TransformerEncoderMAE(
+#     img_size=20,
+#     in_chans=4,
+#     out_chans=9,
+#     embed_dim=16,
+#     depth=1,
+#     num_heads=8,
+#     mlp_ratio=4,
+#     drop=0.0,
+#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+# ).to(device)
+bm.load_model(save_path / f"{exp}_best.pth", model, device)
+model.eval()
+
+"""
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
     train_per, data_per, target_labels
 )
@@ -46,24 +65,6 @@ eval_loader = DataLoader(
     num_workers=1,
     drop_last=True,
 )
-
-criterion = torch.nn.CrossEntropyLoss()
-
-in_channel = next(iter(train_loader))[0].shape[1]
-model = bm.BirdModel(in_channel, width, n_classes).to(device)
-# model = bm1.TransformerEncoderMAE(
-#     img_size=20,
-#     in_chans=4,
-#     out_chans=9,
-#     embed_dim=16,
-#     depth=1,
-#     num_heads=8,
-#     mlp_ratio=4,
-#     drop=0.0,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
-# ).to(device)
-bm.load_model(save_path / f"{exp}_best.pth", model, device)
-model.eval()
 
 data, ldts = next(iter(train_loader))
 bu.helper_results(
@@ -92,9 +93,36 @@ bu.helper_results(
     stage="valid",
     SAVE_FAILED=False,
 )
+"""
 
 print(device)
 print(sum([p.numel() for p in model.parameters()]))
+
+csv_igs, csv_ldts = bd.load_csv(
+    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
+)
+csv_igs, csv_ldts = bd.get_specific_labesl(csv_igs, csv_ldts, target_labels)
+dataset = bd.BirdDataset(csv_igs, csv_ldts)
+loader = DataLoader(
+    dataset,
+    batch_size=len(dataset),
+    shuffle=False,
+    num_workers=1,
+    drop_last=False,
+)
+data, ldts = next(iter(loader))
+bu.helper_results(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+    fail_path,
+    target_labels_names,
+    n_classes,
+    stage="all",
+    SAVE_FAILED=False,
+)
 
 # bad classes: Other, Exflap (less data), Pecking (noisy), Manuver/Mix
 

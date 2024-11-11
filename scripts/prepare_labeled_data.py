@@ -514,13 +514,6 @@ df.to_csv(
 
 
 """
-dict([(i, len(df_c[df_c[3]==i])//20) for i in range(10)])
-s_data: {0: 633, 1: 38, 2: 500, 3: 176, 4: 558, 5: 894,  6: 318, 7: 25, 8: 151, 9: 210}
-j_data: {0: 216, 1: 19, 2: 146, 3: 0,   4: 460, 5: 375,  6: 127, 7: 10, 8: 47,  9: 66}
-m_data: {0: 5,   1: 0,  2: 0,   3: 0,   4: 0,   5: 642,  6: 23,  7: 0,  8: 0,   9: 187}
-w_data: {0: 652, 1: 45, 2: 504, 3: 176, 4: 558, 5: 806,  6: 304, 7: 30, 8: 143, 9: 153}
-c_data: {0: 655, 1: 42, 2: 549, 3: 176, 4: 823, 5: 1544, 6: 359, 7: 33, 8: 154, 9: 411}
-
 # Analyses and stats
 # ====================
 # group_sizes = a.groupby([0, 1, 2]).size()
@@ -534,9 +527,9 @@ c_data: {0: 655, 1: 42, 2: 549, 3: 176, 4: 823, 5: 1544, 6: 359, 7: 33, 8: 154, 
 # 533,2012-05-15 03:38:59
 
 # Debug: discover duplicates
-# >>> b = df_u[df_u.duplicated()].sort_values(by=[0,1,2]).groupby([0,1]).size().reset_index(name='s')
+# >>> b = df_c[df_c.duplicated()].sort_values(by=[0,1,2]).groupby([0,1]).size().reset_index(name='s')
 # >>> b.to_csv("/home/fatemeh/Downloads/bird/data/final/combine_dup_size.csv", index=False, header=None, float_format="%.6f")
-# >>> b = df_u[df_u.duplicated()].sort_values(by=[0,1,2])
+# >>> b = df_c[df_c.duplicated()].sort_values(by=[0,1,2])
 # >>> b.to_csv("/home/fatemeh/Downloads/bird/data/final/combine_dup.csv", index=False, header=None, float_format="%.6f")
 # # per data or a = pd.concat((df_w, df_j), axis=0, ignore_index=True)
 #  df_j[df_j[[0,1,2,4,5,6,7]].duplicated()].sort_values(by=[0,1,2])
@@ -549,15 +542,25 @@ c_data: {0: 655, 1: 42, 2: 549, 3: 176, 4: 823, 5: 1544, 6: 359, 7: 33, 8: 154, 
 >>> df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv", header=None)
 >>> df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data.csv", header=None)
 >>> df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_data.csv", header=None)
->>> df_u = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv", header=None)
+>>> df_c = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv", header=None)
 >>> df_s[df_s.duplicated()]
->>> for i in [df_s, df_j, df_w, df_m]:
+>>> for i in [df_s, df_j, df_m, df_w, df_c]:
         print(i[i.duplicated()])
->>> group_sizes = df_u.groupby([0,1,2]).size()
+>>> group_sizes = df_c.groupby([0,1,2]).size()
 >>> group_sizes[group_sizes>1]
->>> for i in [df_s, df_j, df_w, df_m, df_u]:
-...     print(len(i)/20)
-3503, 1466, 3371, 857, 4746
+>>> for i in [df_s, df_j, df_m, df_w, df_c]:
+...     cut_i = i[i[3]!=7].copy()
+...     print(len(cut_i)//20)
+...     print(len(i)//20)
+>>> dict([(i, len(df_c[df_c[3]==i])//20) for i in range(10)])
+s_data: {0: 633, 1: 38, 2: 500, 3: 176, 4: 558, 5: 894,  6: 318, 7: 25, 8: 151, 9: 210}
+j_data: {0: 216, 1: 19, 2: 146, 3: 0,   4: 460, 5: 375,  6: 127, 7: 10, 8: 47,  9: 66}
+m_data: {0: 5,   1: 0,  2: 0,   3: 0,   4: 0,   5: 642,  6: 23,  7: 0,  8: 0,   9: 187}
+w_data: {0: 652, 1: 45, 2: 504, 3: 176, 4: 558, 5: 806,  6: 304, 7: 30, 8: 143, 9: 153}
+c_data: {0: 655, 1: 42, 2: 549, 3: 176, 4: 823, 5: 1544, 6: 359, 7: 33, 8: 154, 9: 411}
+
+3503, 1466, 857, 3371, 4746 # all
+3478, 1456, 857, 3341, 4713 # no 7 (other)
 """
 
 """

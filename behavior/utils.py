@@ -111,6 +111,8 @@ def plot_one(data):
 def plot_all(dataframe, glen=20):
     n_plots = len(dataframe) // glen
     fig, axs = plt.subplots(1, n_plots, figsize=(18, 4))
+    if n_plots == 1:
+        axs = [axs]
     fig.suptitle(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
     fig.tight_layout()
     fig.subplots_adjust(wspace=0)
@@ -138,8 +140,8 @@ def plot_all(dataframe, glen=20):
             ax.set_xticks([indices[0]])
         label = ind2name[slice.iloc[0, 3]]
         ax.set_title(f"label: {label}")
-    plt.show(block=False)
-    return ax
+    # plt.show(block=False)
+    return fig
 
 
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
@@ -184,7 +186,7 @@ def plot_all_with_map(dataframe, glen=20):
     ax.axis("off")
     axs[1, 0].remove()
     axs[1, 2].remove()
-    plt.show(block=False)
+    # plt.show(block=False)
     return ax
 
 

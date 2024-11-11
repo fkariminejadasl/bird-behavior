@@ -1,20 +1,13 @@
 Data
 ====
 
-#### Unlabeled data
+## Unlabeled data
 42,978,660 imu items (716311 data points 60 length or aka bursts or fixes), 3.1 GB (zip 458 MB) from CG_KREUPEL, LBBG_TEXEL, HG_TEXEL, CP_OMAN: From `226` GPS-timestamps files per device only `63` had 60 group length, based on my 10 attempt code (available_60points.csv). From 10 attempt GPS timestamps, if 1 returns I use the device. 
 
 The code to get the data is in `scripts/get_data.py`.
 
-#### Labeled data
+## Labeled data
 The data is combination of several annotation. Since they are in different format and there was overlap between them, I had to make a separate data preparation script. It is in `scripts/prepare_labeled_data.py`.
-
-Original data is 3505 fixes (70100 data points) of 20 length after removing the other class 3480 fixes​ remain. After combining data 8805 fixes (176100 data points) of 20 length and after remvong the other class 8742 fixes remain.
-{0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
-{0: 1488, 1: 101, 2: 1142, 3: 352, 4: 1374, 5: 2676, 6: 755, 7: 63, 8: 335, 9: 519}
-- final/s_data.csv # 3505 no others 3480
-- final/combined_unique.csv # 8805 no others 8742
-- data/combined_s_w_m_j.csv" # old 4394 no others 4365
 
 Data preparation
 
@@ -33,6 +26,26 @@ Consideration
 - j_data, s_data: 10 and 20 items per burst, repectively. 
 - m_data, w_data: data of different length.
 
+
+In total, extra 1235 burst (c_data-s_data) are obtained. The other class is excluded.
+```
+s_data: 3478  (Publish data. set1 Json format)
+j_data: 1456  (Suzanne Json)
+m_data: 857   (Suzanne Matlab)
+w_data: 3341  (Willem Csv)
+c_data: 4713  (Combined and duplicates removed)
+```
+
+Here is number of labels:
+```
+{0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
+s_data: {0: 633, 1: 38, 2: 500, 3: 176, 4: 558, 5: 894,  6: 318, 7: 25, 8: 151, 9: 210}
+j_data: {0: 216, 1: 19, 2: 146, 3: 0,   4: 460, 5: 375,  6: 127, 7: 10, 8: 47,  9: 66}
+m_data: {0: 5,   1: 0,  2: 0,   3: 0,   4: 0,   5: 642,  6: 23,  7: 0,  8: 0,   9: 187}
+w_data: {0: 652, 1: 45, 2: 504, 3: 176, 4: 558, 5: 806,  6: 304, 7: 30, 8: 143, 9: 153}
+c_data: {0: 655, 1: 42, 2: 549, 3: 176, 4: 823, 5: 1544, 6: 359, 7: 33, 8: 154, 9: 411}
+```
+
 Example row of the CSV format:
 ```bash
 # no index (index==-1)
@@ -44,14 +57,14 @@ Example row of the CSV format:
 ```
 
 
-Data in memory
-==============
+## Data in memory
+
 
 #### CSV files
 
 CSV files read by pandas are more efficient that reading py pure python or csv library. It is due to memory management such as contiguous block of memory and garbage collector, for-loop inefficiency of the pure python code and overhead due to dynamic typing and so on. For data above, only pandas version worked and used only 50% of memory wille pure python and csv reader killed by the process due to huge memory consumption, even using garbage collector `gc.collect()`. The experiment is in `panda_csv_python_read_data_in_memory.py`.
 
-# Older method to generate labeled data
+## Older method to generate labeled data
 The older method is sandboxed in `sandbox_prepare_label_data` branch and in `scripts/prepare_labeled_data.py` file.
 
 Older methods to generate data are:
@@ -64,3 +77,10 @@ The combined part of the method 2 is the same as current method in `scripts/prep
 
 > BUG of Method2 is in `write_j_data`, `write_m_data`: The data might be 0-19, 40-59 with label1 and 20-39 label2. Then 0-40 gets label1, and 20-40 label2. This caused because the maximum length is calculated based on common labels.
 
+
+## List of scripts
+
+#### Save IMU plots
+
+- `exps/save_plots_gt.py`: save IMU plots for ground truth data based on device id and starting times.
+- `exps/save_plots_gt.py`: save IMU plots for each label, run inference for the predictions. 
