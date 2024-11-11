@@ -3,6 +3,12 @@
 >>> import pytz # pip install pytz
 >>> from datetime import datetime, timezone
 
+>>> dt_format = datetime.strptime('2023-11-06 14:08:11', "%Y-%m-%d %H:%M:%S")
+datetime.datetime(2023, 11, 6, 14, 8, 11)
+>>> dt_format.strftime("%Y-%m-%d %H:%M:%S")
+>>> datetime(2023, 11, 6, 14, 8, 11).strftime("%Y-%m-%d %H:%M:%S")
+'2023-11-06 14:08:11'
+
 >>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
 >>> datetime.strptime('2023-11-06 13:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc).timestamp()
 1699276091.915636
