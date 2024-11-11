@@ -7,17 +7,50 @@ name = "bird_behavior"
 version = "0.1"
 description = "Library for deep-learning based bird behavior"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }  # Correctly specifying the license
+license = {file = "LICENSE"}
+requires-python = ">= 3.10"
 authors = [
     { name = "Fatemeh Karimi Nejadasl", email = "fkariminejadasl@gmail.com" }
 ]
 urls = { "Homepage" = "https://github.com/fkariminejadasl/bird-behavior.git" }
 
+# Dependencies are copied from requirements.txt 
+dependencies = [
+    "einops",
+    "matplotlib>=3.6.1",
+    "numpy>=1.23.3",
+    "tqdm",
+    "tensorboard",
+    "psycopg2-binary",
+    "timm",
+    "torch",
+    "torchvision",
+    "scikit-learn>=1.3",
+    "pandas",
+]
+
+# pip install .[notebook]
 [project.optional-dependencies]
-dev = [
-    # List any additional dependencies for development
+notebook = [
+    "gdown>=5.2.0",
+    "requests>=2.32.3",
+]
+# for app: pip install fastapi uvicorn python-multipart gradio build
+# pip install .[app]
+app = [
+    "gradio",
+]
+# pip install .[test]
+test = [
+    "pytest",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["behavior"]
+
+# for test with markers. Use pytest -s sometest.py  -m "not ignore"
+[tool.pytest.ini_options]
+markers = [
+    "ignore: mark test as ignored",
+]
