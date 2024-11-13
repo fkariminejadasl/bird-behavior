@@ -17,7 +17,7 @@ df = df[df[3] != 7]
 unique_dt = df.groupby(by=[0, 1])
 for i, dt in tqdm(enumerate(unique_dt.groups.keys())):
     dataframe = unique_dt.get_group(dt).sort_values(by=[2])
-    print(dt[0], dt[1], len(dataframe))
+    # print(dt[0], dt[1], len(dataframe))
     fig = bu.plot_all(dataframe)
     name = f"{i},{dt[0]},{dt[1]}"
     # Take the first label (it can also be max or any other thing)

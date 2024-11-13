@@ -109,37 +109,35 @@ def plot_one(data):
 
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
 def plot_all(dataframe, glen=20):
+    y_limits = [-3.5, 3.5]
     n_plots = len(dataframe) // glen
-    fig, axs = plt.subplots(1, n_plots, figsize=(18, 4))
-    if n_plots == 1:
-        axs = [axs]
-    fig.suptitle(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
+    fig, ax = plt.subplots(1, 1, figsize=(18, 4))
+    plt.title(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
     fig.tight_layout()
-    fig.subplots_adjust(wspace=0)
-    for i, ax in enumerate(axs):
-        slice = dataframe.iloc[i * glen : i * glen + glen]
-        data = slice[[4, 5, 6]].values
-        indices = slice[[2]].values.squeeze()
-        ax.plot(
-            indices,
-            data[:, 0],
-            "r-*",
-            indices,
-            data[:, 1],
-            "b-*",
-            indices,
-            data[:, 2],
-            "g-*",
-        )
-        ax.set_xlim(indices[0], indices[-1])
-        ax.set_ylim(-3.5, 3.5)
-        ax.set_yticks([])
-        if i == n_plots - 1:  # for last plot
-            ax.set_xticks([indices[0], indices[-1]])
-        else:
-            ax.set_xticks([indices[0]])
-        label = ind2name[slice.iloc[0, 3]]
-        ax.set_title(f"label: {label}")
+    data = dataframe[[4, 5, 6]].values
+    indices = dataframe[[2]].values.squeeze()
+    ax.plot(
+        indices,
+        data[:, 0],
+        "r-*",
+        indices,
+        data[:, 1],
+        "b-*",
+        indices,
+        data[:, 2],
+        "g-*",
+    )
+    ax.set_xlim(indices[0], indices[-1])
+    ax.set_ylim(*y_limits)
+    ax.set_yticks([])
+    ax.set_xticks(indices[::glen])
+    for i in range(n_plots - 1):
+        ind = indices[i * glen + glen]
+        ax.plot([ind, ind], y_limits, "-", color="black")
+    for i in range(n_plots):
+        label = ind2name[dataframe.iloc[i * glen, 3]]
+        text_loc = [indices[i * glen + glen // 2] - 2, y_limits[1] - 0.5]
+        ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
     # plt.show(block=False)
     return fig
 
@@ -328,7 +326,12 @@ def helper_results(
         ap = average_precision_score(labels, np.argmax(prob, axis=1))
     else:
         ap = average_precision_score(labels, prob)
-    print(f"AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}")
+    app_loss_acc = (
+        f"{stage}: AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}\n"
+    )
+    with open(fail_path / "app_loss_acc.txt", "a") as f:
+        f.write(app_loss_acc)
+    print(app_loss_acc)
     print(confmat)
 
     if SAVE_FAILED:
