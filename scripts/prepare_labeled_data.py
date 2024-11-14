@@ -384,7 +384,7 @@ for p in dpath.glob("*csv"):
 # Step 2. Get all the data from database
 ==================
 database_url = "postgresql://username:password@host:port/database_name"
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/all_database.csv")
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv")
 df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
 df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv_orig", header=None)
 df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv", header=None)

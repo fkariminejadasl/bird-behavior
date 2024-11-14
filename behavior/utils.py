@@ -108,14 +108,20 @@ def plot_one(data):
 
 
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
-def plot_all(dataframe, glen=20):
+def plot_all(dataframe, dataframe_db, glen=20):
+    """
+    Plot IMU of a device and starting time
+
+    dataframe is with label
+    dataframe_db is from database and no label
+    """
     y_limits = [-3.5, 3.5]
-    n_plots = len(dataframe) // glen
+    n_plots = len(dataframe_db) // glen
     fig, ax = plt.subplots(1, 1, figsize=(18, 4))
     plt.title(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
     fig.tight_layout()
-    data = dataframe[[4, 5, 6]].values
-    indices = dataframe[[2]].values.squeeze()
+    data = dataframe_db[[4, 5, 6]].values
+    indices = dataframe_db[[2]].values.squeeze()
     ax.plot(
         indices,
         data[:, 0],
@@ -131,11 +137,18 @@ def plot_all(dataframe, glen=20):
     ax.set_ylim(*y_limits)
     ax.set_yticks([])
     ax.set_xticks(indices[::glen])
+    # Plot vertical lines
     for i in range(n_plots - 1):
         ind = indices[i * glen + glen]
         ax.plot([ind, ind], y_limits, "-", color="black")
+    # Plot labels
     for i in range(n_plots):
-        label = ind2name[dataframe.iloc[i * glen, 3]]
+        ind = indices[i * glen]
+        crop = dataframe[dataframe[2] == ind]
+        if len(crop) == 0:
+            label = None
+        else:
+            label = ind2name[crop.iloc[0, 3]]
         text_loc = [indices[i * glen + glen // 2] - 2, y_limits[1] - 0.5]
         ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
     # plt.show(block=False)
