@@ -114,7 +114,18 @@ def plot_all(dataframe, dataframe_db, glen=20):
 
     dataframe is with label
     dataframe_db is from database and no label
+
+    N.B. max_length=200, for example for 6011,2015-04-30 09:09:26'
+    e.g.
+    dt = (533, "2012-05-15 03:10:11")
+    df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    dataframe = df_s.groupby(by=[0,1]).get_group(dt).sort_values(by=[2])
+    dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
+    fig = plot_all(dataframe, dataframe_db, glen=20)
+    plt.show(block=True)
     """
+    max_index = 200
     y_limits = [-3.5, 3.5]
     n_plots = len(dataframe_db) // glen
     fig, ax = plt.subplots(1, 1, figsize=(18, 4))
@@ -133,10 +144,13 @@ def plot_all(dataframe, dataframe_db, glen=20):
         data[:, 2],
         "g-*",
     )
-    ax.set_xlim(indices[0], indices[-1])
+    # Change indices[-1] to max length
+    ax.set_xlim(indices[0], max_index)  #
     ax.set_ylim(*y_limits)
-    ax.set_yticks([])
+    ax.set_yticks([y_limits[0], 0, y_limits[1]])
     ax.set_xticks(indices[::glen])
+    # Plot zero horizontal line
+    ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
     # Plot vertical lines
     for i in range(n_plots - 1):
         ind = indices[i * glen + glen]

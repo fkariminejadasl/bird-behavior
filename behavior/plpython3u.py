@@ -89,7 +89,7 @@ def temp_database_model_test(
 
 
 """
-CREATE OR REPLACE FUNCTION pytestmodelcsv()
+CREATE OR REPLACE FUNCTION pytestdatabasemodelcsv()
 RETURNS integer AS $$
 from behavior import plpython3u as bp
 from pathlib import Path
@@ -97,7 +97,7 @@ device_id = 534
 start_time="2012-06-08 10:28:58"
 database_url = "postgresql://username:pass@pub.e-ecology.nl:5432/eecology"
 model_path = Path("/scratch/data/45_best.pth")
-preds, probs = bm.temp_database_model_test(database_url, device_id, start_time, start_time, model_path)
+preds, probs = bp.temp_database_model_test(database_url, device_id, start_time, start_time, model_path)
 return int(preds[0])
 $$ LANGUAGE plpython3u;
 
