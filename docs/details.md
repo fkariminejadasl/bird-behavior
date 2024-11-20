@@ -83,4 +83,5 @@ The combined part of the method 2 is the same as current method in `scripts/prep
 #### Save IMU plots
 
 - `exps/save_plots_gt.py`: save IMU plots for ground truth data based on device id and starting times.
-- `exps/save_plots_gt.py`: save IMU plots for each label, run inference for the predictions. 
+- `exps/save_plots.py`: save IMU plots for each label, run inference for the predictions. 
+- `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
