@@ -256,7 +256,7 @@ To avoid manually stopping and restarting PostgreSQL every time the machine star
   /etc/postgresql/14/main      # pg_ctl.conf -> owner:group postgres:postgres
   ```
 
-## SQL Commands Cheatsheet
+## SQL Commands Cheat Sheet
 
 ```sql
 /*
@@ -267,13 +267,36 @@ DROP DATABASE test;
 \connect test 
 CREATE EXTENSION plpython3u; 
 CREATE USER fkariminej WITH SUPERUSER CREATEDB CREATEROLE;
-SELECT yourfunc();
 SHOW data_directory; -- PGDATA SHOW data_directory;
 SELECT current_user; -- PGUSER here fkariminej
 SELECT current_database(); -- PGDATABASE here test
 
+-- A specific function (e.g. my_func), a specific schema (e.g., my_schema)
+SELECT my_func(); -- Run the function
+DROP FUNCTION my_func; -- Remove a function
+DROP FUNCTION my_func(integer, text); -- Remove a function with parameter
+DROP FUNCTION my_schema.my_func; -- Remove a function exists in a specific schema
+DROP FUNCTION IF EXISTS my_func;
 
-\q
+-- Print the definition of a function
+SELECT pg_get_functiondef(oid) 
+FROM pg_proc 
+WHERE proname = 'my_func';
+
+-- Print the definition of a function with Schema Context
+SELECT pg_get_functiondef(p.oid) 
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE p.proname = 'my_func' AND n.nspname = 'my_schema';
+
+-- Output the function definition in a file
+\o output_file.sql
+SELECT pg_get_functiondef(oid) 
+FROM pg_proc 
+WHERE proname = 'my_func';
+\o
+
+\q -- Exit
 ```
 
 ```bash
