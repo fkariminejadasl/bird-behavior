@@ -45,14 +45,16 @@ def _get_device_name_start_datetime(index, file_infos):
     return device_id, date_only
 
 
-def generate_sql_or_json_query(
-    output_file, device_id, start_date, end_date, IS_JSON=True
-):
+def generate_sql_or_json_query(index, file_infos, output_file, IS_JSON=True):
     """
     Generate an SQL or JSON query file based from device id and start time for https://birdvis.e-ecology.nl.
 
     e.g. generate_sql_or_json_query(output_file, 6210, '2016-05-09', '2016-05-09')
     """
+
+    # Get device id and datetime
+    device_id, date_only = _get_device_name_start_datetime(index, file_infos)
+    start_date, end_date = date_only, date_only
 
     # Create JSON structure
     json_data = {
@@ -115,7 +117,5 @@ file_infos = get_file_info(imu_folder)
 
 # Generate query for index
 index = 2043
-file_info = file_infos[index]
-device_id, date_only = _get_device_name_start_datetime(index, file_infos)
-generate_sql_or_json_query(output_file, device_id, date_only, date_only)
+generate_sql_or_json_query(index, file_infos, output_file)
 print("done")
