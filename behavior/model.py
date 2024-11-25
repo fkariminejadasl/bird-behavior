@@ -15,6 +15,12 @@ from behavior import utils as bu
 seed = 1234
 bu.set_seed(seed)
 
+"""
+torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
+dataloader change 1xCxL to Nx1xCxL
+I don't use ToTensor anymore. I put everything now in dataset instead of model.
+"""
+
 
 class BirdModel(nn.Module):
     def __init__(self, in_channels, mid_channels, out_channels):

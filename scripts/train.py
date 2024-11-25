@@ -1,8 +1,12 @@
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass
+from typing import Optional
 
 import torch
 import tqdm
+import torch.nn as nn
+from functools import partial
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 
@@ -10,33 +14,50 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, target_labels
+from behavior.utils import n_classes, target_labels, new_label_inds
+
+@dataclass
+class Config:
+    seed: int = 32984
+    save_path: Path = Path("/home/fatemeh/Downloads/bird/result/")
+    exp: int = 114  # Experiment number
+    no_epochs: int = 4000
+    save_every: int = 2000
+    train_per: float = 0.9
+    data_per: float = 1.0
+    # Hyperparameters
+    warmup_epochs: int = 1000
+    step_size: int = 2000
+    max_lr: float = 3e-4
+    min_lr: float = None
+    weight_decay: float = 1e-2  # Default 1e-2
+    # Model parameters
+    width: int = 30
+    model_name: str = 'BirdModel'  # Options: 'BirdModel', 'ResNet18_1D', 'BirdModelTransformer', etc.
+    # Criterion parameters
+    use_weighted_loss: bool = False  # Whether to use weighted CrossEntropyLoss
+    # Optimizer parameters
+    optimizer_name: str = 'AdamW'
+    # Scheduler parameters
+    scheduler_name: str = 'StepLR'
+    def __post_init__(self):
+        # Set min_lr based on max_lr
+        self.min_lr = self.max_lr / 10
+
+cfg = Config()
+# from omegaconf import OmegaConfig
+# cfg = OmegaConfig.load(yaml_file)
 
 # import wandb
-# wandb.init(project="uncategorized")
+# wandb.init(project="small-bird", config=cfg)
 
-seed = 32984
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 114  # sys.argv[1]
-no_epochs = 4000  # int(sys.argv[2])
-save_every = 2000
-train_per = 0.9
-data_per = 1.0
-# hyperparam
-warmup_epochs = 1000
-step_size = 2000
-max_lr = 3e-4  # 1e-3
-min_lr = max_lr / 10
-weight_decay = 1e-2  # default 1e-2
-# model
-width = 30
-
-
-bu.set_seed(seed)
+# Set seed and device
+bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# Prepare datasets
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    train_per, data_per, target_labels
+    cfg.train_per, cfg.data_per, target_labels
 )
 train_loader = DataLoader(
     train_dataset,
@@ -53,102 +74,133 @@ eval_loader = DataLoader(
     drop_last=True,
 )
 
-
-"""
-torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
-dataloader change 1xCxL to Nx1xCxL
-I don't use ToTensor anymore. I put everything now in dataset instead of model.
-"""
-
+# Model setup
+# Number of input channels
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, width, n_classes).to(device)
-# model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
-# model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
-# model = bm1.TransformerEncoderMAE(
-#     img_size=20,
-#     in_chans=4,
-#     out_chans=9,
-#     embed_dim=16,
-#     depth=1,
-#     num_heads=8,
-#     mlp_ratio=4,
-#     drop=0.0,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
-# ).to(device)
 
-# model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
+
+# Select model based on configuration
+if cfg.model_name == 'BirdModel':
+    model = bm.BirdModel(in_channel, cfg.width, n_classes).to(device)
+elif cfg.model_name == 'ResNet18_1D':
+    model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
+elif cfg.model_name == 'BirdModelTransformer':
+    model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
+elif cfg.model_name == 'BirdModelTransformer':
+    model = bm1.TransformerEncoderMAE(
+        img_size=20,
+        in_chans=4,
+        out_chans=9,
+        embed_dim=16,
+        depth=1,
+        num_heads=8,
+        mlp_ratio=4,
+        drop=0.0,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+    ).to(device)
+elif cfg.model_name == 'BirdModelTransformer_':
+    model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
+else:
+    raise ValueError(f"Unknown model name: {cfg.model_name}")
+
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
 
-# weights = bd.get_labels_weights(label_ids)
-# criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
-criterion = torch.nn.CrossEntropyLoss()
-# optimizer = torch.optim.SGD(
-#     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
-# )
-optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-#     optimizer, T_max=no_epochs, eta_min=min_lr
-# )
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-#     optimizer, warmup_epochs, eta_min=min_lr
-# )
-# warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
-#     optimizer, start_factor=0.1, end_factor=1, total_iters=warmup_epochs
-# )
-# main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-#     optimizer, T_max=no_epochs - warmup_epochs, eta_min=min_lr
-# )
-# scheduler = torch.optim.lr_scheduler.SequentialLR(
-#     optimizer,
-#     schedulers=[warmup_lr_scheduler, main_lr_scheduler],
-#     milestones=[warmup_epochs],
-# )
 
+# Loss function and optimizer
+if cfg.use_weighted_loss:
+    weights = bd.get_labels_weights(new_label_inds)
+    criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
+else:
+    criterion = torch.nn.CrossEntropyLoss()
+
+# Select optimizer based on configuration
+if cfg.optimizer_name == 'AdamW':
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay)
+else:
+    raise ValueError(f"Unknown optimizer name: {cfg.optimizer_name}")
+
+# Select scheduler based on configuration
+if cfg.scheduler_name == 'StepLR':
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.step_size, gamma=0.1)
+elif cfg.scheduler_name == 'CosineAnnealingLR':
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.no_epochs, eta_min=cfg.min_lr)
+elif cfg.scheduler_name == 'CosineAnnealingWarmRestarts':
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, cfg.warmup_epochs, eta_min=cfg.min_lr)
+elif cfg.scheduler_name == 'SequentialLR':
+    warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=0.1,
+        end_factor=1,
+        total_iters=cfg.warmup_epochs
+    )
+    main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=cfg.no_epochs - cfg.warmup_epochs,
+        eta_min=cfg.min_lr
+    )
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_lr_scheduler, main_lr_scheduler],
+        milestones=[cfg.warmup_epochs],
+    )
+else:
+    raise ValueError(f"Unknown scheduler name: {cfg.scheduler_name}")
+
+# Print dataset sizes and device
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
-    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+    f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
+    f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
 )
+
+# Training loop
 best_accuracy = 0
-with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         # tqdm.tqdm(range(4001, no_epochs + 1)): # start from a checkpoint
         start_time = datetime.now()
-        print(f"start time: {start_time}")
+        print(f"Start time: {start_time}")
+        
+        # Train for one epoch
         bm.train_one_epoch(
-            train_loader, model, criterion, device, epoch, no_epochs, writer, optimizer
+            train_loader, model, criterion, device, epoch, cfg.no_epochs, writer, optimizer
         )
         accuracy = bm.evaluate(
-            eval_loader, model, criterion, device, epoch, no_epochs, writer
+            eval_loader, model, criterion, device, epoch, cfg.no_epochs, writer
         )
+        
         end_time = datetime.now()
-        print(f"end time: {end_time}, elapse time: {end_time-start_time}")
-
+        print(f"End time: {end_time}, Elapsed time: {end_time - start_time}")
+        
+        # Update scheduler and log learning rates
         scheduler.step()
         lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
         lr_sched = scheduler.get_last_lr()[0]
         writer.add_scalar("lr/optim", lr_optim, epoch)
         writer.add_scalar("lr/sched", lr_sched, epoch)
         print(
-            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+            f"Optimizer LR: {optimizer.param_groups[-1]['lr']:.6f}, "
+            f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
         )
 
-        if epoch % save_every == 0:
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
-        # save best model
+        # Save model at intervals
+        if epoch % cfg.save_every == 0:
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+        # Save best model
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             # 1-based save for epoch
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
-            print(f"best model accuracy: {best_accuracy:.2f} at epoch: {epoch}")
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True)
+            print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
 
+
+# Save the final model
 # 1-based save for epoch
-bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+bm.save_model(cfg.save_path, cfg.exp, model, optimizer, scheduler)
 
-bm.load_model(save_path / f"{exp}_best.pth", model, device)
+bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
-fail_path = save_path / f"failed/{exp}"
+fail_path = cfg.save_path / f"failed/{cfg.exp}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
 data, ldts = next(iter(train_loader))
