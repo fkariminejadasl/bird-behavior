@@ -117,54 +117,67 @@ def plot_all(dataframe, dataframe_db, glen=20):
 
     N.B. max_length=200, for example for 6011,2015-04-30 09:09:26'
     e.g.
-    dt = (533, "2012-05-15 03:10:11")
-    df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
+    dt = (6016, '2015-05-01 11:18:22') # 200
+    dt = (6011, '2015-04-30 09:10:31') # 200 (only 120 labeled)
+    dt = (6016, '2015-05-01 11:15:46') # 120
+    dt = (533, "2012-05-15 03:10:11") # 60
+    df_u = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None)
     df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
-    dataframe = df_s.groupby(by=[0,1]).get_group(dt).sort_values(by=[2])
+    dataframe = df_u.groupby(by=[0,1]).get_group(dt).sort_values(by=[2])
     dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
     fig = plot_all(dataframe, dataframe_db, glen=20)
     plt.show(block=True)
     """
+    import matplotlib
+
     max_index = 200
+    n_plot_rows = 1
     y_limits = [-3.5, 3.5]
-    n_plots = len(dataframe_db) // glen
-    fig, ax = plt.subplots(1, 1, figsize=(18, 4))
+    fig, axs = plt.subplots(n_plot_rows, 1, figsize=(18, 4 * n_plot_rows))
+    if isinstance(axs, matplotlib.axes._axes.Axes):
+        axs = [axs]
     plt.title(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
     fig.tight_layout()
-    data = dataframe_db[[4, 5, 6]].values
-    indices = dataframe_db[[2]].values.squeeze()
-    ax.plot(
-        indices,
-        data[:, 0],
-        "r-*",
-        indices,
-        data[:, 1],
-        "b-*",
-        indices,
-        data[:, 2],
-        "g-*",
-    )
-    # Change indices[-1] to max length
-    ax.set_xlim(indices[0], max_index)  #
-    ax.set_ylim(*y_limits)
-    ax.set_yticks([y_limits[0], 0, y_limits[1]])
-    ax.set_xticks(indices[::glen])
-    # Plot zero horizontal line
-    ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
-    # Plot vertical lines
-    for i in range(n_plots - 1):
-        ind = indices[i * glen + glen]
-        ax.plot([ind, ind], y_limits, "-", color="black")
-    # Plot labels
-    for i in range(n_plots):
-        ind = indices[i * glen]
-        crop = dataframe[dataframe[2] == ind]
-        if len(crop) == 0:
-            label = None
-        else:
-            label = ind2name[crop.iloc[0, 3]]
-        text_loc = [indices[i * glen + glen // 2] - 2, y_limits[1] - 0.5]
-        ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
+    all_data = dataframe_db[[4, 5, 6]].values
+    all_indices = dataframe_db[[2]].values.squeeze()
+    for j, ax in enumerate(axs):
+        data = all_data[j * max_index : j * max_index + max_index]
+        if len(data) == 0:
+            continue
+        indices = all_indices[j * max_index : j * max_index + max_index]
+        n_plots = len(data) // glen
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
+        # Change indices[-1] to max length
+        ax.set_xlim(indices[0], indices[0] + max_index - 1)  #
+        ax.set_ylim(*y_limits)
+        ax.set_yticks([y_limits[0], 0, y_limits[1]])
+        ax.set_xticks(indices[::glen])
+        # Plot zero horizontal line
+        ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
+        # Plot vertical lines
+        for i in range(n_plots - 1):
+            ind = indices[i * glen + glen]
+            ax.plot([ind, ind], y_limits, "-", color="black")
+        # Plot labels
+        for i in range(n_plots):
+            ind = indices[i * glen]
+            crop = dataframe[dataframe[2] == ind]
+            if len(crop) == 0:
+                label = None
+            else:
+                label = ind2name[crop.iloc[0, 3]]
+            text_loc = [indices[i * glen + glen // 2] - 2, y_limits[1] - 0.5]
+            ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
     # plt.show(block=False)
     return fig
 
