@@ -129,8 +129,9 @@ def get_gpu_memory():
     # torch.cuda.empty_cache()
 
 
-# import wandb
-# wandb.init(project="uncategorized")
+import wandb
+
+wandb.init(project="bird-large-pt")
 
 print(
     f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
@@ -143,12 +144,17 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 generator = torch.Generator().manual_seed(seed)  # for random_split
 
-# save_path = Path("/home/fatemeh/Downloads/bird/result/")
-save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
+# gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
+# gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
+directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
+# directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
+save_path = Path("/home/fatemeh/Downloads/bird/result/")
+# save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
 save_path.mkdir(parents=True, exist_ok=True)
 
-exp = "p_mem5"  # sys.argv[1]
-model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem4_500.pth"
+exp = "p_mem6"
+model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth"
+num_workers = 17  # 17, 15
 no_epochs = 500
 save_every = 200
 train_per = 0.9
@@ -161,17 +167,21 @@ max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
 weight_decay = 1e-2  # default 1e-2
 # model
-width = 30
 g_len = 60
+in_channel = 4
+patch_size = 1
+embed_dim = 256  # 256, 16
+depth = 6  # 6, 1
+num_heads = 8
+decoder_embed_dim = 256  # 256, 16
+decoder_depth = 6  # 6, 1
+decoder_num_heads = 8
+mlp_ratio = 4
 
 
-# gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
-# gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
-# directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
-directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
 gimus = read_csv_files(directory)
 print(gimus.shape)
-gimus = gimus.reshape(-1, g_len, 4)
+gimus = gimus.reshape(-1, g_len, in_channel)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
 dataset = BirdDataset(gimus)
@@ -186,7 +196,7 @@ train_loader = DataLoader(
     train_dataset,
     batch_size=min(4000, len(train_dataset)),
     shuffle=True,
-    num_workers=17,
+    num_workers=num_workers,
     drop_last=True,
     pin_memory=True,  # fast but more memory
 )
@@ -194,24 +204,24 @@ eval_loader = DataLoader(
     eval_dataset,
     batch_size=min(4000, len(eval_dataset)),
     shuffle=False,
-    num_workers=17,
+    num_workers=num_workers,
     drop_last=True,
     pin_memory=True,
 )
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
-in_channel = train_dataset[0][0].shape[0]  # 3 or 4
+# in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm1.MaskedAutoencoderViT(
     img_size=g_len,
-    in_chans=4,
-    patch_size=1,
-    embed_dim=256,  # 16,
-    depth=6,  # 1,
-    num_heads=8,
-    decoder_embed_dim=256,  # 16,
-    decoder_depth=6,  # 1,
-    decoder_num_heads=8,
-    mlp_ratio=4,
+    in_chans=in_channel,
+    patch_size=patch_size,
+    embed_dim=embed_dim,
+    depth=depth,
+    num_heads=num_heads,
+    decoder_embed_dim=decoder_embed_dim,
+    decoder_depth=decoder_depth,
+    decoder_num_heads=decoder_num_heads,
+    mlp_ratio=mlp_ratio,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
 ).to(device)
 bm.load_model(model_checkpoint, model, device)
