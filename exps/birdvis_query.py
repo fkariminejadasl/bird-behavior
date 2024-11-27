@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
@@ -31,35 +31,26 @@ def get_file_info(image_folder):
     return file_infos
 
 
-def _get_device_name_start_datetime(index, file_infos):
-    """
-    e.g. output: 6210, '2016-05-09'
-    """
-    file_info = file_infos[index]
-    if not file_info:
-        print(f"No file info found for index {index}.")
-        return
-
-    device_id, starting_date_time = file_info
-    date_only = starting_date_time.strftime("%Y-%m-%d")
-    return device_id, date_only
-
-
 def generate_sql_or_json_query(index, file_infos, output_file, IS_JSON=True):
     """
     Generate an SQL or JSON query file based from device id and start time for https://birdvis.e-ecology.nl.
-
-    e.g. generate_sql_or_json_query(output_file, 6210, '2016-05-09', '2016-05-09')
     """
 
     # Get device id and datetime
-    device_id, date_only = _get_device_name_start_datetime(index, file_infos)
-    start_date, end_date = date_only, date_only
+    file_info = file_infos[index]
+    device_id, date_time = file_info
+    s_datetime = date_time - timedelta(hours=1)
+    e_datetime = date_time + timedelta(hours=1)
+    s_date_str = s_datetime.strftime("%Y-%m-%d")
+    e_date_str = e_datetime.strftime("%Y-%m-%d")
 
     # Create JSON structure
     json_data = {
         "tracker": {"serial_number": str(device_id), "data_source": "GPS"},
-        "time": {"start": f"{start_date}T00:00", "end": f"{end_date}T23:59"},
+        "time": {
+            "start": f"{s_date_str}T{s_datetime.hour:02d}:{s_datetime.minute:02d}",
+            "end": f"{e_date_str}T{e_datetime.hour:02d}:{e_datetime.minute:02d}",
+        },
         "area": {"north": None, "south": None, "west": None, "east": None},
         "project": {"name": ""},
         "bird": {
@@ -86,7 +77,7 @@ def generate_sql_or_json_query(index, file_infos, output_file, IS_JSON=True):
         trackpoint.date_time BETWEEN tracksession.start_date AND tracksession.end_date
 
     WHERE 1=1
-        AND trackpoint.device_info_serial = {device_id} AND trackpoint.date_time >= '{start_date} 00:00' AND trackpoint.date_time < '{end_date} 23:59' ORDER BY trackpoint.date_time
+        AND trackpoint.device_info_serial = {device_id} AND trackpoint.date_time >= '{s_date_str} 00:00' AND trackpoint.date_time < '{e_date_str} 23:59' ORDER BY trackpoint.date_time
     """
 
     if IS_JSON:
@@ -110,7 +101,7 @@ def generate_sql_or_json_query(index, file_infos, output_file, IS_JSON=True):
 
 # Example usage
 # Folder containing the IMU images
-imu_folder = Path("/home/fatemeh/Downloads/bird/result/gt/all")
+imu_folder = Path("/home/fatemeh/Downloads/bird/result/gt2/all")
 output_file = Path("/home/fatemeh/Desktop/tmp2.json")
 
 file_infos = get_file_info(imu_folder)
