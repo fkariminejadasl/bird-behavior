@@ -22,6 +22,7 @@ exp = 112  # sys.argv[1]
 save_name = f"{exp}"
 width = 30
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv")
 fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
@@ -49,7 +50,7 @@ model.eval()
 
 """
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    train_per, data_per, target_labels
+    data_file, train_per, data_per, target_labels
 )
 train_loader = DataLoader(
     train_dataset,
@@ -98,9 +99,7 @@ bu.helper_results(
 print(device)
 print(sum([p.numel() for p in model.parameters()]))
 
-csv_igs, csv_ldts = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
-)
+csv_igs, csv_ldts = bd.load_csv(data_file)
 csv_igs, csv_ldts = bd.get_specific_labesl(csv_igs, csv_ldts, target_labels)
 dataset = bd.BirdDataset(csv_igs, csv_ldts)
 loader = DataLoader(

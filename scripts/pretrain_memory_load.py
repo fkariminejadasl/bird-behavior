@@ -146,10 +146,10 @@ generator = torch.Generator().manual_seed(seed)  # for random_split
 
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
-directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
-# directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
-# save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
+# directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
+# save_path = Path("/home/fatemeh/Downloads/bird/result")
+directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
+save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
 save_path.mkdir(parents=True, exist_ok=True)
 
 exp = "p_mem6"
@@ -224,7 +224,7 @@ model = bm1.MaskedAutoencoderViT(
     mlp_ratio=mlp_ratio,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
 ).to(device)
-bm.load_model(model_checkpoint, model, device)
+# bm.load_model(model_checkpoint, model, device)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)

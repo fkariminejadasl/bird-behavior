@@ -10,8 +10,11 @@ import tqdm
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, Dataset, random_split
 
+from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
+from behavior import utils as bu
+from behavior.utils import n_classes, new_label_inds, target_labels
 
 
 def read_csv_file(csv_file):
@@ -146,16 +149,18 @@ generator = torch.Generator().manual_seed(seed)  # for random_split
 
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
 # gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv")
 directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
 # directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
 # save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
 save_path.mkdir(parents=True, exist_ok=True)
 
-exp = "p_mem6"
-model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth"
-num_workers = 17  # 17, 15
-no_epochs = 500
+exp = "f_mem1"
+# model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem6_500.pth"
+model_checkpoint = "/home/fatemeh/Downloads/bird/result/p_mem6_1.pth"
+num_workers = 15  # 17, 15
+no_epochs = 1  # 500, 1
 save_every = 200
 train_per = 0.9
 data_per = 1.0
@@ -167,30 +172,26 @@ max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
 weight_decay = 1e-2  # default 1e-2
 # model
-g_len = 60
+g_len = 20  # 60, 20
 in_channel = 4
+out_channel = 9
 patch_size = 1
-embed_dim = 256  # 256, 16
-depth = 6  # 6, 1
+embed_dim = 16  # 256, 16
+depth = 1  # 6, 1
 num_heads = 8
-decoder_embed_dim = 256  # 256, 16
-decoder_depth = 6  # 6, 1
+decoder_embed_dim = 16  # 256, 16
+decoder_depth = 1  # 6, 1
 decoder_num_heads = 8
 mlp_ratio = 4
+drop = 0.0
 
 
-gimus = read_csv_files(directory)
-print(gimus.shape)
-gimus = gimus.reshape(-1, g_len, in_channel)
-gimus = np.ascontiguousarray(gimus)
-print(gimus.shape)
-dataset = BirdDataset(gimus)
-# Calculate the sizes for training and validation datasets
-train_size = int(train_per * data_per * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
+train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+    data_file, train_per, data_per, target_labels
+)
 
-print(len(dataset), len(train_dataset), len(eval_dataset))
+
+print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
     train_dataset,
@@ -211,21 +212,32 @@ eval_loader = DataLoader(
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 # in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm1.MaskedAutoencoderViT(
+model = bm1.TransformerEncoderMAE(
     img_size=g_len,
     in_chans=in_channel,
-    patch_size=patch_size,
+    out_chans=out_channel,
     embed_dim=embed_dim,
     depth=depth,
     num_heads=num_heads,
-    decoder_embed_dim=decoder_embed_dim,
-    decoder_depth=decoder_depth,
-    decoder_num_heads=decoder_num_heads,
     mlp_ratio=mlp_ratio,
+    drop=drop,
     norm_layer=partial(nn.LayerNorm, eps=1e-6),
 ).to(device)
-bm.load_model(model_checkpoint, model, device)
 
+# bm.load_model(model_checkpoint, model, device)
+pmodel = torch.load(model_checkpoint, weights_only=True)["model"]
+state_dict = model.state_dict()
+for name, p in pmodel.items():
+    if (
+        "decoder" not in name and "mask" not in name
+    ):  # and name!="norm.weight" and name!="norm.bias":
+        state_dict[name].data.copy_(p.data)
+        # dict(model.named_parameters())[name].requires_grad = False # freeze all layers except class head
+print(
+    f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
+)
+
+criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
 
@@ -235,16 +247,18 @@ print(
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
-
+best_accuracy = 0
 with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
     for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
         start_time = datetime.now()
         print(f"start time: {start_time}")
         get_gpu_memory()
-        train_one_epoch(
-            train_loader, model, device, epoch, no_epochs, writer, optimizer
+        bm.train_one_epoch(
+            train_loader, model, criterion, device, epoch, no_epochs, writer, optimizer
         )
-        evaluate(eval_loader, model, device, epoch, no_epochs, writer)
+        accuracy = bm.evaluate(
+            eval_loader, model, criterion, device, epoch, no_epochs, writer
+        )
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -260,6 +274,12 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 
         if epoch % save_every == 0:
             bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+            # save best model
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            # 1-based save for epoch
+            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
+            print(f"best model accuracy: {best_accuracy:.2f} at epoch: {epoch}")
 
 # 1-based save for epoch
 bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)

@@ -905,13 +905,12 @@ def load_csv(csv_file, g_len=20):
     return igs, ldts
 
 
-def prepare_train_valid_dataset(train_per, data_per, target_labels):
+def prepare_train_valid_dataset(data_file, train_per, data_per, target_labels):
     """Load and prepare data, return train and eval Dataset."""
-    # data_path = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-    # all_measurements, label_ids = load_all_data_from_json(data_path)
-    all_measurements, label_ids = load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data, combined_unique.csv"
-    )
+    # data_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+    # all_measurements, label_ids = load_all_data_from_json(data_file)
+    # s_data, combined_unique.csv"
+    all_measurements, label_ids = load_csv(data_file)
     # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
     all_measurements, label_ids = get_specific_labesl(
         all_measurements, label_ids, target_labels

@@ -21,6 +21,7 @@ from behavior.utils import n_classes, new_label_inds, target_labels
 class Config:
     seed: int = 32984
     save_path: Path = Path("/home/fatemeh/Downloads/bird/result/")
+    data_file = Path("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv")
     exp: int = 114  # Experiment number
     no_epochs: int = 4000
     save_every: int = 2000
@@ -62,7 +63,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Prepare datasets
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.train_per, cfg.data_per, target_labels
+    cfg.data_file, cfg.train_per, cfg.data_per, target_labels
 )
 train_loader = DataLoader(
     train_dataset,
