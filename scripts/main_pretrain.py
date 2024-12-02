@@ -66,6 +66,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     total_loss = running_loss / (i + 1)
     print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
+    return total_loss
 
 
 # import wandb
@@ -158,6 +159,7 @@ print(
     f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
+best_loss = best_loss = float("inf")
 with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
     for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
         start_time = datetime.now()
@@ -165,7 +167,7 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
         train_one_epoch(
             train_loader, model, device, epoch, no_epochs, writer, optimizer
         )
-        evaluate(eval_loader, model, device, epoch, no_epochs, writer)
+        loss = evaluate(eval_loader, model, device, epoch, no_epochs, writer)
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
@@ -180,6 +182,12 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 
         if epoch % save_every == 0:
             bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+        # save best model
+        if loss < best_loss:
+            best_loss = loss
+            # 1-based save for epoch
+            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
+            print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
 
 # 1-based save for epoch
 bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)

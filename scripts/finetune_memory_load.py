@@ -274,7 +274,7 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
 
         if epoch % save_every == 0:
             bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
-            # save best model
+        # save best model
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             # 1-based save for epoch
