@@ -96,7 +96,7 @@ model = bm1.TransformerEncoderMAE(
     num_heads=8,
     mlp_ratio=4,
     drop=0.0,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+    layer_norm_eps=1e-6,
 ).to(device)
 
 

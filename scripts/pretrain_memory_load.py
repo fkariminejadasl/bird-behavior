@@ -223,7 +223,7 @@ model = bm1.MaskedAutoencoderViT(
     decoder_depth=decoder_depth,
     decoder_num_heads=decoder_num_heads,
     mlp_ratio=mlp_ratio,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+    layer_norm_eps=1e-6,
 ).to(device)
 # bm.load_model(model_checkpoint, model, device)
 

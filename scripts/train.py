@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import tqdm
+from omegaconf import OmegaConf
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 
@@ -18,51 +19,31 @@ from behavior.utils import n_classes, new_label_inds, target_labels
 
 
 @dataclass
-class Config:
-    seed: int = 32984
-    save_path: Path = Path("/home/fatemeh/Downloads/bird/result/")
-    data_file = Path("/home/fatemeh/Downloads/bird/data/final/combined_unique.csv")
-    exp: int = 114  # Experiment number
-    no_epochs: int = 4000
-    save_every: int = 2000
-    train_per: float = 0.9
-    data_per: float = 1.0
-    # Hyperparameters
-    warmup_epochs: int = 1000
-    step_size: int = 2000
-    max_lr: float = 3e-4
-    min_lr: float = None
-    weight_decay: float = 1e-2  # Default 1e-2
-    # Model parameters
-    width: int = 30
-    model_name: str = (
-        "BirdModel"  # Options: 'BirdModel', 'ResNet18_1D', 'BirdModelTransformer', etc.
-    )
-    # Criterion parameters
-    use_weighted_loss: bool = False  # Whether to use weighted CrossEntropyLoss
-    # Optimizer parameters
-    optimizer_name: str = "AdamW"
-    # Scheduler parameters
-    scheduler_name: str = "StepLR"
-
-    def __post_init__(self):
-        # Set min_lr based on max_lr
-        self.min_lr = self.max_lr / 10
+class PathConfig:
+    save_path: Path
+    data_file: Path
 
 
-# from omegaconf import OmegaConf
-# a = OmegaConf.load("/home/fatemeh/dev/bird-behavior/configs/test.yaml")
-# a.model.parameters.new = a.model.parameters.num_classes + 10
-# CNN(**a.model.parameters)
-# with open('/home/fatemeh/dev/bird-behavior/configs/test.yaml', 'r') as file: c=yaml.safe_load(file)
-# CNN(**c['model']['parameters'])
+models = {
+    "BirdModel": bm.BirdModel,
+    "ResNet18_1D": bm.ResNet18_1D,
+    "BirdModelTransformer": bm.BirdModelTransformer,
+    "TransformerEncoderMAE": bm1.TransformerEncoderMAE,
+    "BirdModelTransformer_": bm.BirdModelTransformer_,
+}
 
-cfg = Config()
-# from omegaconf import OmegaConfig
-# cfg = OmegaConfig.load(yaml_file)
+cfg = OmegaConf.load("/home/fatemeh/dev/bird-behavior/configs/train.yaml")
+cfg_paths = OmegaConf.structured(
+    PathConfig(save_path=cfg.save_path, data_file=cfg.data_file)
+)
+cfg = OmegaConf.merge(cfg, cfg_paths)
+cfg.min_lr = cfg.max_lr / 10
 
-# import wandb
-# wandb.init(project="small-bird", config=cfg)
+# Convert the DictConfig to a standard dictionary
+cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+import wandb
+
+wandb.init(project="small-bird", config=cfg_dict)
 
 # Set seed and device
 bu.set_seed(cfg.seed)
@@ -91,30 +72,10 @@ eval_loader = DataLoader(
 # Number of input channels
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 
-
-# Select model based on configuration
-if cfg.model_name == "BirdModel":
-    model = bm.BirdModel(in_channel, cfg.width, n_classes).to(device)
-elif cfg.model_name == "ResNet18_1D":
-    model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
-elif cfg.model_name == "BirdModelTransformer":
-    model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
-elif cfg.model_name == "BirdModelTransformer":
-    model = bm1.TransformerEncoderMAE(
-        img_size=20,
-        in_chans=4,
-        out_chans=9,
-        embed_dim=16,
-        depth=1,
-        num_heads=8,
-        mlp_ratio=4,
-        drop=0.0,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),
-    ).to(device)
-elif cfg.model_name == "BirdModelTransformer_":
-    model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
-else:
+if cfg.model.name not in models:
     raise ValueError(f"Unknown model name: {cfg.model_name}")
+model = models[cfg.model.name](**cfg.model.parameters).to(device)
+print(cfg.model.name)
 
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
 

@@ -148,7 +148,7 @@ model = bm1.MaskedAutoencoderViT(
     decoder_depth=1,
     decoder_num_heads=8,
     mlp_ratio=4,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+    layer_norm_eps=1e-6,
 ).to(device)
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)

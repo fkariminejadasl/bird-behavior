@@ -221,7 +221,7 @@ model = bm1.TransformerEncoderMAE(
     num_heads=num_heads,
     mlp_ratio=mlp_ratio,
     drop=drop,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6),
+    layer_norm_eps=1e-6,
 ).to(device)
 
 # bm.load_model(model_checkpoint, model, device)

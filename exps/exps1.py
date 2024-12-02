@@ -43,7 +43,7 @@ model = bm.BirdModel(in_channel, width, n_classes).to(device)
 #     num_heads=8,
 #     mlp_ratio=4,
 #     drop=0.0,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#     layer_norm_eps=1e-6,
 # ).to(device)
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 model.eval()
