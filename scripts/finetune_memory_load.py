@@ -158,7 +158,7 @@ save_path.mkdir(parents=True, exist_ok=True)
 
 exp = "f_mem1"
 # model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem6_500.pth"
-model_checkpoint = "/home/fatemeh/Downloads/bird/result/p_mem6_1.pth"
+model_checkpoint = "/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
 num_workers = 15  # 17, 15
 no_epochs = 1  # 500, 1
 save_every = 200
@@ -172,7 +172,7 @@ max_lr = 3e-4  # 1e-3
 min_lr = max_lr / 10
 weight_decay = 1e-2  # default 1e-2
 # model
-g_len = 20  # 60, 20
+g_len = 60  # 60, 20
 in_channel = 4
 out_channel = 9
 patch_size = 1

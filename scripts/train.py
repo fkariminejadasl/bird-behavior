@@ -50,6 +50,13 @@ class Config:
         self.min_lr = self.max_lr / 10
 
 
+# from omegaconf import OmegaConf
+# a = OmegaConf.load("/home/fatemeh/dev/bird-behavior/configs/test.yaml")
+# a.model.parameters.new = a.model.parameters.num_classes + 10
+# CNN(**a.model.parameters)
+# with open('/home/fatemeh/dev/bird-behavior/configs/test.yaml', 'r') as file: c=yaml.safe_load(file)
+# CNN(**c['model']['parameters'])
+
 cfg = Config()
 # from omegaconf import OmegaConfig
 # cfg = OmegaConfig.load(yaml_file)
