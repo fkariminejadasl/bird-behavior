@@ -1,4 +1,5 @@
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -7,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
+from omegaconf import OmegaConf
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 
@@ -69,31 +71,23 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_loss
 
 
-# import wandb
-# wandb.init(project="uncategorized")
+@dataclass
+class PathConfig:
+    save_path: Path
+    data_file: Path
 
-seed = 1234
-bu.set_seed(seed)
 
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = "p5"  # sys.argv[1]
-no_epochs = 12000  # int(sys.argv[2])
-save_every = 6000
-train_per = 0.9
-data_per = 1.0
-
-# hyperparam
-warmup_epochs = 1000
-step_size = 6000
-max_lr = 3e-4  # 1e-3
-min_lr = max_lr / 10
-weight_decay = 1e-2  # default 1e-2
-# model
-width = 30
-
-all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"
+cfg_file = Path(__file__).parents[1] / "configs/main_pretrain.yaml"
+cfg = OmegaConf.load(cfg_file)
+cfg_paths = OmegaConf.structured(
+    PathConfig(save_path=cfg.save_path, data_file=cfg.data_file)
 )
+cfg = OmegaConf.merge(cfg, cfg_paths)
+
+bu.set_seed(cfg.seed)
+
+
+all_measurements, label_ids = bd.load_csv(cfg.data_file)
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, target_labels
 )
@@ -101,7 +95,7 @@ all_measurements, label_ids = bd.get_specific_labesl(
 all_measurements = all_measurements[872:]
 label_ids = label_ids[872:]
 
-n_trainings = int(all_measurements.shape[0] * train_per * data_per)
+n_trainings = int(all_measurements.shape[0] * cfg.train_per * cfg.data_per)
 n_valid = all_measurements.shape[0] - n_trainings
 train_measurments = all_measurements[:n_trainings]
 valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
@@ -138,21 +132,25 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm1.MaskedAutoencoderViT(
-    img_size=20,
-    in_chans=4,
-    patch_size=1,
-    embed_dim=16,
-    depth=1,
-    num_heads=8,
-    decoder_embed_dim=16,
-    decoder_depth=1,
-    decoder_num_heads=8,
-    mlp_ratio=4,
-    layer_norm_eps=1e-6,
+    img_size=cfg.g_len,
+    in_chans=cfg.in_channel,
+    patch_size=cfg.patch_size,
+    embed_dim=cfg.embed_dim,
+    depth=cfg.depth,
+    num_heads=cfg.num_heads,
+    decoder_embed_dim=cfg.decoder_embed_dim,
+    decoder_depth=cfg.decoder_depth,
+    decoder_num_heads=cfg.decoder_num_heads,
+    mlp_ratio=cfg.mlp_ratio,
+    layer_norm_eps=cfg.layer_norm_eps,
 ).to(device)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
+optimizer = torch.optim.AdamW(
+    model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
+)
+scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer, step_size=cfg.step_size, gamma=0.1
+)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
@@ -160,14 +158,14 @@ print(
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 best_loss = best_loss = float("inf")
-with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
         print(f"start time: {start_time}")
         train_one_epoch(
-            train_loader, model, device, epoch, no_epochs, writer, optimizer
+            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
         )
-        loss = evaluate(eval_loader, model, device, epoch, no_epochs, writer)
+        loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer)
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
@@ -180,14 +178,16 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
             f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
         )
 
-        if epoch % save_every == 0:
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+        if epoch % cfg.save_every == 0:
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
         # save best model
         if loss < best_loss:
             best_loss = loss
             # 1-based save for epoch
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
+            bm.save_model(
+                cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
+            )
             print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
 
 # 1-based save for epoch
-bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)

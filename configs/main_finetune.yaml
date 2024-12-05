@@ -1,0 +1,31 @@
+# Paths
+save_path: "/home/fatemeh/Downloads/bird/result"
+data_file: "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv" # old: /home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv
+model_checkpoint: "/home/fatemeh/Downloads/bird/result/p1_best.pth"
+# General
+seed: 1234
+exp: "f1"
+no_epochs: 2 #2000
+save_every: 2000
+# Data
+train_per: 0.9
+data_per: 1.0
+# Training
+warmup_epochs: 1000
+step_size: 2000
+max_lr: 3e-4  # 1e-3
+weight_decay: 1e-2  # default 1e-2
+# Model
+g_len: 20
+in_channel: 4
+out_channel: 9
+patch_size: 1
+embed_dim: 16  # 256, 16
+depth: 1  # 6, 1
+num_heads: 8
+decoder_embed_dim: 16  # 256, 16
+decoder_depth: 1  # 6, 1
+decoder_num_heads: 8
+mlp_ratio: 4
+drop: 0.0
+layer_norm_eps: 1e-6

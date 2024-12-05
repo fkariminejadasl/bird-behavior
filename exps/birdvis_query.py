@@ -99,6 +99,10 @@ def generate_sql_or_json_query(index, file_infos, output_file, IS_JSON=True):
             print(f"Error saving SQL query: {e}")
 
 
+def print_dev_datetime(file_info):
+    return f"{file_info[0]},{file_info[1]}"
+
+
 # Example usage
 # Folder containing the IMU images
 imu_folder = Path("/home/fatemeh/Downloads/bird/result/gt2/all")
@@ -109,4 +113,5 @@ file_infos = get_file_info(imu_folder)
 # Generate query for index
 index = 2043
 generate_sql_or_json_query(index, file_infos, output_file)
+print_dev_datetime(file_infos[index])
 print("done")

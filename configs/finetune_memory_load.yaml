@@ -1,0 +1,70 @@
+# # Paths
+# data_file: "/gpfs/home4/fkarimineja/data/bird/combined_unique.csv"
+# save_path: "/gpfs/home4/fkarimineja/exp/bird/runs"
+# model_checkpoint: "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem6_500.pth"
+# # General
+# seed: 1234
+# exp: "f_mem1"
+# num_workers: 17  # 17, 15
+# no_epochs: 1  # 500, 1
+# save_every: 200
+# # Data
+# train_per: 0.9
+# data_per: 1.0
+# batch_size: 4000
+# # Training
+# warmup_epochs: 1000
+# step_size: 2000
+# max_lr: 3e-4  # 1e-3
+# min_lr: None
+# weight_decay: 1e-2  # default 1e-2
+# # Model
+# g_len: 60  # 60, 20
+# in_channel: 4
+# out_channel: 9
+# embed_dim: 256  # 256, 16
+# depth: 6  # 6, 1
+# num_heads: 8
+# decoder_embed_dim: 256  # 256, 16
+# decoder_depth: 6  # 6, 1
+# decoder_num_heads: 8
+# mlp_ratio: 4
+# drop: 0.0
+# layer_norm_eps: 1e-6
+
+# ===========
+# TEST
+# ===========
+# Paths
+data_file: "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"
+save_path: "/home/fatemeh/Downloads/bird/result/"
+model_checkpoint: "/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
+# General
+seed: 1234
+exp: "f_mem1"
+num_workers: 15  # 17, 15
+no_epochs: 100  # 500, 1
+save_every: 200
+# Data
+train_per: 0.9
+data_per: 1.0
+batch_size: 4000
+# Training
+warmup_epochs: 1000
+step_size: 2000
+max_lr: 3e-4  # 1e-3
+min_lr: None
+weight_decay: 1e-2  # default 1e-2
+# Model
+g_len: 60  # 60, 20
+in_channel: 4
+out_channel: 9
+embed_dim: 16  # 256, 16
+depth: 1  # 6, 1
+num_heads: 8
+decoder_embed_dim: 16  # 256, 16
+decoder_depth: 1  # 6, 1
+decoder_num_heads: 8
+mlp_ratio: 4
+drop: 0.0
+layer_norm_eps: 1e-6

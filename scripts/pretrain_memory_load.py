@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -7,6 +8,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
+from omegaconf import OmegaConf
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, Dataset, random_split
 
@@ -28,11 +30,11 @@ def read_csv_file(csv_file):
     return gimus
 
 
-def read_csv_files(directory):
+def read_csv_files(data_path):
     gimus = []
     dis = []
     timestamps = []
-    for csv_file in directory.glob("*.csv"):
+    for csv_file in data_path.glob("*.csv"):
         df = pd.read_csv(csv_file, header=None)
         gimus.append(df[[4, 5, 6, 7]].values)
         dis.append(df[[0, 2]].values)
@@ -130,64 +132,54 @@ def get_gpu_memory():
     # torch.cuda.empty_cache()
 
 
+@dataclass
+class PathConfig:
+    save_path: Path
+    data_path: Path
+    model_checkpoint: Path
+
+
+cfg_file = Path(__file__).parents[1] / "configs/pretrain_memory_load.yaml"
+cfg = OmegaConf.load(cfg_file)
+cfg_paths = OmegaConf.structured(
+    PathConfig(
+        save_path=cfg.save_path,
+        data_path=cfg.data_path,
+        model_checkpoint=cfg.model_checkpoint,
+    )
+)
+cfg = OmegaConf.merge(cfg, cfg_paths)
+cfg.min_lr = cfg.max_lr / 10
+
+# Convert the DictConfig to a standard dictionary
+cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="bird-large-pt")
+wandb.init(project="bird-large-pt", config=cfg_dict)
 
+cfg.save_path.mkdir(parents=True, exist_ok=True)
+
+# Device
 print(
     f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
 )
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # nvidia-smi -i 0 # also show properties
 
-seed = 1234
-np.random.seed(seed)
-torch.manual_seed(seed)
-generator = torch.Generator().manual_seed(seed)  # for random_split
+# Random seed
+np.random.seed(cfg.seed)
+torch.manual_seed(cfg.seed)
+generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
-# gimus = read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv")
-# gimus = read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv")
-# directory = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
-# save_path = Path("/home/fatemeh/Downloads/bird/result")
-directory = Path("/gpfs/home4/fkarimineja/data/bird/ssl")
-save_path = Path("/gpfs/home4/fkarimineja/exp/bird/runs")
-save_path.mkdir(parents=True, exist_ok=True)
-
-exp = "p_mem6"
-model_checkpoint = "/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth"
-num_workers = 17  # 17, 15
-no_epochs = 500
-save_every = 200
-train_per = 0.9
-data_per = 1.0
-
-# hyperparam
-warmup_epochs = 1000
-step_size = 2000
-max_lr = 3e-4  # 1e-3
-min_lr = max_lr / 10
-weight_decay = 1e-2  # default 1e-2
-# model
-g_len = 60
-in_channel = 4
-patch_size = 1
-embed_dim = 256  # 256, 16
-depth = 6  # 6, 1
-num_heads = 8
-decoder_embed_dim = 256  # 256, 16
-decoder_depth = 6  # 6, 1
-decoder_num_heads = 8
-mlp_ratio = 4
-
-
-gimus = read_csv_files(directory)
+# Data
+gimus = read_csv_files(cfg.data_path)
 print(gimus.shape)
-gimus = gimus.reshape(-1, g_len, in_channel)
+gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
 dataset = BirdDataset(gimus)
 # Calculate the sizes for training and validation datasets
-train_size = int(train_per * data_per * len(dataset))
+train_size = int(cfg.train_per * cfg.data_per * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 
@@ -195,17 +187,17 @@ print(len(dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=min(4000, len(train_dataset)),
+    batch_size=min(cfg.batch_size, len(train_dataset)),
     shuffle=True,
-    num_workers=num_workers,
+    num_workers=cfg.num_workers,
     drop_last=True,
     pin_memory=True,  # fast but more memory
 )
 eval_loader = DataLoader(
     eval_dataset,
-    batch_size=min(4000, len(eval_dataset)),
+    batch_size=min(cfg.batch_size, len(eval_dataset)),
     shuffle=False,
-    num_workers=num_workers,
+    num_workers=cfg.num_workers,
     drop_last=True,
     pin_memory=True,
 )
@@ -213,22 +205,30 @@ eval_loader = DataLoader(
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 # in_channel = train_dataset[0][0].shape[0]  # 3 or 4
 model = bm1.MaskedAutoencoderViT(
-    img_size=g_len,
-    in_chans=in_channel,
-    patch_size=patch_size,
-    embed_dim=embed_dim,
-    depth=depth,
-    num_heads=num_heads,
-    decoder_embed_dim=decoder_embed_dim,
-    decoder_depth=decoder_depth,
-    decoder_num_heads=decoder_num_heads,
-    mlp_ratio=mlp_ratio,
-    layer_norm_eps=1e-6,
+    img_size=cfg.g_len,
+    in_chans=cfg.in_channel,
+    patch_size=cfg.patch_size,
+    embed_dim=cfg.embed_dim,
+    depth=cfg.depth,
+    num_heads=cfg.num_heads,
+    decoder_embed_dim=cfg.decoder_embed_dim,
+    decoder_depth=cfg.decoder_depth,
+    decoder_num_heads=cfg.decoder_num_heads,
+    mlp_ratio=cfg.mlp_ratio,
+    layer_norm_eps=cfg.layer_norm_eps,
 ).to(device)
-# bm.load_model(model_checkpoint, model, device)
+if cfg.model_checkpoint != Path("."):
+    bm.load_model(cfg.model_checkpoint, model, device)
+    print(f"{cfg.model_checkpoint} used")
+else:
+    print("NO Check point is used")
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
+optimizer = torch.optim.AdamW(
+    model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
+)
+scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer, step_size=cfg.step_size, gamma=0.1
+)
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
@@ -238,15 +238,15 @@ print(
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 
 best_loss = best_loss = float("inf")
-with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
         print(f"start time: {start_time}")
         get_gpu_memory()
         train_one_epoch(
-            train_loader, model, device, epoch, no_epochs, writer, optimizer
+            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
         )
-        loss = evaluate(eval_loader, model, device, epoch, no_epochs, writer)
+        loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer)
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -260,14 +260,16 @@ with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
             f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
         )
 
-        if epoch % save_every == 0:
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+        if epoch % cfg.save_every == 0:
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
             # save best model
         if loss < best_loss:
             best_loss = loss
             # 1-based save for epoch
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
+            bm.save_model(
+                cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
+            )
             print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
 
 # 1-based save for epoch
-bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)

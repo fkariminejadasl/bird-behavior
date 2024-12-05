@@ -55,3 +55,8 @@ include = ["behavior"]
 markers = [
     "ignore: mark test as ignored",
 ]
+
+# Remove packages completely
+# pip-autoremove -y bird_behavior einops matplotlib numpy tqdm tensorboard psycopg2-binary timm torch torchvision scikit-learn pandas omegaconf 
+# pip-autoremove -y certifi charset-normalizer click docker-pycreds gitdb GitPython idna pip-autoremove platformdirs protobuf psutil PyYAML requests sentry-sdk setproctitle six smmap typing_extensions urllib3 wandb
+# pip uninstall -y pip-autoremove

@@ -17,13 +17,6 @@ from behavior import model1d as bm1
 from behavior import utils as bu
 from behavior.utils import n_classes, new_label_inds, target_labels
 
-
-@dataclass
-class PathConfig:
-    save_path: Path
-    data_file: Path
-
-
 models = {
     "BirdModel": bm.BirdModel,
     "ResNet18_1D": bm.ResNet18_1D,
@@ -32,7 +25,15 @@ models = {
     "BirdModelTransformer_": bm.BirdModelTransformer_,
 }
 
-cfg = OmegaConf.load("/home/fatemeh/dev/bird-behavior/configs/train.yaml")
+
+@dataclass
+class PathConfig:
+    save_path: Path
+    data_file: Path
+
+
+cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
+cfg = OmegaConf.load(cfg_file)
 cfg_paths = OmegaConf.structured(
     PathConfig(save_path=cfg.save_path, data_file=cfg.data_file)
 )
@@ -53,18 +54,19 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
     cfg.data_file, cfg.train_per, cfg.data_per, target_labels
 )
+batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
 train_loader = DataLoader(
     train_dataset,
-    batch_size=len(train_dataset),
+    batch_size=batch_size,
     shuffle=True,
-    num_workers=1,
+    num_workers=cfg.num_workers,
     drop_last=True,
 )
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=len(eval_dataset),
     shuffle=False,
-    num_workers=1,
+    num_workers=cfg.num_workers,
     drop_last=True,
 )
 
@@ -182,7 +184,7 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
 # Save the final model
 # 1-based save for epoch
-bm.save_model(cfg.save_path, cfg.exp, model, optimizer, scheduler)
+bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
 
 bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()

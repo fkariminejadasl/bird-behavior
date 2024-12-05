@@ -9,6 +9,7 @@ date >> "$meta_file"
 cd "$HOME/dev/bird-behavior"
 echo "$(pwd)"
 git log -1 --pretty=%h >> "$meta_file"
+echo $(git log -1 --pretty=%h)
 
 # Run the program
 #python "$HOME/dev/bird-behavior/scripts/train.py"
