@@ -1,0 +1,27 @@
+# Use an official Python runtime as a parent image
+FROM python:3.10-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install dependencies needed for cloning the repository
+RUN apt-get update && apt-get install -y \
+    git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the repository
+RUN git clone -q https://github.com/fkariminejadasl/bird-behavior /app/bird-behavior
+
+# Change working directory to the cloned repository
+WORKDIR /app/bird-behavior
+
+# Install the Python package
+RUN pip install -q .
+
+# Specify the command to run your application if applicable
+# CMD ["python", "your_script.py"]
+
+# Buid and run the docker
+# docker build -t bird-behavior .
+# docker run -it bird-behavior bash
