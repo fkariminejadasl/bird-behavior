@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, Dataset, random_split
 
+from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 
@@ -46,27 +47,6 @@ def read_csv_files(data_path):
     return gimus
 
 
-class BirdDataset(Dataset):
-    def __init__(self, gimus: np.ndarray, transform=None):
-        self.data = gimus.copy()  # NxLxC C=4
-        # normalize gps speed by max
-        self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
-        self.data = self.data.astype(np.float32)
-
-        self.transform = transform
-
-    def __len__(self):
-        return self.data.shape[0]
-
-    def __getitem__(self, ind):
-        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data
-
-
 def write_info_in_tensorboard(writer, epoch, loss, stage):
     loss_scalar_dict = dict()
     loss_scalar_dict[stage] = loss
@@ -74,8 +54,7 @@ def write_info_in_tensorboard(writer, epoch, loss, stage):
 
 
 def caculate_metrics(data, model, device):
-    data = data.permute((0, 2, 1))  # NxCxL -> NxLxC
-    data = data.to(device)
+    data = data.to(device)  # NxLxC
     loss, _, _ = model(data)  # NxC
     return loss
 
@@ -177,7 +156,7 @@ print(gimus.shape)
 gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
-dataset = BirdDataset(gimus)
+dataset = bd.BirdDataset(gimus, channel_first=False)
 # Calculate the sizes for training and validation datasets
 train_size = int(cfg.train_per * cfg.data_per * len(dataset))
 val_size = len(dataset) - train_size

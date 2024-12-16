@@ -58,8 +58,8 @@ print(
     train_measurments.shape,
     valid_measurements.shape,
 )
-train_dataset = bd.BirdDataset(train_measurments, train_labels)
-eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+train_dataset = bd.BirdDataset(train_measurments, train_labels, channel_first=False)
+eval_dataset = bd.BirdDataset(valid_measurements, valid_labels, channel_first=False)
 
 # ind_data = int(data_per * len(all_measurements))
 # all_measurements, label_ids = all_measurements[:ind_data], label_ids[:ind_data]

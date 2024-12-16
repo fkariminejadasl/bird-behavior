@@ -26,8 +26,7 @@ def write_info_in_tensorboard(writer, epoch, loss, stage):
 
 
 def caculate_metrics(data, model, device):
-    data = data.permute((0, 2, 1))  # NxCxL -> NxLxC
-    data = data.to(device)
+    data = data.to(device)  # NxLxC
     loss, _, _ = model(data)  # NxC
     return loss
 
@@ -110,8 +109,8 @@ print(
     valid_measurements.shape,
 )
 
-train_dataset = bd.BirdDataset(train_measurments, train_labels)
-eval_dataset = bd.BirdDataset(valid_measurements, valid_labels)
+train_dataset = bd.BirdDataset(train_measurments, train_labels, channel_first=False)
+eval_dataset = bd.BirdDataset(valid_measurements, valid_labels, channel_first=False)
 
 train_loader = DataLoader(
     train_dataset,

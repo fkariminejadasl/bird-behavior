@@ -49,27 +49,6 @@ def read_csv_files(directory):
     return gimus
 
 
-class BirdDataset(Dataset):
-    def __init__(self, gimus: np.ndarray, transform=None):
-        self.data = gimus.copy()  # NxLxC C=4
-        # normalize gps speed by max
-        self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
-        self.data = self.data.astype(np.float32)
-
-        self.transform = transform
-
-    def __len__(self):
-        return self.data.shape[0]
-
-    def __getitem__(self, ind):
-        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data
-
-
 def write_info_in_tensorboard(writer, epoch, loss, stage):
     loss_scalar_dict = dict()
     loss_scalar_dict[stage] = loss
@@ -157,7 +136,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="bird-large-pt", config=cfg_dict)
+# wandb.init(project="bird-large-pt", config=cfg_dict)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
@@ -175,7 +154,7 @@ generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, target_labels
+    cfg.data_file, cfg.train_per, cfg.data_per, target_labels, channel_first=False
 )
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 

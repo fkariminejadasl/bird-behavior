@@ -235,30 +235,48 @@ def read_json_data(json_path: Union[Path, str]):
 
 
 class BirdDataset(Dataset):
-    def __init__(self, all_measurements: np.ndarray, ldts: np.ndarray, transform=None):
+    def __init__(
+        self,
+        all_measurements: np.ndarray,
+        ldts: np.ndarray = None,
+        transform=None,
+        channel_first=True,
+    ):
         """
         dtype: all_measurements np.float32
-        dtype: ldts np.int64
+        dtype: ldts np.int64 or None (if no labels are provided)
+        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
         """
-        self.ldts = np.ascontiguousarray(ldts)  # Nx3
         self.data = all_measurements.copy()  # NxLxC C=4
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         self.data = self.data.astype(np.float32)
 
+        self.has_label = ldts is not None  # Check if labels are provided
+        if self.has_label:
+            self.ldts = np.ascontiguousarray(ldts)  # Nx3
+
         self.transform = transform
+        self.channel_first = channel_first  # Flag for channel arrangement
 
     def __len__(self):
         return self.data.shape[0]
 
     def __getitem__(self, ind):
-        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        ldt = self.ldts[ind]  # 3
+        data = self.data[ind]  # LxC
+
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose((1, 0))  # LxC -> CxL
 
         if self.transform:
             data = self.transform(data)
 
-        return data, ldt
+        if self.has_label:
+            ldt = self.ldts[ind]  # 3
+            return data, ldt  # Return both data and label
+        else:
+            return data
 
 
 # for new data
@@ -905,7 +923,9 @@ def load_csv(csv_file, g_len=20):
     return igs, ldts
 
 
-def prepare_train_valid_dataset(data_file, train_per, data_per, target_labels):
+def prepare_train_valid_dataset(
+    data_file, train_per, data_per, target_labels, channel_first=True
+):
     """Load and prepare data, return train and eval Dataset."""
     # data_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
     # all_measurements, label_ids = load_all_data_from_json(data_file)
@@ -931,8 +951,12 @@ def prepare_train_valid_dataset(data_file, train_per, data_per, target_labels):
         label_ids[n_trainings : n_trainings + n_valid],
     )
 
-    train_dataset = BirdDataset(train_measurments, train_labels)
-    eval_dataset = BirdDataset(valid_measurements, valid_labels)
+    train_dataset = BirdDataset(
+        train_measurments, train_labels, channel_first=channel_first
+    )
+    eval_dataset = BirdDataset(
+        valid_measurements, valid_labels, channel_first=channel_first
+    )
 
     # train_size = int(train_per * len(dataset))
     # val_size = len(dataset) - train_size

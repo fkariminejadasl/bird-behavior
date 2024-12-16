@@ -89,3 +89,4 @@ The combined part of the method 2 is the same as current method in `scripts/prep
 - `exps/imu_3d_movie`: make a movie from IMU data
 - `exps/panda_csv_python_read_data_in_memory`: check performance of panda, csv and pure python on reading large data in the memory 
 - `exps/visualize`: old (I should remove)
+- `exps/cluster_behavior.py`: unsupervised classification

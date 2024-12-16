@@ -1,0 +1,76 @@
+
+# # Paths
+# save_path: /gpfs/home5/fkarimi/exp/bird
+# data_file: /gpfs/home5/fkarimi/data/combined_unique.csv
+# model_checkpoint: /gpfs/home5/fkarimi/data/45_best.pth
+# # General
+# seed: 1234
+# exp: 45
+# # Cluster Parameters
+# eps: 0.035  # Maximum distance between two samples for them to be considered as in the same neighborhood
+# min_samples: 5  # Minimum number of samples in a neighborhood for a point to be considered as a core point
+
+# ===========
+# TEST
+# ===========
+# Paths
+save_path: /home/fatemeh/Downloads/bird/result
+# data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
+data_file: /home/fatemeh/Downloads/bird/data/ssl_mini  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
+# model_checkpoint: /home/fatemeh/Downloads/bird/result/45_best.pth
+# model_checkpoint: "/home/fatemeh/Downloads/bird/result/f_mem1_best.pth"
+model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth #/home/fatemeh/Downloads/bird/result/p_mem6_1.pth
+# General
+seed: 1234
+exp: 45
+num_workers: 15
+layer_name: norm # norm # fc # avgpool
+# # Model
+# channel_first: True
+# # Model
+# channel_first: False
+# g_len: 60  # 60, 20
+# in_channel: 4
+# out_channel: 9
+# embed_dim: 16  # 256, 16
+# depth: 1  # 6, 1
+# num_heads: 8
+# decoder_embed_dim: 16  # 256, 16
+# decoder_depth: 1  # 6, 1
+# decoder_num_heads: 8
+# mlp_ratio: 4
+# drop: 0.0
+# layer_norm_eps: 1e-6
+# # Model
+# channel_first: False
+# g_len: 20
+# in_channel: 4
+# out_channel: 9
+# patch_size: 1
+# embed_dim: 16  # 256, 16
+# depth: 1  # 6, 1
+# num_heads: 8
+# decoder_embed_dim: 16  # 256, 16
+# decoder_depth: 1  # 6, 1
+# decoder_num_heads: 8
+# mlp_ratio: 4
+# drop: 0.0
+# layer_norm_eps: 1e-6
+# Model
+channel_first: False
+g_len: 20
+in_channel: 4
+out_channel: 9
+patch_size: 1
+embed_dim: 256  # 256, 16
+depth: 6  # 6, 1
+num_heads: 8
+decoder_embed_dim: 256  # 256, 16
+decoder_depth: 6  # 6, 1
+decoder_num_heads: 8
+mlp_ratio: 4
+drop: 0.0
+layer_norm_eps: 1e-6
+# Cluster Parameters
+eps: 0.035  # Maximum distance between two samples for them to be considered as in the same neighborhood
+min_samples: 5  # Minimum number of samples in a neighborhood for a point to be considered as a core point

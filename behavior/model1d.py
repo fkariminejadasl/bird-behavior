@@ -302,7 +302,7 @@ class MaskedAutoencoderViT(nn.Module):
         # add pos embed
         # x = x + self.decoder_pos_embed
         L = x.shape[1]  # batch, length, dim
-        x = x + self.pos_embed[:, :L, :]
+        x = x + self.decoder_pos_embed[:, :L, :]
 
         # apply Transformer blocks
         for blk in self.decoder_blocks:
@@ -375,8 +375,7 @@ class MaskedAutoencoderViT(nn.Module):
 #     decoder_embed_dim=256, decoder_depth=6, decoder_num_heads=8,
 #     mlp_ratio=4, layer_norm_eps=1e-6)
 # f"{sum(i.numel() for i in model.parameters() if i.requires_grad):,}"
-# x = torch.rand(5, 4, 20)
-# x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+# x = torch.rand(1, 20, 4) # NxLxC
 # loss, pred, mask = model(x, mask_ratio=0.7)
 # print("done")
 
@@ -458,7 +457,8 @@ class TransformerEncoderMAE(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
-        x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+        # x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+        # x: NxLxC
         # embed patches
         x = self.patch_embed(x)
 
@@ -493,6 +493,6 @@ class TransformerEncoderMAE(nn.Module):
 #     mlp_ratio=4,
 #     layer_norm_eps=1e-6,
 # )
-# x = torch.rand(1, 4, 20)
+# x = torch.rand(1, 20, 4) # NxLxC
 # y = model(x)
 # print(y)

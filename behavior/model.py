@@ -23,6 +23,11 @@ I don't use ToTensor anymore. I put everything now in dataset instead of model.
 
 
 class BirdModel(nn.Module):
+    """
+    model = bm.BirdModel(4, 30, 9)
+    model(torch.rand(1,4,20)) # x=NxLxC
+    """
+
     def __init__(self, in_channels, mid_channels, out_channels):
         super().__init__()
         self.conv1 = torch.nn.Conv1d(

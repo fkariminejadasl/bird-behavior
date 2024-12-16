@@ -41,7 +41,7 @@ save_path: "/home/fatemeh/Downloads/bird/result/"
 model_checkpoint: "/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
 # General
 seed: 1234
-exp: "f_mem1"
+exp: "f_mem2"
 num_workers: 15  # 17, 15
 no_epochs: 100  # 500, 1
 save_every: 200
