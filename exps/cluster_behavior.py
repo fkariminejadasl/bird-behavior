@@ -163,7 +163,7 @@ hook_handle.remove()
 full_activations = torch.cat(activation_dict[cfg.layer_name], dim=0)
 X = full_activations.flatten(1)  # N x C
 X = X.cpu().numpy()
-# X = torch.rand(2148933, 5376).numpy()
+# X = torch.rand(2148933, 5376).numpy() # 21 * 256 # gcn144
 centers = 9
 print(
     "===>",
