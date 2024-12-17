@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -6,13 +7,14 @@ import numpy as np
 import pandas as pd
 import torch
 from omegaconf import OmegaConf
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, Dataset, random_split
+from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import model as bm
@@ -74,7 +76,7 @@ print(gimus.shape)
 dataset = bd.BirdDataset(gimus, channel_first=cfg.channel_first)
 loader = DataLoader(
     dataset,
-    batch_size=4096,  # len(dataset), # 4096
+    batch_size=cfg.batch_size,  # len(dataset), # 4096
     shuffle=False,
     num_workers=cfg.num_workers,
     drop_last=False,
@@ -126,26 +128,70 @@ for name, p in pmodel.items():
     ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
 model.eval()
+
+
+# Function to extract embeddings per batch using hooks
 named_mods = dict(model.named_modules())
 layer_to_hook = named_mods[cfg.layer_name]
 
 
-# Get the embeddings
-# def get_activation(name):
-def get_activation(name, activation_dict):
+def get_activation(name):
     def hook(model, input, output):
-        # activation[name] = output.detach()
-        activation_dict[name].append(output.detach().cpu())
+        activation.append(output.detach().cpu().numpy())
 
     return hook
 
 
-# activation = dict()
-activation_dict = {cfg.layer_name: []}
-# hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
-hook_handle = layer_to_hook.register_forward_hook(
-    get_activation(cfg.layer_name, activation_dict)
+activation = []
+
+# Register the forward hook
+hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
+
+# Initialize MiniBatchKMeans
+kmeans = MiniBatchKMeans(
+    n_clusters=cfg.n_clusters, batch_size=cfg.batch_size, random_state=cfg.seed
 )
+
+# Extract embeddings and perform clustering in batches
+start_time = time.time()
+try:
+    with torch.no_grad():
+        for data in tqdm(loader):
+            # Forward pass
+            output = model(data.to(device))
+
+            # Process current batch embeddings
+            if activation:
+                X = activation.pop()[:, 0, :]
+                kmeans.partial_fit(X)  # Incremental clustering with partial_fit
+
+    end_time = time.time()
+    print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+    print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
+except MemoryError as e:
+    print(
+        "MemoryError encountered! The dataset might be too large to fit in available memory."
+    )
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+# Remove the hook after extraction
+hook_handle.remove()
+print("done")
+
+"""
+# ======================
+named_mods = dict(model.named_modules())
+layer_to_hook = named_mods[cfg.layer_name]
+
+# Get the embeddings
+def get_activation(name):
+    def hook(model, input, output):
+        activation[name] = output.detach()
+    return hook
+
+activation = dict()
+hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
 
 # Perform a forward pass with input to trigger the hook
 # data = torch.rand(1, 20, 4).to(device)
@@ -160,16 +206,14 @@ with torch.no_grad():
 # After the forward pass, remove the hook
 hook_handle.remove()
 
-full_activations = torch.cat(activation_dict[cfg.layer_name], dim=0)
-X = full_activations.flatten(1)  # N x C
+X = activation[cfg.layer_name][:,0,:].flatten(1)  # N x C
 X = X.cpu().numpy()
 # X = torch.rand(2148933, 5376).numpy() # 21 * 256 # gcn144
 centers = 9
 print(
     "===>",
     output.shape,
-    len(activation_dict[cfg.layer_name]),
-    full_activations.shape,
+    len(activation[cfg.layer_name]),
     X.shape,
 )
 
@@ -228,3 +272,4 @@ for k, col in zip(unique_labels, colors):
 plt.title(f"Estimated number of clusters: {n_clusters}")
 plt.show()
 print("done")
+"""

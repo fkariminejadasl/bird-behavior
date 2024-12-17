@@ -1,10 +1,10 @@
 # # Paths
-# data_path: "/gpfs/home5/fkarimi/data/bird/ssl"
-# save_path: "/gpfs/home5/fkarimi/exp/bird"
+# data_path: /home/fkarimi/data/bird/ssl
+# save_path: /home/fkarimi/exp/bird
 # model_checkpoint: "" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
 # # General
 # seed: 1234
-# exp: "p20_3" # p_mem6
+# exp: "p20_4" # p_mem6
 # num_workers: 15  # 17, 15
 # no_epochs: 5 # 1500
 # save_every: 500
@@ -22,12 +22,12 @@
 # g_len: 20 # 20, 60
 # in_channel: 4
 # patch_size: 1
-# embed_dim: 1280  # 256, 16
-# depth: 32 # 6, 1
-# num_heads: 16 # 8
-# decoder_embed_dim: 512  # 256, 16
-# decoder_depth: 8  # 6, 1
-# decoder_num_heads: 8 # 16
+# embed_dim: 1280 # 1280  # 256, 16
+# depth: 32 # 32, 6, 1
+# num_heads: 16 # 16, 8
+# decoder_embed_dim: 512  # 512, 256, 16
+# decoder_depth: 8 # 8, 6, 1
+# decoder_num_heads: 16 # 16, 8
 # mlp_ratio: 4
 # layer_norm_eps: 1e-6
 
