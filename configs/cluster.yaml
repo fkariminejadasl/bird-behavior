@@ -14,9 +14,10 @@
 # TEST
 # ===========
 # Paths
-save_path: /home/fatemeh/Downloads/bird/result
+save_path: /home/fatemeh/Downloads/bird/result/cluster
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
+test_data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv
 # model_checkpoint: /home/fatemeh/Downloads/bird/result/45_best.pth
 # model_checkpoint: "/home/fatemeh/Downloads/bird/result/f_mem1_best.pth"
 model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth # /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth # /home/fatemeh/Downloads/bird/result/p_mem6_1.pth
@@ -25,8 +26,6 @@ seed: 1234
 exp: 45
 num_workers: 15
 layer_name: norm # norm # fc # avgpool
-# Data
-batch_size: 1024 # 4096
 # # Model
 # channel_first: True
 # # Model
@@ -76,4 +75,5 @@ layer_norm_eps: 1e-6
 # Cluster Parameters
 eps: 0.035  # Maximum distance between two samples for them to be considered as in the same neighborhood
 min_samples: 5  # Minimum number of samples in a neighborhood for a point to be considered as a core point
-n_clusters: 9  # Parameters for MiniBatchKMeans
+n_clusters: 18  # Parameters for MiniBatchKMeans
+batch_size: 2048 # 1024, 4096

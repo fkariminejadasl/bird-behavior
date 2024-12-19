@@ -27,6 +27,7 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 target_labels_names = [ind2name[t] for t in target_labels]
 new_label_inds = np.arange(len(target_labels))
 n_classes = len(target_labels_names)
+new_ind2name = {int(i): name for i, name in zip(new_label_inds, target_labels_names)}
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
@@ -70,25 +71,30 @@ def set_seed(seed):
     # torch.backends.cudnn.benchmark = False
 
 
-def plot_confusion_matrix(confusion_matrix, class_names):
+def plot_confusion_matrix(confusion_matrix, class_names=None):
     plt.figure(figsize=(8, 6))
     plt.imshow(confusion_matrix, interpolation="nearest", cmap=plt.get_cmap("Blues"))
     plt.title("Confusion Matrix")
     plt.colorbar()
 
-    num_classes = len(class_names)
-    plt.xticks(np.arange(num_classes), class_names, rotation=45)
-    plt.yticks(np.arange(num_classes), class_names)
-
-    for i in range(num_classes):
-        for j in range(num_classes):
+    n_rows, n_cols = confusion_matrix.shape
+    for r in range(n_rows):
+        for c in range(n_cols):
             plt.text(
-                j,
-                i,
-                str(confusion_matrix[i, j]),
+                c,
+                r,
+                str(confusion_matrix[r, c]),
                 horizontalalignment="center",
                 color="black",
             )
+
+    if class_names is not None:
+        num_classes = len(class_names)
+        plt.xticks(np.arange(num_classes), class_names, rotation=45)
+        plt.yticks(np.arange(num_classes), class_names)
+    else:
+        plt.xticks(np.arange(n_cols), rotation=45)
+        plt.yticks(np.arange(n_rows))
 
     plt.ylabel("True label")
     plt.xlabel("Predicted label")

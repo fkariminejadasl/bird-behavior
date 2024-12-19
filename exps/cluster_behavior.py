@@ -179,6 +179,74 @@ except Exception as e:
 hook_handle.remove()
 print("done")
 
+# Test data
+# ==========
+
+# Load data
+all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
+all_measurements, label_ids = bd.get_specific_labesl(
+    all_measurements, label_ids, bu.target_labels
+)
+dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=cfg.channel_first)
+loader = DataLoader(
+    dataset,
+    batch_size=len(dataset),  # 4096
+    shuffle=False,
+    num_workers=1,
+    drop_last=False,
+)
+
+activation = []
+
+# Register the forward hook
+hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
+
+# Extract embeddings and perform clustering in batches
+start_time = time.time()
+
+with torch.no_grad():
+    for data, ldts in tqdm(loader):
+        # Forward pass
+        output = model(data.to(device))
+        X = activation[0][:, 0, :]
+        c_labels = kmeans.predict(X)
+
+end_time = time.time()
+print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
+
+# Remove the hook after extraction
+hook_handle.remove()
+print(all_measurements.shape, c_labels.shape)
+
+# Compare cluster labels with actual labels
+labels = ldts[:, 0]
+
+n_labels = len(np.unique(labels))
+counts = np.zeros((n_labels, cfg.n_clusters), dtype=np.int64)
+for label in range(n_classes):
+    sel = c_labels[labels == label]
+    for c_label in range(cfg.n_clusters):
+        counts[label, c_label] = sum(sel == c_label)
+bu.plot_confusion_matrix(counts)
+
+cfg.save_path.mkdir(parents=True, exist_ok=True)
+plt.savefig(
+    cfg.save_path / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
+    bbox_inches="tight",
+)
+
+rfile = open(
+    cfg.save_path / f"cluster_with_all_data_c{cfg.n_clusters}_b{cfg.batch_size}.csv",
+    "w",
+)
+for label in range(n_classes):
+    items = [str(i) for i in c_labels[labels == label]]
+    items = ", ".join(items)
+    rfile.write(f"\n{label}\n")
+    rfile.write(items)
+rfile.close()
+print("done")
 """
 # ======================
 named_mods = dict(model.named_modules())
