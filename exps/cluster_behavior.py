@@ -62,25 +62,123 @@ cfg = OmegaConf.merge(cfg, cfg_paths)
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Load data
-# all_measurements, label_ids = bd.load_csv(cfg.data_file)
-# all_measurements, label_ids = bd.get_specific_labesl(
-#     all_measurements, label_ids, bu.target_labels
-# )
-# dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=cfg.channel_first)
-gimus = read_csv_files(cfg.data_file)
-print(gimus.shape)
-gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
-gimus = np.ascontiguousarray(gimus)
-print(gimus.shape)
-dataset = bd.BirdDataset(gimus, channel_first=cfg.channel_first)
-loader = DataLoader(
-    dataset,
-    batch_size=cfg.batch_size,  # len(dataset), # 4096
-    shuffle=False,
-    num_workers=cfg.num_workers,
-    drop_last=False,
-)
+
+def setup_training_dataloader(cfg):
+    # Load data
+    # all_measurements, label_ids = bd.load_csv(cfg.data_file)
+    # all_measurements, label_ids = bd.get_specific_labesl(
+    #     all_measurements, label_ids, bu.target_labels
+    # )
+    # dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=cfg.channel_first)
+    gimus = read_csv_files(cfg.data_file)
+    print(gimus.shape)
+    gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
+    gimus = np.ascontiguousarray(gimus)
+    print(gimus.shape)
+    dataset = bd.BirdDataset(gimus, channel_first=cfg.channel_first)
+    loader = DataLoader(
+        dataset,
+        batch_size=cfg.batch_size,  # len(dataset), # 4096
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
+    return loader
+
+
+def get_activation(activation):
+    """Create a hook function that updates the given activation list."""
+
+    def hook(model, input, output):
+        activation.append(output.detach().cpu().numpy())
+
+    return hook
+
+
+def train_model(cfg, loader, model, kmeans, layer_to_hook):
+    activation = []
+
+    # Register the forward hook
+    hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
+
+    sample_rate = 0.01  # 10% of data
+    sampled_embeddings = []
+    sampled_labels = []
+    # Extract embeddings and perform clustering in batches
+    start_time = time.time()
+    try:
+        with torch.no_grad():
+            for data in tqdm(loader):
+                # Forward pass
+                output = model(data.to(device))
+
+                # Process current batch embeddings
+                if activation:
+                    X = activation.pop()[:, 0, :]
+                    kmeans.partial_fit(X)  # Incremental clustering with partial_fit
+
+        end_time = time.time()
+        print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+        print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
+        return kmeans
+    except MemoryError as e:
+        print(
+            "MemoryError encountered! The dataset might be too large to fit in available memory."
+        )
+    except Exception as e:
+        print(f"Training error: {e}")
+    finally:
+        # Remove the hook after extraction
+        hook_handle.remove()
+
+
+def setup_testing_dataloader(cfg):
+    # Load data
+    all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
+    all_measurements, label_ids = bd.get_specific_labesl(
+        all_measurements, label_ids, bu.target_labels
+    )
+    dataset = bd.BirdDataset(
+        all_measurements, label_ids, channel_first=cfg.channel_first
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),  # 4096
+        shuffle=False,
+        num_workers=1,
+        drop_last=False,
+    )
+    print(all_measurements.shape)
+    return loader
+
+
+def test_model(cfg, loader, model, kmeans, layer_to_hook):
+    activation = []
+
+    # Register the forward hook
+    hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
+
+    try:
+        # Extract embeddings and perform clustering in batches
+        start_time = time.time()
+
+        with torch.no_grad():
+            for data, ldts in tqdm(loader):
+                # Forward pass
+                output = model(data.to(device))
+                X = activation[0][:, 0, :]
+                c_labels = kmeans.predict(X)
+
+        end_time = time.time()
+        print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+        print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
+        return c_labels, ldts, X
+    except Exception as e:
+        print(f"Testing error: {e}")
+    finally:
+        # Remove the hook after extraction
+        hook_handle.remove()
+
 
 # Load model
 # model = bm.BirdModel(4, 30, 9).to(device)
@@ -134,90 +232,25 @@ model.eval()
 named_mods = dict(model.named_modules())
 layer_to_hook = named_mods[cfg.layer_name]
 
-
-def get_activation(name):
-    def hook(model, input, output):
-        activation.append(output.detach().cpu().numpy())
-
-    return hook
-
-
-activation = []
-
-# Register the forward hook
-hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
+# Prepare training data and train the model
+# =============
+train_loader = setup_training_dataloader(cfg)
 
 # Initialize MiniBatchKMeans
 kmeans = MiniBatchKMeans(
     n_clusters=cfg.n_clusters, batch_size=cfg.batch_size, random_state=cfg.seed
 )
 
-# Extract embeddings and perform clustering in batches
-start_time = time.time()
-try:
-    with torch.no_grad():
-        for data in tqdm(loader):
-            # Forward pass
-            output = model(data.to(device))
+# Train the model
+kmeans = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
 
-            # Process current batch embeddings
-            if activation:
-                X = activation.pop()[:, 0, :]
-                kmeans.partial_fit(X)  # Incremental clustering with partial_fit
 
-    end_time = time.time()
-    print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
-    print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
-except MemoryError as e:
-    print(
-        "MemoryError encountered! The dataset might be too large to fit in available memory."
-    )
-except Exception as e:
-    print(f"An error occurred: {e}")
+# Prepare test data and test the model
+# ==============
+test_loader = setup_testing_dataloader(cfg)
+c_labels, ldts, embeddings = test_model(cfg, test_loader, model, kmeans, layer_to_hook)
 
-# Remove the hook after extraction
-hook_handle.remove()
-print("done")
-
-# Test data
-# ==========
-
-# Load data
-all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
-all_measurements, label_ids = bd.get_specific_labesl(
-    all_measurements, label_ids, bu.target_labels
-)
-dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=cfg.channel_first)
-loader = DataLoader(
-    dataset,
-    batch_size=len(dataset),  # 4096
-    shuffle=False,
-    num_workers=1,
-    drop_last=False,
-)
-
-activation = []
-
-# Register the forward hook
-hook_handle = layer_to_hook.register_forward_hook(get_activation(cfg.layer_name))
-
-# Extract embeddings and perform clustering in batches
-start_time = time.time()
-
-with torch.no_grad():
-    for data, ldts in tqdm(loader):
-        # Forward pass
-        output = model(data.to(device))
-        X = activation[0][:, 0, :]
-        c_labels = kmeans.predict(X)
-
-end_time = time.time()
-print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
-print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
-
-# Remove the hook after extraction
-hook_handle.remove()
-print(all_measurements.shape, c_labels.shape)
+print(c_labels.shape)
 
 # Compare cluster labels with actual labels
 labels = ldts[:, 0]
@@ -232,7 +265,8 @@ bu.plot_confusion_matrix(counts)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 plt.savefig(
-    cfg.save_path / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
+    cfg.save_path
+    / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
     bbox_inches="tight",
 )
 
