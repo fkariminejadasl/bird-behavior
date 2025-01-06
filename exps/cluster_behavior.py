@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import umap  # umap-learn
 from omegaconf import OmegaConf
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
+from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from torch.utils import tensorboard
@@ -180,6 +182,79 @@ def test_model(cfg, loader, model, kmeans, layer_to_hook):
         hook_handle.remove()
 
 
+def visualize_test_clusters(
+    test_embeddings,
+    test_labels,
+    cluster_centers,
+    method="pca",
+    save_path=None,
+):
+    """
+    Visualize test embeddings + cluster centers in 2D using PCA, t-SNE, or UMAP.
+
+    Args:
+        test_embeddings (np.ndarray): Shape (N, embed_dim)
+        test_labels (np.ndarray): Shape (N,) of predicted cluster labels for test
+        cluster_centers (np.ndarray): Shape (n_clusters, embed_dim)
+        method (str): 'pca', 'tsne', or 'umap'
+    """
+
+    # 1) Combine embeddings + centers for a single transform
+    combined_data = np.concatenate([test_embeddings, cluster_centers], axis=0)
+    n_test = len(test_embeddings)
+
+    # 2) Choose the reducer
+    if method.lower() == "pca":
+        reducer = PCA(n_components=2, random_state=42)
+    elif method.lower() == "tsne":
+        reducer = TSNE(n_components=2, perplexity=cfg.perplexity, random_state=42)
+    elif method.lower() == "umap":
+        reducer = umap.UMAP(
+            n_neighbors=cfg.n_neighbors, min_dist=cfg.min_dist, random_state=42
+        )
+    else:
+        raise ValueError(f"Unknown method: {method} (choose 'pca', 'tsne', or 'umap')")
+
+    # 3) Fit + transform combined data
+    reduced = reducer.fit_transform(combined_data)  # shape (N + n_clusters, 2)
+
+    # 4) Separate out the test embeddings vs. cluster centers
+    test_reduced = reduced[:n_test]
+    center_reduced = reduced[n_test:]
+
+    # 5) Plot
+    plt.figure(figsize=(8, 6))
+    scatter = plt.scatter(
+        test_reduced[:, 0],
+        test_reduced[:, 1],
+        c=test_labels,
+        cmap="tab20",  # "viridis", "Spectral".
+        s=5,
+        alpha=0.8,
+        label="Test points",
+    )
+
+    center_labels = np.arange(cluster_centers.shape[0])
+    plt.scatter(
+        center_reduced[:, 0],
+        center_reduced[:, 1],
+        c=center_labels,
+        cmap="tab20",
+        marker="X",
+        s=200,
+        label="Cluster center",
+    )
+    plt.title(f"Test Clusters + Centers ({method.upper()})")
+    plt.colorbar(scatter, label="Cluster Label")
+    plt.legend()
+
+    if save_path:
+        save_path = save_path.parent / f"{method}_{save_path.name}"
+        plt.savefig(save_path, bbox_inches="tight", dpi=300)
+
+    plt.show()
+
+
 # Load model
 # model = bm.BirdModel(4, 30, 9).to(device)
 # model = bm1.TransformerEncoderMAE(
@@ -265,8 +340,7 @@ bu.plot_confusion_matrix(counts)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 plt.savefig(
-    cfg.save_path
-    / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
+    cfg.save_path / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
     bbox_inches="tight",
 )
 
@@ -280,6 +354,36 @@ for label in range(n_classes):
     rfile.write(f"\n{label}\n")
     rfile.write(items)
 rfile.close()
+
+
+# 1) PCA
+save_path = cfg.save_path / f"c{cfg.n_clusters}_b{cfg.batch_size}.png"
+visualize_test_clusters(
+    test_embeddings=embeddings,
+    test_labels=c_labels,
+    cluster_centers=kmeans.cluster_centers_,
+    method="pca",
+    save_path=save_path,
+)
+
+# 2) t-SNE
+visualize_test_clusters(
+    test_embeddings=embeddings,
+    test_labels=c_labels,
+    cluster_centers=kmeans.cluster_centers_,
+    method="tsne",
+    save_path=save_path,
+)
+
+# 3) UMAP
+visualize_test_clusters(
+    test_embeddings=embeddings,
+    test_labels=c_labels,
+    cluster_centers=kmeans.cluster_centers_,
+    method="umap",
+    save_path=save_path,
+)
+
 print("done")
 """
 # ======================
