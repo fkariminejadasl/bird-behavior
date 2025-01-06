@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import umap  # umap-learn
-from omegaconf import OmegaConf
+from omegaconf import ListConfig, OmegaConf
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -59,13 +59,20 @@ cfg_paths = OmegaConf.structured(
 )
 cfg = OmegaConf.merge(cfg, cfg_paths)
 
+# Read hyperparameters from the config file
+n_clusters_list = (
+    cfg.n_clusters if isinstance(cfg.n_clusters, ListConfig) else [cfg.n_clusters]
+)
+batch_sizes_list = (
+    cfg.batch_size if isinstance(cfg.batch_size, ListConfig) else [cfg.batch_size]
+)
 
-# # General loads
+# General loads
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def setup_training_dataloader(cfg):
+def setup_training_dataloader(cfg, batch_size):
     # Load data
     # all_measurements, label_ids = bd.load_csv(cfg.data_file)
     # all_measurements, label_ids = bd.get_specific_labesl(
@@ -80,7 +87,7 @@ def setup_training_dataloader(cfg):
     dataset = bd.BirdDataset(gimus, channel_first=cfg.channel_first)
     loader = DataLoader(
         dataset,
-        batch_size=cfg.batch_size,  # len(dataset), # 4096
+        batch_size=batch_size,  # len(dataset), # 4096
         shuffle=False,
         num_workers=cfg.num_workers,
         drop_last=False,
@@ -120,7 +127,7 @@ def train_model(cfg, loader, model, kmeans, layer_to_hook):
                     kmeans.partial_fit(X)  # Incremental clustering with partial_fit
 
         end_time = time.time()
-        print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+        print(f"Training completed in {end_time - start_time:.2f} seconds.")
         print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
         return kmeans
     except MemoryError as e:
@@ -172,7 +179,7 @@ def test_model(cfg, loader, model, kmeans, layer_to_hook):
                 c_labels = kmeans.predict(X)
 
         end_time = time.time()
-        print(f"Clustering completed in {end_time - start_time:.2f} seconds.")
+        print(f"Testing completed in {end_time - start_time:.2f} seconds.")
         print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
         return c_labels, ldts, X
     except Exception as e:
@@ -205,18 +212,21 @@ def visualize_test_clusters(
 
     # 2) Choose the reducer
     if method.lower() == "pca":
+        start_time = time.time()
         reducer = PCA(n_components=2, random_state=42)
     elif method.lower() == "tsne":
+        start_time = time.time()
         reducer = TSNE(n_components=2, perplexity=cfg.perplexity, random_state=42)
     elif method.lower() == "umap":
-        reducer = umap.UMAP(
-            n_neighbors=cfg.n_neighbors, min_dist=cfg.min_dist, random_state=42
-        )
+        start_time = time.time()
+        reducer = umap.UMAP(n_neighbors=cfg.n_neighbors, min_dist=cfg.min_dist)
     else:
         raise ValueError(f"Unknown method: {method} (choose 'pca', 'tsne', or 'umap')")
 
     # 3) Fit + transform combined data
     reduced = reducer.fit_transform(combined_data)  # shape (N + n_clusters, 2)
+    end_time = time.time()
+    print(f"{method.upper()} completed in {end_time - start_time:.2f} seconds.")
 
     # 4) Separate out the test embeddings vs. cluster centers
     test_reduced = reduced[:n_test]
@@ -241,7 +251,15 @@ def visualize_test_clusters(
         c=center_labels,
         cmap="tab20",
         marker="X",
-        s=200,
+        s=100,
+        label="Cluster center",
+    )
+    plt.scatter(
+        center_reduced[:, 0],
+        center_reduced[:, 1],
+        c="black",
+        marker="X",
+        s=50,
         label="Cluster center",
     )
     plt.title(f"Test Clusters + Centers ({method.upper()})")
@@ -251,8 +269,6 @@ def visualize_test_clusters(
     if save_path:
         save_path = save_path.parent / f"{method}_{save_path.name}"
         plt.savefig(save_path, bbox_inches="tight", dpi=300)
-
-    plt.show()
 
 
 # Load model
@@ -309,80 +325,84 @@ layer_to_hook = named_mods[cfg.layer_name]
 
 # Prepare training data and train the model
 # =============
-train_loader = setup_training_dataloader(cfg)
 
-# Initialize MiniBatchKMeans
-kmeans = MiniBatchKMeans(
-    n_clusters=cfg.n_clusters, batch_size=cfg.batch_size, random_state=cfg.seed
-)
+for n_clusters in n_clusters_list:
+    for batch_size in batch_sizes_list:
+        print(f"Testing n_clusters={n_clusters}, batch_size={batch_size}")
 
-# Train the model
-kmeans = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
+        # Initialize MiniBatchKMeans
+        kmeans = MiniBatchKMeans(
+            n_clusters=n_clusters, batch_size=batch_size, random_state=cfg.seed
+        )
 
+        # Train the model
+        train_loader = setup_training_dataloader(cfg, batch_size)
+        kmeans = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
 
-# Prepare test data and test the model
-# ==============
-test_loader = setup_testing_dataloader(cfg)
-c_labels, ldts, embeddings = test_model(cfg, test_loader, model, kmeans, layer_to_hook)
+        # Prepare test data and test the model
+        # ==============
+        test_loader = setup_testing_dataloader(cfg)
+        c_labels, ldts, embeddings = test_model(
+            cfg, test_loader, model, kmeans, layer_to_hook
+        )
 
-print(c_labels.shape)
+        print(c_labels.shape)
 
-# Compare cluster labels with actual labels
-labels = ldts[:, 0]
+        # Compare cluster labels with actual labels
+        labels = ldts[:, 0]
 
-n_labels = len(np.unique(labels))
-counts = np.zeros((n_labels, cfg.n_clusters), dtype=np.int64)
-for label in range(n_classes):
-    sel = c_labels[labels == label]
-    for c_label in range(cfg.n_clusters):
-        counts[label, c_label] = sum(sel == c_label)
-bu.plot_confusion_matrix(counts)
+        n_labels = len(np.unique(labels))
+        counts = np.zeros((n_labels, n_clusters), dtype=np.int64)
+        for label in range(n_classes):
+            sel = c_labels[labels == label]
+            for c_label in range(n_clusters):
+                counts[label, c_label] = sum(sel == c_label)
+        bu.plot_confusion_matrix(counts)
 
-cfg.save_path.mkdir(parents=True, exist_ok=True)
-plt.savefig(
-    cfg.save_path / f"row_labels_col_clusters_c{cfg.n_clusters}_b{cfg.batch_size}.png",
-    bbox_inches="tight",
-)
+        cfg.save_path.mkdir(parents=True, exist_ok=True)
+        plt.savefig(
+            cfg.save_path / f"row_labels_col_clusters_c{n_clusters}_b{batch_size}.png",
+            bbox_inches="tight",
+        )
 
-rfile = open(
-    cfg.save_path / f"cluster_with_all_data_c{cfg.n_clusters}_b{cfg.batch_size}.csv",
-    "w",
-)
-for label in range(n_classes):
-    items = [str(i) for i in c_labels[labels == label]]
-    items = ", ".join(items)
-    rfile.write(f"\n{label}\n")
-    rfile.write(items)
-rfile.close()
+        rfile = open(
+            cfg.save_path / f"cluster_with_all_data_c{n_clusters}_b{batch_size}.csv",
+            "w",
+        )
+        for label in range(n_classes):
+            items = [str(i) for i in c_labels[labels == label]]
+            items = ", ".join(items)
+            rfile.write(f"\n{label}\n")
+            rfile.write(items)
+        rfile.close()
 
+        # 1) PCA
+        save_path = cfg.save_path / f"c{n_clusters}_b{batch_size}.png"
+        visualize_test_clusters(
+            test_embeddings=embeddings,
+            test_labels=c_labels,
+            cluster_centers=kmeans.cluster_centers_,
+            method="pca",
+            save_path=save_path,
+        )
 
-# 1) PCA
-save_path = cfg.save_path / f"c{cfg.n_clusters}_b{cfg.batch_size}.png"
-visualize_test_clusters(
-    test_embeddings=embeddings,
-    test_labels=c_labels,
-    cluster_centers=kmeans.cluster_centers_,
-    method="pca",
-    save_path=save_path,
-)
+        # 2) t-SNE
+        visualize_test_clusters(
+            test_embeddings=embeddings,
+            test_labels=c_labels,
+            cluster_centers=kmeans.cluster_centers_,
+            method="tsne",
+            save_path=save_path,
+        )
 
-# 2) t-SNE
-visualize_test_clusters(
-    test_embeddings=embeddings,
-    test_labels=c_labels,
-    cluster_centers=kmeans.cluster_centers_,
-    method="tsne",
-    save_path=save_path,
-)
-
-# 3) UMAP
-visualize_test_clusters(
-    test_embeddings=embeddings,
-    test_labels=c_labels,
-    cluster_centers=kmeans.cluster_centers_,
-    method="umap",
-    save_path=save_path,
-)
+        # 3) UMAP
+        visualize_test_clusters(
+            test_embeddings=embeddings,
+            test_labels=c_labels,
+            cluster_centers=kmeans.cluster_centers_,
+            method="umap",
+            save_path=save_path,
+        )
 
 print("done")
 """
