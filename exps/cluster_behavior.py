@@ -12,6 +12,17 @@ from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE
+from sklearn.metrics import (
+    adjusted_mutual_info_score,
+    adjusted_rand_score,
+    calinski_harabasz_score,
+    completeness_score,
+    davies_bouldin_score,
+    fowlkes_mallows_score,
+    homogeneity_score,
+    silhouette_score,
+    v_measure_score,
+)
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from torch.utils import tensorboard
@@ -189,12 +200,43 @@ def test_model(cfg, loader, model, kmeans, layer_to_hook):
         hook_handle.remove()
 
 
+def get_cluster_metrics(kmeans, n_clusters, X, predicted_labels, true_labels):
+    # Internal metrics (no ground truth required)
+    inertia = kmeans.inertia_
+    silhouette = silhouette_score(X, predicted_labels)
+    calinski_harabasz = calinski_harabasz_score(X, predicted_labels)
+    davies_bouldin = davies_bouldin_score(X, predicted_labels)
+
+    # External metrics (ground truth required)
+    homogeneity = homogeneity_score(true_labels, predicted_labels)
+    completeness = completeness_score(true_labels, predicted_labels)
+    v_measure = v_measure_score(true_labels, predicted_labels)
+    ari = adjusted_rand_score(true_labels, predicted_labels)
+    ami = adjusted_mutual_info_score(true_labels, predicted_labels)
+    fmi = fowlkes_mallows_score(true_labels, predicted_labels)
+
+    result = {
+        "n_clusters": n_clusters,
+        "inertia": inertia,
+        "silhouette": silhouette,
+        "calinski_harabasz": calinski_harabasz,
+        "davies_bouldin": davies_bouldin,
+        "homogeneity": homogeneity,
+        "completeness": completeness,
+        "v_measure": v_measure,
+        "ari": ari,
+        "ami": ami,
+        "fmi": fmi,
+    }
+    return result
+
+
 def visualize_test_clusters(
     test_embeddings,
     test_labels,
     cluster_centers,
     method="pca",
-    save_path=None,
+    save_file=None,
 ):
     """
     Visualize test embeddings + cluster centers in 2D using PCA, t-SNE, or UMAP.
@@ -266,9 +308,9 @@ def visualize_test_clusters(
     plt.colorbar(scatter, label="Cluster Label")
     plt.legend()
 
-    if save_path:
-        save_path = save_path.parent / f"{method}_{save_path.name}"
-        plt.savefig(save_path, bbox_inches="tight", dpi=300)
+    if save_file:
+        save_file = save_file.parent / f"{method}_{save_file.name}"
+        plt.savefig(save_file, bbox_inches="tight", dpi=300)
 
 
 # Load model
@@ -325,12 +367,12 @@ layer_to_hook = named_mods[cfg.layer_name]
 
 # Prepare training data and train the model
 # =============
-
+all_metrics = []
 for n_clusters in n_clusters_list:
     for batch_size in batch_sizes_list:
         print(f"Testing n_clusters={n_clusters}, batch_size={batch_size}")
 
-        # Initialize MiniBatchKMeans
+        # Initialize MiniBatchKMeans # TODO IncrementalDBSCAN
         kmeans = MiniBatchKMeans(
             n_clusters=n_clusters, batch_size=batch_size, random_state=cfg.seed
         )
@@ -351,6 +393,10 @@ for n_clusters in n_clusters_list:
         # Compare cluster labels with actual labels
         labels = ldts[:, 0]
 
+        mtrcs = get_cluster_metrics(kmeans, n_clusters, embeddings, c_labels, labels)
+        all_metrics.append(mtrcs)
+
+        # TODO use: from sklearn.metrics.cluster import contingency_matrix
         n_labels = len(np.unique(labels))
         counts = np.zeros((n_labels, n_clusters), dtype=np.int64)
         for label in range(n_classes):
@@ -377,23 +423,23 @@ for n_clusters in n_clusters_list:
         rfile.close()
 
         # 1) PCA
-        save_path = cfg.save_path / f"c{n_clusters}_b{batch_size}.png"
-        visualize_test_clusters(
-            test_embeddings=embeddings,
-            test_labels=c_labels,
-            cluster_centers=kmeans.cluster_centers_,
-            method="pca",
-            save_path=save_path,
-        )
+        save_file = cfg.save_path / f"c{n_clusters}_b{batch_size}.png"
+        # visualize_test_clusters(
+        #     test_embeddings=embeddings,
+        #     test_labels=c_labels,
+        #     cluster_centers=kmeans.cluster_centers_,
+        #     method="pca",
+        #     save_file=save_file,
+        # )
 
-        # 2) t-SNE
-        visualize_test_clusters(
-            test_embeddings=embeddings,
-            test_labels=c_labels,
-            cluster_centers=kmeans.cluster_centers_,
-            method="tsne",
-            save_path=save_path,
-        )
+        # # 2) t-SNE
+        # visualize_test_clusters(
+        #     test_embeddings=embeddings,
+        #     test_labels=c_labels,
+        #     cluster_centers=kmeans.cluster_centers_,
+        #     method="tsne",
+        #     save_file=save_file,
+        # )
 
         # 3) UMAP
         visualize_test_clusters(
@@ -401,8 +447,13 @@ for n_clusters in n_clusters_list:
             test_labels=c_labels,
             cluster_centers=kmeans.cluster_centers_,
             method="umap",
-            save_path=save_path,
+            save_file=save_file,
         )
+        plt.close("all")
+        print("\n")
+
+all_metrics = pd.DataFrame(all_metrics)
+all_metrics.to_csv(cfg.save_path / "metrics.csv", index=False, float_format="%.4f")
 
 print("done")
 """
