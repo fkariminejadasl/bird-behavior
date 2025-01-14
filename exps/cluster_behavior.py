@@ -99,7 +99,7 @@ def setup_training_dataloader(cfg, batch_size):
     loader = DataLoader(
         dataset,
         batch_size=batch_size,  # len(dataset), # 4096
-        shuffle=False,
+        shuffle=True,
         num_workers=cfg.num_workers,
         drop_last=False,
     )
@@ -121,9 +121,9 @@ def train_model(cfg, loader, model, kmeans, layer_to_hook):
     # Register the forward hook
     hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
 
-    sample_rate = 0.01  # 10% of data
-    sampled_embeddings = []
-    sampled_labels = []
+    # Optional scaler
+    scaler = StandardScaler() if cfg.normalize else None
+
     # Extract embeddings and perform clustering in batches
     start_time = time.time()
     try:
@@ -135,12 +135,14 @@ def train_model(cfg, loader, model, kmeans, layer_to_hook):
                 # Process current batch embeddings
                 if activation:
                     X = activation.pop()[:, 0, :]
+                    if cfg.normalize:
+                        X = scaler.partial_fit(X).transform(X)  # Scale embeddings
                     kmeans.partial_fit(X)  # Incremental clustering with partial_fit
 
         end_time = time.time()
         print(f"Training completed in {end_time - start_time:.2f} seconds.")
         print(f"Cluster centers shape: {kmeans.cluster_centers_.shape}")
-        return kmeans
+        return kmeans, scaler
     except MemoryError as e:
         print(
             "MemoryError encountered! The dataset might be too large to fit in available memory."
@@ -172,7 +174,7 @@ def setup_testing_dataloader(cfg):
     return loader
 
 
-def test_model(cfg, loader, model, kmeans, layer_to_hook):
+def test_model(cfg, loader, model, kmeans, scaler, layer_to_hook):
     activation = []
 
     # Register the forward hook
@@ -187,6 +189,8 @@ def test_model(cfg, loader, model, kmeans, layer_to_hook):
                 # Forward pass
                 output = model(data.to(device))
                 X = activation[0][:, 0, :]
+                if cfg.normalize:
+                    X = scaler.transform(X)
                 c_labels = kmeans.predict(X)
 
         end_time = time.time()
@@ -379,13 +383,13 @@ for n_clusters in n_clusters_list:
 
         # Train the model
         train_loader = setup_training_dataloader(cfg, batch_size)
-        kmeans = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
+        kmeans, scaler = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
 
         # Prepare test data and test the model
         # ==============
         test_loader = setup_testing_dataloader(cfg)
         c_labels, ldts, embeddings = test_model(
-            cfg, test_loader, model, kmeans, layer_to_hook
+            cfg, test_loader, model, kmeans, scaler, layer_to_hook
         )
 
         print(c_labels.shape)
@@ -424,22 +428,22 @@ for n_clusters in n_clusters_list:
 
         # 1) PCA
         save_file = cfg.save_path / f"c{n_clusters}_b{batch_size}.png"
-        # visualize_test_clusters(
-        #     test_embeddings=embeddings,
-        #     test_labels=c_labels,
-        #     cluster_centers=kmeans.cluster_centers_,
-        #     method="pca",
-        #     save_file=save_file,
-        # )
+        visualize_test_clusters(
+            test_embeddings=embeddings,
+            test_labels=c_labels,
+            cluster_centers=kmeans.cluster_centers_,
+            method="pca",
+            save_file=save_file,
+        )
 
-        # # 2) t-SNE
-        # visualize_test_clusters(
-        #     test_embeddings=embeddings,
-        #     test_labels=c_labels,
-        #     cluster_centers=kmeans.cluster_centers_,
-        #     method="tsne",
-        #     save_file=save_file,
-        # )
+        # 2) t-SNE
+        visualize_test_clusters(
+            test_embeddings=embeddings,
+            test_labels=c_labels,
+            cluster_centers=kmeans.cluster_centers_,
+            method="tsne",
+            save_file=save_file,
+        )
 
         # 3) UMAP
         visualize_test_clusters(

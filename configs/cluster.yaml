@@ -14,7 +14,7 @@
 # TEST
 # ===========
 # Paths
-save_path: /home/fatemeh/Downloads/bird/result/cluster
+save_path: /home/fatemeh/Downloads/bird/result/cluster_scaler
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
@@ -78,6 +78,7 @@ min_samples: 5  # Minimum number of samples in a neighborhood for a point to be 
 # Parameters for MiniBatchKMeans
 n_clusters: [8,9,10,11,12,13,14,15,16,17,18] #[9, 10, 18]  # Test multiple cluster numbers
 batch_size: [8192] #[8192, 16384, 32768] #[1024, 2048, 4096, 8192, 16384]  # Test multiple batch sizes # 1024, 4096
+normalize: True
 # Visualization
 perplexity: 30 # TSNE
 n_neighbors: 15 # UMAP
