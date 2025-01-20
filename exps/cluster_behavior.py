@@ -382,7 +382,12 @@ for n_clusters in n_clusters_list:
         )
 
         # Train the model
+        start_time = time.time()
         train_loader = setup_training_dataloader(cfg, batch_size)
+        end_time = time.time()
+        print(
+            f"Reading Training Data completed in {end_time - start_time:.2f} seconds."
+        )
         kmeans, scaler = train_model(cfg, train_loader, model, kmeans, layer_to_hook)
 
         # Prepare test data and test the model
