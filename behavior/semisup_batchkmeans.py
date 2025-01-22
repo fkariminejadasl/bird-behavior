@@ -1,94 +1,75 @@
-"""
-GCD implementation (below link) is kmean based but I need batch-based kmean. So the code from GCD is changed for batch kmean.
-https://github.com/sgvaze/generalized-category-discovery/blob/main/methods/clustering/faster_mix_k_means_pytorch.py
-"""
-
-import random
-
 import numpy as np
 import torch
-from sklearn.datasets import make_blobs
-from sklearn.metrics.cluster import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.utils import check_random_state
 
 
 ##############################################################################
-# 1) Define Utility: pairwise_distance
+# 1) Utility for pairwise distance in PyTorch
 ##############################################################################
 def pairwise_distance(data1, data2):
     """
-    data1: shape (N, D)
-    data2: shape (K, D)
-    returns: (N, K) matrix of squared Euclidean distances
+    data1: (N, D) Tensor
+    data2: (K, D) Tensor
+    Returns: (N, K) of squared Euclidean distances
     """
-    # A: (N, 1, D)
-    A = data1.unsqueeze(dim=1)
-    # B: (1, K, D)
-    B = data2.unsqueeze(dim=0)
-    dist = (A - B) ** 2
-    return dist.sum(dim=-1)  # shape (N, K)
+    A = data1.unsqueeze(dim=1)  # (N, 1, D)
+    B = data2.unsqueeze(dim=0)  # (1, K, D)
+    return (A - B).pow(2).sum(dim=-1)  # (N, K)
 
 
-##############################################################################
-# 2) Define the MiniBatchK_Means class (extended with n_init logic)
-##############################################################################
 class MiniBatchK_Means:
     def __init__(
-        self,
-        k=3,
-        init="k-means++",
-        max_iter=100,
-        n_init=1,
-        random_state=None,
-        device="cpu",
+        self, k=3, init="k-means++", n_init=1, random_state=None, device="cpu"
     ):
         """
-        A simple mini-batch K-Means (semi-supervised) that can handle labeled + unlabeled data
-        via partial_fit style. We also allow multiple inits (n_init) to pick the best inertia.
+        A semi-supervised mini-batch K-Means that:
+          - handles labeled data by forcing class i => cluster i
+          - trains in partial_fit style
+          - can do multiple random initializations (n_init) and pick best inertia
 
         Parameters
         ----------
         k : int
             Number of clusters
         init : str
-            Initialization method, e.g. "k-means++"
-        max_iter : int
-            Not strictly used like in standard K-Means but kept for consistency
+            "k-means++" or "random"
         n_init : int
-            How many times to restart (with different seeds) and choose best by inertia
-        random_state : int or np.random.RandomState
+            How many random restarts to try, picking best inertia
+        random_state : int or None
             For reproducibility
         device : str
             "cpu" or "cuda"
         """
         self.k = k
         self.init = init
-        self.max_iter = max_iter
         self.n_init = n_init
-        self.rng = np.random.RandomState(random_state)
+        self.rng = check_random_state(random_state)
         self.device = device
 
-        self.cluster_centers_ = None  # Will hold final chosen centers
+        self.cluster_centers_ = None
         self.counts_ = None
         self.inertia_ = None
-        self.labels_ = None  # If you want to store final labels
-        self.n_iter_ = 0
+        self.labels_ = None  # Combined final labels (labeled + unlabeled) if desired
+        self.best_seed_ = None
 
-    def _kpp_init(self, X, k, pre_centers=None):
+    def _kpp_init(self, X, leftover_k, pre_centers=None):
         """
-        A simplified K++ init that can optionally start with 'pre_centers'.
-        X: (N, D) torch.Tensor
-        pre_centers: (m, D) torch.Tensor or None
+        K-Means++ initialization on X (shape: (N, D)) - picks 'leftover_k' new centers.
+        Optionally starts with pre_centers (shape: (m, D)) if given.
         """
-        if pre_centers is not None and pre_centers.shape[0] > 0:
-            centers = pre_centers.clone()
-        else:
-            # pick first center randomly
+        if pre_centers is None or pre_centers.shape[0] == 0:
+            # pick the first center randomly
             idx = self.rng.randint(0, X.shape[0])
             centers = X[idx].unsqueeze(0)
+            used = 1
+        else:
+            centers = pre_centers.clone()
+            used = centers.shape[0]
 
-        # Continue picking centers until we have k
-        while centers.shape[0] < k:
-            dist = pairwise_distance(X, centers)  # (N, current_num_centers)
+        while used < leftover_k + (
+            pre_centers.shape[0] if pre_centers is not None else 0
+        ):
+            dist = pairwise_distance(X, centers)  # (N, used)
             d2, _ = torch.min(dist, dim=1)  # (N,)
             prob = d2 / d2.sum()
             cum_prob = torch.cumsum(prob, dim=0)
@@ -96,302 +77,265 @@ class MiniBatchK_Means:
             idx_new = (cum_prob >= r).nonzero()[0][0]
             c_new = X[idx_new].unsqueeze(0)
             centers = torch.cat((centers, c_new), dim=0)
+            used += 1
 
         return centers
 
     def partial_fit_mix(self, u_feats_batch, l_feats, l_targets):
         """
-        Process one mini-batch of unlabeled data (u_feats_batch)
-        together with labeled data (l_feats, l_targets).
-        Updates centers incrementally.
+        Process one mini-batch of unlabeled data (u_feats_batch) plus all labeled data in memory.
+        Updates cluster centers incrementally.
         """
-        # Ensure device
         u_feats_batch = u_feats_batch.to(self.device)
         l_feats = l_feats.to(self.device)
         l_targets = l_targets.to(self.device)
 
-        # If cluster_centers_ not initialized, do so now
+        # 1) If cluster centers not inited => do so now
         if self.cluster_centers_ is None:
-            # 1) We assume each unique labeled class is assigned
+            # gather one center per labeled class (force class i => center i)
             l_classes = torch.unique(l_targets)
-            class_centers = []
-            for c in l_classes:
-                c_inds = (l_targets == c).nonzero().squeeze(1)
-                c_points = l_feats[c_inds]
-                class_centers.append(c_points.mean(dim=0, keepdim=True))
-            class_centers = (
-                torch.cat(class_centers, dim=0) if len(class_centers) else None
-            )
+            labeled_centers = []
+            for c_val in l_classes:
+                c_inds = (l_targets == c_val).nonzero().squeeze(1)
+                if c_inds.numel() > 0:
+                    center = l_feats[c_inds].mean(dim=0, keepdim=True)
+                    labeled_centers.append(center)
+            if labeled_centers:
+                labeled_centers = torch.cat(labeled_centers, dim=0)  # (#l_classes, D)
+            else:
+                labeled_centers = None
 
-            # 2) If leftover clusters remain, use K++ on the unlabeled mini-batch
+            # if leftover clusters remain, do K++ on the unlabeled batch
             leftover_k = self.k - (
-                class_centers.shape[0] if class_centers is not None else 0
+                labeled_centers.shape[0] if labeled_centers is not None else 0
             )
             if leftover_k > 0:
-                # do k++ from unlabeled batch
-                if class_centers is not None:
-                    new_centers = self._kpp_init(u_feats_batch, leftover_k, None)
+                new_centers = self._kpp_init(u_feats_batch, leftover_k, None)
+                if labeled_centers is not None and labeled_centers.shape[0] > 0:
                     self.cluster_centers_ = torch.cat(
-                        (class_centers, new_centers), dim=0
+                        (labeled_centers, new_centers), dim=0
                     )
                 else:
-                    self.cluster_centers_ = self._kpp_init(u_feats_batch, self.k, None)
+                    self.cluster_centers_ = new_centers
             else:
-                # Edge case: we have more labeled classes than k, or exactly equal
-                self.cluster_centers_ = class_centers[: self.k]
+                # If labeled classes >= k, just take the first k
+                self.cluster_centers_ = labeled_centers[: self.k]
 
             self.cluster_centers_ = self.cluster_centers_.to(self.device)
             self.counts_ = torch.zeros(self.k, dtype=torch.float, device=self.device)
 
-        # ======================
-        # 1) Assign unlabeled to nearest center + incremental update
-        # ======================
+        # 2) Assign unlabeled batch => nearest center, incremental update
         dist_unlab = pairwise_distance(
             u_feats_batch, self.cluster_centers_
         )  # (batch_size, k)
-        u_labels_batch = torch.argmin(dist_unlab, dim=1)  # (batch_size,)
-
-        for c in range(self.k):
-            mask = (u_labels_batch == c).nonzero().squeeze(1)
-            if mask.numel() == 0:
+        u_labels = torch.argmin(dist_unlab, dim=1)
+        for c_idx in range(self.k):
+            c_mask = (u_labels == c_idx).nonzero().squeeze(1)
+            if c_mask.numel() == 0:
                 continue
-            points_c = u_feats_batch[mask]
-            mean_c = points_c.mean(dim=0)
+            points = u_feats_batch[c_mask]
+            old_count = float(self.counts_[c_idx].item())
+            new_count = old_count + points.shape[0]
+            mean_batch = points.mean(dim=0)
+            old_center = self.cluster_centers_[c_idx]
+            new_center = (
+                old_center * old_count + mean_batch * points.shape[0]
+            ) / new_count
 
-            batch_count = float(points_c.shape[0])
-            old_count = float(self.counts_[c].item())
-            new_count = old_count + batch_count
+            self.cluster_centers_[c_idx] = new_center
+            self.counts_[c_idx] = new_count
 
-            old_center = self.cluster_centers_[c]
-            new_center = (old_center * old_count + mean_c * batch_count) / new_count
-
-            self.cluster_centers_[c] = new_center
-            self.counts_[c] = new_count
-
-        # ======================
-        # 2) Update centers based on labeled data
-        #    We force labeled class i -> cluster i (if i < k).
-        # ======================
+        # 3) Force labeled data => class i => cluster i (if i < k)
         l_classes = torch.unique(l_targets)
         for i, c_val in enumerate(l_classes):
             if i >= self.k:
-                break  # If there are more classes than k, handle externally
-            c_inds = (l_targets == c_val).nonzero().squeeze(1)
-            if c_inds.numel() == 0:
-                continue
-            points_c = l_feats[c_inds]
-            mean_c = points_c.mean(dim=0)
-
-            old_count = float(self.counts_[i].item())
-            batch_count = float(points_c.shape[0])
-            new_count = old_count + batch_count
-
-            old_center = self.cluster_centers_[i]
-            new_center = (old_center * old_count + mean_c * batch_count) / new_count
-
-            self.cluster_centers_[i] = new_center
-            self.counts_[i] = new_count
-
-    def fit_mix_minibatch(
-        self, u_feats, l_feats, l_targets, batch_size=64, n_epochs=5, shuffle=True
-    ):
-        """
-        Perform mini-batch training over the unlabeled data multiple epochs.
-        """
-        u_feats = u_feats.to(self.device)
-        l_feats = l_feats.to(self.device)
-        l_targets = l_targets.to(self.device)
-
-        dataset_size = u_feats.shape[0]
-        idxs = np.arange(dataset_size)
-
-        for _ in range(n_epochs):
-            if shuffle:
-                self.rng.shuffle(idxs)
-
-            start = 0
-            while start < dataset_size:
-                end = min(start + batch_size, dataset_size)
-                batch_idx = idxs[start:end]
-                u_feats_batch = u_feats[batch_idx]
-                self.partial_fit_mix(u_feats_batch, l_feats, l_targets)
-                start = end
-
-    def compute_total_inertia(self, u_feats, l_feats, l_targets):
-        """
-        Compute "semi-supervised" inertia:
-          - sum of distances of unlabeled data to nearest center
-          - plus sum of distances of labeled data to their 'forced' center (class i => cluster i)
-        Returns: (inertia_value, all_labels)
-        """
-        # 1) Unlabeled part
-        dist_unlab = pairwise_distance(u_feats, self.cluster_centers_)
-        u_mindist, u_labels = torch.min(dist_unlab, dim=1)
-        u_inertia = u_mindist.sum()  # sum of minimal distances
-
-        # 2) Labeled part
-        # Force each labeled class i -> cluster i, if possible
-        l_classes = torch.unique(l_targets)
-        labeled_dist_sum = 0.0
-        labeled_labels = torch.empty_like(l_targets, dtype=torch.long)
-        for i, c_val in enumerate(l_classes):
-            if i >= self.k:
-                # If # of labeled classes > k, this logic won't strictly hold
-                # but let's just break
                 break
             c_inds = (l_targets == c_val).nonzero().squeeze(1)
             if c_inds.numel() == 0:
                 continue
-            points_c = l_feats[c_inds]
-            center_i = self.cluster_centers_[i]
-            dists_sq = torch.sum((points_c - center_i) ** 2, dim=1)
-            labeled_dist_sum += dists_sq.sum().item()
-            labeled_labels[c_inds] = i
+            pts = l_feats[c_inds]
+            old_count = float(self.counts_[i].item())
+            new_count = old_count + pts.shape[0]
+            mean_pts = pts.mean(dim=0)
+            old_center = self.cluster_centers_[i]
+            new_center = (old_center * old_count + mean_pts * pts.shape[0]) / new_count
+            self.cluster_centers_[i] = new_center
+            self.counts_[i] = new_count
 
-        total_inertia = float(u_inertia.item() + labeled_dist_sum)
-
-        # Combine labeled and unlabeled labels if you want an overall label array
-        # For convenience, let's define them in a single vector:
-        # cat_feats = [l_feats, u_feats] so let's do the same for labels
-        all_labels = torch.cat([labeled_labels, u_labels])
-        return total_inertia, all_labels
-
-    def predict(self, X):
+    def _compute_streaming_inertia_pass(self, loader, model, layer_to_hook):
         """
-        Predict cluster labels for new data X.
+        One streaming pass over 'loader' to compute sum of distances of unlabeled data
+        to final cluster centers.  We do hooking to get embeddings on-the-fly.
+        Returns: (float total_dist, torch.LongTensor of assigned cluster labels)
         """
-        if self.cluster_centers_ is None:
-            raise ValueError("Model has not been fitted yet!")
-        X = X.to(self.device)
-        dist = pairwise_distance(X, self.cluster_centers_)
-        labels = torch.argmin(dist, dim=1)
-        return labels.cpu().numpy()
+        device = self.device
+        total_dist = 0.0
+        all_assigned_labels = []
 
-    ############################################################################
-    # NEW: The method that does multiple inits => best inertia
-    ############################################################################
-    def fit_mix_minibatch_n_init(
-        self, u_feats, l_feats, l_targets, batch_size=64, n_epochs=5, shuffle=True
+        activation = []
+
+        def hook_fn(module, inp, out):
+            activation.append(out.detach())
+
+        hook_handle = layer_to_hook.register_forward_hook(hook_fn)
+
+        with torch.no_grad():
+            for batch_data in loader:
+                batch_data = batch_data.to(device)
+                _ = model(batch_data)  # forward => fill activation
+                if activation:
+                    feats = (
+                        activation.pop()
+                    )  # shape (B, something, embed_dim) or (B, embed_dim)
+                    # If shape is (B,1,D), flatten the middle
+                    if feats.ndim == 3:
+                        feats = feats[:, 0, :]
+                    dist = pairwise_distance(feats, self.cluster_centers_)
+                    mindist, minidx = torch.min(dist, dim=1)
+                    total_dist += mindist.sum().item()
+                    all_assigned_labels.append(minidx.cpu())
+
+        hook_handle.remove()
+
+        if len(all_assigned_labels) > 0:
+            all_assigned_labels = torch.cat(all_assigned_labels, dim=0)
+        else:
+            all_assigned_labels = torch.tensor([], dtype=torch.long)
+        return total_dist, all_assigned_labels
+
+    def compute_streaming_inertia(
+        self, loader, model, layer_to_hook, l_feats, l_targets
     ):
         """
-        Similar to the original GCD code's approach: run mini-batch training
-        'n_init' times, each with a different random seed, and select the best
-        model based on minimal inertia.
+        Does a streaming pass over the unlabeled loader + forces labeled data
+        => computes total inertia = (sum of unlabeled distances) + (labeled distances).
+        Returns: (float inertia, torch.LongTensor of final labels [labeled+unlabeled])
+        """
+        device = self.device
+        # 1) unlabeled portion
+        unl_dist_sum, unl_labels = self._compute_streaming_inertia_pass(
+            loader, model, layer_to_hook
+        )
+
+        # 2) labeled portion: force class i => cluster i
+        l_feats = l_feats.to(device)
+        l_targets = l_targets.to(device)
+        labeled_dist_sum = 0.0
+        labeled_labels = torch.empty_like(l_targets, dtype=torch.long)
+
+        l_classes = torch.unique(l_targets)
+        for i, c_val in enumerate(l_classes):
+            if i >= self.k:
+                break
+            c_inds = (l_targets == c_val).nonzero().squeeze(1)
+            if c_inds.numel() == 0:
+                continue
+            pts = l_feats[c_inds]
+            center_i = self.cluster_centers_[i]
+            dist_sq = (pts - center_i).pow(2).sum(dim=1)
+            labeled_dist_sum += dist_sq.sum().item()
+            labeled_labels[c_inds] = i
+
+        total_inertia = unl_dist_sum + labeled_dist_sum
+        all_labels = torch.cat([labeled_labels.cpu(), unl_labels], dim=0)
+        return total_inertia, all_labels
+
+    def reset_model(self):
+        """
+        Clears cluster centers, counts, inertia, labels for a fresh run.
+        """
+        self.cluster_centers_ = None
+        self.counts_ = None
+        self.inertia_ = None
+        self.labels_ = None
+
+    def fit_mix_epochs_n_init_streaming(
+        self,
+        create_unlabeled_loader_func,
+        model,
+        layer_to_hook,
+        l_feats,
+        l_targets,
+        n_epochs=5,
+    ):
+        """
+        Repeatedly do:
+          For each init in n_init:
+            1) reset cluster centers
+            2) for epoch in 1..n_epochs:
+                 - create a fresh unlabeled loader via create_unlabeled_loader_func()
+                 - partial_fit_mix(...) in mini-batches (hooking in your code's style)
+            3) do a final streaming pass over unlabeled data => compute inertia
+          Keep the best run (lowest inertia).
+
+        create_unlabeled_loader_func: a callback that returns a *fresh* DataLoader for unlabeled
+        model, layer_to_hook: used for hooking to get embeddings
+        l_feats, l_targets: entire labeled data in memory
+        n_epochs: how many passes over unlabeled data
         """
         best_inertia = None
         best_centers = None
         best_labels = None
-        best_iters = 0
+        best_seed = None
 
         seeds = self.rng.randint(0, 2**31 - 1, size=self.n_init)
 
         for run_idx in range(self.n_init):
-            # Create fresh model state for each initialization
-            # (We reset self.cluster_centers_, counts_, etc.)
-            self.cluster_centers_ = None
-            self.counts_ = None
+            run_seed = seeds[run_idx]
+            local_rng = np.random.RandomState(run_seed)
+            self.rng = local_rng  # so k++ uses run_seed
 
-            # Optionally, set up a new RNG per run:
-            local_rng = np.random.RandomState(seeds[run_idx])
-            self.rng = local_rng  # reassign so that _kpp_init uses this local RNG
+            # Reset
+            self.reset_model()
 
-            # Train with mini-batches
-            self.fit_mix_minibatch(
-                u_feats,
-                l_feats,
-                l_targets,
-                batch_size=batch_size,
-                n_epochs=n_epochs,
-                shuffle=shuffle,
+            # 2) multiple epochs partial-fitting
+            for ep in range(n_epochs):
+                unl_loader = create_unlabeled_loader_func()
+                activation = []
+
+                def hook_fn(module, inp, out):
+                    activation.append(out.detach())
+
+                hook_handle = layer_to_hook.register_forward_hook(hook_fn)
+
+                with torch.no_grad():
+                    for batch_data in unl_loader:
+                        batch_data = batch_data.to(self.device)
+                        _ = model(batch_data)
+                        if activation:
+                            feats = activation.pop()  # shape e.g. (B,1,D) or (B,D)
+                            if feats.ndim == 3:
+                                feats = feats[:, 0, :]
+                            # Now partial fit
+                            self.partial_fit_mix(feats, l_feats, l_targets)
+
+                hook_handle.remove()
+
+            # 3) final streaming inertia pass
+            unl_loader = create_unlabeled_loader_func()
+            inertia_val, labels_val = self.compute_streaming_inertia(
+                unl_loader, model, layer_to_hook, l_feats, l_targets
             )
 
-            # Compute inertia
-            inertia_val, labels_val = self.compute_total_inertia(
-                u_feats, l_feats, l_targets
-            )
-
-            # Check if best
             if best_inertia is None or inertia_val < best_inertia:
                 best_inertia = inertia_val
                 best_centers = self.cluster_centers_.clone()
                 best_labels = labels_val.clone()
-                best_iters = n_epochs
+                best_seed = run_seed
 
-        # Finally, store the best results
+        # store final best
         self.cluster_centers_ = best_centers
         self.inertia_ = best_inertia
         self.labels_ = best_labels
-        self.n_iter_ = best_iters
+        self.best_seed_ = best_seed
 
-
-##############################################################################
-# 3) TEST the code on synthetic data
-##############################################################################
-if __name__ == "__main__":
-    # Fix random seeds for reproducibility
-    seed = 42
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    random.seed(seed)
-
-    # Generate synthetic data: 4 clusters in 2D
-    N = 800
-    K = 4
-    X_data, y_data = make_blobs(
-        n_samples=N, n_features=2, centers=K, cluster_std=1.0, random_state=seed
-    )
-
-    # Suppose we treat clusters 0 and 1 as "labeled" => classes 0 and 1
-    # Clusters 2 and 3 as "unlabeled"
-    labeled_mask = (y_data == 0) | (y_data == 1)
-    unlabeled_mask = ~labeled_mask
-
-    l_feats_np = X_data[labeled_mask]  # shape (some_l, 2)
-    l_targets_np = y_data[labeled_mask]
-    u_feats_np = X_data[unlabeled_mask]  # shape (some_u, 2)
-    u_targets_np = y_data[unlabeled_mask]  # just for evaluating
-
-    print("Number of labeled samples:", len(l_feats_np))
-    print("Number of unlabeled samples:", len(u_feats_np))
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    l_feats_t = torch.from_numpy(l_feats_np).float().to(device)
-    l_targets_t = torch.from_numpy(l_targets_np).long().to(device)
-    u_feats_t = torch.from_numpy(u_feats_np).float().to(device)
-
-    # Create our mini-batch KMeans object with multiple inits:
-    mbk = MiniBatchK_Means(
-        k=K,
-        n_init=5,  # We'll do 5 different random initializations
-        random_state=seed,
-        device=device,
-    )
-
-    # Run "fit_mix_minibatch_n_init"
-    mbk.fit_mix_minibatch_n_init(
-        u_feats_t, l_feats_t, l_targets_t, batch_size=64, n_epochs=5, shuffle=True
-    )
-
-    # Evaluate on the entire dataset:
-    X_all_torch = torch.from_numpy(X_data).float().to(device)
-    pred_labels = mbk.predict(X_all_torch)
-
-    nmi_val = normalized_mutual_info_score(y_data, pred_labels)
-    ari_val = adjusted_rand_score(y_data, pred_labels)
-    print(f"\nBest inertia after n_init: {mbk.inertia_:.4f}")
-    print(f"NMI = {nmi_val:.4f}, ARI = {ari_val:.4f}")
-
-    # Just to see final centers:
-    print("\nFinal cluster centers:")
-    print(mbk.cluster_centers_.cpu().numpy())
-
-    import matplotlib.pylab as plt
-
-    # 5) Plot
-    center_labels = mbk.cluster_centers_.cpu().numpy()
-    plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(X_data[:, 0], X_data[:, 1], c=y_data, cmap="tab20", s=5)
-    plt.scatter(center_labels[:, 0], center_labels[:, 1], c="black", marker="X", s=50)
-    plt.colorbar(scatter, label="Cluster Label")
-    plt.show(block=True)
-    print("done")
+    def predict(self, X):
+        """
+        Predict cluster labels for new data X: shape (N, D)
+        """
+        if self.cluster_centers_ is None:
+            raise ValueError("Model not fitted yet!")
+        X = X.to(self.device)
+        dist = pairwise_distance(X, self.cluster_centers_)
+        labels = torch.argmin(dist, dim=1)
+        return labels.cpu().numpy()

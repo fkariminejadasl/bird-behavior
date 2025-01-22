@@ -1,3 +1,4 @@
+import gc
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,17 +39,17 @@ from behavior.utils import n_classes, new_label_inds, target_labels
 
 def read_csv_files(data_path):
     gimus = []
-    dis = []
-    timestamps = []
+    # dis = []
+    # timestamps = []
     for csv_file in data_path.glob("*.csv"):
         df = pd.read_csv(csv_file, header=None)
         gimus.append(df[[4, 5, 6, 7]].values)
-        dis.append(df[[0, 2]].values)
-        timestamps.extend(df[1].tolist())
+        # dis.append(df[[0, 2]].values)
+        # timestamps.extend(df[1].tolist())
 
     gimus = np.concatenate(gimus, axis=0)
-    dis = np.concatenate(dis, axis=0)
-    timestamps = np.array(timestamps)
+    # dis = np.concatenate(dis, axis=0)
+    # timestamps = np.array(timestamps)
     return gimus
 
 
@@ -103,6 +104,30 @@ def setup_training_dataloader(cfg, batch_size):
         num_workers=cfg.num_workers,
         drop_last=False,
     )
+    del gimus
+    gc.collect()
+    return loader
+
+
+def setup_testing_dataloader(cfg):
+    # Load data
+    all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
+    all_measurements, label_ids = bd.get_specific_labesl(
+        all_measurements, label_ids, bu.target_labels
+    )
+    dataset = bd.BirdDataset(
+        all_measurements, label_ids, channel_first=cfg.channel_first
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),  # 4096
+        shuffle=False,
+        num_workers=1,
+        drop_last=False,
+    )
+    print(all_measurements.shape)
+    del all_measurements, label_ids
+    gc.collect()
     return loader
 
 
@@ -152,26 +177,6 @@ def train_model(cfg, loader, model, kmeans, layer_to_hook):
     finally:
         # Remove the hook after extraction
         hook_handle.remove()
-
-
-def setup_testing_dataloader(cfg):
-    # Load data
-    all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
-    all_measurements, label_ids = bd.get_specific_labesl(
-        all_measurements, label_ids, bu.target_labels
-    )
-    dataset = bd.BirdDataset(
-        all_measurements, label_ids, channel_first=cfg.channel_first
-    )
-    loader = DataLoader(
-        dataset,
-        batch_size=len(dataset),  # 4096
-        shuffle=False,
-        num_workers=1,
-        drop_last=False,
-    )
-    print(all_measurements.shape)
-    return loader
 
 
 def test_model(cfg, loader, model, kmeans, scaler, layer_to_hook):
