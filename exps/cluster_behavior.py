@@ -83,6 +83,8 @@ batch_sizes_list = (
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+cfg.save_path.mkdir(parents=True, exist_ok=True)
+
 
 def setup_training_dataloader(cfg, batch_size):
     # Load data
@@ -419,7 +421,6 @@ for n_clusters in n_clusters_list:
                 counts[label, c_label] = sum(sel == c_label)
         bu.plot_confusion_matrix(counts)
 
-        cfg.save_path.mkdir(parents=True, exist_ok=True)
         plt.savefig(
             cfg.save_path / f"row_labels_col_clusters_c{n_clusters}_b{batch_size}.png",
             bbox_inches="tight",
