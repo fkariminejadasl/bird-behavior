@@ -538,14 +538,13 @@ for name, p in pmodel.items():
 
 model = model.to(device)
 
-# Function to extract embeddings per batch using hooks
-named_mods = dict(model.named_modules())
-layer_to_hook = named_mods[cfg.layer_name]
+layer_to_hook = dict(model.named_modules())[cfg.layer_name]
 
 del pmodel, name, p, state_dict
 torch.cuda.empty_cache()
 print("model is loaded")
-
+"""
+"""
 with torch.no_grad():
     o = model(torch.rand(1,20,4, device=device))
 
@@ -559,20 +558,37 @@ save_unlabeled_embeddings(train_loader, model, layer_to_hook, device)
 """
 
 # """
-# small test for small bird
-model = bm.BirdModel(4, 30, 9).to(device)
-bm.load_model("/home/fatemeh/Downloads/bird/result/45_best.pth", model, device)
+# # small test for small bird
+# model = bm.BirdModel(4, 30, 9)
+
+model = bm1.TransformerEncoderMAE(
+    img_size=cfg.g_len,
+    in_chans=cfg.in_channel,
+    out_chans=cfg.out_channel,
+    embed_dim=cfg.embed_dim,
+    depth=cfg.depth,
+    num_heads=cfg.num_heads,
+    mlp_ratio=cfg.mlp_ratio,
+    drop=cfg.drop,
+    layer_norm_eps=cfg.layer_norm_eps,
+)
+bm.load_model(cfg.model_checkpoint, model, device)
+model.to(device)
 model.eval()
+torch.cuda.empty_cache()
+print("model is loaded")
+
 activation = []
-hook_handle = model.fc.register_forward_hook(get_activation(activation))
+layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
+hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
 test_loader = setup_testing_dataloader(cfg)
 with torch.no_grad():
     for data, ldts in tqdm(test_loader):
-        data = data.permute((0, 2, 1))
         data = data.to(device)
-        _ = model(data)  # shape (B, embed_dim)
+        output = model(data)  # shape (B, embed_dim)
         feats = activation.pop()  # shape (B, embed_dim, 1)
         feats = feats.flatten(1)  # shape (B, embed_dim)
+        # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
         labels = ldts[:, 0].cpu().numpy()
         feats = feats.detach().cpu().numpy()
         # torch.save({'feats':feats,'labels':labels}, cfg.save_path/"test_c3_avg.npy")
@@ -617,6 +633,13 @@ l_targets = torch.tensor(labels, device="cuda")
 # l_feats = m(l_feats)
 # l_feats = torch.nn.functional.normalize(l_feats, p=2, dim=1)
 
+# classification
+preds = torch.argmax(output, dim=1).cpu().numpy()
+# fc: 4516 4694 # small
+# fc: 4532 4694 # ft: large
+print(sum(preds == labels), l_feats.shape[0])
+
+# GCD
 uf = l_feats[l_targets >= 5]
 ut = l_targets[l_targets >= 5]
 lf = l_feats[l_targets < 5]
@@ -626,20 +649,25 @@ kmeans = K_Means(k=9, tolerance=1e-4, max_iterations=100, n_init=3, random_state
 # fmt: off
 kmeans.fit_mix(uf, lf, lt)
 preds = kmeans.labels_.cpu().numpy()
-sum(preds[lt.shape[0]:] == ut.cpu().numpy())
 assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
 # 2472: 618 (10), 127 (9,r=1), 444 (9,r=10)
-print(sum(preds[lt.shape[0]:] == ut.cpu().numpy()), ut.shape[0])
+# fc: 1856 2472 2222 4694, avgp: 123  2472 2222 4694 # small
+# fc: 1498 2472 2222 4694, norm: 1659 2472 2222 4694 # ft: large
+print(sum(preds[lt.shape[0]:] == ut.cpu().numpy()), ut.shape[0], lt.shape[0], l_feats.shape[0])
 
+# Clustering
 reducer = PCA(n_components=2, random_state=42)
 reduced = reducer.fit_transform(feats)
 kmeans = MiniBatchKMeans(9)
 kmeans.fit(reduced)
 preds = kmeans.labels_
-sum(preds == labels) # 826 avgpool, 1855 fc
-# preds = torch.argmax(l_feats, dim=1).cpu().numpy() # fc: 4516
+# fc: 1855 2472 2222 4694, avgpool: 826 avgpool # small
+# fc:  844 2472 2222 4694, norm: 1755 2472 2222 4694 # ft: large
+print(sum(preds == labels), ut.shape[0], lt.shape[0], l_feats.shape[0])
+
 # fmt: off
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
+plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
+plt.show(block=True)
 # fm: off
 print("done")

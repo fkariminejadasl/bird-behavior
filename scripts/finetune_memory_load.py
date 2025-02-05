@@ -202,6 +202,10 @@ print(
     f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
 )
 
+del pmodel, name, p, state_dict
+torch.cuda.empty_cache()
+print("model is loaded")
+
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(
     model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
@@ -219,6 +223,7 @@ print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
+        torch.cuda.empty_cache()
         start_time = datetime.now()
         print(f"start time: {start_time}")
         get_gpu_memory()

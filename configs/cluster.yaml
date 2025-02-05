@@ -18,14 +18,12 @@ save_path: /home/fatemeh/Downloads/bird/result/embeddigs2
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
-# model_checkpoint: /home/fatemeh/Downloads/bird/result/45_best.pth
-# model_checkpoint: "/home/fatemeh/Downloads/bird/result/f_mem1_best.pth"
-model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth # /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth # /home/fatemeh/Downloads/bird/result/p_mem6_1.pth
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem1_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # General
 seed: 1234
 exp: 45
 num_workers: 1 # 15
-layer_name: norm # norm # fc # avgpool
+layer_name: fc # norm # fc # avgpool
 # # Model
 # channel_first: True
 # # Model
