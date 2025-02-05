@@ -558,32 +558,38 @@ print("data is loaded in cpu")
 save_unlabeled_embeddings(train_loader, model, layer_to_hook, device)
 """
 
-"""
+# """
 # small test for small bird
 model = bm.BirdModel(4, 30, 9).to(device)
 bm.load_model("/home/fatemeh/Downloads/bird/result/45_best.pth", model, device)
 model.eval()
+activation = []
+hook_handle = model.fc.register_forward_hook(get_activation(activation))
 test_loader = setup_testing_dataloader(cfg)
 with torch.no_grad():
     for data, ldts in tqdm(test_loader):
         data = data.permute((0, 2, 1))
         data = data.to(device)
-        feats = model(data) # shape (B, embed_dim)
+        _ = model(data)  # shape (B, embed_dim)
+        feats = activation.pop()  # shape (B, embed_dim, 1)
+        feats = feats.flatten(1)  # shape (B, embed_dim)
         labels = ldts[:, 0].cpu().numpy()
         feats = feats.detach().cpu().numpy()
-        torch.save({'feats':feats,'labels':labels}, cfg.save_path/"test_c3.npy")
-"""
+        # torch.save({'feats':feats,'labels':labels}, cfg.save_path/"test_c3_avg.npy")
+        # np.savez(cfg.save_path/"test_c3_avg_np", **{'feats':feats,'labels':labels})
+hook_handle.remove()
+# """
 
-# Load test embeddings
-l_feats = []
-l_targets = []
-fls = torch.load(cfg.save_path / f"test.npy")
-l_feats = fls["feats"]  # N x D
-l_targets = fls["labels"]  # N
-l_feats = torch.tensor(l_feats, device="cuda")
-l_targets = torch.tensor(l_targets, device="cuda")
-print(l_feats.shape)
-print("done")
+# # Load test embeddings
+# l_feats = []
+# l_targets = []
+# fls = torch.load(cfg.save_path / f"test.npy")
+# l_feats = fls["feats"]  # N x D
+# l_targets = fls["labels"]  # N
+# l_feats = torch.tensor(l_feats, device="cuda")
+# l_targets = torch.tensor(l_targets, device="cuda")
+# print(l_feats.shape)
+# print("done")
 
 
 # # Load train embeddings
@@ -605,23 +611,35 @@ print("done")
 # all(preds[:l_feats.shape[0]]==l_targets.cpu())
 # print("nmi", adjusted_mutual_info_score(preds, fls['labels']))
 
+l_feats = torch.tensor(feats, device="cuda")
+l_targets = torch.tensor(labels, device="cuda")
+# m = torch.nn.LayerNorm(l_feats.shape[1]).to(device)
+# l_feats = m(l_feats)
+# l_feats = torch.nn.functional.normalize(l_feats, p=2, dim=1)
+
 uf = l_feats[l_targets >= 5]
 ut = l_targets[l_targets >= 5]
 lf = l_feats[l_targets < 5]
 lt = l_targets[l_targets < 5]
-kmeans = K_Means(
-    k=9,
-    tolerance=1e-4,
-    max_iterations=100,
-    n_init=3,
-    random_state=10,
-    pairwise_batch_size=8192,
-)
+# fmt: off
+kmeans = K_Means(k=9, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
+# fmt: off
 kmeans.fit_mix(uf, lf, lt)
 preds = kmeans.labels_.cpu().numpy()
-sum(preds[2222:] == ut.cpu().numpy())
-assert np.all(preds[:2222] == lt.cpu().numpy()) == True
-print(
-    sum(preds[2222:] == ut.cpu().numpy())
-)  # 2472: 618 (10), 127 (9,r=1), 444 (9,r=10)
-print(sum(preds[2222:] == ut.cpu().numpy()) / ut.shape[0])
+sum(preds[lt.shape[0]:] == ut.cpu().numpy())
+assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
+# 2472: 618 (10), 127 (9,r=1), 444 (9,r=10)
+print(sum(preds[lt.shape[0]:] == ut.cpu().numpy()), ut.shape[0])
+
+reducer = PCA(n_components=2, random_state=42)
+reduced = reducer.fit_transform(feats)
+kmeans = MiniBatchKMeans(9)
+kmeans.fit(reduced)
+preds = kmeans.labels_
+sum(preds == labels) # 826 avgpool, 1855 fc
+# preds = torch.argmax(l_feats, dim=1).cpu().numpy() # fc: 4516
+# fmt: off
+plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
+plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
+# fm: off
+print("done")
