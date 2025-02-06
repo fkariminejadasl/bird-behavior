@@ -637,13 +637,16 @@ l_targets = torch.tensor(labels, device="cuda")
 preds = torch.argmax(output, dim=1).cpu().numpy()
 # fc: 4516 4694 # small
 # fc: 4532 4694 # ft: large
+# fc: 2034 2184 # ft: large 6 classes f_mem_bal1
+# fc: 2020 2184 # ft: large 6 classes f_mem_bal2
 print(sum(preds == labels), l_feats.shape[0])
 
 # GCD
-uf = l_feats[l_targets >= 5]
-ut = l_targets[l_targets >= 5]
-lf = l_feats[l_targets < 5]
-lt = l_targets[l_targets < 5]
+cut_class = 3  # 5
+uf = l_feats[l_targets >= cut_class]
+ut = l_targets[l_targets >= cut_class]
+lf = l_feats[l_targets < cut_class]
+lt = l_targets[l_targets < cut_class]
 # fmt: off
 kmeans = K_Means(k=9, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
 # fmt: off
@@ -653,6 +656,8 @@ assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
 # 2472: 618 (10), 127 (9,r=1), 444 (9,r=10)
 # fc: 1856 2472 2222 4694, avgp: 123  2472 2222 4694 # small
 # fc: 1498 2472 2222 4694, norm: 1659 2472 2222 4694 # ft: large
+# fc: 34 1092 1092 2184, norm: 72 1092 1092 2184 # ft: large 6 classes f_mem_bal1
+# fc: 419 1092 1092 2184, norm: 246 1092 1092 2184 # ft: large 6 classes f_mem_bal2
 print(sum(preds[lt.shape[0]:] == ut.cpu().numpy()), ut.shape[0], lt.shape[0], l_feats.shape[0])
 
 # Clustering
@@ -663,6 +668,8 @@ kmeans.fit(reduced)
 preds = kmeans.labels_
 # fc: 1855 2472 2222 4694, avgpool: 826 avgpool # small
 # fc:  844 2472 2222 4694, norm: 1755 2472 2222 4694 # ft: large
+# fc: 578 1092 1092 2184, norm: 615 1092 1092 2184 # ft: large 6 classes f_mem_bal1
+# fc: 281 1092 1092 2184, norm: 629 1092 1092 2184 # ft: large 6 classes f_mem_bal2
 print(sum(preds == labels), ut.shape[0], lt.shape[0], l_feats.shape[0])
 
 # fmt: off

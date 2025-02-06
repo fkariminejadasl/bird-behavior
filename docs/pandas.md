@@ -59,6 +59,25 @@ df.drop(columns=['B'])
 
 #### Index
 
+After removing some rows, pandas keeps the original index. Reset the index so that it starts from 0 and increases sequentially. For example, remove some rows and reset the indices as shown below:
+
+```python
+a = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
+a = a.reset_index(drop=True)
+```
+
+```bash
+# values after removing some rows
+          0                    1   2  3         4         5         6         7
+240     533  2012-05-15 03:29:24   0  0 -0.358179 -0.445566  1.804016  9.817386
+241     533  2012-05-15 03:29:24   1  0  0.192266 -0.319335  1.707204  9.817386
+
+# values after reset the index
+          0                    1   2  3         4         5         6         7
+0       533  2012-05-15 03:29:24   0  0 -0.358179 -0.445566  1.804016  9.817386
+1       533  2012-05-15 03:29:24   1  0  0.192266 -0.319335  1.707204  9.817386
+```
+
 ```python
 # Get index
 .index
@@ -132,6 +151,33 @@ def modify_column(group):
     return group
 
 df.groupby("A")[["A", "B", "C"]].apply(modify_column).reset_index(drop=True)
+```
+
+#### Simple example on grouping
+
+The data is:
+
+```bash
+          0                    1   2  3         4         5         6         7
+0       533  2012-05-15 03:29:24   0  0 -0.358179 -0.445566  1.804016  9.817386
+1       533  2012-05-15 03:29:24   1  0  0.192266 -0.319335  1.707204  9.817386
+```
+
+We group every 20 items. So first we add extra column of indexes, which the data become:
+
+```bash
+          0                    1   2  3         4         5         6         7     8
+0       533  2012-05-15 03:29:24   0  0 -0.358179 -0.445566  1.804016  9.817386     0
+1       533  2012-05-15 03:29:24   1  0  0.192266 -0.319335  1.707204  9.817386     0
+```
+
+Now we group based on the new column. We can also group by column 0 and 1 since they are the same values. Then we assert that the 3rd column is unique.
+
+``` python
+a[8] = a.index //20 # add extra column
+grouped = a.groupby([0,1,8]) # group by columns 0, 1, 8
+for n, g in grouped:
+    assert len(np.unique(g[3]))==1 # assert unique value
 ```
 
 #### Simple example on grouping

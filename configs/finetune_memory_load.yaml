@@ -36,7 +36,7 @@
 # TEST
 # ===========
 # Paths
-data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
+data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv # /home/fatemeh/Downloads/bird/data/final/balance.csv 
 save_path: "/home/fatemeh/Downloads/bird/result/"
 model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth #"/home/fatemeh/Downl  oads/bird/result/p_mem5_1.pth"
 # General

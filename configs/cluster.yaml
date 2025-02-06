@@ -17,8 +17,8 @@
 save_path: /home/fatemeh/Downloads/bird/result/embeddigs2
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
-test_data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem1_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+test_data_file: /home/fatemeh/Downloads/bird/data/final/balance.csv #/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem_bal2_best.pth #/home/fatemeh/Downloads/bird/result/f_mem1_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # General
 seed: 1234
 exp: 45
@@ -59,7 +59,7 @@ layer_name: fc # norm # fc # avgpool
 channel_first: False
 g_len: 20
 in_channel: 4
-out_channel: 9
+out_channel: 6 #9
 patch_size: 1
 embed_dim: 256  # 256, 16
 depth: 6  # 6, 1

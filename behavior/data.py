@@ -7,6 +7,7 @@ from typing import Union
 
 import matplotlib.pylab as plt
 import numpy as np
+import pandas as pd
 import psycopg2
 from torch.utils.data import Dataset
 
@@ -980,6 +981,36 @@ def prepare_train_valid_dataset(
     )
 
     return train_dataset, eval_dataset
+
+
+def balance_data(data_file, save_file, keep_labels):
+    """
+    Balances the dataset by keeping only specified classes and downsampling
+    the remaining classes to have an equal number of instances based on the smallest
+    class size. The balanced dataset is then saved to a specified file.
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balance.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]
+    """
+    keep_labels = [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+    df = pd.read_csv(data_file, header=None)
+    # 364*20 # 7280
+    len_data = min([len(df[df[3] == i]) for i in keep_labels])
+    df = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    for i, j in enumerate(keep_labels):
+        df.loc[df[3] == j, 3] = i
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # To get label names
+    # from behavior import utils as bu
+    # ind2keep = {i:j for i, j in enumerate(keep_labels)}
+    # {i: bu.ind2name[j] for i, j in ind2keep.items()}
+    # {0: 'Flap', 1: 'Soar', 2: 'Float', 3: 'SitStand', 4: 'TerLoco', 5: 'Pecking'}
 
 
 # TODO to check and remove
