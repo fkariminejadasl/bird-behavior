@@ -413,6 +413,7 @@ for n_clusters in n_clusters_list:
         all_metrics.append(mtrcs)
 
         # TODO use: from sklearn.metrics.cluster import contingency_matrix
+        # counts = contingency_matrix(labels, c_labels)
         n_labels = len(np.unique(labels))
         counts = np.zeros((n_labels, n_clusters), dtype=np.int64)
         for label in range(n_classes):

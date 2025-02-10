@@ -941,10 +941,8 @@ def prepare_train_valid_dataset(
     # label_ids = np.repeat(label_ids, 2, axis=0)
     # all_measurements = all_measurements.reshape(-1, 10, 4)
 
-    n_trainings = int(
-        all_measurements.shape[0] * train_per * data_per
-    )  # 100  # (10% data of 4365)
-    n_valid = all_measurements.shape[0] - n_trainings  # 100
+    n_trainings = int(all_measurements.shape[0] * train_per * data_per)
+    n_valid = int(all_measurements.shape[0] * (1 - train_per) * data_per)
     train_measurments = all_measurements[:n_trainings]
     valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
     train_labels, valid_labels = (
@@ -995,11 +993,10 @@ def balance_data(data_file, save_file, keep_labels):
         e.g. "/home/fatemeh/Downloads/bird/data/final/balance.csv"
     keep_labels : list of int
         List of class labels to retain in the dataset.
-        Example: [0, 2, 4, 5, 6, 9]
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
     """
-    keep_labels = [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
     df = pd.read_csv(data_file, header=None)
-    # 364*20 # 7280
+    # len_data = 364*20 # 7280 for keep_labels=[0, 2, 4, 5, 6, 9]
     len_data = min([len(df[df[3] == i]) for i in keep_labels])
     df = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
     df = df.reset_index(drop=True)
@@ -1011,6 +1008,27 @@ def balance_data(data_file, save_file, keep_labels):
     # ind2keep = {i:j for i, j in enumerate(keep_labels)}
     # {i: bu.ind2name[j] for i, j in ind2keep.items()}
     # {0: 'Flap', 1: 'Soar', 2: 'Float', 3: 'SitStand', 4: 'TerLoco', 5: 'Pecking'}
+
+
+# TODO replace get_specific_labesl
+def save_specific_labels(data_file, save_file, keep_labels):
+    """
+    Keeping only specified classes
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balance.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+    """
+    df = pd.read_csv(data_file, header=None)
+    df = pd.concat([df[df[3] == i] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    for i, j in enumerate(keep_labels):
+        df.loc[df[3] == j, 3] = i
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
 # TODO to check and remove
