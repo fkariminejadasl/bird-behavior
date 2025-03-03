@@ -24,6 +24,7 @@ from sklearn.metrics import (
     silhouette_score,
     v_measure_score,
 )
+from sklearn.metrics.cluster import contingency_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from torch.utils import tensorboard
@@ -34,6 +35,7 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
+from behavior.ss_kmeans import K_Means
 from behavior.utils import n_classes, new_label_inds, target_labels
 
 
@@ -284,233 +286,6 @@ def collect_labeled_embeddings(loader, model, layer_to_hook, device):
     return embeddings, labels
 
 
-# ======================================
-# Semi Supervised KMeans from GCD
-# https://github.com/sgvaze/generalized-category-discovery/blob/main/methods/clustering/faster_mix_k_means_pytorch.py
-
-import copy
-import random
-
-import numpy as np
-import torch
-from sklearn.utils import check_random_state
-from sklearn.utils._joblib import Parallel, delayed, effective_n_jobs
-
-
-def pairwise_distance(data1, data2, batch_size=None):
-    r"""
-    using broadcast mechanism to calculate pairwise ecludian distance of data
-    the input data is N*M matrix, where M is the dimension
-    we first expand the N*M matrix into N*1*M matrix A and 1*N*M matrix B
-    then a simple elementwise operation of A and B will handle the pairwise operation of points represented by data
-    """
-    # N*1*M
-    A = data1.unsqueeze(dim=1)
-
-    # 1*N*M
-    B = data2.unsqueeze(dim=0)
-
-    if batch_size == None:
-        dis = (A - B) ** 2
-        # return N*N matrix for pairwise distance
-        dis = dis.sum(dim=-1)
-        #  torch.cuda.empty_cache()
-    else:
-        i = 0
-        dis = torch.zeros(data1.shape[0], data2.shape[0])
-        while i < data1.shape[0]:
-            if i + batch_size < data1.shape[0]:
-                dis_batch = (A[i : i + batch_size] - B) ** 2
-                dis_batch = dis_batch.sum(dim=-1)
-                dis[i : i + batch_size] = dis_batch
-                i = i + batch_size
-                #  torch.cuda.empty_cache()
-            elif i + batch_size >= data1.shape[0]:
-                dis_final = (A[i:] - B) ** 2
-                dis_final = dis_final.sum(dim=-1)
-                dis[i:] = dis_final
-                #  torch.cuda.empty_cache()
-                break
-    #  torch.cuda.empty_cache()
-    return dis
-
-
-class K_Means:
-
-    def __init__(
-        self,
-        k=3,
-        tolerance=1e-4,
-        max_iterations=100,
-        init="k-means++",
-        n_init=10,
-        random_state=None,
-        n_jobs=None,
-        pairwise_batch_size=None,
-        mode=None,
-    ):
-        self.k = k
-        self.tolerance = tolerance
-        self.max_iterations = max_iterations
-        self.init = init
-        self.n_init = n_init
-        self.random_state = random_state
-        self.n_jobs = n_jobs
-        self.pairwise_batch_size = pairwise_batch_size
-        self.mode = mode
-
-    def split_for_val(self, l_feats, l_targets, val_prop=0.2):
-
-        np.random.seed(0)
-
-        # Reserve some labelled examples for validation
-        num_val_instances = int(val_prop * len(l_targets))
-        val_idxs = np.random.choice(
-            range(len(l_targets)), size=(num_val_instances), replace=False
-        )
-        val_idxs.sort()
-        remaining_idxs = list(set(range(len(l_targets))) - set(val_idxs.tolist()))
-        remaining_idxs.sort()
-        remaining_idxs = np.array(remaining_idxs)
-
-        val_l_targets = l_targets[val_idxs]
-        val_l_feats = l_feats[val_idxs]
-
-        remaining_l_targets = l_targets[remaining_idxs]
-        remaining_l_feats = l_feats[remaining_idxs]
-
-        return remaining_l_feats, remaining_l_targets, val_l_feats, val_l_targets
-
-    def kpp(self, X, pre_centers=None, k=10, random_state=None):
-        random_state = check_random_state(random_state)
-
-        if pre_centers is not None:
-
-            C = pre_centers
-
-        else:
-
-            C = X[random_state.randint(0, len(X))]
-
-        C = C.view(-1, X.shape[1])
-
-        while C.shape[0] < k:
-
-            dist = pairwise_distance(X, C, self.pairwise_batch_size)
-            dist = dist.view(-1, C.shape[0])
-            d2, _ = torch.min(dist, dim=1)
-            prob = d2 / d2.sum()
-            cum_prob = torch.cumsum(prob, dim=0)
-            r = random_state.rand()
-
-            if len((cum_prob >= r).nonzero()) == 0:
-                debug = 0
-            else:
-                ind = (cum_prob >= r).nonzero()[0][0]
-            C = torch.cat((C, X[ind].view(1, -1)), dim=0)
-
-        return C
-
-    def fit_mix_once(self, u_feats, l_feats, l_targets, random_state):
-
-        def supp_idxs(c):
-            return l_targets.eq(c).nonzero().squeeze(1)
-
-        l_classes = torch.unique(l_targets)
-        support_idxs = list(map(supp_idxs, l_classes))
-        l_centers = torch.stack(
-            [l_feats[idx_list].mean(0) for idx_list in support_idxs]
-        )
-        cat_feats = torch.cat((l_feats, u_feats))
-
-        centers = torch.zeros([self.k, cat_feats.shape[1]]).type_as(cat_feats)
-        centers[: len(l_classes)] = l_centers
-
-        labels = -torch.ones(len(cat_feats)).type_as(cat_feats).long()
-
-        l_classes = l_classes.cpu().long().numpy()
-        l_targets = l_targets.cpu().long().numpy()
-        l_num = len(l_targets)
-        cid2ncid = {
-            cid: ncid for ncid, cid in enumerate(l_classes)
-        }  # Create the mapping table for New cid (ncid)
-        for i in range(l_num):
-            labels[i] = cid2ncid[l_targets[i]]
-
-        # initialize the centers, the first 'k' elements in the dataset will be our initial centers
-        centers = self.kpp(u_feats, l_centers, k=self.k, random_state=random_state)
-
-        # Begin iterations
-        best_labels, best_inertia, best_centers = None, None, None
-        for it in range(self.max_iterations):
-            centers_old = centers.clone()
-
-            dist = pairwise_distance(u_feats, centers, self.pairwise_batch_size)
-            u_mindist, u_labels = torch.min(dist, dim=1)
-            u_inertia = u_mindist.sum()
-            l_mindist = torch.sum((l_feats - centers[labels[:l_num]]) ** 2, dim=1)
-            l_inertia = l_mindist.sum()
-            inertia = u_inertia + l_inertia
-            labels[l_num:] = u_labels
-
-            for idx in range(self.k):
-
-                selected = torch.nonzero(labels == idx).squeeze()
-                selected = torch.index_select(cat_feats, 0, selected)
-                centers[idx] = selected.mean(dim=0)
-
-            if best_inertia is None or inertia < best_inertia:
-                best_labels = labels.clone()
-                best_centers = centers.clone()
-                best_inertia = inertia
-
-            center_shift = torch.sum(
-                torch.sqrt(torch.sum((centers - centers_old) ** 2, dim=1))
-            )
-
-            if center_shift**2 < self.tolerance:
-                # break out of the main loop if the results are optimal, ie. the centers don't change their positions much(more than our tolerance)
-                break
-
-        return best_labels, best_inertia, best_centers, i + 1
-
-    def fit_mix(self, u_feats, l_feats, l_targets):
-
-        random_state = check_random_state(self.random_state)
-        best_inertia = None
-        fit_func = self.fit_mix_once
-
-        if effective_n_jobs(self.n_jobs) == 1:
-            for it in tqdm(range(self.n_init), maxinterval=self.n_init):
-
-                labels, inertia, centers, n_iters = fit_func(
-                    u_feats, l_feats, l_targets, random_state
-                )
-
-                if best_inertia is None or inertia < best_inertia:
-                    self.labels_ = labels.clone()
-                    self.cluster_centers_ = centers.clone()
-                    best_inertia = inertia
-                    self.inertia_ = inertia
-                    self.n_iter_ = n_iters
-
-        else:
-
-            # parallelisation of k-means runs
-            seeds = random_state.randint(np.iinfo(np.int32).max, size=self.n_init)
-            results = Parallel(n_jobs=self.n_jobs, verbose=0)(
-                delayed(fit_func)(u_feats, l_feats, l_targets, seed) for seed in seeds
-            )
-            # Get results with the lowest inertia
-
-            labels, inertia, centers, n_iters = zip(*results)
-            best = np.argmin(inertia)
-            self.labels_ = labels[best]
-            self.inertia_ = inertia[best]
-            self.cluster_centers_ = centers[best]
-            self.n_iter_ = n_iters[best]
-
-
 """
 # Save Embeddings
 # ==============
@@ -635,46 +410,154 @@ l_targets = torch.tensor(labels, device="cuda")
 
 # classification
 preds = torch.argmax(output, dim=1).cpu().numpy()
-# fc: 4516 4694 # small
-# fc: 4532 4694 # ft: large
-# fc: 2034 2184 # ft: large 6 classes f_mem_bal1
-# fc: 2020 2184 # ft: large 6 classes f_mem_bal2
+# 4516 4694 # small
+# 4532 4694 # ft: large 9 classes f_mem1
+# 2080 2184 # ft: large 9 classes small on balance data
+# 2084 2184 # ft: large 9 classes f_mem1 on balance data
+# 2034 2184 # ft: large 6 classes f_mem_bal1
+# 2020 2184 # ft: large 6 classes f_mem_bal2
+# 2065 2184 # ft: large 6 classes f_mem1_bal3
+# 1999 2184 # ft: large 6 classes f_mem_bal4
+# 4068 4327 # ft: large 6 classes f_mem1_bal3
 print(sum(preds == labels), l_feats.shape[0])
 
+cm = contingency_matrix(labels, preds)
+keep_labels = [0, 2, 4, 5, 6, 9]
+rem_labels = [1, 3, 7, 8]
+bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in keep_labels])
+false_neg = cm.sum(axis=1) - cm.max(axis=1)
+# fmt: off
+print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+# fmt: on
+
 # GCD
+"""
+# First classes for supervised learning
 cut_class = 3  # 5
 uf = l_feats[l_targets >= cut_class]
 ut = l_targets[l_targets >= cut_class]
 lf = l_feats[l_targets < cut_class]
 lt = l_targets[l_targets < cut_class]
+"""
+"""
+# 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering.
+uf = l_feats[np.isin(labels, [1,3,7])]
+ut = l_targets[np.isin(labels, [1,3,7])]
+lf = l_feats[~np.isin(labels, [1,3,7])]
+lt = l_targets[~np.isin(labels, [1,3,7])]
+u_old2new = dict(zip([1,3,7],[6,7,8]))
+l_old2new = dict(zip([0, 2, 4, 5, 6, 8],[0, 1, 2, 3, 4, 5]))
+u_new2old = {n:o for o, n in u_old2new.items()}
+l_new2old = {n:o for o, n in l_old2new.items()}
+ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
+lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
+"""
+# 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering. 2000 samples for clustering.
+uf1 = l_feats[np.isin(labels, [1, 3, 7])]
+ut1 = l_targets[np.isin(labels, [1, 3, 7])]
+uf2 = l_feats[~np.isin(labels, [1, 3, 7])][2000:]
+ut2 = l_targets[~np.isin(labels, [1, 3, 7])][2000:]
+ut = torch.cat((ut1, ut2))
+uf = torch.cat((uf1, uf2))
+lf = l_feats[~np.isin(labels, [1, 3, 7])][:2000]
+lt = l_targets[~np.isin(labels, [1, 3, 7])][:2000]
+u_old2new = dict(zip([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 6, 1, 7, 2, 3, 4, 8, 5]))
+l_old2new = dict(zip([0, 2, 4, 5, 6, 8], [0, 1, 2, 3, 4, 5]))
+u_new2old = {n: o for o, n in u_old2new.items()}
+l_new2old = {n: o for o, n in l_old2new.items()}
+ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
+lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
+
 # fmt: off
-kmeans = K_Means(k=9, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
+kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
 # fmt: off
 kmeans.fit_mix(uf, lf, lt)
 preds = kmeans.labels_.cpu().numpy()
 assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
-# 2472: 618 (10), 127 (9,r=1), 444 (9,r=10)
-# fc: 1856 2472 2222 4694, avgp: 123  2472 2222 4694 # small
-# fc: 1498 2472 2222 4694, norm: 1659 2472 2222 4694 # ft: large
-# fc: 34 1092 1092 2184, norm: 72 1092 1092 2184 # ft: large 6 classes f_mem_bal1
-# fc: 419 1092 1092 2184, norm: 246 1092 1092 2184 # ft: large 6 classes f_mem_bal2
-print(sum(preds[lt.shape[0]:] == ut.cpu().numpy()), ut.shape[0], lt.shape[0], l_feats.shape[0])
+# 1092 1092 2184 # balanced data
+# 2313 2014 4327 # unbalance_1378
+print(ut.shape[0], lt.shape[0], l_feats.shape[0])
+
+ordered_feat = np.concatenate((lf.cpu(),uf.cpu()), axis=0)
+ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
+cm = contingency_matrix(ordered_labels, preds)
+
+false_neg = cm.sum(axis=1) - cm.max(axis=1)
+# fmt: off
+print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+# fmt: on
+
+# ft: large 6 classes f_mem1_bal3
+# mo: 119 2065 2184 0.95
+# ss: 110 2074 2184 0.95 # fc
+# ss: 127 2057 2184 0.94 # norm
+# us: 186 1998 2184 0.91 # fc
+# us: 299 1885 2184 0.86 # norm
+# us: 130 2054 2184 0.94 # norm f_mem_bal1
+#
+# ft: large 6 classes f_mem_bal1 unbalance_1378
+# mo:  259 4068 4327 0.94
+# ss:  220 4107 4327 0.95 # fc
+# ss:  495 3832 4327 0.89 # norm
+# us:  311 4016 4327 0.93 # fc
+# us:  324 4003 4327 0.93 # norm
+#
+# ft: large 6 classes f_mem_bal1 corrected_combined_unique_sorted012 6 given 3 predicted
+# mo:  435 4259 4694 0.91
+# ss:  152 4542 4694 0.97 # fc
+# us:  1202 3492 4694 0.74 # fc
+#
+# ft: large 6 classes f_mem1_bal4 (only fc trained.)
+# mo: 185 1999 2184 0.92
+# ss: 230 1954 2184 0.89 # norm
+# us: 495 1689 2184 0.77 # norm
+#
+# ft: large 9 classes f_mem1
+# mo: 100 2084 2184 0.95
+# ss: 382 1802 2184 0.83 # norm
+# us: 484 1700 2184 0.78 # norm
+#
+# small: 9 classes
+# mo: 104 2080 2184 0.95 # avgpool
+# ss: 403 1781 2184 0.82 # avgpool
+# ss: 432 1752 2184 0.80 # fc
+# us: 510 1674 2184 0.77 # avgpool
+# us: 503 1681 2184 0.77 # fc
 
 # Clustering
-reducer = PCA(n_components=2, random_state=42)
-reduced = reducer.fit_transform(feats)
-kmeans = MiniBatchKMeans(9)
-kmeans.fit(reduced)
+kmeans = MiniBatchKMeans(cfg.n_clusters)
+kmeans.fit(feats)
 preds = kmeans.labels_
-# fc: 1855 2472 2222 4694, avgpool: 826 avgpool # small
-# fc:  844 2472 2222 4694, norm: 1755 2472 2222 4694 # ft: large
-# fc: 578 1092 1092 2184, norm: 615 1092 1092 2184 # ft: large 6 classes f_mem_bal1
-# fc: 281 1092 1092 2184, norm: 629 1092 1092 2184 # ft: large 6 classes f_mem_bal2
-print(sum(preds == labels), ut.shape[0], lt.shape[0], l_feats.shape[0])
+cm = contingency_matrix(labels, preds)
+false_neg = cm.sum(axis=1) - cm.max(axis=1)
+# fmt: off
+print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+# fmt: on
+# bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in range(10) if i != 7])
 
 # fmt: off
+reducer = PCA(n_components=2, random_state=42)
+reduced = reducer.fit_transform(feats)
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 plt.show(block=True)
 # fm: off
 print("done")
+
+
+"""
+GCD (Generalized Category Discovery)
+I have: 
+Model:
+- supervised small model 9 classes
+- Pretraining and finetuning on 6 classes
+- foundation model time-series: chronos, moment, moirai
+Data:
+- unlabeled
+- unbalanced
+- balanced
+Clustering:
+- KMean
+- semisup KMean
+FT on 6 classes with balanced data with KMean and semsup KMean is working.
+"""

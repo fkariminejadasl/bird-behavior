@@ -491,14 +491,6 @@ def write_info_in_tensorboard(writer, epoch, loss, accuracy, stage):
     writer.add_scalars("accuracy", acc_scalar_dict, epoch)
 
 
-def _count_data(loader):
-    data_len = len(loader.dataset)
-    batch_size = next(iter(loader))[-1].shape[0]
-    no_batches = int(np.ceil(data_len / batch_size))
-    start_time = time.time()
-    return data_len, batch_size, no_batches, start_time
-
-
 def _print_per_batch(
     batch_ind, batch_size, no_batches, start_time, loss, corrects, stage, save_every=100
 ):
@@ -545,86 +537,17 @@ def _caculate_metrics(data, ldts, model, criterion, device):
     return loss, corrects
 
 
-# def train_one_epoch(
-#     loader, model, criterion, device, epoch, no_epochs, writer, optimizer
-# ):
-#     stage = "train"
-#     data_len, batch_size, no_batches, start_time = _count_data(loader)
-
-#     model.train()
-#     running_loss = 0
-#     running_corrects = 0
-#     for i, (data, labels) in enumerate(loader):
-#         optimizer.zero_grad()
-
-#         loss, corrects = _caculate_metrics(data, labels, model, criterion, device)
-
-#         loss.backward()
-#         optimizer.step()
-
-#         running_corrects, running_loss = _calculate_batch_stats(
-#             running_loss, running_corrects, loss, corrects
-#         )
-
-#         # daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
-#         # print(
-#         #     f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
-#         # )
-#         # start_time = _print_per_batch(
-#         #     i, batch_size, no_batches, start_time, loss, corrects, stage
-#         # )
-
-#     total_loss, total_accuracy = _calculate_total_stats(
-#         running_loss, running_corrects, data_len, i
-#     )
-#     _print_final(
-#         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
-#     )
-#     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
-
-
-# @torch.no_grad()
-# def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
-#     stage = "valid"
-#     data_len, batch_size, no_batches, start_time = _count_data(loader)
-
-#     model.eval()
-#     running_loss = 0
-#     running_corrects = 0
-#     for i, (data, labels) in enumerate(loader):
-#         loss, corrects = _caculate_metrics(data, labels, model, criterion, device)
-
-#         running_corrects, running_loss = _calculate_batch_stats(
-#             running_loss, running_corrects, loss, corrects
-#         )
-
-#         # daata = data.permute(0, 2, 1).reshape(-1, data.shape[1])
-#         # print(
-#         #     f"batch: {i}, data: {data.shape}, min: {daata.min(0)}, max: {daata.max(0)}"
-#         # )
-#         # start_time = _print_per_batch(
-#         #     i, batch_size, no_batches, start_time, loss, corrects, stage
-#         # )
-
-#     total_loss, total_accuracy = _calculate_total_stats(
-#         running_loss, running_corrects, data_len, i
-#     )
-#     _print_final(
-#         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
-#     )
-#     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
-#     return total_accuracy
-
-
 def train_one_epoch(
     loader, model, criterion, device, epoch, no_epochs, writer, optimizer
 ):
     stage = "train"
-    data_len, batch_size, no_batches, start_time = _count_data(loader)
 
     model.train()
     running_loss = 0
     running_corrects = 0
+    # Fixed: data_len is computed incrementally per batch instead of len(loader.dataset)
+    # since drop_last=True can make the total length incorrect
+    data_len = 0
     for i, (data, ldts) in enumerate(loader):
         optimizer.zero_grad()
 
@@ -644,6 +567,7 @@ def train_one_epoch(
         # start_time = _print_per_batch(
         #     i, batch_size, no_batches, start_time, loss, corrects, stage
         # )
+        data_len += data.shape[0]
 
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
@@ -657,11 +581,12 @@ def train_one_epoch(
 @torch.no_grad()
 def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
     stage = "valid"
-    data_len, batch_size, no_batches, start_time = _count_data(loader)
 
     model.eval()
     running_loss = 0
     running_corrects = 0
+    # data_len = len(loader.dataset) is wrong if drop_last=True in the dataloader
+    data_len = 0
     for i, (data, ldts) in enumerate(loader):
         loss, corrects = _caculate_metrics(data, ldts, model, criterion, device)
 
@@ -676,6 +601,7 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
         # start_time = _print_per_batch(
         #     i, batch_size, no_batches, start_time, loss, corrects, stage
         # )
+        data_len += data.shape[0]
 
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i

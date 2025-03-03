@@ -153,8 +153,10 @@ torch.manual_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
+# TODO: Ugly.  Need to fix this. The balanced data has 6 classes. I have to change the target_labels to 6.
+# target_labels = [0, 1, 2, 3, 4, 5]
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, target_labels, channel_first=False
+    cfg.data_file, cfg.train_per, cfg.data_per, [0, 1, 2, 3, 4, 5], channel_first=False
 )
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
@@ -163,7 +165,7 @@ train_loader = DataLoader(
     batch_size=min(cfg.batch_size, len(train_dataset)),
     shuffle=True,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
     pin_memory=True,  # fast but more memory
 )
 eval_loader = DataLoader(
@@ -171,7 +173,7 @@ eval_loader = DataLoader(
     batch_size=min(cfg.batch_size, len(eval_dataset)),
     shuffle=False,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
     pin_memory=True,
 )
 
@@ -197,7 +199,8 @@ for name, p in pmodel.items():
         "decoder" not in name and "mask" not in name
     ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
-        # dict(model.named_parameters())[name].requires_grad = False # freeze all layers except class head
+        # freeze all layers except class head
+        # dict(model.named_parameters())[name].requires_grad = False
 print(
     f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
 )

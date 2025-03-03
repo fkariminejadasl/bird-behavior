@@ -17,8 +17,8 @@
 save_path: /home/fatemeh/Downloads/bird/result/embeddigs2
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
-test_data_file: /home/fatemeh/Downloads/bird/data/final/balance.csv #/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem_bal2_best.pth #/home/fatemeh/Downloads/bird/result/f_mem1_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+test_data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv # unbalance_1378.csv, balance.csv, corrected_combined_unique_sorted012.csv
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem1_bal3_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # General
 seed: 1234
 exp: 45
@@ -59,7 +59,7 @@ layer_name: fc # norm # fc # avgpool
 channel_first: False
 g_len: 20
 in_channel: 4
-out_channel: 6 #9
+out_channel: 6 # 6, 9
 patch_size: 1
 embed_dim: 256  # 256, 16
 depth: 6  # 6, 1
@@ -74,7 +74,7 @@ layer_norm_eps: 1e-6
 eps: 0.035  # Maximum distance between two samples for them to be considered as in the same neighborhood
 min_samples: 5  # Minimum number of samples in a neighborhood for a point to be considered as a core point
 # Parameters for MiniBatchKMeans
-n_clusters: [8,9,10,11,12,13,14,15,16,17,18] #[9, 10, 18]  # Test multiple cluster numbers
+n_clusters: 9 #[8,9,10,11,12,13,14,15,16,17,18] #[9, 10, 18]  # Test multiple cluster numbers
 batch_size: [8192] #[8192, 16384, 32768] #[1024, 2048, 4096, 8192, 16384]  # Test multiple batch sizes # 1024, 4096
 normalize: no
 n_init: 1 # number of random restarts
