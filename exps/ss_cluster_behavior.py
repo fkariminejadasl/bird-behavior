@@ -165,9 +165,12 @@ def save_unlabeled_embeddings(loader, model, layer_to_hook, device):
             data = data.to(device)
             _ = model(data)
             if activation:
-                feats = activation.pop()  # shape (B, 1, embed_dim)
-                feats = feats[:, 0, :]  # shape (B, embed_dim)
-                torch.save(feats.detach().cpu().numpy(), cfg.save_path / f"{i}.npy")
+                feats = activation.pop()  # shape (B, embed_dim, 1)
+                feats = feats.flatten(1)  # shape (B, embed_dim)
+                # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                # torch.save(feats.detach().cpu().numpy(), cfg.save_path / f"{i}.npy")
+                feats = feats.cpu().numpy()
+                np.savez(cfg.save_path / f"{i}", **{"feats": feats})
             del data, feats
             torch.cuda.empty_cache()
 
@@ -192,14 +195,18 @@ def save_labeled_embeddings(loader, model, layer_to_hook, device):
     with torch.no_grad():
         for data, ldts in tqdm(loader):
             data = data.to(device)
-            _ = model(data)
+            output = model(data)
             if activation:
-                feats = activation.pop()  # shape (B, 1, embed_dim)
-                feats = feats[:, 0, :]  # shape (B, embed_dim)
+                feats = activation.pop()  # shape (B, embed_dim, 1)
+                feats = feats.flatten(1)  # shape (B, embed_dim)
+                # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
                 labels = ldts[:, 0].cpu().numpy()
                 feats = feats.detach().cpu().numpy()
-                torch.save(
-                    {"feats": feats, "labels": labels}, cfg.save_path / "test.npy"
+                ouput = output.detach().cpu().numpy()
+                # torch.save({"feats": feats, "labels": labels}, cfg.save_path / "test.npy")
+                np.savez(
+                    cfg.save_path / "test",
+                    **{"feats": feats, "labels": labels, "output": ouput},
                 )
             del data, feats, labels
             torch.cuda.empty_cache()
@@ -208,6 +215,28 @@ def save_labeled_embeddings(loader, model, layer_to_hook, device):
 
     end_time = time.time()
     print(f"Test embeddings are loaded in {end_time - start_time:.2f} seconds.")
+
+
+def load_labeled_embeddings(file_name):
+    # Load test embeddings
+    results = np.load(cfg.save_path / file_name)
+    feats = results["feats"]  # N x D
+    labels = results["labels"]  # N
+    output = results["output"]
+    print(feats.shape)
+    return feats, labels, output
+
+
+def load_unlabeled_embeddings(n=262):
+    # Load train embeddings
+    u_feats = []
+    for i in range(n + 1):
+        # feats = torch.load(cfg.save_path/f"{i}.npy")
+        feats = np.load(cfg.save_path / f"{i}.npz")["feats"]
+        u_feats.append(feats)
+    u_feats = np.concatenate(u_feats, axis=0)  # N x D
+    print(u_feats.shape)
+    return u_feats
 
 
 def collect_unlabeled_embeddings(loader, model, layer_to_hook, device):
@@ -352,9 +381,10 @@ model.to(device)
 model.eval()
 torch.cuda.empty_cache()
 print("model is loaded")
-
-activation = []
 layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
+
+"""
+activation = []
 hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
 test_loader = setup_testing_dataloader(cfg)
 with torch.no_grad():
@@ -369,29 +399,16 @@ with torch.no_grad():
         # torch.save({'feats':feats,'labels':labels}, cfg.save_path/"test_c3_avg.npy")
         # np.savez(cfg.save_path/"test_c3_avg_np", **{'feats':feats,'labels':labels})
 hook_handle.remove()
-# """
+"""
 
-# # Load test embeddings
-# l_feats = []
-# l_targets = []
-# fls = torch.load(cfg.save_path / f"test.npy")
-# l_feats = fls["feats"]  # N x D
-# l_targets = fls["labels"]  # N
-# l_feats = torch.tensor(l_feats, device="cuda")
-# l_targets = torch.tensor(l_targets, device="cuda")
-# print(l_feats.shape)
-# print("done")
+# Load test embeddings
+feats, labels, output = load_labeled_embeddings("test.npz")
+l_feats = torch.tensor(feats, device="cuda")
+l_targets = torch.tensor(labels, device="cuda")
 
-
-# # Load train embeddings
-# u_feats = []
-# for i in range(263):
-#     feats = torch.load(cfg.save_path/f"{i}.npy")
-#     u_feats.append(feats)
-# u_feats = np.concatenate(u_feats, axis=0)  # N x D
-# u_feats = torch.tensor(u_feats, device="cuda")
-# print(u_feats.shape)
-# print("done")
+# Load train embeddings
+u_feats_np = load_unlabeled_embeddings()  # (n=0)
+u_feats = torch.tensor(u_feats_np, device="cuda")
 
 
 # kmeans = K_Means(k=10, tolerance=1e-4, max_iterations=10, n_init=3, random_state=1, pairwise_batch_size=8192)
@@ -409,7 +426,7 @@ l_targets = torch.tensor(labels, device="cuda")
 # l_feats = torch.nn.functional.normalize(l_feats, p=2, dim=1)
 
 # classification
-preds = torch.argmax(output, dim=1).cpu().numpy()
+preds = torch.argmax(torch.tensor(output), dim=1).cpu().numpy()
 # 4516 4694 # small
 # 4532 4694 # ft: large 9 classes f_mem1
 # 2080 2184 # ft: large 9 classes small on balance data
@@ -419,12 +436,13 @@ preds = torch.argmax(output, dim=1).cpu().numpy()
 # 2065 2184 # ft: large 6 classes f_mem1_bal3
 # 1999 2184 # ft: large 6 classes f_mem_bal4
 # 4068 4327 # ft: large 6 classes f_mem1_bal3
+# For model trained on 6 parameters the sum is not correct. Since labels are 9 and preds are 6. contingency_matrix is correct.
 print(sum(preds == labels), l_feats.shape[0])
 
 cm = contingency_matrix(labels, preds)
 keep_labels = [0, 2, 4, 5, 6, 9]
 rem_labels = [1, 3, 7, 8]
-bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in keep_labels])
+# bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in keep_labels])
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
@@ -452,7 +470,9 @@ l_new2old = {n:o for o, n in l_old2new.items()}
 ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
 lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 """
-# 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering. 2000 samples for clustering.
+
+"""
+# 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering. 2000 samples for supervised and the rest for clustering.
 uf1 = l_feats[np.isin(labels, [1, 3, 7])]
 ut1 = l_targets[np.isin(labels, [1, 3, 7])]
 uf2 = l_feats[~np.isin(labels, [1, 3, 7])][2000:]
@@ -467,6 +487,25 @@ u_new2old = {n: o for o, n in u_old2new.items()}
 l_new2old = {n: o for o, n in l_old2new.items()}
 ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
 lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
+"""
+
+# """
+# 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering.
+uf1 = l_feats[np.isin(labels, [1, 3, 7])]
+ut1 = l_targets[np.isin(labels, [1, 3, 7])]
+uf2 = l_feats[~np.isin(labels, [1, 3, 7])][2000:]
+ut2 = l_targets[~np.isin(labels, [1, 3, 7])][2000:]
+ut = torch.cat((ut1, ut2))
+uf = torch.cat((uf1, uf2, u_feats))
+lf = l_feats[~np.isin(labels, [1, 3, 7])][:2000]
+lt = l_targets[~np.isin(labels, [1, 3, 7])][:2000]
+u_old2new = dict(zip([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 6, 1, 7, 2, 3, 4, 8, 5]))
+l_old2new = dict(zip([0, 2, 4, 5, 6, 8], [0, 1, 2, 3, 4, 5]))
+u_new2old = {n: o for o, n in u_old2new.items()}
+l_new2old = {n: o for o, n in l_old2new.items()}
+ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
+lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
+# """
 
 # fmt: off
 kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
@@ -476,11 +515,15 @@ preds = kmeans.labels_.cpu().numpy()
 assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
 # 1092 1092 2184 # balanced data
 # 2313 2014 4327 # unbalance_1378
-print(ut.shape[0], lt.shape[0], l_feats.shape[0])
+print(uf.shape[0], lf.shape[0], l_feats.shape[0])
 
-ordered_feat = np.concatenate((lf.cpu(),uf.cpu()), axis=0)
+# ordered_feat = np.concatenate((lf.cpu(),uf.cpu()), axis=0)
+# ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
+# cm = contingency_matrix(ordered_labels, preds)
+
+ordered_feat = np.concatenate((lf.cpu(),uf1.cpu(), uf2.cpu()), axis=0)
 ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
-cm = contingency_matrix(ordered_labels, preds)
+cm = contingency_matrix(ordered_labels, preds[:labels.shape[0]])
 
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
@@ -505,7 +548,8 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 # ft: large 6 classes f_mem_bal1 corrected_combined_unique_sorted012 6 given 3 predicted
 # mo:  435 4259 4694 0.91
 # ss:  152 4542 4694 0.97 # fc
-# us:  1202 3492 4694 0.74 # fc
+# ss:  440 4254 4694 0.91 # fc with 2000 samples
+# us:  1202 3492 4694 0.74 # fc # 1151 3543 4694 0.75 chaged after loading
 #
 # ft: large 6 classes f_mem1_bal4 (only fc trained.)
 # mo: 185 1999 2184 0.92
@@ -525,7 +569,7 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 # us: 503 1681 2184 0.77 # fc
 
 # Clustering
-kmeans = MiniBatchKMeans(cfg.n_clusters)
+kmeans = MiniBatchKMeans(cfg.n_clusters, random_state=cfg.seed)
 kmeans.fit(feats)
 preds = kmeans.labels_
 cm = contingency_matrix(labels, preds)
@@ -536,7 +580,7 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 # bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in range(10) if i != 7])
 
 # fmt: off
-reducer = PCA(n_components=2, random_state=42)
+reducer = PCA(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(feats)
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")

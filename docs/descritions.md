@@ -3,6 +3,8 @@
 ### Unlabeled data
 42,978,660 imu items (716311 data points 60 length or aka bursts or fixes), 3.1 GB (zip 458 MB) from CG_KREUPEL, LBBG_TEXEL, HG_TEXEL, CP_OMAN: From `226` GPS-timestamps files per device only `63` had 60 group length, based on my 10 attempt code (available_60points.csv). From 10 attempt GPS timestamps, if 1 returns I use the device. 
 
+From 42,978,660 imu items, 19,830,960 (CG_KREUPEL, LBBG_TEXEL, HG_TEXEL) are Gull data and 23,147,700 are Crop Plover data (CP_OMAN).
+
 The code to get the data is in `scripts/get_data.py`.
 
 ### Labeled data

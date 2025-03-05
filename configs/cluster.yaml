@@ -14,7 +14,7 @@
 # TEST
 # ===========
 # Paths
-save_path: /home/fatemeh/Downloads/bird/result/embeddigs2
+save_path: /home/fatemeh/Downloads/bird/result/emb_bal3_fc
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv # unbalance_1378.csv, balance.csv, corrected_combined_unique_sorted012.csv
