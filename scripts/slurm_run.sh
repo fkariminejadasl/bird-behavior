@@ -18,7 +18,10 @@ echo "cpu per node: $SLURM_CPUS_ON_NODE"
 echo "source $HOME/.bashrc"
 source $HOME/.bashrc
 conda activate bird
+echo "activate my virtual env: $CONDA_DEFAULT_ENV"
 
 echo "start training"
 python /home/fkarimi/dev/bird-behavior/scripts/pretrain_memory_load.py
 echo "end training"
+
+echo $(date)

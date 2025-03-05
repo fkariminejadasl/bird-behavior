@@ -169,7 +169,7 @@ train_loader = DataLoader(
     batch_size=min(cfg.batch_size, len(train_dataset)),
     shuffle=True,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
     pin_memory=True,  # fast but more memory
 )
 eval_loader = DataLoader(
@@ -177,7 +177,7 @@ eval_loader = DataLoader(
     batch_size=min(cfg.batch_size, len(eval_dataset)),
     shuffle=False,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
     pin_memory=True,
 )
 

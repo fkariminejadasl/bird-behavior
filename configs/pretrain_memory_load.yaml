@@ -1,55 +1,17 @@
-# # Paths
-# data_path: /home/fkarimi/data/bird/ssl
-# save_path: /home/fkarimi/exp/bird
-# model_checkpoint: "" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
-# # General
-# seed: 1234
-# exp: "p20_4" # p_mem6
-# num_workers: 15  # 17, 15
-# no_epochs: 5 # 1500
-# save_every: 500
-# # Data
-# train_per: 0.9
-# data_per: 1.0
-# batch_size: 2048 # 24576 # 8192 # 4000 for g_len:60
-# # Training
-# warmup_epochs: 1000
-# step_size: 2000
-# max_lr: 3e-4  # 1e-3
-# min_lr: None
-# weight_decay: 1e-2  # default 1e-2
-# # Model
-# g_len: 20 # 20, 60
-# in_channel: 4
-# patch_size: 1
-# embed_dim: 1280 # 1280  # 256, 16
-# depth: 32 # 32, 6, 1
-# num_heads: 16 # 16, 8
-# decoder_embed_dim: 512  # 512, 256, 16
-# decoder_depth: 8 # 8, 6, 1
-# decoder_num_heads: 16 # 16, 8
-# mlp_ratio: 4
-# layer_norm_eps: 1e-6
-
-# ===========
-# TEST
-# ===========
 # Paths
-# gimus: read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv"
-# gimus: read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv"
-data_path: /home/fatemeh/Downloads/bird/data/ssl/final #"/home/fatemeh/Downloads/bird/data/ssl_mini" # "/home/fatemeh/Downloads/bird/data/ssl/final"
-save_path: "/home/fatemeh/Downloads/bird/result"
-model_checkpoint: "" #"/home/fatemeh/Downloads/bird/result/p_mem7_best.pth" # "": when no checkpoint is used
+data_path: /home/fkarimineja/data/bird/ssl/gull
+save_path: /home/fkarimineja/exp/bird/runs
+model_checkpoint: "" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
 # General
 seed: 1234
-exp: "p_mem8"
+exp: "p20_2" # p_mem6
 num_workers: 15  # 17, 15
-no_epochs: 2
-save_every: 200
+no_epochs: 1500 # 1500
+save_every: 500
 # Data
 train_per: 0.9
 data_per: 1.0
-batch_size: 4000
+batch_size: 8192 # 24576 # 8192 # 4000 for g_len:60
 # Training
 warmup_epochs: 1000
 step_size: 2000
@@ -57,14 +19,52 @@ max_lr: 3e-4  # 1e-3
 min_lr: None
 weight_decay: 1e-2  # default 1e-2
 # Model
-g_len: 60 # 20, 60
+g_len: 20 # 20, 60
 in_channel: 4
 patch_size: 1
-embed_dim: 16  # 256, 16
-depth: 6  # 6, 1
-num_heads: 8
-decoder_embed_dim: 16  # 256, 16
-decoder_depth: 1  # 6, 1
-decoder_num_heads: 8
+embed_dim: 256 # 1280  # 256, 16
+depth: 6 # 32, 6, 1
+num_heads: 8 # 16, 8
+decoder_embed_dim: 256  # 512, 256, 16
+decoder_depth: 6 # 8, 6, 1
+decoder_num_heads: 8 # 16, 8
 mlp_ratio: 4
 layer_norm_eps: 1e-6
+
+# # ===========
+# # TEST
+# # ===========
+# # Paths
+# # gimus: read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv"
+# # gimus: read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv"
+# data_path: /home/fatemeh/Downloads/bird/data/ssl/final/gull #"/home/fatemeh/Downloads/bird/data/ssl_mini" # "/home/fatemeh/Downloads/bird/data/ssl/final"
+# save_path: "/home/fatemeh/Downloads/bird/result"
+# model_checkpoint: "" #"/home/fatemeh/Downloads/bird/result/p_mem7_best.pth" # "": when no checkpoint is used
+# # General
+# seed: 1234
+# exp: "p_mem8"
+# num_workers: 15  # 17, 15
+# no_epochs: 2
+# save_every: 200
+# # Data
+# train_per: 0.9
+# data_per: 1.0
+# batch_size: 4000
+# # Training
+# warmup_epochs: 1000
+# step_size: 2000
+# max_lr: 3e-4  # 1e-3
+# min_lr: None
+# weight_decay: 1e-2  # default 1e-2
+# # Model
+# g_len: 60 # 20, 60
+# in_channel: 4
+# patch_size: 1
+# embed_dim: 16  # 256, 16
+# depth: 6  # 6, 1
+# num_heads: 8
+# decoder_embed_dim: 16  # 256, 16
+# decoder_depth: 1  # 6, 1
+# decoder_num_heads: 8
+# mlp_ratio: 4
+# layer_norm_eps: 1e-6
