@@ -63,7 +63,7 @@ def read_random_entries(file_path):
 
 '''
 # 1. Save GPS dates per device id: 18,903,265 (new 18,800,484). 671 empty
-save_path = Path("/home/fatemeh/Downloads/bird/gpsdates")
+save_path = Path("/home/fatemeh/Downloads/bird/data/ssl/gpsdates")
 save_path.mkdir(parents=True, exist_ok=True)
 database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
 device_start_end_query = """
@@ -84,7 +84,7 @@ for result in results:
     try:
         gps_info = query_database(database_url, device_query)
         count += len(gps_info)
-        save_gps_dates(save_path, device_id, gps_info)
+        save_gps_times(save_path, device_id, gps_info)
         print(device_id, f"{len(gps_info):,}", str(gps_info[0][1]))
     except:
         print("empty ====>", device_id)
@@ -98,7 +98,7 @@ import time
 import concurrent.futures
 glen = 60
 directory = Path("/home/fatemeh/Downloads/bird/gpsdates")
-output_file = Path(f"/home/fatemeh/Downloads/bird/ssl/available_{glen}points.csv")
+output_file = Path(f"home/fatemeh/Downloads/bird/data/ssl/available_{glen}points.csv")
 database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
 num_entries = 10
 paths = sorted(directory.glob("*csv"), key=lambda x:int(x.stem))
@@ -135,14 +135,14 @@ with open(output_file, 'w') as file:
 """
 """
 #  2.2 Check which device has 60 entries: 59 devices
-output_file = Path("/home/fatemeh/Downloads/bird/ssl/available_60points.csv")
+output_file = Path("home/fatemeh/Downloads/bird/data/ssl/available_60points.csv")
 with open(output_file, 'r') as file:
     items = file.read().strip().splitlines()
     device_ids = [int(i.split(',')[0]) for i in items if int(i.split(',')[1])!=0]
 
 # 3. Save random device id and dates in a file: 2,975,486 from 63 devices
 directory = Path("/home/fatemeh/Downloads/bird/gpsdates")
-output_file = Path("/home/fatemeh/Downloads/bird/ssl/random_entries.csv")
+output_file = Path("home/fatemeh/Downloads/bird/data/ssl/random_entries.csv")
 all_lines = read_dates_from_files(directory, device_ids)
 num_entries = len(all_lines)
 random_entries = get_random_entries(all_lines, num_entries)
@@ -168,7 +168,7 @@ print("done")
 """
 # TODO remove
 database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
-output_file = Path("/home/fatemeh/Downloads/bird/ssl/my_file.csv")
+output_file = Path("home/fatemeh/Downloads/bird/data/ssl/my_file.csv")
 label = -1
 device_id = 658# 298
 p = Path(f"/home/fatemeh/Downloads/bird/gpsdates/{device_id}.csv")
@@ -270,7 +270,7 @@ def main(task_id):
 
     device_id = device_ids[task_id]
     save_path = Path(
-        f"/home/fatemeh/Downloads/bird/ssl"
+        f"home/fatemeh/Downloads/bird/data/ssl"
     )  # /zfs/omics/personal/fkarimi/ssl
     save_path.mkdir(parents=True, exist_ok=True)
 
@@ -332,8 +332,8 @@ def process_dates(entries, output_file, database_url, label):
 
 
 def main(task_id):
-    file_path = Path("/home/fatemeh/Downloads/bird/ssl/random_entries.csv")
-    save_path = Path(f"/home/fatemeh/Downloads/bird/ssl")
+    file_path = Path("home/fatemeh/Downloads/bird/data/ssl/random_entries.csv")
+    save_path = Path(f"home/fatemeh/Downloads/bird/data/ssl")
     save_path.mkdir(parents=True, exist_ok=True)
 
     database_url = "postgresql://username:password@host:port/database_name"
@@ -440,7 +440,7 @@ def process_dates(device_id, s_date, e_date, output_file, database_url, label):
 
 def main(device_id):
     save_path = Path(
-        f"/home/fatemeh/Downloads/bird/ssl"
+        f"home/fatemeh/Downloads/bird/data/ssl"
     )  # /zfs/omics/personal/fkarimi/ssl
     save_path.mkdir(parents=True, exist_ok=True)
 
@@ -483,7 +483,7 @@ def main(device_id):
 
 
 if __name__ == "__main__":
-    avail_file = Path("/home/fatemeh/Downloads/bird/ssl/available_60points.csv")
+    avail_file = Path("home/fatemeh/Downloads/bird/data/ssl/available_60points.csv")
     with open(avail_file, "r") as file:
         items = file.read().strip().splitlines()
         device_ids = [int(i.split(",")[0]) for i in items if int(i.split(",")[1]) != 0]
@@ -497,3 +497,62 @@ if __name__ == "__main__":
         t0 = time.perf_counter()
         main(device_id)
         print(f"{device_id} took {time.perf_counter()-t0:.2f}s")
+
+'''
+# Separate Gull and CP files
+# ====================
+from behavior import data as bd, model as bm, model1d as bm1, utils as bu
+import shutil
+from pathlib import Path
+
+# Get Gull device ids
+query="""
+select device_info_serial -- *, start_date, end_date 
+from gps.ee_track_session_limited
+where key_name = 'CP_OMAN'
+order by device_info_serial
+"""
+database_url = "postgresql://username:password@pub.e-ecology.nl:5432/eecology"
+results = query_database(database_url, query)
+db_cp_ids = [i[0] for i in results]
+
+ssl_path = Path("/home/fatemeh/Downloads/bird/data/ssl/final")
+all_ids = []
+for p in ssl_path.glob("*.csv"):
+    all_ids.append(int(p.stem))
+gull_ids = all_ids.difference(db_cp_ids) # 32 gulls
+cp_ids = all_ids.intersection(db_cp_ids) # 31 cp
+    
+# Copy gull files to a new directory
+gull_path = ssl_path / "gull"
+gull_path.mkdir(parents=True, exist_ok=True)
+for id in gull_ids:
+    p = ssl_path / f"{id}.csv"
+    shutil.copy(p, gull_path)
+
+# Copy cp files to a new directory
+cp_path = ssl_path / "cp"
+cp_path.mkdir(parents=True, exist_ok=True)
+for id in cp_ids:
+    p = ssl_path / f"{id}.csv"
+    shutil.copy(p, cp_path)
+
+# Get some statistics
+# ====================
+# Count number of items all files # 42,978,660
+items = 0
+for p in ssl_path.glob("*.csv"):
+    items += sum(1 for _ in p.open())
+
+# Count number of items gull files # 19,830,960
+items = 0
+for id in gull_ids:
+    p = ssl_path / f"{id}.csv"
+    items += sum(1 for _ in p.open())
+
+# Count number of items co files # 23,147,700
+items = 0
+for id in cp_ids:
+    p = ssl_path / f"{id}.csv"
+    items += sum(1 for _ in p.open())
+'''
