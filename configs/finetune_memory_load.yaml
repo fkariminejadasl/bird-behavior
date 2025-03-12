@@ -38,12 +38,12 @@
 # Paths
 data_file: /home/fatemeh/Downloads/bird/data/final/balance.csv  # /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
 save_path: "/home/fatemeh/Downloads/bird/result/"
-model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth #"/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
+model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p20_2_1500.pth #"/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
 # General
 seed: 1234
-exp: "f_mem1_bal3"
+exp: "f_mem2_bal1"
 num_workers: 15  # 17, 15
-no_epochs: 50  # 500, 1
+no_epochs: 150  # 500, 1
 save_every: 200
 # Data
 train_per: 0.9

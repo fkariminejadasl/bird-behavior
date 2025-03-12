@@ -2,16 +2,22 @@
 #SBATCH --gpus=1
 #SBATCH --partition=gpu_h100
 #SBATCH --time=00:10:00
-#SBATCH -o /home/fkarimi/exp/bird/p20_h100_s_1_%j.out
+#SBATCH -o /home/fkarimi/exp/bird/%x_h100_s_1_%j.out 
+
+# %x is replaced with the script name (without path)
+# %j represents the job ID
 
 cd "$HOME/dev/bird-behavior"
 echo $(date)
 echo $(git log -1 --pretty=%h)
 
-echo "bash file: p20_4.sh"
-cat /home/fkarimi/exp/bird/p20_4.sh
+SCRIPT_NAME=$(basename "$0")  # Get the filename of the script
+echo "bash file: $SCRIPT_NAME"
+cat "$HOME/exp/bird/$SCRIPT_NAME"
+echo "config"
+cat $HOME/dev/bird-behavior/configs/pretrain_memory_load.yaml
 echo "script"
-cat /home/fkarimi/dev/bird-behavior/scripts/pretrain_memory_load.py
+cat $HOME/dev/bird-behavior/scripts/pretrain_memory_load.py
 
 echo "cpu per node: $SLURM_CPUS_ON_NODE"
 
@@ -21,7 +27,7 @@ conda activate bird
 echo "activate my virtual env: $CONDA_DEFAULT_ENV"
 
 echo "start training"
-python /home/fkarimi/dev/bird-behavior/scripts/pretrain_memory_load.py
+python $HOME/dev/bird-behavior/scripts/pretrain_memory_load.py
 echo "end training"
 
 echo $(date)

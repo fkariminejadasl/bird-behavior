@@ -227,10 +227,11 @@ def load_labeled_embeddings(file_name):
     return feats, labels, output
 
 
-def load_unlabeled_embeddings(n=262):
+def load_unlabeled_embeddings():    
+    n = len(list(cfg.save_path.glob("*.npz")))-1
     # Load train embeddings
     u_feats = []
-    for i in range(n + 1):
+    for i in range(n):
         # feats = torch.load(cfg.save_path/f"{i}.npy")
         feats = np.load(cfg.save_path / f"{i}.npz")["feats"]
         u_feats.append(feats)
@@ -349,16 +350,13 @@ torch.cuda.empty_cache()
 print("model is loaded")
 """
 """
-with torch.no_grad():
-    o = model(torch.rand(1,20,4, device=device))
-
 test_loader = setup_testing_dataloader(cfg)
 save_labeled_embeddings(test_loader, model, layer_to_hook, device)
-print("test data is loaded in cpu")
+print("test data is finished")
 
 train_loader = setup_training_dataloader(cfg, 8192)
-print("data is loaded in cpu")
 save_unlabeled_embeddings(train_loader, model, layer_to_hook, device)
+print("train data is finished")
 """
 
 # """
@@ -400,6 +398,9 @@ with torch.no_grad():
         # np.savez(cfg.save_path/"test_c3_avg_np", **{'feats':feats,'labels':labels})
 hook_handle.remove()
 """
+test_loader = setup_testing_dataloader(cfg)
+save_labeled_embeddings(test_loader, model, layer_to_hook, device)
+print("test data is finished")
 
 # Load test embeddings
 feats, labels, output = load_labeled_embeddings("test.npz")
@@ -446,6 +447,7 @@ rem_labels = [1, 3, 7, 8]
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 1, 2, 3, 4, 5, 6, 8, 9]])
 # fmt: on
 
 # GCD
@@ -528,6 +530,8 @@ cm = contingency_matrix(ordered_labels, preds[:labels.shape[0]])
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 5, 6, 9, 1, 3, 8]])
+# ['Flap', 'Soar', 'Float', 'SitStand', 'TerLoco', 'Pecking', 'ExFlap', 'Boat', 'Manouvre']
 # fmt: on
 
 # ft: large 6 classes f_mem1_bal3
