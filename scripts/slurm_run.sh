@@ -11,9 +11,9 @@ cd "$HOME/dev/bird-behavior"
 echo $(date)
 echo $(git log -1 --pretty=%h)
 
-SCRIPT_NAME=$(basename "$0")  # Get the filename of the script
-echo -e "bash file: $SCRIPT_NAME \n"
-cat "$HOME/exp/bird/$SCRIPT_NAME"
+SCRIPT_PATH=$(realpath "$0")  # Get the full path of the script
+echo -e "bash file: $SCRIPT_PATH \n"
+cat "$SCRIPT_PATH"
 echo -e "config: \n"
 cat $HOME/dev/bird-behavior/configs/pretrain_memory_load.yaml
 echo -e "script \n"
