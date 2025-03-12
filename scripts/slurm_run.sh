@@ -12,11 +12,11 @@ echo $(date)
 echo $(git log -1 --pretty=%h)
 
 SCRIPT_NAME=$(basename "$0")  # Get the filename of the script
-echo "bash file: $SCRIPT_NAME"
+echo -e "bash file: $SCRIPT_NAME \n"
 cat "$HOME/exp/bird/$SCRIPT_NAME"
-echo "config"
+echo -e "config: \n"
 cat $HOME/dev/bird-behavior/configs/pretrain_memory_load.yaml
-echo "script"
+echo -e "script \n"
 cat $HOME/dev/bird-behavior/scripts/pretrain_memory_load.py
 
 echo "cpu per node: $SLURM_CPUS_ON_NODE"
