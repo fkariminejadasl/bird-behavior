@@ -990,7 +990,7 @@ def balance_data(data_file, save_file, keep_labels):
     data_file: str, Path
         e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
     save_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/balance.csv"
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
     keep_labels : list of int
         List of class labels to retain in the dataset.
         Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
@@ -1000,8 +1000,8 @@ def balance_data(data_file, save_file, keep_labels):
     len_data = min([len(df[df[3] == i]) for i in keep_labels])
     df = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
     df = df.reset_index(drop=True)
-    for i, j in enumerate(keep_labels):
-        df.loc[df[3] == j, 3] = i
+    # for i, j in enumerate(keep_labels):
+    #     df.loc[df[3] == j, 3] = i
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     # To get label names
     # from behavior import utils as bu
@@ -1018,7 +1018,7 @@ def save_specific_labels(data_file, save_file, keep_labels):
     data_file: str, Path
         e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
     save_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/balance.csv"
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
     keep_labels : list of int
         List of class labels to retain in the dataset.
         Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
@@ -1026,8 +1026,8 @@ def save_specific_labels(data_file, save_file, keep_labels):
     df = pd.read_csv(data_file, header=None)
     df = pd.concat([df[df[3] == i] for i in keep_labels])
     df = df.reset_index(drop=True)
-    for i, j in enumerate(keep_labels):
-        df.loc[df[3] == j, 3] = i
+    # for i, j in enumerate(keep_labels):
+    #     df.loc[df[3] == j, 3] = i
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
