@@ -7,10 +7,12 @@ from tqdm import tqdm
 from behavior import utils as bu
 from behavior.utils import ind2name
 
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined") # gt2_combined, gt2_sdata
+# gt2_combined, gt2_sdata
+gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined")
+# combined_unique_sorted012, s_data_orig_index
 df = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None
-) # combined_unique_sorted012, s_data_orig_index
+)
 df_db = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None
 )

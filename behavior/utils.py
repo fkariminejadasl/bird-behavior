@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Tuple
 
-import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -117,82 +117,6 @@ def plot_one(data):
     return ax
 
 
-# # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
-# def plot_all(dataframe, dataframe_db, glen=20):
-#     """
-#     Plot IMU of a device and starting time
-
-#     dataframe is with label
-#     dataframe_db is from database and no label
-
-#     N.B. max_length=200, for example for 6011,2015-04-30 09:09:26'
-#     e.g.
-#     dt = (6016, '2015-05-01 11:18:22') # 200
-#     dt = (6011, '2015-04-30 09:10:31') # 200 (only 120 labeled)
-#     dt = (6016, '2015-05-01 11:15:46') # 120
-#     dt = (533, "2012-05-15 03:10:11") # 60
-#     df_u = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None)
-#     df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
-#     dataframe = df_u.groupby(by=[0,1]).get_group(dt).sort_values(by=[2])
-#     dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
-#     fig = plot_all(dataframe, dataframe_db, glen=20)
-#     plt.show(block=True)
-#     """
-#     import matplotlib
-
-#     max_index = 100 # 200
-#     n_plot_rows = 2 # 1
-#     y_limits = [-3.5, 3.5]
-#     fig, axs = plt.subplots(n_plot_rows, 1, figsize=(18, 4 * n_plot_rows))
-#     if isinstance(axs, matplotlib.axes._axes.Axes):
-#         axs = [axs]
-#     plt.title(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
-#     fig.tight_layout()
-#     all_data = dataframe_db[[4, 5, 6]].values
-#     all_indices = dataframe_db[[2]].values.squeeze()
-#     for j, ax in enumerate(axs):
-#         data = all_data[j * max_index : j * max_index + max_index]
-#         if len(data) == 0:
-#             continue
-#         indices = all_indices[j * max_index : j * max_index + max_index]
-#         n_plots = len(data) // glen
-#         ax.plot(
-#             indices,
-#             data[:, 0],
-#             "r-*",
-#             indices,
-#             data[:, 1],
-#             "b-*",
-#             indices,
-#             data[:, 2],
-#             "g-*",
-#         )
-#         # Change indices[-1] to max length
-#         ax.set_xlim(indices[0], indices[0] + max_index - 1)  #
-#         ax.set_ylim(*y_limits)
-#         ax.set_yticks([y_limits[0], 0, y_limits[1]])
-#         ax.set_xticks(indices[::glen])
-#         # Plot zero horizontal line
-#         ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
-#         # Plot vertical lines
-#         for i in range(n_plots - 1):
-#             ind = indices[i * glen + glen]
-#             ax.plot([ind, ind], y_limits, "-", color="black")
-#         # Plot labels
-#         for i in range(n_plots):
-#             ind = indices[i * glen]
-#             crop = dataframe[dataframe[2] == ind]
-#             if len(crop) == 0:
-#                 label = None
-#             else:
-#                 label = ind2name[crop.iloc[0, 3]]
-#             text_loc = [indices[i * glen + glen // 2] - 2, y_limits[1] - 0.5]
-#             ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
-#     # plt.show(block=False)
-#     return fig
-
-# dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
-
 def plot_all(dataframe, dataframe_db, glen=20):
     """
     Plot IMU of a device and starting time with correctly aligned vertical lines and labels.
@@ -206,7 +130,7 @@ def plot_all(dataframe, dataframe_db, glen=20):
     fig: Matplotlib figure object
 
     e.g.:
-    dt = (6011, "2015-04-30 09:09:26") # 200 
+    dt = (6011, "2015-04-30 09:09:26") # 200
     dt = (6011, "2015-04-30 09:10:31") # 200 (only 120 labeled)
     dt = (6016, "2015-05-01 11:15:46") # 120
     dt = (533, "2012-05-15 03:10:11") # 60
@@ -242,14 +166,14 @@ def plot_all(dataframe, dataframe_db, glen=20):
     indices_from_data = np.sort(all_indices)
 
     start_inds = indices_from_data[::glen]  # Starting indices of segments
-    end_inds = indices_from_data[glen - 1::glen]  # Ending indices of segments
+    end_inds = indices_from_data[glen - 1 :: glen]  # Ending indices of segments
     # Ensure last index is included in end_inds
     if indices_from_data[-1] not in end_inds:
         end_inds = np.append(end_inds, indices_from_data[-1])
-    
+
     # Non consecutive end indices
     nc_end_inds = []
-    for i in range(0, len(end_inds) -1 ):
+    for i in range(0, len(end_inds) - 1):
         if start_inds[i + 1] - end_inds[i] > 1:  # Only keep if not consecutive
             nc_end_inds.append(end_inds[i])
     nc_end_inds.append(end_inds[-1])
@@ -268,14 +192,24 @@ def plot_all(dataframe, dataframe_db, glen=20):
         indices = all_indices_db[j * max_index : j * max_index + max_index]
 
         # Plot IMU data
-        ax.plot(indices, data[:, 0], "r-*", indices, data[:, 1], "b-*", indices, data[:, 2], "g-*")
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
 
         # Set axis limits
         ax.set_xlim(indices[0], indices[0] + max_index - 1)
         ax.set_ylim(*y_limits)
         ax.set_yticks([y_limits[0], 0, y_limits[1]])
         ax.set_xticks(indices[::glen])
-        ind_xticks = ax.get_xticks() # sorted(set(list(ax.get_xticks())))
+        ind_xticks = ax.get_xticks()
 
         # Draw horizontal zero line
         ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
@@ -288,7 +222,7 @@ def plot_all(dataframe, dataframe_db, glen=20):
             if ind in row_range:  # Only plot if the index belongs to this row
                 # Draw vertical line: Draw only start index and end index if not consecutive
                 if end_ind in nc_end_inds:
-                    ax.plot([end_ind, end_ind], y_limits, "-", color="black")  
+                    ax.plot([end_ind, end_ind], y_limits, "-", color="black")
                 ax.plot([ind, ind], y_limits, "-", color="black")
 
                 # Get label for the corresponding index
@@ -302,7 +236,9 @@ def plot_all(dataframe, dataframe_db, glen=20):
                 # Add index value to x-axis ticks
                 if len(np.where(abs(ind_xticks - ind) < 2)[0]) == 0:
                     new_ticks.append(ind)
-                if (len(np.where(abs(ind_xticks - end_ind) < 2)[0]) == 0) and (end_ind in nc_end_inds):
+                if (len(np.where(abs(ind_xticks - end_ind) < 2)[0]) == 0) and (
+                    end_ind in nc_end_inds
+                ):
                     new_ticks.append(end_ind)
         ax.set_xticks(sorted(set(new_ticks + list(ind_xticks))))
     return fig
