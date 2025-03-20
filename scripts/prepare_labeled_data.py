@@ -283,6 +283,9 @@ def write_unsorted_data(all_data_file, w_file, save_file, len_labeled_data):
             st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
             # Get data from database
             s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Data from database is not complete
+            if len(s_slice_df) != len_labeled_data:
+                continue
             # Write data
             for _, i in s_slice_df.iterrows():
                 item = (
@@ -391,6 +394,7 @@ df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv", he
 df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_data_orig.csv", header=None)
 data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
 get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20)
+# Since I use glen=20, if the data is not complete, it will be ignored. e.g. 782,2013-06-07 15:33:49 (s_data)
 
 # Step3: get indices data
 ==================
