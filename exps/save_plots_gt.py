@@ -7,13 +7,17 @@ from tqdm import tqdm
 from behavior import utils as bu
 from behavior.utils import ind2name
 
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt")
+gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined") # gt2_combined, gt2_sdata
 df = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None
-)
+) # combined_unique_sorted012, s_data_orig_index
 df_db = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None
 )
+
+# # Since balance.csv labels are 0, 1, 2, 3, 4, 5 and orig labels are 0, 2, 4, 5, 6, 9
+# mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
+# df[3] = df[3].map(mapping)
 
 # Unique device and starting times
 save_all_path = gt_path / "all"
