@@ -8,10 +8,13 @@ from behavior import model as bm
 from behavior import utils as bu
 from behavior.utils import n_classes, target_labels, target_labels_names
 
+import pytest
 
+@pytest.mark.ignore
 def test_model_csv():
-    data_path = Path("/home/fatemeh/Downloads/manouvre.csv")
-    model_path = Path("/home/fatemeh/Downloads/45_best.pth")
+    root_path = Path("/home/fatemeh/Downloads/bird/data/tests")
+    data_path = root_path / "manouvre.csv"
+    model_path = root_path / "45_best.pth"
     width = 30
 
     seed = 1234

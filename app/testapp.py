@@ -1,5 +1,5 @@
 # uvicorn testapp:app --reload
-# curl -X POST "http://localhost:8000/process"   -F "input_file=/home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv"   -F "username=..."   -F "password=..." # for file use: @/home..
+# curl -X POST "http://localhost:8000/process"   -F "input_file=/home/fatemeh/Downloads/bird/data/tests/input.csv"   -F "username=..."   -F "password=..." # for file use: @/home..
 from pathlib import Path
 
 import numpy as np
@@ -104,10 +104,10 @@ async def process(
     username: str = Form(...),
     password: str = Form(...),
     model_checkpoint: str = Form(
-        default="/home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth"
+        default="/home/fatemeh/Downloads/bird/data/tests/45_best.pth"
     ),
     save_path: str = Form(
-        default="/home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2"
+        default="/home/fatemeh/Downloads/bird/data/tests/exp2"
     ),
 ):
     # # Save the uploaded file to a temporary location
