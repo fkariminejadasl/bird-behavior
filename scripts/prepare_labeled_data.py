@@ -92,6 +92,77 @@ def test_find_matching_index():
     assert find_matching_index(keys, query) == 19
 
 
+def round_array(arr, precision):
+    return np.round(arr, precision)
+
+
+def build_index(keys_rounded):
+    """
+    Create a dictionary where key = (row1_tuple, row2_tuple), value = index
+    """
+    index_map = {}
+    for i in range(len(keys_rounded) - 2):
+        k1 = tuple(keys_rounded[i])
+        k2 = tuple(keys_rounded[i + 1])
+        k3 = tuple(keys_rounded[i + 2])
+        index_map[(k1, k2, k3)] = i
+    return index_map
+
+
+def add_index(df_db, df, save_file):
+    # Settings
+    tol = 1e-4  # precision 6 is issue in original data
+    precision = -int(np.log10(tol))
+
+    # Preprocess keys
+    keys = df_db.iloc[:, [4, 5, 6, 7]].values
+    keys_rounded = round_array(keys, precision)
+    index_map = build_index(keys_rounded)
+
+    # Pre-round df once
+    df_values = round_array(df.iloc[:, [4, 5, 6, 7]].values, precision)
+
+    # Output buffer
+    output_lines = []
+    ind = 0
+    last_ind = 0
+    j = 0
+    pbar = tqdm(total=len(df))
+    while j < len(df):
+        if j == len(df) - 2:
+            sel_ind = -1
+        else:
+            q1 = tuple(df_values[j])
+            q2 = tuple(df_values[j + 1])
+            q3 = tuple(df_values[j + 2])
+            sel_ind = index_map.get((q1, q2, q3), -1)
+
+        if sel_ind == -1:
+            inds = [last_ind + 1, last_ind + 2]
+            js = [j, j + 1]
+            last_ind = last_ind + 2
+            j = j + 2
+            pbar.update(2)
+        else:
+            inds = [sel_ind]
+            js = [j]
+            last_ind = sel_ind
+            j = j + 1
+            pbar.update(1)
+        for jj, ind in zip(js, inds):
+            i = df.iloc[jj]
+            imu_ind = df_db.iloc[ind, 2]  # if ind != -1 else -1
+            item = (
+                f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
+                f"{i[6]:.6f},{i[7]:.6f}\n"
+            )
+            output_lines.append(item)
+
+    # Write all at once
+    with open(save_file, "w") as file:
+        file.writelines(output_lines)
+
+
 def get_label_range(slice):
     all_labels = slice[3].squeeze().values
     idxs = np.where(np.diff(all_labels) != 0)[0] + 1  # len=0 or more
@@ -128,7 +199,7 @@ def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
     )
 
     file = open(save_file, "w")
-    for _, row in tqdm(unique_dt.iterrows()):
+    for _, row in tqdm(unique_dt.iterrows(), total=len(unique_dt)):
         device_id, start_time = list(row)
         try:
             igs, idts, _ = bd.get_data(
@@ -280,7 +351,7 @@ def write_unsorted_data(all_data_file, w_file, save_file, len_labeled_data):
                 continue
             # Map index range
             st_idx, en_idx = ind, ind + len_labeled_data
-            st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
+            # st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
             # Get data from database
             s_slice_df = slice_df.iloc[st_idx:en_idx]
             # Data from database is not complete
@@ -333,6 +404,9 @@ def write_sorted_data(all_data_file, w_file, save_file, min_thr):
             st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
             # Get data from database
             s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Data from database is not complete
+            if len(s_slice_df) != len_labeled_data:
+                continue
             # Write data
             for _, i in s_slice_df.iterrows():
                 item = (
@@ -387,14 +461,22 @@ for p in dpath.glob("*csv"):
 # Step 2. Get all the data from database
 ==================
 database_url = "postgresql://username:password@host:port/database_name"
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv")
-df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
-df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv_orig", header=None)
-df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data_orig.csv", header=None)
-df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_data_orig.csv", header=None)
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", header=None)
+df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
+df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
 data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20)
+get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1) # all_database_final.csv glen=1, all_database, glen=20
 # Since I use glen=20, if the data is not complete, it will be ignored. e.g. 782,2013-06-07 15:33:49 (s_data)
+
+
+# Step 3. Add index to the data
+==================
+df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
+save_file = "/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig_with_index.csv"
+add_index(df_db, df, save_file)
 
 # Step3: get indices data
 ==================
