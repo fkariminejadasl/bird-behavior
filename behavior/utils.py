@@ -690,3 +690,14 @@ print(metrics_df)
 # _ = save_data_prediction(
 #     save_file.parent, 'float', 'pred_float', .54, data_item, ldts_item, i
 # )
+
+
+def equal_dataframe(df1, df2):
+    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_index2.csv", header=None)
+    a = df1.sort_values([0, 1, 2], ignore_index=True).copy()
+    b = df2.sort_values([0, 1, 2], ignore_index=True).copy()
+    a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
+    b.iloc[:, 4:] = np.round(b.iloc[:, 4:], 4)
+    common = pd.merge(a, b)
+    return a.equals(b) & (len(a) == len(b) == len(common))

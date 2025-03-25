@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from matplotlib.figure import Figure
 
+from behavior import utils as bu
 from behavior.utils import plot_all
 
 
@@ -76,3 +77,37 @@ def test_plot_all_vertical_lines(mock_data):
         assert start in vertical_lines
 
     plt.close(fig)
+
+
+def test_equal_dataframes_true():
+    df1 = pd.DataFrame(
+        [
+            [1, "2023-01-01 00:00:00", 10, 1, 0.123456, 0.234567],
+            [1, "2023-01-01 00:00:00", 11, 1, 0.333333, 0.444444],
+        ]
+    )
+
+    df2 = pd.DataFrame(
+        [
+            [1, "2023-01-01 00:00:00", 11, 1, 0.333334, 0.444443],  # Close float match
+            [1, "2023-01-01 00:00:00", 10, 1, 0.123457, 0.234566],
+        ]
+    )
+
+    assert bu.equal_dataframe(df1, df2) is True
+
+
+def test_equal_dataframes_false():
+    df1 = pd.DataFrame(
+        [
+            [1, "2023-01-01 00:00:00", 10, 1, 0.1234, 0.2345],
+        ]
+    )
+    df2 = pd.DataFrame(
+        [
+            [1, "2023-01-01 00:00:00", 10, 1, 0.1234, 0.9999],
+        ]
+    )
+
+    assert bu.equal_dataframe(df1, df2) is False
+test_equal_dataframes_false()
