@@ -293,6 +293,22 @@ invalid_rows = df.loc[invalid_indices]
 </details>
 
 
+### Example find common and different rows
+
+```python
+import pandas as pd
+import numpy as np
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+a = df.iloc[:5].copy()
+b = df.iloc[3:7].copy()
+b = b.reset_index(drop=True)
+common = pd.merge(a,b)
+diff = pd.concat([b, common]).drop_duplicates(keep=False)
+c = b.apply(lambda row: (a == row).all(axis=1).any(), axis=1)
+c = b.isin(common.to_dict(orient='list')).all(axis=1)  # or this version
+c[c==True].index.values
+```
+
 ### Reference
 
 - [Pandas Cheat Sheet](https://pandas.pydata.org/Pandas_Cheat_Sheet.pdf)
