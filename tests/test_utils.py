@@ -110,4 +110,3 @@ def test_equal_dataframes_false():
     )
 
     assert bu.equal_dataframe(df1, df2) is False
-test_equal_dataframes_false()

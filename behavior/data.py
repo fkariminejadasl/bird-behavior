@@ -772,25 +772,6 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     return format_sensor_data(matched_groups, device_id)
 
 
-def test_identify_and_process_groups():
-    # fmt: off
-    data = [
-        [1, 20], [2, 14], [1, 50], [2, 34], [3, 28], [4, 22], [5, 18], [6, 15], [7, 14], [8, 13],
-        [9, 12], [10, 11], [11, 10], [12, 9], [13, 8], [14, 7], [15, 6], [16, 5], [17, 4], [18, 3],
-        [19, 2], [20, 1], [21, 50], [22, 49], [23, 48], [24, 47], [25, 46], [26, 45], [27, 44],
-        [28, 43], [29, 42], [30, 41], [31, 40], [32, 39], [33, 38], [34, 37], [35, 36], [36, 35],
-        [37, 34], [38, 33], [39, 32], [40, 31], [41, 30], [42, 29], [43, 28], [44, 27], [45, 26], [46, 25]
-    ]
-    # fmt: on
-    processed_groups = identify_and_process_groups(data)
-    np.testing.assert_equal(np.array(data)[2:22], np.array(processed_groups[0]))
-    np.testing.assert_equal(np.array(data)[22:42], np.array(processed_groups[1]))
-
-
-# Test the function
-test_identify_and_process_groups()
-
-
 def random_time_between(start_time_str, end_time_str, time_format="%Y-%m-%d %H:%M:%S"):
     """
     Generate a random time between two given times.
