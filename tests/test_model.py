@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -8,7 +9,6 @@ from behavior import model as bm
 from behavior import utils as bu
 from behavior.utils import n_classes, target_labels, target_labels_names
 
-import pytest
 
 @pytest.mark.ignore
 def test_model_csv():

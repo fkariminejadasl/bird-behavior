@@ -106,9 +106,7 @@ async def process(
     model_checkpoint: str = Form(
         default="/home/fatemeh/Downloads/bird/data/tests/45_best.pth"
     ),
-    save_path: str = Form(
-        default="/home/fatemeh/Downloads/bird/data/tests/exp2"
-    ),
+    save_path: str = Form(default="/home/fatemeh/Downloads/bird/data/tests/exp2"),
 ):
     # # Save the uploaded file to a temporary location
     # input_file_path = Path("/tmp") / input_file.filename

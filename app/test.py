@@ -51,9 +51,7 @@ def load_configuration():
         "--model_checkpoint",
         type=Path,
         help="Path to the model checkpoint",
-        default=Path(
-            "/home/fatemeh/Downloads/bird/data/tests/45_best.pth"
-        ),
+        default=Path("/home/fatemeh/Downloads/bird/data/tests/45_best.pth"),
     )
     parser.add_argument(
         "--save_path",
