@@ -45,7 +45,7 @@ def test_create_balanced_data():
     # Simulate a CSV file
     data = {
         0: [1] * 12 + [2] * 12,
-        1: pd.date_range("2020-01-01", periods=24, freq="T"),
+        1: pd.date_range("2020-01-01", periods=24, freq="min"),
         2: list(range(12)) + list(range(12)),
         3: [0] * 12 + [9] * 12,  # Two classes: 0 and 9
         4: np.random.rand(24),
