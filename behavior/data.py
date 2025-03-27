@@ -981,14 +981,73 @@ def balance_data(data_file, save_file, keep_labels):
     len_data = min([len(df[df[3] == i]) for i in keep_labels])
     df = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
     df = df.reset_index(drop=True)
-    # for i, j in enumerate(keep_labels):
-    #     df.loc[df[3] == j, 3] = i
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     # To get label names
     # from behavior import utils as bu
     # ind2keep = {i:j for i, j in enumerate(keep_labels)}
     # {i: bu.ind2name[j] for i, j in ind2keep.items()}
     # {0: 'Flap', 1: 'Soar', 2: 'Float', 3: 'SitStand', 4: 'TerLoco', 5: 'Pecking'}
+
+
+def select_random_groups(df, n_samples, glen=20):
+    sel_df = []
+    inds = df.iloc[::glen].index.tolist()
+    ii = np.random.choice(len(inds), n_samples, replace=False)
+    sel_inds = [inds[i] for i in ii]
+    for ind in sel_inds:
+        # NB. loc is inclusive. df.loc[0:10] includes 10.
+        sel_df.append(df.loc[ind : ind + glen - 1])
+    return pd.concat(sel_df)
+
+
+def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
+    """
+    Creates a balanced dataset by sampling equal number of groups from each specified class.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing bird behavior data
+    keep_labels : list of int
+        List of class labels to retain in the dataset
+        Example: [0, 2, 4, 5, 6, 9] for specific behaviors
+    n_samples : int, optional
+        Number of groups to sample per class. If None, uses size of smallest class
+    glen : int, default=20
+        Number of measurements per group
+
+    Returns
+    -------
+    pd.DataFrame
+        Balanced dataframe containing equal number of groups from each class
+
+    Notes
+    -----
+    - Original data typically has unbalanced classes
+    - Each group contains glen consecutive measurements
+    - If n_samples=None, will use smallest class size divided by glen
+    - Random sampling is used to select groups within each class
+    """
+    len_data = min([len(df[df[3] == i]) for i in keep_labels])
+    if n_samples is None:
+        n_samples = len_data // glen
+
+    sel_df = []
+    for i in keep_labels:
+        label_df = df[df[3] == i].copy()
+        sel_df.append(select_random_groups(label_df, n_samples, glen))
+    sel_df = pd.concat(sel_df).reset_index(drop=True)
+    return sel_df
+    # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+# data_file = "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv"
+# save_file = "/home/fatemeh/Downloads/bird/data/final/s_data/balanced.csv"
+# keep_labels = [0, 2, 4, 5, 6, 9]
+# np.random.seed(123)
+# df = pd.read_csv(data_file, header=None)
+# sel_df = create_balanced_data(df, [6, 9], glen=20)
+# print("Done")
 
 
 # TODO replace get_specific_labesl

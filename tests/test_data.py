@@ -5,6 +5,82 @@ import pytest
 import behavior.data as bd
 
 
+def test_select_random_groups():
+    # Sample data
+    data = {
+        0: [541, 541, 606, 606, 805, 805],
+        1: pd.to_datetime(
+            [
+                "2012-05-18 02:58:35",
+                "2012-05-18 02:58:35",
+                "2014-05-24 11:29:37",
+                "2014-05-24 11:29:37",
+                "2014-06-07 09:45:20",
+                "2014-06-07 09:45:20",
+            ]
+        ),
+        2: [0, 1, 20, 21, 0, 1],
+        3: [9, 9, 9, 9, 9, 9],
+        4: [-0.365094, -0.390851, -0.474436, -0.299248, 0.317241, -0.092720],
+        5: [-0.126978, -0.184958, 0.179352, 0.040693, -0.108314, -0.263921],
+        6: [0.917604, 0.893047, 0.951916, 0.855748, 1.119908, 0.922367],
+        7: [0.423645, 0.423645, 0.241683, 0.241683, 0.787784, 0.787784],
+    }
+    a = pd.DataFrame(data)
+    a.index = [240, 241, 1900, 1901, 4180, 4181]
+
+    np.random.seed(123)
+    sel_df = bd.select_random_groups(a, n_samples=2, glen=2)
+
+    # Assert expected rows based on seed
+    # For replace=True, the seed is 123
+    # expected_sel_df = pd.concat([a.loc[4180:4181], a.loc[1900:1901]])
+    expected_sel_df = pd.concat([a.loc[240:241], a.loc[1900:1901]])
+
+    pd.testing.assert_frame_equal(sel_df, expected_sel_df)
+
+
+def test_create_balanced_data():
+    # def test_create_balanced_data(tmp_path):
+    # Simulate a CSV file
+    data = {
+        0: [1] * 12 + [2] * 12,
+        1: pd.date_range("2020-01-01", periods=24, freq="T"),
+        2: list(range(12)) + list(range(12)),
+        3: [0] * 12 + [9] * 12,  # Two classes: 0 and 9
+        4: np.random.rand(24),
+        5: np.random.rand(24),
+        6: np.random.rand(24),
+        7: np.random.rand(24),
+    }
+    df = pd.DataFrame(data)
+
+    # Set seed for reproducibility
+    np.random.seed(42)
+
+    # Test function
+    glen = 2
+    result_df = bd.create_balanced_data(df, keep_labels=[0, 9], n_samples=2, glen=glen)
+
+    # Check size: 2 samples * 2 rows (glen=2) * 2 labels = 8 rows
+    assert len(result_df) == 8
+
+    # Check class distribution
+    class_counts = result_df[3].value_counts().to_dict()
+    assert class_counts == {0: 4, 9: 4}
+
+    # Check consecutive values in column 2
+    values = result_df[2].values.reshape(-1, glen)
+    assert np.all(np.diff(values, axis=1) == 1)
+
+    assert set(result_df.columns) == set(range(8))
+
+    # Check size: 12/glen=6 samples * 2 rows (glen=2) * 2 labels = 24 rows
+    result_df = bd.create_balanced_data(df, keep_labels=[0, 9], glen=glen)
+    assert len(result_df) == 24
+    print("Done")
+
+
 def test_identify_and_process_groups():
     # fmt: off
     data = [

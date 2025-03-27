@@ -54,6 +54,7 @@ include = ["behavior"]
 [tool.pytest.ini_options]
 markers = [
     "ignore: mark test as ignored",
+    "local: mark test as run locally",
 ]
 
 # Remove packages completely
