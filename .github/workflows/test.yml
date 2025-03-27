@@ -7,8 +7,8 @@ name: Test Library on Multiple OS
 #     branches: [ main ]
 #   workflow_dispatch:
 on:
-  push:        # Runs on every push to any branch
-  pull_request:  # Also runs on PRs
+  # push:        # Runs on every push to any branch
+  # pull_request:  # Also runs on PRs
   workflow_dispatch:  # Manual trigger
 
 jobs:
