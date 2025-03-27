@@ -105,6 +105,7 @@ def test_get_data():
     assert gimus.shape == (60, 4)
 
 
+@pytest.mark.local
 @pytest.mark.parametrize(
     "file_path",
     [
