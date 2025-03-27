@@ -114,6 +114,7 @@ def test_get_data():
         "/home/fatemeh/Downloads/bird/data/final/w_data.csv",
         "/home/fatemeh/Downloads/bird/data/final/m_data.csv",
         "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv",
+        "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv",
     ],
 )
 def test_data_contents(file_path):
@@ -134,9 +135,13 @@ def test_data_contents(file_path):
     s2 = g2.size()
     assert np.array_equal(np.unique(s2) % 20, np.zeros_like(np.unique(s2)))
 
-    # Check indices every 20 rows are divisible by 20
-    uniq_inds = np.unique(df.iloc[::20, 2])
-    assert np.array_equal(uniq_inds % 20, np.zeros_like(uniq_inds))
+    # # Check indices every 20 rows are divisible by 20
+    # uniq_inds = np.unique(df.iloc[::20, 2])
+    # assert np.array_equal(uniq_inds % 20, np.zeros_like(uniq_inds))
+
+    # Check consecutive values in column 2
+    values = df[2].values.reshape(-1, 20)
+    assert np.all(np.diff(values, axis=1) == 1)
 
     # Verify there are no duplicate rows
     assert len(df[df.duplicated() == True]) == 0
