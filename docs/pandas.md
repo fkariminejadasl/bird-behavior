@@ -293,7 +293,7 @@ invalid_rows = df.loc[invalid_indices]
 </details>
 
 
-### Example find common and different rows
+### Example: find common and different rows
 
 ```python
 import pandas as pd
@@ -307,6 +307,41 @@ diff = pd.concat([b, common]).drop_duplicates(keep=False)
 c = b.apply(lambda row: (a == row).all(axis=1).any(), axis=1)
 c = b.isin(common.to_dict(orient='list')).all(axis=1)  # or this version
 c[c==True].index.values
+```
+
+### Example: If there are duplicates in both DataFrames, common also contains duplicates
+```python
+df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+a, b = df1[[0,1,3,4,5,6,7]], df2[[0,1,3,4,5,6,7]]
+
+from collections import Counter
+# Create tuple keys for each row (excluding col 2)
+tuple_a = [tuple(row) for row in a.values.tolist()]
+tuple_b = [tuple(row) for row in b.values.tolist()]
+count_a = Counter(tuple_a)
+count_b = Counter(tuple_b)
+# Expected number of exact matches
+common_count = sum(min(count_a[key], count_b[key]) for key in (count_a.keys() & count_b.keys()))
+all_merged = sum(count_a[key] * count_b[key] for key in (count_a.keys() & count_b.keys()))
+common = pd.merge(a,b)
+print("Expected common (minimum matches):", common_count)
+print("Actual merged rows (cartesian):", all_merged, len(common)) 
+print("Excess due to cartesian product:", all_merged - common_count)
+```
+
+### Example: find rows that appear 3 or more times in a DataFrame
+
+```python
+df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+a, b = df1[[0,1,3,4,5,6,7]], df2[[0,1,3,4,5,6,7]]
+# Step 1: Convert the relevant columns to tuples (rows must be hashable)
+rows = a[[0,1,3,4,5,6,7]].apply(tuple, axis=1)
+# Step 2: Count duplicates
+duplicate_counts = rows.value_counts()
+# Step 3: Filter rows with 3 or more occurrences
+triplicates = duplicate_counts[duplicate_counts >= 3]
 ```
 
 ### Reference

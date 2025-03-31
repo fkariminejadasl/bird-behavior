@@ -692,12 +692,41 @@ print(metrics_df)
 # )
 
 
-def equal_dataframe(df1, df2):
-    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
-    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_index2.csv", header=None)
-    a = df1.sort_values([0, 1, 2], ignore_index=True).copy()
-    b = df2.sort_values([0, 1, 2], ignore_index=True).copy()
-    a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
-    b.iloc[:, 4:] = np.round(b.iloc[:, 4:], 4)
-    common = pd.merge(a, b)
-    return a.equals(b) & (len(a) == len(b) == len(common))
+def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
+    """
+    Compare two DataFrames for equality based on selected columns,
+    after rounding float features and sorting rows.
+
+    Args:
+        df1 (pd.DataFrame): First DataFrame to compare.
+        df2 (pd.DataFrame): Second DataFrame to compare.
+        cols_to_compare (List[int], optional): Column indices to use for comparison.
+            Default is [0, 1, 3, 4, 5, 6, 7].
+
+    Returns:
+        bool: True if DataFrames are equal on the selected columns, False otherwise.
+
+    Note:
+        Columns from index 4 onward are assumed to be float features that will be rounded.
+
+    Example:
+        df1 =
+             0                    1  2  3         4         5         6         7
+        0  608  2013-05-31 02:12:41 -1  6 -1.020301 -0.305263  1.234586  0.186449
+        1  608  2013-05-31 02:12:41 -1  6 -0.940602 -0.292481  1.041353  0.186449
+
+        df2 =
+             0                    1   2  3         4         5         6         7
+        0  608  2013-05-31 02:12:41  20  6 -1.020301 -0.305263  1.234586  0.186449
+        1  608  2013-05-31 02:12:41  21  6 -0.940602 -0.292481  1.041353  0.186449
+
+        equal_dataframe(df1, df2) → True
+    """
+
+    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+    df1.iloc[:, 4:] = np.round(df1.iloc[:, 4:], 4)
+    df2.iloc[:, 4:] = np.round(df2.iloc[:, 4:], 4)
+    a = df1[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    b = df2[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    return a.equals(b)

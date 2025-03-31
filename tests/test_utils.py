@@ -94,7 +94,16 @@ def test_equal_dataframes_true():
         ]
     )
 
-    assert bu.equal_dataframe(df1, df2) is True
+    assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5]) is True
+
+    df2 = pd.DataFrame(
+        [
+            [1, "2023-01-01 00:00:00", -1, 1, 0.333334, 0.444443],
+            [1, "2023-01-01 00:00:00", -1, 1, 0.123457, 0.234566],
+        ]
+    )
+
+    assert bu.equal_dataframe(df1, df2, [0, 1, 3, 4, 5]) is True
 
 
 def test_equal_dataframes_false():
@@ -109,4 +118,4 @@ def test_equal_dataframes_false():
         ]
     )
 
-    assert bu.equal_dataframe(df1, df2) is False
+    assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5]) is False
