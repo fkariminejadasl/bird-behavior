@@ -1031,6 +1031,7 @@ def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
     len_data = min([len(df[df[3] == i]) for i in keep_labels])
     if n_samples is None:
         n_samples = len_data // glen
+        print(f"n_samples: {n_samples}")
 
     sel_df = []
     for i in keep_labels:
@@ -1039,15 +1040,6 @@ def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
     sel_df = pd.concat(sel_df).reset_index(drop=True)
     return sel_df
     # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-
-
-# data_file = "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv"
-# save_file = "/home/fatemeh/Downloads/bird/data/final/s_data/balanced.csv"
-# keep_labels = [0, 2, 4, 5, 6, 9]
-# np.random.seed(123)
-# df = pd.read_csv(data_file, header=None)
-# sel_df = create_balanced_data(df, [6, 9], glen=20)
-# print("Done")
 
 
 # TODO replace get_specific_labesl

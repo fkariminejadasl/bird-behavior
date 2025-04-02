@@ -9,6 +9,11 @@ import pytest
 
 import behavior.data as bd
 import behavior.data_processing as bdp
+from behavior.data_processing import (
+    find_matching_index,
+    get_label_range,
+    map_to_nearest_divisible_20,
+)
 
 
 @pytest.fixture
@@ -116,3 +121,33 @@ def test_write_j_data_orig_with_ignored_label(tmp_path, sample_json_data):
     assert save_file.exists()
     content = save_file.read_text()
     assert content == ""
+
+
+def test_map_to_nearest_divisible_20():
+    assert map_to_nearest_divisible_20(2, 18) == [0, 20]
+    assert map_to_nearest_divisible_20(23, 37) == [20, 40]
+    assert map_to_nearest_divisible_20(35, 55) == [40, 60]
+
+
+def test_find_matching_index():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/data_from_db.csv", header=None
+    )
+    keys = df[(df[0] == 533) & (df[1] == "2012-05-15 05:41:52")][[4, 5, 6, 7]].values
+    query = np.array(
+        [
+            [0.225012, -0.433472, 1.318443, 9.072514],
+            [0.281927, 1.049555, 0.661937, 9.072514],
+        ]
+    )
+    assert find_matching_index(keys, query) == 19
+
+
+def test_get_label_range():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/slice_w_data.csv", header=None
+    )
+    device_id, start_time = 533, "2012-05-15 05:41:52"
+    slice = df[(df[0] == device_id) & (df[1] == start_time)]
+    label_ranges = get_label_range(slice)
+    assert label_ranges == [[2, 0, 19], [8, 19, 60]]
