@@ -115,6 +115,8 @@ def test_get_data():
         "/home/fatemeh/Downloads/bird/data/final/m_data.csv",
         "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv",
         "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv",
+        "/home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_balanced_0.csv",
+        "/home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_unbalanced.csv",
     ],
 )
 def test_data_contents(file_path):

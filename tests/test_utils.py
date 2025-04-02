@@ -119,3 +119,24 @@ def test_equal_dataframes_false():
     )
 
     assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5]) is False
+
+
+@pytest.mark.local
+@pytest.mark.parametrize(
+    "file_path1, file_path2",
+    [
+        (
+            # "/home/fatemeh/Downloads/bird/data/final/s_data2.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index3.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig2.csv",
+            "/home/fatemeh/Downloads/bird/data/final/s_data.csv",
+            "/home/fatemeh/Downloads/bird/data/final/s_data_shift.csv",
+        )
+    ],
+)
+def test_files_equal(file_path1, file_path2):
+    df1 = pd.read_csv(file_path1, header=None)
+    df2 = pd.read_csv(file_path2, header=None)
+
+    assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5, 6, 7])
