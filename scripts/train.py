@@ -44,7 +44,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="small-bird", config=cfg_dict)
+# wandb.init(project="small-bird", config=cfg_dict)
 
 # Set seed and device
 bu.set_seed(cfg.seed)
@@ -52,7 +52,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Prepare datasets
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, target_labels
+    cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use
 )
 batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
 train_loader = DataLoader(

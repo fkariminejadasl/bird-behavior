@@ -8,14 +8,16 @@ from behavior import utils as bu
 from behavior.utils import ind2name
 
 # gt2_combined, gt2_sdata
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined")
+gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_j_data_index")
 # combined_unique_sorted012, s_data_orig_index
 df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None
+    "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv",
+    header=None,
 )
 df_db = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None
+    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
 )
+glen = 10  # 20
 
 # # Since balance.csv labels are 0, 1, 2, 3, 4, 5 and orig labels are 0, 2, 4, 5, 6, 9
 # mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
@@ -30,7 +32,7 @@ for i, dt in tqdm(enumerate(unique_dt.groups.keys()), total=len(unique_dt)):
     dataframe = unique_dt.get_group(dt).sort_values(by=[2])
     dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
     # print(dt[0], dt[1], len(dataframe))
-    fig = bu.plot_all(dataframe, dataframe_db)
+    fig = bu.plot_all(dataframe, dataframe_db, glen=glen)
     name = f"{i},{dt[0]},{dt[1]}"
     # Take the first label (it can also be max or any other thing)
     label = ind2name[dataframe.iloc[0, 3]]

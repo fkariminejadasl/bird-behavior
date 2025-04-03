@@ -130,8 +130,28 @@ def test_equal_dataframes_false():
             # "/home/fatemeh/Downloads/bird/data/final/proc/s_data_format.csv",
             # "/home/fatemeh/Downloads/bird/data/final/proc/s_data_no_shift.csv",
             # "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv",
-            "/home/fatemeh/Downloads/bird/data/final/s_data.csv",
-            "/home/fatemeh/Downloads/bird/data/final/s_data_shift.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index2.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/s_data.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/s_data_shift.csv",
+            #
+            # "/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", # not equal (mapping)
+            # "/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_no_mapping_with_index.csv", # not equal
+            # "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv", # not equal
+            # "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_no_mapping.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_with_index.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv",
+            #
+            # "/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig_no_mapping.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv",
+            # "/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig_no_mapping_with_index.csv", # not equal
+            # "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv",
+            #
+            "/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv",
+            "/home/fatemeh/Downloads/bird/data/final/proc/w_data_format.csv",
         )
     ],
 )

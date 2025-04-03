@@ -156,7 +156,7 @@ generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 # TODO: Ugly.  Need to fix this. The balanced data has 6 classes. I have to change the target_labels to 6.
 # target_labels = [0, 1, 2, 3, 4, 5]
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, [0, 1, 2, 3, 4, 5], channel_first=False
+    cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use, channel_first=False
 )
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
@@ -200,11 +200,12 @@ for name, p in pmodel.items():
     ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
         # freeze all layers except class head
-        # dict(model.named_parameters())[name].requires_grad = False
+        dict(model.named_parameters())[name].requires_grad = False
 print(
     f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
 )
 
+# bm.load_model("/home/fatemeh/Downloads/bird/result/f_mem1_bal116_best.pth", model, device)
 del pmodel, name, p, state_dict
 torch.cuda.empty_cache()
 print("model is loaded")
@@ -226,6 +227,11 @@ print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
+        # After these epochs, train all layers
+        if epoch == 500:
+            for param in model.parameters():
+                param.requires_grad = True
+            print("all layers are trainable")
         torch.cuda.empty_cache()
         start_time = datetime.now()
         print(f"start time: {start_time}")

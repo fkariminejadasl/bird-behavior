@@ -117,7 +117,7 @@ def setup_testing_dataloader(cfg):
     # Load data
     all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
     all_measurements, label_ids = bd.get_specific_labesl(
-        all_measurements, label_ids, bu.target_labels
+        all_measurements, label_ids, cfg.labels_to_use
     )
     dataset = bd.BirdDataset(
         all_measurements, label_ids, channel_first=cfg.channel_first
@@ -227,8 +227,8 @@ def load_labeled_embeddings(file_name):
     return feats, labels, output
 
 
-def load_unlabeled_embeddings():    
-    n = len(list(cfg.save_path.glob("*.npz")))-1
+def load_unlabeled_embeddings():
+    n = len(list(cfg.save_path.glob("*.npz"))) - 1
     # Load train embeddings
     u_feats = []
     for i in range(n):
@@ -361,7 +361,7 @@ print("train data is finished")
 
 # """
 # # small test for small bird
-# model = bm.BirdModel(4, 30, 9)
+# model = bm.BirdModel(4, 30, cfg.out_channel)
 
 model = bm1.TransformerEncoderMAE(
     img_size=cfg.g_len,
@@ -398,6 +398,15 @@ with torch.no_grad():
         # np.savez(cfg.save_path/"test_c3_avg_np", **{'feats':feats,'labels':labels})
 hook_handle.remove()
 """
+
+# [0, 1, 2, 3, 4, 5] -> [0, 2, 4, 5, 6, 9]
+# TODO: ind2name contains all labels (0-9). But label 7 is removed. In the balance data everything is mapped to 0-5.
+# mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
+keep_labels = [0, 2, 4, 5, 6, 9]  # [0, 2, 4, 6, 9] # [0, 2, 4, 5, 6, 9]
+discover_labels = [3]  # [1, 3, 5, 7] # [1, 3, 7]
+rem_labels = [1, 3, 7, 8]
+mapping = {i: l for i, l in enumerate(keep_labels)}
+
 test_loader = setup_testing_dataloader(cfg)
 save_labeled_embeddings(test_loader, model, layer_to_hook, device)
 print("test data is finished")
@@ -411,23 +420,10 @@ l_targets = torch.tensor(labels, device="cuda")
 u_feats_np = load_unlabeled_embeddings()  # (n=0)
 u_feats = torch.tensor(u_feats_np, device="cuda")
 
-
-# kmeans = K_Means(k=10, tolerance=1e-4, max_iterations=10, n_init=3, random_state=1, pairwise_batch_size=8192)
-# kmeans.fit_mix(u_feats, l_feats, l_targets)
-# preds = kmeans.labels_.cpu().numpy()
-# centers = kmeans.cluster_centers_.cpu()
-# preds = kmeans.labels_.cpu()
-# all(preds[:l_feats.shape[0]]==l_targets.cpu())
-# print("nmi", adjusted_mutual_info_score(preds, fls['labels']))
-
-l_feats = torch.tensor(feats, device="cuda")
-l_targets = torch.tensor(labels, device="cuda")
-# m = torch.nn.LayerNorm(l_feats.shape[1]).to(device)
-# l_feats = m(l_feats)
-# l_feats = torch.nn.functional.normalize(l_feats, p=2, dim=1)
-
 # classification
 preds = torch.argmax(torch.tensor(output), dim=1).cpu().numpy()
+probs = torch.softmax(torch.tensor(output), dim=1)
+cm = contingency_matrix(labels, preds)
 # 4516 4694 # small
 # 4532 4694 # ft: large 9 classes f_mem1
 # 2080 2184 # ft: large 9 classes small on balance data
@@ -438,17 +434,52 @@ preds = torch.argmax(torch.tensor(output), dim=1).cpu().numpy()
 # 1999 2184 # ft: large 6 classes f_mem_bal4
 # 4068 4327 # ft: large 6 classes f_mem1_bal3
 # For model trained on 6 parameters the sum is not correct. Since labels are 9 and preds are 6. contingency_matrix is correct.
-print(sum(preds == labels), l_feats.shape[0])
+# sum(preds == labels) # is incorrect if preds are 6 and labels are 9.
+if cm.shape[0] != cm.shape[1]:
+    print(sum(cm[[0, 1, 2, 4, 5]].diagonal()), l_feats.shape[0])
+    # print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
+else:
+    print(sum(cm.diagonal()), l_feats.shape[0])
 
-cm = contingency_matrix(labels, preds)
-keep_labels = [0, 2, 4, 5, 6, 9]
-rem_labels = [1, 3, 7, 8]
 # bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in keep_labels])
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 1, 2, 3, 4, 5, 6, 8, 9]])
+bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in cfg.labels_to_use])
+# bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in [0, 1, 2, 3, 4, 5, 6, 8, 9]], pred_labels=[bu.ind2name[i] for i in keep_labels])
 # fmt: on
+
+# Some plotting
+# fmt: off
+from datetime import datetime, timezone
+
+df = pd.read_csv(cfg.test_data_file, header=None)
+d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
+if cfg.channel_first:
+    d = d.permute(0, 2, 1)
+d = d.cpu().numpy()
+l = l.cpu().numpy()
+
+def plot_one(i):
+    j = np.where((np.abs(df.iloc[:,4] - d[i,0,0]) < 1e-6) & (np.abs(df.iloc[:,5] - d[i,0,1]) < 1e-6) & (np.abs(df.iloc[:,6] - d[i,0,2]) < 1e-6))[0][0]
+    bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
+    plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
+
+label, pred = 3, 5
+label_name, pred_name = bu.ind2name[mapping[label]], bu.ind2name[mapping[pred]]
+inds = np.where((labels==label) & (preds==pred))[0]
+save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem/f"{label_name}_{pred_name}"
+save_path.mkdir(parents=True, exist_ok=True)
+for i in inds:
+    plot_one(i)
+    dt = datetime.fromtimestamp(l[i,2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    name = f"{i},{l[i,1]},{dt},{torch.max(probs[i]).item():.2f}"
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    plt.close()
+# fmt: on
+
+# # Get second max probability value
+# second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
 
 # GCD
 """
@@ -467,47 +498,92 @@ lf = l_feats[~np.isin(labels, [1,3,7])]
 lt = l_targets[~np.isin(labels, [1,3,7])]
 u_old2new = dict(zip([1,3,7],[6,7,8]))
 l_old2new = dict(zip([0, 2, 4, 5, 6, 8],[0, 1, 2, 3, 4, 5]))
-u_new2old = {n:o for o, n in u_old2new.items()}
-l_new2old = {n:o for o, n in l_old2new.items()}
 ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
 lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 """
 
 """
 # 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering. 2000 samples for supervised and the rest for clustering.
-uf1 = l_feats[np.isin(labels, [1, 3, 7])]
-ut1 = l_targets[np.isin(labels, [1, 3, 7])]
-uf2 = l_feats[~np.isin(labels, [1, 3, 7])][2000:]
-ut2 = l_targets[~np.isin(labels, [1, 3, 7])][2000:]
+uf1 = l_feats[np.isin(labels, discover_labels)]
+ut1 = l_targets[np.isin(labels, discover_labels)]
+uf2 = l_feats[~np.isin(labels, discover_labels)][2000:]
+ut2 = l_targets[~np.isin(labels, discover_labels)][2000:]
 ut = torch.cat((ut1, ut2))
 uf = torch.cat((uf1, uf2))
-lf = l_feats[~np.isin(labels, [1, 3, 7])][:2000]
-lt = l_targets[~np.isin(labels, [1, 3, 7])][:2000]
+lf = l_feats[~np.isin(labels, discover_labels)][:2000]
+lt = l_targets[~np.isin(labels, discover_labels)][:2000]
 u_old2new = dict(zip([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 6, 1, 7, 2, 3, 4, 8, 5]))
 l_old2new = dict(zip([0, 2, 4, 5, 6, 8], [0, 1, 2, 3, 4, 5]))
-u_new2old = {n: o for o, n in u_old2new.items()}
-l_new2old = {n: o for o, n in l_old2new.items()}
 ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
 lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 """
 
+
+def old2new(all_labels, pred_labels, discover_labels):
+    """
+    GCD (Generalized Category Discovery) maps labels to new labels.
+    """
+    # all_labels = list(np.unique(labels))
+    # pred_labels = list(np.unique(preds))
+    new_labels = np.arange(len(pred_labels), len(all_labels))
+    d2n = {d: n for d, n in zip(discover_labels, new_labels)}
+    old = [i for i in all_labels if i not in discover_labels]
+    l_old2new = dict(zip(old, pred_labels))
+    new = []
+    for i in all_labels:
+        if i in discover_labels:
+            new.append(d2n[i])
+        else:
+            new.append(l_old2new[i])
+    u_old2new = dict(zip(all_labels, new))
+    return l_old2new, u_old2new
+
+
+def test_old2new():
+    u_old2new = dict(zip([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 6, 1, 7, 2, 3, 4, 8, 5]))
+    l_old2new = dict(zip([0, 2, 4, 5, 6, 8], [0, 1, 2, 3, 4, 5]))
+    discover_labels = [1, 3, 7]
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    pred_labels = [0, 1, 2, 3, 4, 5]
+    pred_l_old2new, pred_u_old2new = old2new(all_labels, pred_labels, discover_labels)
+    assert (
+        pred_u_old2new == u_old2new
+    ), f"u_old2new mismatch: {pred_u_old2new} != {u_old2new}"
+    assert (
+        pred_l_old2new == l_old2new
+    ), f"l_old2new mismatch: {pred_l_old2new} != {l_old2new}"
+
+    u_old2new = dict(zip([0, 1, 2, 3, 4, 5], [0, 1, 2, 5, 3, 4]))
+    l_old2new = dict(zip([0, 1, 2, 4, 5], [0, 1, 2, 3, 4]))
+    discover_labels = [3]
+    all_labels = [0, 1, 2, 3, 4, 5]
+    pred_labels = [0, 1, 2, 3, 4]
+    pred_l_old2new, pred_u_old2new = old2new(all_labels, pred_labels, discover_labels)
+    assert (
+        pred_u_old2new == u_old2new
+    ), f"u_old2new mismatch: {pred_u_old2new} != {u_old2new}"
+    assert (
+        pred_l_old2new == l_old2new
+    ), f"l_old2new mismatch: {pred_l_old2new} != {l_old2new}"
+
+
 # """
 # 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering.
-uf1 = l_feats[np.isin(labels, [1, 3, 7])]
-ut1 = l_targets[np.isin(labels, [1, 3, 7])]
-uf2 = l_feats[~np.isin(labels, [1, 3, 7])][2000:]
-ut2 = l_targets[~np.isin(labels, [1, 3, 7])][2000:]
+uf1 = l_feats[np.isin(labels, discover_labels)]
+ut1 = l_targets[np.isin(labels, discover_labels)]
+uf2 = l_feats[~np.isin(labels, discover_labels)][2000:]
+ut2 = l_targets[~np.isin(labels, discover_labels)][2000:]
 ut = torch.cat((ut1, ut2))
 uf = torch.cat((uf1, uf2, u_feats))
-lf = l_feats[~np.isin(labels, [1, 3, 7])][:2000]
-lt = l_targets[~np.isin(labels, [1, 3, 7])][:2000]
-u_old2new = dict(zip([0, 1, 2, 3, 4, 5, 6, 7, 8], [0, 6, 1, 7, 2, 3, 4, 8, 5]))
-l_old2new = dict(zip([0, 2, 4, 5, 6, 8], [0, 1, 2, 3, 4, 5]))
-u_new2old = {n: o for o, n in u_old2new.items()}
-l_new2old = {n: o for o, n in l_old2new.items()}
+lf = l_feats[~np.isin(labels, discover_labels)][:2000]
+lt = l_targets[~np.isin(labels, discover_labels)][:2000]
+all_labels = list(np.unique(labels))
+pred_labels = list(np.unique(preds))
+l_old2new, u_old2new = old2new(all_labels, pred_labels, discover_labels)
 ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
 lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 # """
+
 
 # fmt: off
 kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
@@ -531,6 +607,7 @@ false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 5, 6, 9, 1, 3, 8]])
+# bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 6, 9, 5]])
 # ['Flap', 'Soar', 'Float', 'SitStand', 'TerLoco', 'Pecking', 'ExFlap', 'Boat', 'Manouvre']
 # fmt: on
 
@@ -584,7 +661,7 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 # bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in range(10) if i != 7])
 
 # fmt: off
-reducer = PCA(n_components=2, random_state=cfg.seed)
+reducer = TSNE(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(feats)
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")

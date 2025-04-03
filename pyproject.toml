@@ -55,6 +55,7 @@ include = ["behavior"]
 markers = [
     "ignore: mark test as ignored",
     "local: mark test as run locally",
+    "debug: mark test as debug",
 ]
 
 # Remove packages completely

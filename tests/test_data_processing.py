@@ -10,6 +10,7 @@ import pytest
 import behavior.data as bd
 import behavior.data_processing as bdp
 from behavior.data_processing import (
+    build_index,
     find_matching_index,
     get_label_range,
     map_to_nearest_divisible_20,
@@ -151,3 +152,45 @@ def test_get_label_range():
     slice = df[(df[0] == device_id) & (df[1] == start_time)]
     label_ranges = get_label_range(slice)
     assert label_ranges == [[2, 0, 19], [8, 19, 60]]
+
+
+def test_build_index_n1():
+    keys = [[1], [2], [3]]
+    expected = {((1,),): [0], ((2,),): [1], ((3,),): [2]}
+    assert build_index(keys, n_rows=1) == expected
+
+
+def test_build_index_n2():
+    keys = [[1], [2], [3]]
+    expected = {((1,), (2,)): [0], ((2,), (3,)): [1]}
+    assert build_index(keys, n_rows=2) == expected
+
+
+def test_build_index_n3():
+    keys = [[1], [2], [3]]
+    expected = {((1,), (2,), (3,)): [0]}
+    assert build_index(keys, n_rows=3) == expected
+
+
+def test_build_index_too_few_elements():
+    keys = [[1]]
+    expected = {}
+    assert build_index(keys, n_rows=2) == expected
+
+
+def test_build_index_exact_elements():
+    keys = [[1], [2]]
+    expected = {((1,), (2,)): [0]}
+    assert build_index(keys, n_rows=2) == expected
+
+
+def test_build_index_duplicates_n1():
+    keys = [[1], [1], [1]]
+    expected = {((1,),): [0, 1, 2]}
+    assert build_index(keys, n_rows=1) == expected
+
+
+def test_build_index_duplicates_n2():
+    keys = [[1], [1], [1]]
+    expected = {((1,), (1,)): [0, 1]}
+    assert build_index(keys, n_rows=2) == expected

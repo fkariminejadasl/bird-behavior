@@ -76,69 +76,6 @@ def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
     file.close()
 
 
-def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
-    dd = loadmat(mat_file)["outputStruct"]
-    n_data = dd["nOfSamples"][0][0][0][0]
-
-    file = open(save_file, "a")
-    for i in range(n_data):
-        year, month, day, hour, min, sec = (
-            dd["year"][0][0][0, i],
-            dd["month"][0][0][0, i],
-            dd["day"][0][0][0, i],
-            dd["hour"][0][0][0, i],
-            dd["min"][0][0][0, i],
-            dd["sec"][0][0][i, 0],
-        )
-        t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
-
-        device_id = dd["sampleID"][0][0][0, i]
-        imu_x = dd["accX"][0][0][i][0][0]
-        imu_y = dd["accY"][0][0][i][0][0]
-        imu_z = dd["accZ"][0][0][i][0][0]
-        gps_single = dd["gpsSpd"][0][0][i, 0]
-        tags = dd["tags"][0][0][0][i]
-
-        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
-        if len(labels) == 0:
-            continue
-
-        for label, x, y, z in zip(labels, imu_x, imu_y, imu_z):
-            if label in ignored_labels:
-                continue
-            nlabel = new2old_labels[label]
-            if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
-                continue
-            ig = np.round(np.array([x, y, z, gps_single]), 6)
-            item = f"{device_id},{t},-1,{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
-            file.write(item)
-            file.flush()
-    file.close()
-
-
-def write_w_data_orig(csv_file, save_file):
-    file = open(save_file, "a")
-    with open(csv_file, "r") as f:
-        for r in f:
-            r = r.strip().split(", ")
-            device_id = r[0]
-            start_time = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            label, conf = r[-1].split(" ")
-            label = int(label) - 1  # zero-based
-            if conf == "0":
-                continue
-            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
-                continue
-            item = (
-                f"{device_id},{start_time},{r[2]},{label},{r[3]},{r[4]},{r[5]},{r[6]}\n"
-            )
-            file.write(item)
-        file.flush()
-    file.close()
-
-
 def group_equal_elements(df, subset, indices, equal_func):
     groups = []  # List to store groups of equal elements
     visited = set()  # Set to track which indices we have already grouped

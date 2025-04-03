@@ -49,21 +49,119 @@ def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
             f.write(item)
 
 
+def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
+    """
+    Becareful: save_file appending contents
+    """
+    dd = loadmat(mat_file)["outputStruct"]
+    n_data = dd["nOfSamples"][0][0][0][0]
+
+    file = open(save_file, "a")
+    for i in range(n_data):
+        year, month, day, hour, min, sec = (
+            dd["year"][0][0][0, i],
+            dd["month"][0][0][0, i],
+            dd["day"][0][0][0, i],
+            dd["hour"][0][0][0, i],
+            dd["min"][0][0][0, i],
+            dd["sec"][0][0][i, 0],
+        )
+        t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
+
+        device_id = dd["sampleID"][0][0][0, i]
+        imu_x = dd["accX"][0][0][i][0][0]
+        imu_y = dd["accY"][0][0][i][0][0]
+        imu_z = dd["accZ"][0][0][i][0][0]
+        gps_single = dd["gpsSpd"][0][0][i, 0]
+        tags = dd["tags"][0][0][0][i]
+
+        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
+        if len(labels) == 0:
+            continue
+
+        for label, x, y, z in zip(labels, imu_x, imu_y, imu_z):
+            if label in ignored_labels:
+                continue
+            nlabel = new2old_labels[label]
+            if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
+                continue
+            ig = np.round(np.array([x, y, z, gps_single]), 6)
+            item = f"{device_id},{t},-1,{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+            file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_w_data_orig(csv_file, save_file):
+    """
+    Becareful: save_file appending contents
+    """
+    file = open(save_file, "a")
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            start_time = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            label = int(label) - 1  # zero-based
+            if conf == "0":
+                continue
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            item = (
+                f"{device_id},{start_time},{r[2]},{label},{r[3]},{r[4]},{r[5]},{r[6]}\n"
+            )
+            file.write(item)
+        file.flush()
+    file.close()
+
+
 def round_array(arr, precision):
     return np.round(arr, precision)
 
 
-def build_index(keys_rounded):
+# def build_index(keys_rounded,):
+#     """
+#     Create a dictionary where key = (row1_tuple, row2_tuple), value = index
+#     """
+#     index_map = {}
+#     for i in range(len(keys_rounded) - 2):
+#         k1 = tuple(keys_rounded[i])
+#         k2 = tuple(keys_rounded[i + 1])
+#         k3 = tuple(keys_rounded[i + 2])
+#         index_map[(k1, k2, k3)] = i
+#     return index_map
+
+
+def build_index(keys_rounded, n_rows=3):
     """
-    Create a dictionary where key = (row1_tuple, row2_tuple), value = index
+    Create a dictionary where key = tuple of n_rows consecutive tuples, value = starting index
     """
     index_map = {}
-    for i in range(len(keys_rounded) - 2):
-        k1 = tuple(keys_rounded[i])
-        k2 = tuple(keys_rounded[i + 1])
-        k3 = tuple(keys_rounded[i + 2])
-        index_map[(k1, k2, k3)] = i
+    for i in range(len(keys_rounded) - n_rows + 1):
+        key = tuple(tuple(keys_rounded[i + j]) for j in range(n_rows))
+        if key in index_map:
+            index_map[key].append(i)
+        else:
+            index_map[key] = [i]
     return index_map
+
+
+def match_best_sequence(index_maps, keys_rounded, i):
+    """
+    Try index maps from most specific (3 rows) to general (1 row).
+    Returns (index, n_rows) if a match is found, else (None, None).
+    """
+    for n_rows in reversed(range(1, 4)):  # Try 3 → 2 → 1
+        if i + n_rows > len(keys_rounded):
+            continue
+        key = tuple(tuple(keys_rounded[i + j]) for j in range(n_rows))
+        indices = index_maps[n_rows - 1].get(key)
+        if indices and len(indices) == 1:
+            return indices[0], n_rows  # Found unique match
+    return None, None
 
 
 def add_index(df_db, df, save_file):
@@ -72,14 +170,14 @@ def add_index(df_db, df, save_file):
     precision = -int(np.log10(tol))
 
     # Preprocess keys
-    # keys = df_db.iloc[:, [4, 5, 6, 7]].values
-    # keys_rounded = round_array(keys, precision)
     df_db.iloc[:, [4, 5, 6, 7]] = np.round(df_db.iloc[:, [4, 5, 6, 7]], precision)
     keys_rounded = df_db.iloc[:, [0, 1, 4, 5, 6, 7]].values
-    index_map = build_index(keys_rounded)
+    index_map1 = build_index(keys_rounded, 1)
+    index_map2 = build_index(keys_rounded, 2)
+    index_map3 = build_index(keys_rounded, 3)
+    index_maps = [index_map1, index_map2, index_map3]
 
     # Pre-round df once
-    # df_values = round_array(df.iloc[:, [4, 5, 6, 7]].values, precision)
     df_values = df.copy()
     df_values.iloc[:, [4, 5, 6, 7]] = np.round(df.iloc[:, [4, 5, 6, 7]], precision)
     df_values = df_values.iloc[:, [0, 1, 4, 5, 6, 7]].values
@@ -87,33 +185,24 @@ def add_index(df_db, df, save_file):
     # Output buffer
     output_lines = []
     ind = 0
-    last_ind = 0
     j = 0
     pbar = tqdm(total=len(df))
     while j < len(df):
-        if j == len(df) - 2:
-            sel_ind = -1
-        else:
-            q1 = tuple(df_values[j])
-            q2 = tuple(df_values[j + 1])
-            q3 = tuple(df_values[j + 2])
-            sel_ind = index_map.get((q1, q2, q3), -1)
-
-        if sel_ind == -1:
-            inds = [last_ind + 1, last_ind + 2]
-            js = [j, j + 1]
-            last_ind = last_ind + 2
-            j = j + 2
-            pbar.update(2)
-        else:
-            inds = [sel_ind]
-            js = [j]
-            last_ind = sel_ind
-            j = j + 1
+        sel_ind, n_row = match_best_sequence(index_maps, df_values, j)
+        if sel_ind is None:
+            j += 1
             pbar.update(1)
+            continue  # No match found
+
+        # Match found
+        inds = [sel_ind + item for item in range(n_row)]
+        js = [j + item for item in range(n_row)]
+        j += n_row
+        pbar.update(n_row)
+
         for jj, ind in zip(js, inds):
             i = df.iloc[jj]
-            imu_ind = df_db.iloc[ind, 2]  # if ind != -1 else -1
+            imu_ind = df_db.iloc[ind, 2]
             item = (
                 f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
                 f"{i[6]:.6f},{i[7]:.6f}\n"
@@ -123,6 +212,65 @@ def add_index(df_db, df, save_file):
     # Write all at once
     with open(save_file, "w") as file:
         file.writelines(output_lines)
+
+
+# def add_index(df_db, df, save_file):
+#     # Settings
+#     tol = 1e-4  # precision 6 is issue in original data
+#     precision = -int(np.log10(tol))
+
+#     # Preprocess keys
+#     # keys = df_db.iloc[:, [4, 5, 6, 7]].values
+#     # keys_rounded = round_array(keys, precision)
+#     df_db.iloc[:, [4, 5, 6, 7]] = np.round(df_db.iloc[:, [4, 5, 6, 7]], precision)
+#     keys_rounded = df_db.iloc[:, [0, 1, 4, 5, 6, 7]].values
+#     index_map = build_index(keys_rounded)
+
+#     # Pre-round df once
+#     # df_values = round_array(df.iloc[:, [4, 5, 6, 7]].values, precision)
+#     df_values = df.copy()
+#     df_values.iloc[:, [4, 5, 6, 7]] = np.round(df.iloc[:, [4, 5, 6, 7]], precision)
+#     df_values = df_values.iloc[:, [0, 1, 4, 5, 6, 7]].values
+
+#     # Output buffer
+#     output_lines = []
+#     ind = 0
+#     last_ind = 0
+#     j = 0
+#     pbar = tqdm(total=len(df))
+#     while j < len(df):
+#         if j == len(df) - 2:
+#             sel_ind = -1
+#         else:
+#             q1 = tuple(df_values[j])
+#             q2 = tuple(df_values[j + 1])
+#             q3 = tuple(df_values[j + 2])
+#             sel_ind = index_map.get((q1, q2, q3), -1)
+
+#         if sel_ind == -1:
+#             inds = [last_ind + 1, last_ind + 2]
+#             js = [j, j + 1]
+#             last_ind = last_ind + 2
+#             j = j + 2
+#             pbar.update(2)
+#         else:
+#             inds = [sel_ind]
+#             js = [j]
+#             last_ind = sel_ind
+#             j = j + 1
+#             pbar.update(1)
+#         for jj, ind in zip(js, inds):
+#             i = df.iloc[jj]
+#             imu_ind = df_db.iloc[ind, 2]  # if ind != -1 else -1
+#             item = (
+#                 f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
+#                 f"{i[6]:.6f},{i[7]:.6f}\n"
+#             )
+#             output_lines.append(item)
+
+#     # Write all at once
+#     with open(save_file, "w") as file:
+#         file.writelines(output_lines)
 
 
 def find_matching_index(keys, query, tol=1e-4):

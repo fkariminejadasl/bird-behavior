@@ -149,6 +149,30 @@ def test_data_contents(file_path):
     assert len(df[df.duplicated() == True]) == 0
 
 
+@pytest.mark.debug
+def test_find_index_jumps():
+    # Not actual test but mroe of analysis
+    df = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None
+    )
+    df = df.sort_values([0, 1, 2])
+    groups = df.groupby([0, 1])
+    for k, v in groups:
+        diff = np.diff(v[2].values)
+        idxs = np.where(diff != 1)[0]
+        large_diff = [diff[i] for i in idxs]
+        if len(large_diff) != 0:
+            print(k, large_diff)
+    # no jupms in m_data_index.csv, w_data_index.csv
+    # s_data_index.csv there are jumps but OK
+    # j_data_index.csv
+    # (6080, '2014-06-26 07:52:46') [11]
+    # (6080, '2014-06-26 07:55:34') [8]
+    # (6080, '2014-06-26 07:56:29') [8]
+    # (6080, '2014-06-26 07:59:49') [21]
+    # (6080, '2014-06-26 08:02:19') [7]
+
+
 # df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
 # df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data.csv", header=None)
 # df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv", header=None)
