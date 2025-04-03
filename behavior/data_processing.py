@@ -273,6 +273,14 @@ def add_index(df_db, df, save_file):
 #         file.writelines(output_lines)
 
 
+def map_new_labels(df, new2old_labels, save_file):
+    """
+    Map new labels to old labels
+    """
+    df[3] = df[3].map(new2old_labels)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
 def find_matching_index(keys, query, tol=1e-4):
     """
     find matching two rows

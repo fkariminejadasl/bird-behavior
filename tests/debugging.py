@@ -7,6 +7,7 @@ from tqdm import tqdm
 from behavior.data import create_balanced_data, save_specific_labels
 from behavior.data_processing import (
     add_index,
+    map_new_labels,
     write_j_data_orig,
     write_m_data_orig,
     write_unsorted_data,
@@ -77,23 +78,28 @@ add_index(df_db, df, save_file)
 """
 # Debugging: j_data (Suzzane)
 # ======
-dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-ignored_labels = [8, 14, 15, 16, 17]
-# bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
+# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
+# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+# ignored_labels = [8, 14, 15, 16, 17]
+# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+# write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
 
-all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
-orig_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv")
-write_unsorted_data(all_data_file, orig_file, save_file, 10)
+# all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
+# orig_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv")
+# write_unsorted_data(all_data_file, orig_file, save_file, 10)
 
-df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv"
-add_index(df_db, df, save_file)
+# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
+# df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None)
+# save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv"
+# add_index(df_db, df, save_file)
+
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
+save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map.csv"
+new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
+map_new_labels(df, new2old_labels, save_file)
 """
 
 """
