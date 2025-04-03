@@ -244,6 +244,132 @@ def plot_all(dataframe, dataframe_db, glen=20):
     return fig
 
 
+def plot_labeled_data(df, df_db, ind2name):
+    """
+    Plot IMU of a device and starting time with correctly aligned vertical lines and labels.
+
+    Parameters:
+    dataframe: Labeled dataframe (subset of dataframe_db)
+    dataframe_db: Full database dataframe (no labels)
+    glen: Interval for vertical lines (default=20)
+
+    Returns:
+    fig: Matplotlib figure object
+
+    e.g.:
+    dt = (6011, "2015-04-30 09:09:26") # 200
+    dt = (6011, "2015-04-30 09:10:31") # 200 (only 120 labeled)
+    dt = (6016, "2015-05-01 11:15:46") # 120
+    dt = (533, "2012-05-15 03:10:11") # 60
+    dt = (534, "2013-06-10 10:36:23") # start from 7
+    dt = (533, "2012-05-15 03:38:59") # separate
+
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None) # s_data_orig_index
+    df = df.groupby(by=[0, 1]).get_group(dt).sort_values(by=[2])
+    dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
+    fig = plot_all(dataframe, df_db)
+    plt.show(block=True)
+    """
+
+    max_index = 100  # Number of indices per row
+    n_plot_rows = 2  # Number of rows for the plot
+    y_limits = [-3.5, 3.5]
+
+    df = df.sort_values([0, 1, 2])
+    df_db = df_db.sort_values([0, 1, 2])
+    assert len(np.unique(df[0])) == 1
+    assert len(np.unique(df[1])) == 1
+    assert len(np.unique(df[7])) == 1
+
+    # Create figure and subplots
+    fig, axs = plt.subplots(n_plot_rows, 1, figsize=(18, 4 * n_plot_rows))
+    if isinstance(axs, matplotlib.axes._axes.Axes):
+        axs = [axs]
+
+    plt.title(f"gps: {df.iloc[0,7]:.2f}")  # GPS info
+    fig.tight_layout()
+
+    # Extract IMU data
+    all_data_db = df_db[[4, 5, 6]].values
+
+    # Get indices
+    all_indices_db = df_db[2].values
+
+    # Plot data and vertical lines for each row
+    for j, ax in enumerate(axs):
+        # Get data for the current row
+        data = all_data_db[j * max_index : j * max_index + max_index]
+        if len(data) == 0:
+            continue
+
+        indices = all_indices_db[j * max_index : j * max_index + max_index]
+
+        # Plot IMU data
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
+
+        # Set axis limits
+        ax.set_xlim(indices[0], indices[0] + max_index - 1)
+        ax.set_ylim(*y_limits)
+        ax.set_yticks([y_limits[0], 0, y_limits[1]])
+
+        # Draw horizontal zero line
+        ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
+
+        if j == 0:
+            sel_df = df[df[2] < max_index]
+        else:
+            sel_df = df[df[2] >= max_index]
+        labels = sel_df[3].values
+        label_diffs = np.diff(labels)
+        label_change_inds = np.where(label_diffs != 0)[0]
+        sl_inds = [0] + list(label_change_inds + 1)
+        el_inds = list(label_change_inds + 1) + [len(sel_df)]
+        xticks = []
+        for sl, el in zip(sl_inds, el_inds):
+            cut_df = sel_df.iloc[sl:el]
+            cut_ind_diffs = np.diff(cut_df[2].values)
+            # Non consecutive indices
+            cut_nc_inds = np.where(cut_ind_diffs != 1)[0]
+            s_inds = [0] + list(cut_nc_inds + 1)
+            e_inds = list(cut_nc_inds + 1) + [len(cut_df)]
+            for s, e in zip(s_inds, e_inds):
+                cut_cut_df = cut_df.iloc[s:e]
+                s_i, e_i = cut_cut_df.iloc[0, 2], cut_cut_df.iloc[-1, 2]
+                ax.plot([s_i, s_i], y_limits, "-", color="black")
+                ax.plot([e_i, e_i], y_limits, "-", color="black")
+                label = ind2name[cut_cut_df.iloc[0, 3]]
+                text_loc = [s_i + (e_i - s_i + 1) // 2 - 2, y_limits[1] - 0.5]
+                ax.text(*text_loc, f"{label}", color="black", fontsize=12)
+                xticks.extend([s_i, e_i])
+        ax.set_xticks(xticks)
+
+    return fig
+
+
+# ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking',
+# 10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
+# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
+# df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None)
+# # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None)
+# df_db = df_db.sort_values([0, 1, 2])
+# df = df.sort_values([0, 1, 2])
+# device, start_time = 533,"2012-05-15 03:19:46" # 6080, '2014-06-26 07:59:49' #533, "2012-05-15 03:15:00"
+# cut_df = df[(df[0] == device) & (df[1] == start_time)]
+# cut_df_db = df_db[(df_db[0] == device) & (df_db[1] == start_time)]
+# fig = plot_labeled_data(cut_df, cut_df_db, ind2name)
+
+
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
 def plot_all_with_map(dataframe, glen=20):
     from behavior import map as bmap

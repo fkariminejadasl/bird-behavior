@@ -171,6 +171,7 @@ def test_find_index_jumps():
     # (6080, '2014-06-26 07:56:29') [8]
     # (6080, '2014-06-26 07:59:49') [21]
     # (6080, '2014-06-26 08:02:19') [7]
+    # (6080, '2014-06-26 07:59:49') [21] was wrong. But if we ignore label 10, everything is OK.
 
 
 # df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)

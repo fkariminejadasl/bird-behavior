@@ -97,7 +97,7 @@ add_index(df_db, df, save_file)
 # add_index(df_db, df, save_file)
 
 df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map.csv"
+save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv"
 new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
 map_new_labels(df, new2old_labels, save_file)
 """
@@ -186,6 +186,7 @@ ignored_labels = [10, 14, 15, 16, 17]
 #         print(r3, r2)
 #         break
 
+# s:w 5: 9 and 9: 2 mistakes
 # ts = np.unique(df4[df4[3]==5][1])
 # for t in ts:
 #     sel = df1[df1[1]==t]
