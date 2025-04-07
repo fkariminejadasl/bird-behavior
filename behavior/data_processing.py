@@ -149,19 +149,30 @@ def build_index(keys_rounded, n_rows=3):
     return index_map
 
 
-def match_best_sequence(index_maps, keys_rounded, i):
+def match_forward_backward(index_maps, keys_rounded, i):
     """
-    Try index maps from most specific (3 rows) to general (1 row).
-    Returns (index, n_rows) if a match is found, else (None, None).
+    Try to find the best match at index i by checking forward and backward
+    for n=3, 2, 1 in that order. Returns (match_index_in_db, start_row_in_df, n_rows)
     """
-    for n_rows in reversed(range(1, 4)):  # Try 3 → 2 → 1
-        if i + n_rows > len(keys_rounded):
-            continue
-        key = tuple(tuple(keys_rounded[i + j]) for j in range(n_rows))
-        indices = index_maps[n_rows - 1].get(key)
-        if indices and len(indices) == 1:
-            return indices[0], n_rows  # Found unique match
-    return None, None
+    max_n = 3
+    L = len(keys_rounded)
+
+    for n_rows in reversed(range(1, max_n + 1)):
+        # Forward match
+        if i + n_rows <= L:
+            key_fwd = tuple(tuple(keys_rounded[i + j]) for j in range(n_rows))
+            indices_fwd = index_maps[n_rows - 1].get(key_fwd)
+            if indices_fwd and len(indices_fwd) == 1:
+                return indices_fwd[0], i, n_rows
+
+        # Backward match
+        if i - (n_rows - 1) >= 0:
+            key_bwd = tuple(tuple(keys_rounded[i - j]) for j in reversed(range(n_rows)))
+            indices_bwd = index_maps[n_rows - 1].get(key_bwd)
+            if indices_bwd and len(indices_bwd) == 1:
+                return indices_bwd[0], i - (n_rows - 1), n_rows
+
+    return None, None, None
 
 
 def add_index(df_db, df, save_file):
@@ -188,31 +199,46 @@ def add_index(df_db, df, save_file):
     j = 0
     pbar = tqdm(total=len(df))
     while j < len(df):
-        sel_ind, n_row = match_best_sequence(index_maps, df_values, j)
+        # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
+        # dd = df.iloc[j:j+1]
+        # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
+        # if len(found) != 0:
+        #     print("Found", found)
+
+        sel_ind, start_j, n_row = match_forward_backward(index_maps, df_values, j)
+        # sel_ind, n_row = match_best_sequence(index_maps, df_values, j)
         if sel_ind is None:
             j += 1
             pbar.update(1)
             continue  # No match found
 
         # Match found
-        inds = [sel_ind + item for item in range(n_row)]
-        js = [j + item for item in range(n_row)]
-        j += n_row
-        pbar.update(n_row)
+        match_offset = j - start_j  # Position of current j in the matched window
+        ind = sel_ind + match_offset
+        i = df.iloc[j]
+        imu_ind = df_db.iloc[ind, 2]
+        item = (
+            f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
+            f"{i[6]:.6f},{i[7]:.6f}\n"
+        )
+        output_lines.append(item)
 
-        for jj, ind in zip(js, inds):
-            i = df.iloc[jj]
-            imu_ind = df_db.iloc[ind, 2]
-            item = (
-                f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
-                f"{i[6]:.6f},{i[7]:.6f}\n"
-            )
-            output_lines.append(item)
+        j += 1
+        pbar.update(1)
 
     # Write all at once
     with open(save_file, "w") as file:
         file.writelines(output_lines)
 
+
+df_db = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
+)
+df = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None
+)
+save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index2.csv"
+add_index(df_db, df, save_file)
 
 # def add_index(df_db, df, save_file):
 #     # Settings
