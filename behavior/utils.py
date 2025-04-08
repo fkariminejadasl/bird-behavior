@@ -330,6 +330,8 @@ def plot_labeled_data(df, df_db, ind2name):
             sel_df = df[df[2] < max_index]
         else:
             sel_df = df[df[2] >= max_index]
+        if sel_df.empty:
+            continue
         labels = sel_df[3].values
         label_diffs = np.diff(labels)
         label_change_inds = np.where(label_diffs != 0)[0]
@@ -364,7 +366,7 @@ def plot_labeled_data(df, df_db, ind2name):
 # # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None)
 # df_db = df_db.sort_values([0, 1, 2])
 # df = df.sort_values([0, 1, 2])
-# device, start_time = 533,"2012-05-15 03:19:46" # 6080, '2014-06-26 07:59:49' #533, "2012-05-15 03:15:00"
+# device, start_time = 6011, '2015-04-30 09:09:26' #533,"2012-05-15 03:19:46" # 6080, '2014-06-26 07:59:49' #533, "2012-05-15 03:15:00"
 # cut_df = df[(df[0] == device) & (df[1] == start_time)]
 # cut_df_db = df_db[(df_db[0] == device) & (df_db[1] == start_time)]
 # fig = plot_labeled_data(cut_df, cut_df_db, ind2name)
@@ -856,3 +858,9 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
     a = df1[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
     b = df2[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
     return a.equals(b)
+
+    # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
+    # dd = df.iloc[j:j+1]
+    # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
+    # if len(found) != 0:
+    #     print("Found", found)
