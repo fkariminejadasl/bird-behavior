@@ -216,6 +216,43 @@ def map_new_labels(df, new2old_labels, save_file):
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
+def get_rules():
+    """
+    Get rules for label selection
+
+    Example:
+    rule["Flap"]["ExFlap"] is 2, which mean the second label ExFlap is selected.
+    """
+    # fmt: off
+    labels = [
+        "Flap", "ExFlap", "Soar", "Manouvre", "Boat", "Float", "Float_groyne",  "SitStand", "TerLoco",
+        "Pecking", "Handling_mussel"
+    ]
+    ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking', 
+    10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
+
+    discard={7: 'Other', 10: 'Looking_food', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra'}
+    upper_triangle = np.array([
+        [1, 2, 1, 2, 1, 1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 2, 0, 0, 0, 1, 2, 2, 2],
+        [0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 0, 1, 2, 2],
+        [0, 0, 0, 0, 0, 1, 0, 0, 2, 2, 2],
+        [0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 2],
+        [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2],
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    ])
+    # fmt: on
+
+    rule = upper_triangle + upper_triangle.T - np.diag(upper_triangle.diagonal())
+    rule_df = pd.DataFrame(rule, index=labels, columns=labels)
+
+    return ind2name, discard, rule_df
+
+
 def find_matching_index(keys, query, tol=1e-4):
     """
     find matching two rows
