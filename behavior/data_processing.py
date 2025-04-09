@@ -2,6 +2,7 @@ from collections import Counter, defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -231,7 +232,7 @@ def get_rules():
     ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking', 
     10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
 
-    discard={7: 'Other', 10: 'Looking_food', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra'}
+    ignore_labels = {7: 'Other', 10: 'Looking_food', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra'}
     upper_triangle = np.array([
         [1, 2, 1, 2, 1, 1, 1, 1, 0, 0, 0],
         [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0],
@@ -250,7 +251,9 @@ def get_rules():
     rule = upper_triangle + upper_triangle.T - np.diag(upper_triangle.diagonal())
     rule_df = pd.DataFrame(rule, index=labels, columns=labels)
 
-    return ind2name, discard, rule_df
+    return SimpleNamespace(
+        ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df
+    )
 
 
 def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame:

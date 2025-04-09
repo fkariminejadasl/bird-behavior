@@ -239,6 +239,3 @@ def test_complete_data_from_db_with_example():
     expected_df_sorted = expected_df.sort_values(by=[0, 1, 2]).reset_index(drop=True)
 
     assert result_df_sorted.equals(expected_df_sorted)
-
-
-test_complete_data_from_db_with_example()

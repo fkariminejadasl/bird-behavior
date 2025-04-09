@@ -174,6 +174,54 @@ def test_find_index_jumps():
     # (6080, '2014-06-26 07:59:49') [21] was wrong. But if we ignore label 10, everything is OK.
 
 
+import itertools
+from collections import defaultdict
+
+from behavior import data_processing as bp
+
+
+@pytest.mark.debug
+def test_find_label_combination():
+    df = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None
+    )
+    df = df.sort_values([0, 1, 2])
+    ind2name = bp.get_rules().ind2name
+    ignore_labels = bp.get_rules().ignore_labels
+
+    label_combi = defaultdict(list)
+    labels_for_combi = [v for k, v in ind2name.items() if k not in ignore_labels]
+    all_combis = list(itertools.combinations(labels_for_combi, 2))
+    label_combi_counters = {i: 0 for i in all_combis}
+    for dt, items in df.groupby([0, 1]):
+        labels = np.unique(items[3])
+        label_names = [ind2name[i] for i in labels if i not in ignore_labels]
+        if len(label_names) > 1:
+            label_combi[label_names[0]].extend(label_names[1:])
+            all_combis = list(itertools.combinations(label_names, 2))
+            for i in all_combis:
+                label_combi_counters[i] += 1
+
+    label_combi = {k: set(v) for k, v in label_combi.items()}
+    label_combi_counters = {k: v for k, v in label_combi_counters.items() if v > 0}
+    label_combi_counters = dict(
+        sorted(label_combi_counters.items(), key=lambda x: x[1], reverse=True)
+    )
+
+    # for dt, items in df.groupby([0, 1]):
+    #     label_names = [ind2name[i] for i in np.unique(items[3])]
+    #     if "ExFlap" in label_names and "SitStand" in label_names:
+    #         print(dt[0], dt[1])
+
+    # m_data: {'SitStand': {'Handling_mussel', 'TerLoco'}}
+    # {('SitStand', 'TerLoco'): 9, ('SitStand', 'Handling_mussel'): 9}
+    # w_data: 'TerLoco': {'Pecking'}, 'Flap': {'Soar', 'Manouvre', 'ExFlap'}, 'Soar': {'Manouvre'}, 'SitStand': {'Pecking', 'TerLoco'}, 'ExFlap': {'Soar', 'SitStand', 'Manouvre'}}
+    # {('Soar', 'Manouvre'): 35, ('TerLoco', 'Pecking'): 28, ('SitStand', 'Pecking'): 17, ('Flap', 'Soar'): 15, ('SitStand', 'TerLoco'): 10, ('Flap', 'Manouvre'): 9, ('Flap', 'ExFlap'): 8, ('ExFlap', 'Soar'): 4, ('ExFlap', 'Manouvre'): 3, ('ExFlap', 'SitStand'): 1}
+    # s_data: {'TerLoco': {'Pecking'}, 'Flap': {'Manouvre', 'Soar', 'ExFlap'}, 'SitStand': {'Pecking', 'TerLoco'}, 'Soar': {'Manouvre'}, 'ExFlap': {'Manouvre', 'Soar', 'SitStand'}}
+    # {('Soar', 'Manouvre'): 33, ('TerLoco', 'Pecking'): 22, ('SitStand', 'Pecking'): 12, ('Flap', 'Soar'): 11, ('Flap', 'Manouvre'): 9, ('SitStand', 'TerLoco'): 8, ('Flap', 'ExFlap'): 5, ('ExFlap', 'Manouvre'): 3, ('ExFlap', 'Soar'): 2, ('ExFlap', 'SitStand'): 1}
+    # weird: w_data: 782,2014-05-31 22:43:03 (sitstand with exflap)
+
+
 # df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data.csv", header=None)
 # df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_data.csv", header=None)
 # df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_data.csv", header=None)
