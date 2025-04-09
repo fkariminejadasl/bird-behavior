@@ -253,6 +253,69 @@ def get_rules():
     return ind2name, discard, rule_df
 
 
+def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame:
+    """
+    Complete labeled sensor data by retrieving missing sensor data from df_db
+
+    This function assumes:
+    - `df` contains labeled but incomplete sensor data (some sensor indices per device/timestamp).
+    - `df_db` contains the full sensor data (all indices), but without labels (dummy label -1 is used).
+
+    For each (device_id, timestamp) pair in `df`, the function:
+    - Retrieves all corresponding sensor rows from `df_db`.
+    - Fills in known labels from `df`.
+    - Assigns label -1 where no label is available.
+
+    Args:
+        df (pd.DataFrame): Labeled but incomplete sensor data. Must contain columns [0, 1, 2, 3, ...].
+        df_db (pd.DataFrame): Complete sensor data without valid labels. Must contain columns [0, 1, 2, 3, ...].
+
+    Returns:
+        pd.DataFrame: Completed DataFrame with all sensor indices for relevant timestamps and device_ids,
+                      containing correct labels where available, and -1 where not.
+    """
+    # Step 1: Get relevant (device_id, timestamp) pairs from df
+    device_date_pairs = df[[0, 1]].drop_duplicates()
+
+    # Step 2: Filter df_db to rows matching those pairs
+    df_db_filtered = df_db.merge(device_date_pairs, on=[0, 1], how="inner")
+
+    # Step 3: Merge filtered df_db with df to get new labels
+    df_labeled = df_db_filtered.merge(
+        df[[0, 1, 2, 3]], on=[0, 1, 2], how="left", suffixes=("", "_new")
+    )
+    # # The merge seems a bit magical and creates own issues with changing the column names and dtypes.
+    # # It is faster version of looping over the rows and checking for matches and replacing them.
+    # # We need to fix the column names and dtypes afterwards.
+    # dt = device_date_pairs.iloc[0]
+    # subset_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].copy()
+    # subset_df = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
+    # for i in df[2].values:
+    #     ind = subset_db[subset_db[2] == i].index[0]
+    #     subset_db.loc[ind, 3] = subset_df[subset_df[2] == i].iloc[0, 3]
+
+    # Step 4: Ensure column names are clean integers again
+    # Merge created the string columns "3_new" and "3"
+    df_labeled.columns = [
+        int(col) if str(col).isdigit() else col for col in df_labeled.columns
+    ]
+
+    # Step 5: Overwrite label (column 3) if a new one exists
+    df_labeled[3] = df_labeled["3_new"].combine_first(df_labeled[3])
+    df_labeled = df_labeled.drop(columns=["3_new"])
+    df_labeled[3] = df_labeled[3].astype("int64")  # Merge created a float column
+
+    # Step 6: Update df with the new labels
+    df = (
+        pd.concat([df, df_labeled])
+        .drop_duplicates()
+        .sort_values([0, 1, 2])
+        .reset_index(drop=True)
+    )
+
+    return df
+
+
 def find_matching_index(keys, query, tol=1e-4):
     """
     find matching two rows
