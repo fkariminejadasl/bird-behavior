@@ -118,23 +118,6 @@ def write_w_data_orig(csv_file, save_file):
     file.close()
 
 
-def round_array(arr, precision):
-    return np.round(arr, precision)
-
-
-# def build_index(keys_rounded,):
-#     """
-#     Create a dictionary where key = (row1_tuple, row2_tuple), value = index
-#     """
-#     index_map = {}
-#     for i in range(len(keys_rounded) - 2):
-#         k1 = tuple(keys_rounded[i])
-#         k2 = tuple(keys_rounded[i + 1])
-#         k3 = tuple(keys_rounded[i + 2])
-#         index_map[(k1, k2, k3)] = i
-#     return index_map
-
-
 def build_index(keys_rounded, n_rows=3):
     """
     Create a dictionary where key = tuple of n_rows consecutive tuples, value = starting index
@@ -199,12 +182,6 @@ def add_index(df_db, df, save_file):
     j = 0
     pbar = tqdm(total=len(df))
     while j < len(df):
-        # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
-        # dd = df.iloc[j:j+1]
-        # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
-        # if len(found) != 0:
-        #     print("Found", found)
-
         sel_ind, start_j, n_row = match_forward_backward(index_maps, df_values, j)
         # sel_ind, n_row = match_best_sequence(index_maps, df_values, j)
         if sel_ind is None:
@@ -229,74 +206,6 @@ def add_index(df_db, df, save_file):
     # Write all at once
     with open(save_file, "w") as file:
         file.writelines(output_lines)
-
-
-df_db = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
-)
-df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None
-)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index2.csv"
-add_index(df_db, df, save_file)
-
-# def add_index(df_db, df, save_file):
-#     # Settings
-#     tol = 1e-4  # precision 6 is issue in original data
-#     precision = -int(np.log10(tol))
-
-#     # Preprocess keys
-#     # keys = df_db.iloc[:, [4, 5, 6, 7]].values
-#     # keys_rounded = round_array(keys, precision)
-#     df_db.iloc[:, [4, 5, 6, 7]] = np.round(df_db.iloc[:, [4, 5, 6, 7]], precision)
-#     keys_rounded = df_db.iloc[:, [0, 1, 4, 5, 6, 7]].values
-#     index_map = build_index(keys_rounded)
-
-#     # Pre-round df once
-#     # df_values = round_array(df.iloc[:, [4, 5, 6, 7]].values, precision)
-#     df_values = df.copy()
-#     df_values.iloc[:, [4, 5, 6, 7]] = np.round(df.iloc[:, [4, 5, 6, 7]], precision)
-#     df_values = df_values.iloc[:, [0, 1, 4, 5, 6, 7]].values
-
-#     # Output buffer
-#     output_lines = []
-#     ind = 0
-#     last_ind = 0
-#     j = 0
-#     pbar = tqdm(total=len(df))
-#     while j < len(df):
-#         if j == len(df) - 2:
-#             sel_ind = -1
-#         else:
-#             q1 = tuple(df_values[j])
-#             q2 = tuple(df_values[j + 1])
-#             q3 = tuple(df_values[j + 2])
-#             sel_ind = index_map.get((q1, q2, q3), -1)
-
-#         if sel_ind == -1:
-#             inds = [last_ind + 1, last_ind + 2]
-#             js = [j, j + 1]
-#             last_ind = last_ind + 2
-#             j = j + 2
-#             pbar.update(2)
-#         else:
-#             inds = [sel_ind]
-#             js = [j]
-#             last_ind = sel_ind
-#             j = j + 1
-#             pbar.update(1)
-#         for jj, ind in zip(js, inds):
-#             i = df.iloc[jj]
-#             imu_ind = df_db.iloc[ind, 2]  # if ind != -1 else -1
-#             item = (
-#                 f"{i[0]},{i[1]},{imu_ind},{i[3]},{i[4]:.6f},{i[5]:.6f},"
-#                 f"{i[6]:.6f},{i[7]:.6f}\n"
-#             )
-#             output_lines.append(item)
-
-#     # Write all at once
-#     with open(save_file, "w") as file:
-#         file.writelines(output_lines)
 
 
 def map_new_labels(df, new2old_labels, save_file):
