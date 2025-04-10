@@ -285,7 +285,7 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
 
     # Step 3: Merge filtered df_db with df to get new labels
     df_labeled = df_db_filtered.merge(
-        df[[0, 1, 2, 3]], on=[0, 1, 2], how="left", suffixes=("", "_new")
+        df[[0, 1, 2, 3, 4, 5, 6, 7]], on=[0, 1, 2], how="left", suffixes=("", "_new")
     )
     # # The merge seems a bit magical and creates own issues with changing the column names and dtypes.
     # # It is faster version of looping over the rows and checking for matches and replacing them.
@@ -303,20 +303,18 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
         int(col) if str(col).isdigit() else col for col in df_labeled.columns
     ]
 
-    # Step 5: Overwrite label (column 3) if a new one exists
-    df_labeled[3] = df_labeled["3_new"].combine_first(df_labeled[3])
-    df_labeled = df_labeled.drop(columns=["3_new"])
+    # Step 5: Overwrite columns with new values if they exist
+    # Since there are some rounding differences, I use original columns 4, 5, 6, 7
+    # A.combine_first(B): Take values from A, but wherever A has NaN, use values from B instead.
+    for col in [3, 4, 5, 6, 7]:
+        new_col = f"{col}_new"
+        if new_col in df_labeled.columns:
+            df_labeled[col] = df_labeled[new_col].combine_first(df_labeled[col])
+            df_labeled = df_labeled.drop(columns=new_col)
+    
     df_labeled[3] = df_labeled[3].astype("int64")  # Merge created a float column
 
-    # Step 6: Update df with the new labels
-    df = (
-        pd.concat([df, df_labeled])
-        .drop_duplicates()
-        .sort_values([0, 1, 2])
-        .reset_index(drop=True)
-    )
-
-    return df
+    return df_labeled.sort_values([0, 1, 2]).reset_index(drop=True)
 
 
 def find_matching_index(keys, query, tol=1e-4):
