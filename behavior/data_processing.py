@@ -371,7 +371,8 @@ def evaluate_and_modify_df(df, rule):
             return None
 
     if n_unique == 2:
-        l1_label, l2_label = pos_labels
+        l1_label = next((val for val in labels if val != -1), None)
+        l2_label = [i for i in pos_labels if i != l1_label][0]
         if rule == 0:
             return None
         elif rule == 1:
@@ -388,6 +389,14 @@ def evaluate_and_modify_df(df, rule):
                 return None
 
     return None
+
+
+dt = 6011, "2015-04-30 09:09:26"
+df = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
+)
+cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].iloc[23:43]
+evaluate_and_modify_df(cut.copy(), rule=2)
 
 
 def find_matching_index(keys, query, tol=1e-4):

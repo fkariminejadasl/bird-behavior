@@ -319,6 +319,20 @@ def test_reject_two_labels_with_negative_not_enough():
     assert result is None
 
 
+def test_accept_based_on_rule_order_label_matter():
+    data = {3: [-1] * 5 + [4] * 6 + [3] * 7}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
+
+    assert result is not None
+    assert all(result[3] == 4)
+
+    result = evaluate_and_modify_df(df.copy(), rule=2)
+
+    assert result is not None
+    assert all(result[3] == 3)
+
+
 def test_reject_three_labels_with_negative_not_enough_l2():
     data = {3: [-1] * 5 + [1] * 6 + [2] * 2}
     df = pd.DataFrame(data)
