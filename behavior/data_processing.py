@@ -209,12 +209,26 @@ def add_index(df_db, df, save_file):
         file.writelines(output_lines)
 
 
-def map_new_labels(df, new2old_labels, save_file):
+def map_new_labels(df, new2old_labels, ignore_labels, save_file=None):
     """
-    Map new labels to old labels
+    Map new labels to old labels and remove data contining ignored labels
+    Args:
+        df (pd.DataFrame): DataFrame containing the labels to be mapped.
+        new2old_labels (dict): Dictionary mapping new labels to old labels.
+        ignore_labels (list): List of labels to ignore.
+        save_file (str, optional): Path to save the modified DataFrame. Defaults to None.
+    Returns:
+        pd.DataFrame: DataFrame with mapped labels and ignored labels removed.
+
+    Example:
+    ignore_labels = [7, 10, 13, 14, 15, 16]
     """
     df[3] = df[3].map(new2old_labels)
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # Keep rows where df[3] is NOT in ignore_labels
+    df = df[~df[3].isin(ignore_labels)]
+    if save_file is not None:
+        df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    return df
 
 
 def get_rules():
