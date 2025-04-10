@@ -331,8 +331,11 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
     return df_labeled.sort_values([0, 1, 2]).reset_index(drop=True)
 
 
-def evaluate_sequence(labels, rule):
+def evaluate_and_modify_df(df, rule):
     """
+    Applies label evaluation logic on df[3] and potentially modifies labels.
+    Returns modified df or None.
+
     #### Case 1: `n_uniq_labels > 3`
     - **Reject**
 
@@ -345,41 +348,48 @@ def evaluate_sequence(labels, rule):
     - If `r == 2`: Accept **iff** `|l2| ≥ 5`
     """
 
+    labels = df[3].tolist()
     counts = Counter(labels)
     unique_labels = sorted(counts.keys())
     n_unique = len(unique_labels)
 
     if n_unique > 3:
-        return "reject"
+        return None
 
     if n_unique == 1:
-        return "accept"
+        if -1 in unique_labels:
+            return None  # Only -1s? Reject
+        else:
+            return df
 
-    # Exclude the -1 label
     pos_labels = [label for label in unique_labels if label != -1]
 
     if n_unique == 2:
         l1_label = pos_labels[0]
         if counts[l1_label] >= 5:
-            return "accept"
+            df[3] = l1_label
+            return df
         else:
-            return "reject"
+            return None
 
     if n_unique == 3:
         l1_label, l2_label = pos_labels
         if rule == 0:
-            return "reject"
-        if rule == 1:
-            return "accept" if counts[l1_label] >= 5 else "reject"
+            return None
+        elif rule == 1:
+            if counts[l1_label] >= 5:
+                df[3] = l1_label
+                return df
+            else:
+                return None
         elif rule == 2:
-            return "accept" if counts[l2_label] >= 5 else "reject"
+            if counts[l2_label] >= 5:
+                df[3] = l2_label
+                return df
+            else:
+                return None
 
-    return "reject"
-
-
-# labels = [-1]*9 + [1]*4 + [2]*7
-# rule_value = 2  # rule(l0, l1) returns 2, focus on l2
-# print(evaluate_sequence(labels, rule_value))
+    return None
 
 
 def find_matching_index(keys, query, tol=1e-4):

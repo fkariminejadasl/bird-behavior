@@ -13,6 +13,7 @@ import behavior.data_processing as bdp
 from behavior.data_processing import (
     build_index,
     complete_data_from_db,
+    evaluate_and_modify_df,
     find_matching_index,
     get_label_range,
     map_to_nearest_divisible_20,
@@ -257,3 +258,45 @@ def test_complete_data_from_db():
     a = a.sort_values([0, 1, 2]).reset_index(drop=True)
     b = df.sort_values([0, 1, 2]).reset_index(drop=True)
     assert a.equals(b)
+
+
+def test_accept_rule_2():
+    data = {3: [-1] * 9 + [1] * 4 + [2] * 7}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=2)
+
+    assert result is not None
+    assert all(result[3] == 2)
+
+
+def test_reject_rule_2_not_enough_l2():
+    data = {3: [-1] * 9 + [1] * 4 + [2] * 3}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=2)
+
+    assert result is None
+
+
+def test_accept_rule_1():
+    data = {3: [-1] * 9 + [1] * 5 + [2] * 3}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
+
+    assert result is not None
+    assert all(result[3] == 1)
+
+
+def test_reject_more_than_3_unique_labels():
+    data = {3: [-1] * 3 + [1] * 3 + [2] * 3 + [3] * 3}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=2)
+
+    assert result is None
+
+
+def test_reject_only_negative_ones():
+    data = {3: [-1] * 10}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=0)
+
+    assert result is None
