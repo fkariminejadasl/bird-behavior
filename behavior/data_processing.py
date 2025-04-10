@@ -311,7 +311,7 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
         if new_col in df_labeled.columns:
             df_labeled[col] = df_labeled[new_col].combine_first(df_labeled[col])
             df_labeled = df_labeled.drop(columns=new_col)
-    
+
     df_labeled[3] = df_labeled[3].astype("int64")  # Merge created a float column
 
     return df_labeled.sort_values([0, 1, 2]).reset_index(drop=True)

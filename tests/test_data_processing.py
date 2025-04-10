@@ -239,3 +239,21 @@ def test_complete_data_from_db_with_example():
     expected_df_sorted = expected_df.sort_values(by=[0, 1, 2]).reset_index(drop=True)
 
     assert result_df_sorted.equals(expected_df_sorted)
+
+
+@pytest.mark.local
+def test_complete_data_from_db():
+    df_db = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv",
+        header=None,
+    )
+    df = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None
+    )
+
+    df_comp = complete_data_from_db(df, df_db)
+
+    a = df_comp[df_comp[3] != -1]
+    a = a.sort_values([0, 1, 2]).reset_index(drop=True)
+    b = df.sort_values([0, 1, 2]).reset_index(drop=True)
+    assert a.equals(b)
