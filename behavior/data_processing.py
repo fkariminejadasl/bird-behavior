@@ -331,6 +331,57 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
     return df_labeled.sort_values([0, 1, 2]).reset_index(drop=True)
 
 
+def evaluate_sequence(labels, rule):
+    """
+    #### Case 1: `n_uniq_labels > 3`
+    - **Reject**
+
+    #### Case 2: `n_uniq_labels == 2`
+    - Accept **iff** `|l1| ≥ 5`
+
+    #### Case 3: `n_uniq_labels == 3`
+    - If `r == 0`: Reject
+    - If `r == 1`: Accept **iff** `|l1| ≥ 5`
+    - If `r == 2`: Accept **iff** `|l2| ≥ 5`
+    """
+
+    counts = Counter(labels)
+    unique_labels = sorted(counts.keys())
+    n_unique = len(unique_labels)
+
+    if n_unique > 3:
+        return "reject"
+
+    if n_unique == 1:
+        return "accept"
+
+    # Exclude the -1 label
+    pos_labels = [label for label in unique_labels if label != -1]
+
+    if n_unique == 2:
+        l1_label = pos_labels[0]
+        if counts[l1_label] >= 5:
+            return "accept"
+        else:
+            return "reject"
+
+    if n_unique == 3:
+        l1_label, l2_label = pos_labels
+        if rule == 0:
+            return "reject"
+        if rule == 1:
+            return "accept" if counts[l1_label] >= 5 else "reject"
+        elif rule == 2:
+            return "accept" if counts[l2_label] >= 5 else "reject"
+
+    return "reject"
+
+
+# labels = [-1]*9 + [1]*4 + [2]*7
+# rule_value = 2  # rule(l0, l1) returns 2, focus on l2
+# print(evaluate_sequence(labels, rule_value))
+
+
 def find_matching_index(keys, query, tol=1e-4):
     """
     find matching two rows
