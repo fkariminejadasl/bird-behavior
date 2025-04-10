@@ -336,13 +336,15 @@ def evaluate_and_modify_df(df, rule):
     Applies label evaluation logic on df[3] and potentially modifies labels.
     Returns modified df or None.
 
-    #### Case 1: `n_uniq_labels > 3`
+    n_uniq_labels are the number of unique labels excluding -1.
+    The rules are as follows:
+    #### Case 1: `n_uniq_labels > 2`
     - **Reject**
 
-    #### Case 2: `n_uniq_labels == 2`
+    #### Case 2: `n_uniq_labels == 1`
     - Accept **iff** `|l1| ≥ 5`
 
-    #### Case 3: `n_uniq_labels == 3`
+    #### Case 3: `n_uniq_labels == 2`
     - If `r == 0`: Reject
     - If `r == 1`: Accept **iff** `|l1| ≥ 5`
     - If `r == 2`: Accept **iff** `|l2| ≥ 5`
@@ -351,20 +353,16 @@ def evaluate_and_modify_df(df, rule):
     labels = df[3].tolist()
     counts = Counter(labels)
     unique_labels = sorted(counts.keys())
-    n_unique = len(unique_labels)
+    pos_labels = [label for label in unique_labels if label != -1]
+    n_unique = len(pos_labels)
 
-    if n_unique > 3:
+    if n_unique > 2:
         return None
 
+    if n_unique == 0:
+        return None  # Only -1s? Reject
+
     if n_unique == 1:
-        if -1 in unique_labels:
-            return None  # Only -1s? Reject
-        else:
-            return df
-
-    pos_labels = [label for label in unique_labels if label != -1]
-
-    if n_unique == 2:
         l1_label = pos_labels[0]
         if counts[l1_label] >= 5:
             df[3] = l1_label
@@ -372,7 +370,7 @@ def evaluate_and_modify_df(df, rule):
         else:
             return None
 
-    if n_unique == 3:
+    if n_unique == 2:
         l1_label, l2_label = pos_labels
         if rule == 0:
             return None

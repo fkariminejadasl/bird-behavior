@@ -297,6 +297,38 @@ def test_reject_more_than_3_unique_labels():
 def test_reject_only_negative_ones():
     data = {3: [-1] * 10}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=0)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
 
+    assert result is None
+
+
+def test_accept_two_labels_with_negative():
+    data = {3: [-1] * 6 + [1] * 5}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
+
+    assert result is not None
+    assert all(result[3] == 1)
+
+
+def test_reject_two_labels_with_negative_not_enough():
+    data = {3: [-1] * 5 + [1] * 3}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
+
+    assert result is None
+
+
+def test_reject_three_labels_with_negative_not_enough_l2():
+    data = {3: [-1] * 5 + [1] * 6 + [2] * 2}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=2)
+
+    assert result is None
+
+
+def test_reject_single_label_not_enough():
+    data = {3: [1] * 4}
+    df = pd.DataFrame(data)
+    result = evaluate_and_modify_df(df.copy(), rule=1)
     assert result is None
