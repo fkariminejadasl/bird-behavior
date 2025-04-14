@@ -19,6 +19,7 @@ from behavior.data_processing import (
     get_rules,
     map_to_nearest_divisible_20,
     process_moving_window_given_dt,
+    shift_df,
 )
 
 
@@ -391,3 +392,28 @@ def test_process_moving_window_given_dt():
     cut.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/example_{dt[0]}_{dt[1]}.csv", index=False, header=None, float_format="%.6f")
     new_df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/example_moving_win_{dt[0]}_{dt[1]}.csv", index=False, header=None, float_format="%.6f")
     """
+
+
+@pytest.mark.local
+def test_shift_two_dt():
+    # test for shift two device and time
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
+
+    glen = 20  # group length
+    dts = [
+        [6011, "2015-04-30 09:10:57"],
+        [6011, "2015-04-30 09:10:44"],
+    ]
+
+    expected = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc/m_shift2.csv",
+        header=None,
+    )
+    df = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc/m_map.csv",
+        header=None,
+    )
+
+    new_df = shift_df(df, glen, dts)
+    new_df.equals(expected)

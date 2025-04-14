@@ -393,9 +393,10 @@ def evaluate_and_modify_df(df, rule):
 
 def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
     new_df = []
-    inds = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].index
-    for ind in inds:
-        cut = df.loc[ind : ind + glen - 1].copy()
+    df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+    df_dt = df_dt.reset_index(drop=True)
+    for start in range(len(df_dt) - glen + 1):
+        cut = df_dt.iloc[start : start + glen].copy()
         if len(cut) < glen:
             break
 
@@ -418,37 +419,34 @@ def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
     return new_df
 
 
-glen = 20  # group length
-df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
-)
-rule_df = get_rules().rule_df
-ind2name = get_rules().ind2name
-ignore_labels = get_rules().ignore_labels
+def shift_df(df, glen, dts=None):
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
 
-df_unq_labels = np.unique(df[3])
-mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
-df[3] = df[3].map(mapping)
+    df = df.sort_values([0, 1]).reset_index(drop=True)
 
-new_df = []
-unique_device_times = df[[0, 1]].drop_duplicates()
-for dt in [
-    [6011, "2015-04-30 09:10:57"],
-    [6011, "2015-04-30 09:10:44"],
-]:  # tqdm(unique_device_times.values):
-    new_data = process_moving_window_given_dt(df, dt, rule_df, ind2name, glen)
-    print(dt[1], dt[1], len(new_data))
-    if dt[0] == 6011 and dt[1] == "2015-04-30 09:10:57":
-        print(dt[1], dt[1], len(new_data))
-    new_df.extend(new_data)
-new_df = pd.concat(new_df, ignore_index=True)
-new_df.to_csv(
-    f"/home/fatemeh/Downloads/bird/data/final/proc/m_shift2.csv",
-    index=False,
-    header=None,
-    float_format="%.6f",
-)
-print("done")
+    new_df = []
+    if dts is None:
+        dts = df[[0, 1]].drop_duplicates().values
+    for dt in tqdm(dts):
+        new_data = process_moving_window_given_dt(df, dt, rule_df, ind2name, glen)
+        new_df.extend(new_data)
+    new_df = pd.concat(new_df, ignore_index=True)
+    return new_df
+
+
+# rule_df = get_rules().rule_df
+# ind2name = get_rules().ind2name
+# ignore_labels = get_rules().ignore_labels
+# df = pd.read_csv(
+#     "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
+# )
+# df_unq_labels = np.unique(df[3])
+# mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
+# df[3] = df[3].map(mapping)
+# df = df.sort_values([0, 1]).reset_index(drop=True)
+# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/m_map.csv", index=False, header=None, float_format="%.6f")
+
 
 # for map_new_labels just use the mapping to -1 for ignore labels
 # pipeline: format, index, complete, map, shift, combine, drop, mistakes
