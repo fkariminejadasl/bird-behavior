@@ -353,8 +353,8 @@ def evaluate_and_modify_df(df, rule):
     labels = df[3].tolist()
     counts = Counter(labels)
     unique_labels = sorted(counts.keys())
-    pos_labels = [label for label in unique_labels if label != -1]
-    n_unique = len(pos_labels)
+    valid_labels = [label for label in unique_labels if label != -1]
+    n_unique = len(valid_labels)
 
     if n_unique > 2:
         return None
@@ -363,7 +363,7 @@ def evaluate_and_modify_df(df, rule):
         return None  # Only -1s? Reject
 
     if n_unique == 1:
-        l1_label = pos_labels[0]
+        l1_label = valid_labels[0]
         if counts[l1_label] >= 5:
             df[3] = l1_label
             return df
@@ -372,7 +372,7 @@ def evaluate_and_modify_df(df, rule):
 
     if n_unique == 2:
         l1_label = next((val for val in labels if val != -1), None)
-        l2_label = [i for i in pos_labels if i != l1_label][0]
+        l2_label = [i for i in valid_labels if i != l1_label][0]
         if rule == 0:
             return None
         elif rule == 1:
@@ -391,12 +391,46 @@ def evaluate_and_modify_df(df, rule):
     return None
 
 
-dt = 6011, "2015-04-30 09:09:26"
+glen = 20  # group length
 df = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
 )
-cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].iloc[23:43]
-evaluate_and_modify_df(cut.copy(), rule=2)
+rule_df = get_rules().rule_df
+ind2name = get_rules().ind2name
+new_df = []
+
+# dt = 6073, "2016-06-07 12:38:55"
+# dt = 6073, "2016-06-07 12:39:07"
+# dt = 6080, "2014-06-26 07:49:46"
+dt = 6011, "2015-04-30 09:10:57"
+# # loop through in [0,1]
+inds = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].index
+for ind in inds:
+    # # get the row
+    cut = df.loc[ind : ind + glen - 1].copy()
+    if len(cut) < glen:
+        break
+    valid_labels = np.unique(cut[3])
+    valid_labels = [i for i in valid_labels if i != -1]
+    if len(valid_labels) > 2:
+        continue
+    if len(valid_labels) == 2:
+        l1_label = next((val for val in cut[3] if val != -1), None)
+        l2_label = [i for i in valid_labels if i != l1_label][0]
+        which_label = rule_df[ind2name[l1_label]][ind2name[l2_label]]
+    else:
+        which_label = 1
+    cut = evaluate_and_modify_df(cut, which_label)
+    if cut is not None:
+        new_df.append(cut)
+new_df = pd.concat(new_df)
+print("done")
+
+
+# for map_new_labels just use the mapping to -1 for ignore labels
+# pipeline: format, index, map, complete, shift, combine, drop, mistakes
+
+# find mismatch for different labelers
 
 
 def find_matching_index(keys, query, tol=1e-4):
