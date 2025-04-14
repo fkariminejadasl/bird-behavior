@@ -391,44 +391,67 @@ def evaluate_and_modify_df(df, rule):
     return None
 
 
+def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
+    new_df = []
+    inds = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].index
+    for ind in inds:
+        cut = df.loc[ind : ind + glen - 1].copy()
+        if len(cut) < glen:
+            break
+
+        valid_labels = np.unique(cut[3])
+        valid_labels = [i for i in valid_labels if i != -1]
+
+        if len(valid_labels) > 2:
+            continue
+
+        if len(valid_labels) == 2:
+            l1_label = next((val for val in cut[3] if val != -1), None)
+            l2_label = [i for i in valid_labels if i != l1_label][0]
+            which_label = rule_df[ind2name[l1_label]][ind2name[l2_label]]
+        else:
+            which_label = 1
+
+        cut = evaluate_and_modify_df(cut, which_label)
+        if cut is not None:
+            new_df.append(cut)
+    return new_df
+
+
 glen = 20  # group length
 df = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
 )
 rule_df = get_rules().rule_df
 ind2name = get_rules().ind2name
-new_df = []
+ignore_labels = get_rules().ignore_labels
 
-# dt = 6073, "2016-06-07 12:38:55"
-# dt = 6073, "2016-06-07 12:39:07"
-# dt = 6080, "2014-06-26 07:49:46"
-dt = 6011, "2015-04-30 09:10:57"
-# # loop through in [0,1]
-inds = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].index
-for ind in inds:
-    # # get the row
-    cut = df.loc[ind : ind + glen - 1].copy()
-    if len(cut) < glen:
-        break
-    valid_labels = np.unique(cut[3])
-    valid_labels = [i for i in valid_labels if i != -1]
-    if len(valid_labels) > 2:
-        continue
-    if len(valid_labels) == 2:
-        l1_label = next((val for val in cut[3] if val != -1), None)
-        l2_label = [i for i in valid_labels if i != l1_label][0]
-        which_label = rule_df[ind2name[l1_label]][ind2name[l2_label]]
-    else:
-        which_label = 1
-    cut = evaluate_and_modify_df(cut, which_label)
-    if cut is not None:
-        new_df.append(cut)
-new_df = pd.concat(new_df)
+df_unq_labels = np.unique(df[3])
+mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
+df[3] = df[3].map(mapping)
+
+new_df = []
+unique_device_times = df[[0, 1]].drop_duplicates()
+for dt in [
+    [6011, "2015-04-30 09:10:57"],
+    [6011, "2015-04-30 09:10:44"],
+]:  # tqdm(unique_device_times.values):
+    new_data = process_moving_window_given_dt(df, dt, rule_df, ind2name, glen)
+    print(dt[1], dt[1], len(new_data))
+    if dt[0] == 6011 and dt[1] == "2015-04-30 09:10:57":
+        print(dt[1], dt[1], len(new_data))
+    new_df.extend(new_data)
+new_df = pd.concat(new_df, ignore_index=True)
+new_df.to_csv(
+    f"/home/fatemeh/Downloads/bird/data/final/proc/m_shift2.csv",
+    index=False,
+    header=None,
+    float_format="%.6f",
+)
 print("done")
 
-
 # for map_new_labels just use the mapping to -1 for ignore labels
-# pipeline: format, index, map, complete, shift, combine, drop, mistakes
+# pipeline: format, index, complete, map, shift, combine, drop, mistakes
 
 # find mismatch for different labelers
 

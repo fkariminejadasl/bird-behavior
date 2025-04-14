@@ -16,7 +16,9 @@ from behavior.data_processing import (
     evaluate_and_modify_df,
     find_matching_index,
     get_label_range,
+    get_rules,
     map_to_nearest_divisible_20,
+    process_moving_window_given_dt,
 )
 
 
@@ -346,3 +348,46 @@ def test_reject_single_label_not_enough():
     df = pd.DataFrame(data)
     result = evaluate_and_modify_df(df.copy(), rule=1)
     assert result is None
+
+
+@pytest.mark.local
+def test_process_moving_window_given_dt():
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
+
+    glen = 20  # group length
+    dt = 6011, "2015-04-30 09:10:57"
+
+    expected = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc/example_moving_win_{dt[0]}_{dt[1]}.csv",
+        header=None,
+    )
+    cut = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc/example_{dt[0]}_{dt[1]}.csv",
+        header=None,
+    )
+
+    new_df = process_moving_window_given_dt(cut, dt, rule_df, ind2name, glen)
+    new_df = pd.concat(new_df)
+    new_df.equals(expected)
+    """
+    # The data is generated as below and manually checked
+
+    glen = 20  # group length
+    dt = 6011, "2015-04-30 09:10:57"
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None)
+    
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
+    ignore_labels = get_rules().ignore_labels
+    df_unq_labels = np.unique(df[3])
+    mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
+    df[3] = df[3].map(mapping)
+    cut = df[(df[0] == dt[0]) & (df[1] == dt[1])]
+    
+    new_df = process_moving_window_given_dt(cut, dt, rule_df, ind2name, glen)
+    new_df = pd.concat(new_df)
+
+    cut.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/example_{dt[0]}_{dt[1]}.csv", index=False, header=None, float_format="%.6f")
+    new_df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/example_moving_win_{dt[0]}_{dt[1]}.csv", index=False, header=None, float_format="%.6f")
+    """
