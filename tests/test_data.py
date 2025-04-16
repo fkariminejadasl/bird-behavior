@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -173,6 +175,81 @@ def test_find_index_jumps():
     # (6080, '2014-06-26 08:02:19') [7]
     # (6080, '2014-06-26 07:59:49') [21] was wrong. But if we ignore label 10, everything is OK.
 
+
+@pytest.mark.debug
+def identify_mistakes(df_s, df, glen=20):
+    """
+    Identify mistakes in the mapping between two dataframes based on specific columns.
+    """
+    # build index
+    index_map = defaultdict(list)
+    for i, row in df.iterrows():
+        key = (row[0], row[1], row[2])
+        index_map[key].append(i)
+
+    sels = df_s.iloc[::glen]  # source
+    for _, sel in sels.iterrows():
+        key = (sel[0], sel[1], sel[2])
+        indices = index_map.get(key)
+        if indices and len(indices) == 1:
+            index = indices[0]
+            label = df.loc[index, 3]
+            if label != sel[3]:
+                print(f"{sel[0]},{sel[1]},{sel[2]},{sel[3]},{label}")
+        if indices and len(indices) > 1:
+            print(f"Multiple indices found for {key}: {indices}")
+    """
+    # same as above but without index, so slower
+    sels = df_s.iloc[::glen] # source
+    for _, sel in sels.iterrows():
+        cand = df[(df[0]==sel[0]) & (df[1]==sel[1]) & (df[2]==sel[2])]
+        if len(cand) != 0:
+            label = cand.iloc[0,3]
+            if label != sel[3]:
+                print(f"{sel[0]},{sel[1]},{sel[2]},{sel[3]},{label}")
+    """
+    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None)
+    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None)
+    # df3 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None)
+    # df4 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None)
+    # df2 = df2.sort_values([0,1,2])
+    # df1 = df1.sort_values([0,1,2])
+    # df3 = df3.sort_values([0,1,2])
+    # df4 = df4.sort_values([0,1,2])
+    # print("s_w") # s_w: 9-6, 9-2, 9-8, 9-5, 6-9, 8-0, 8-2
+    # identify_mistakes(df1, df4, glen=20)
+    # print("j_w") # 8-0, 8-2
+    # identify_mistakes(df2, df4, glen=10)
+    # print("j_m") # 4-17, 6-10, 7-15, 11-10
+    # identify_mistakes(df2, df3, glen=10)
+    # print("j_s")
+    # identify_mistakes(df2, df1, glen=10) # the same
+
+
+df1 = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None
+)
+df2 = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None
+)
+df3 = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None
+)
+df4 = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None
+)
+df2 = df2.sort_values([0, 1, 2])
+df1 = df1.sort_values([0, 1, 2])
+df3 = df3.sort_values([0, 1, 2])
+df4 = df4.sort_values([0, 1, 2])
+# print("s_w") # s_w: 9-6, 9-2, 9-8, 9-5, 6-9, 8-0, 8-2
+# identify_mistakes(df1, df4, glen=20)
+# print("j_w") # 8-0, 8-2
+# identify_mistakes(df2, df4, glen=10)
+# print("j_m") # 4-17, 6-10, 7-15, 11-10
+# identify_mistakes(df2, df3, glen=10)
+print("j_s")
+identify_mistakes(df2, df1, glen=10)  # the same
 
 import itertools
 from collections import defaultdict

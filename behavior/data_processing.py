@@ -435,18 +435,33 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
+# df_db = pd.read_csv(
+#     "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
+# )
+# df = pd.read_csv(
+#     "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None
+# )
+# save_file = "/home/fatemeh/Downloads/bird/data/final/proc/s_data_complete.csv"
+
+# df_comp = complete_data_from_db(df, df_db)
+# df_comp.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
 # rule_df = get_rules().rule_df
 # ind2name = get_rules().ind2name
 # ignore_labels = get_rules().ignore_labels
 # df = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv", header=None
+#     "/home/fatemeh/Downloads/bird/data/final/proc/s_data_complete.csv", header=None
 # )
 # df_unq_labels = np.unique(df[3])
 # mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
 # df[3] = df[3].map(mapping)
 # df = df.sort_values([0, 1]).reset_index(drop=True)
-# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/m_map.csv", index=False, header=None, float_format="%.6f")
+# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_map.csv", index=False, header=None, float_format="%.6f")
 
+# df = shift_df(df, 20)
+# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
+# sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
+# print("Done")
 
 # for map_new_labels just use the mapping to -1 for ignore labels
 # pipeline: format, index, complete, map, shift, combine, drop, mistakes
