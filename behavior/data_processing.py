@@ -215,6 +215,62 @@ def add_index(df_db, df, save_file):
         file.writelines(output_lines)
 
 
+def correct_mistakes():
+    """
+    Removes mislabeled entries from s_data, w_data, and j_data based on identify_mistakes and manual checks.
+    Entries are identified by (id, timestamp) and removed accordingly.
+    """
+
+    # fmt: off
+    # Mistaken entries to remove
+    remove_both = [
+    (534, "2012-06-08 12:39:39"),
+    (533, "2012-05-27 03:50:46"),
+    (533, "2012-05-15 14:00:34"),
+    (533, "2012-05-15 11:53:34"),
+    (533, "2012-05-15 11:38:20"),
+    (533, "2012-05-15 09:52:18"),
+    (533, "2012-05-15 09:47:29"),
+    (533, "2012-05-15 05:36:44"),
+    (533, "2012-05-15 05:22:11"),
+    ]
+    remove_w = [
+    (534, "2012-06-08 06:16:42"),
+    (534, "2012-06-08 06:26:22"),
+    (534, "2012-06-08 06:31:10"),
+    (606, "2014-05-15 16:57:28"),
+    ]
+    remove_s = [(533, "2012-05-15 05:41:52")]
+    remove_j = [
+    (534, "2012-06-08 12:39:39"),
+    (533, "2012-05-15 11:53:34"),
+    ]
+
+    # Helper to remove rows from a DataFrame based on (id, timestamp)
+    def remove_entries(df, to_remove):
+        to_remove_set = set(to_remove)
+        return df[~df[[0, 1]].apply(tuple, axis=1).isin(to_remove_set)]
+
+    base_path = Path("/home/fatemeh/Downloads/bird/data/final/proc")
+
+    
+    dfs = pd.read_csv(base_path / "s_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
+    dfw = pd.read_csv(base_path / "w_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
+    dfj = pd.read_csv(base_path / "j_data_map0.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
+    dfm = pd.read_csv(base_path / "m_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
+    
+    dfs = remove_entries(dfs, remove_both + remove_s)
+    dfw = remove_entries(dfw, remove_both + remove_w)
+    dfj = remove_entries(dfj, remove_j)
+
+    # Save the cleaned files
+    dfs.to_csv(base_path / "s_correct.csv", index=False, header=None, float_format="%.6f")
+    dfw.to_csv(base_path / "w_correct.csv", index=False, header=None, float_format="%.6f")
+    dfj.to_csv(base_path / "j_correct.csv", index=False, header=None, float_format="%.6f")
+    dfm.to_csv(base_path / "m_correct.csv", index=False, header=None, float_format="%.6f")
+    # fmt: on
+
+
 def map_new_labels(df, new2old_labels, ignore_labels, save_file=None):
     """
     Map new labels to old labels and remove data contining ignored labels

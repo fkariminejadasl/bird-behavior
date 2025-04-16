@@ -8,7 +8,7 @@
     - `.index | .sort_index() | .drop(index) | .reset_index(drop=True), .reset_index(name="something") |.some_operation(..., ignore_index=True) | .rename`
     - `len(df), df.shape, df.size | .equals | pd.concat | .round(4) | .copy()`
     - `sort_values`
-    - `.drop_duplicates() | .duplicated()`
+    - `.drop_duplicates(keep=False|"first"|"last")| .duplicated()`
 - group: 
     - `.get_group | .groups | .groups.keys()`
     - `apply | filter | .transform('size')`
@@ -104,6 +104,37 @@ pd.concat()
 df.copy()
 # Float with precision 2 (e.g .45)
 df.round(2)
+```
+
+#### Set Operations
+
+```bash
+isin() – Check membership,  filters values that are in another list/set/Series.
+~df.isin(...) – Inverse membership
+df['col'].unique()
+df.drop_duplicates()
+
+# This is like doing SQL joins
+df1.merge(df2, how='inner')   # intersection
+df1.merge(df2, how='outer')   # union
+df1.merge(df2, how='left')    # left difference (with matched info)
+```
+
+```python
+df = pd.DataFrame({'A': [1, 2, 3, 4]})
+df['A'].isin([2, 3])
+# 0    False
+# 1     True
+# 2     True
+# 3    False
+# Name: A, dtype: bool
+
+df = pd.DataFrame({
+    'id': [1, 2, 3],
+    'ts': ['a', 'b', 'c']
+})
+to_remove = [(1, 'a'), (3, 'c')]
+df[~df[['id', 'ts']].apply(tuple, axis=1).isin(to_remove)]
 ```
 
 #### Sort
