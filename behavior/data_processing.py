@@ -472,8 +472,6 @@ def shift_df(df, glen, dts=None):
 # for map_new_labels just use the mapping to -1 for ignore labels
 # pipeline: format, index, complete, map, shift, combine, drop, mistakes
 
-# find mismatch for different labelers
-
 
 def find_matching_index(keys, query, tol=1e-4):
     """
@@ -492,7 +490,17 @@ def find_matching_index(keys, query, tol=1e-4):
 
 
 def map_to_nearest_divisible_20(start, end):
-    return [int(round(i / 20) * 20) for i in [start, end]]
+    # The numpy and python round function, map the border value such as .5, 1.5, 2.5, 3.5
+    # and so on to the nearest even number 0., 2., 2., 4..
+    # So border values such as 10, 30, 50, 70, 90 map differently 0, 40, 40, 80, 80, using below code:
+    # return [int(round(i / 20) * 20) for i in [start, end]]
+    # This is fixed by `i = i + .001`
+    new_values = []
+    for i in [start, end]:
+        if i % 20 == 10:
+            i = i + 0.001
+        new_values.append(int(round(i / 20) * 20))
+    return new_values
 
 
 def get_label_range(slice):

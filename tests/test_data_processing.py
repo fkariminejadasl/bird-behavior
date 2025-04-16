@@ -136,6 +136,7 @@ def test_map_to_nearest_divisible_20():
     assert map_to_nearest_divisible_20(2, 18) == [0, 20]
     assert map_to_nearest_divisible_20(23, 37) == [20, 40]
     assert map_to_nearest_divisible_20(35, 55) == [40, 60]
+    assert map_to_nearest_divisible_20(30, 50) == [40, 60]
 
 
 def test_find_matching_index():
