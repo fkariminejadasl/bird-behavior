@@ -417,3 +417,26 @@ def test_shift_two_dt():
 
     new_df = shift_df(df, glen, dts)
     new_df.equals(expected)
+
+
+def test_write_m_data_orig():
+    data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv")
+    df = pd.read_csv(data_file, header=None)
+
+    def get_start_end_inds(dt):
+        cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
+        u_labels = np.unique(cut[3])
+        start_end_inds = dict()
+        for u_label in u_labels:
+            sel_inds = cut[cut[3] == u_label][2].values
+            start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
+        start_end_inds = dict(sorted(start_end_inds.items()))
+        return start_end_inds
+
+    expected = {(30, 52): 6, (61, 81): 10, (108, 128): 16, (141, 199): 5}
+    dt = 6016, "2015-05-01 11:18:35"
+    assert expected == get_start_end_inds(dt)
+    expected = {(32, 105): 15, (106, 199): 5}
+    dt = 6016, "2015-05-01 11:17:30"
+    assert expected == get_start_end_inds(dt)
+    print("Done")

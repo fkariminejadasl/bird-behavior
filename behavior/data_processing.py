@@ -50,7 +50,7 @@ def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
             f.write(item)
 
 
-def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
+def write_m_data_orig(mat_file, save_file):
     """
     Becareful: save_file appending contents
     """
@@ -76,21 +76,31 @@ def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
         gps_single = dd["gpsSpd"][0][0][i, 0]
         tags = dd["tags"][0][0][0][i]
 
-        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
-        if len(labels) == 0:
+        inds = np.where(tags[:, 1] == 1)[0]
+        if len(inds) == 0:
             continue
 
-        for label, x, y, z in zip(labels, imu_x, imu_y, imu_z):
-            if label in ignored_labels:
-                continue
-            nlabel = new2old_labels[label]
+        labels = tags[inds][:, 0] - 1  # 0-based
+        for ind, label, x, y, z in zip(
+            inds, labels, imu_x[inds], imu_y[inds], imu_z[inds]
+        ):
             if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
                 continue
             ig = np.round(np.array([x, y, z, gps_single]), 6)
-            item = f"{device_id},{t},-1,{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+            item = f"{device_id},{t},{ind},{label},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
             file.write(item)
             file.flush()
     file.close()
+
+
+# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv")
+# new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
+# ignored_labels = [10, 14, 15, 16, 17]
+# for mat_file in [dpath/"AnnAcc6016_20150501_110811-20150501_113058.mat"]:#tqdm(dpath.glob("An*mat")):
+#     print(mat_file.name)
+#     write_m_data_orig(mat_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
+# print("done")
 
 
 def write_w_data_orig(csv_file, save_file):
