@@ -12,6 +12,8 @@ import behavior.data as bd
 import behavior.data_processing as bdp
 from behavior.data_processing import (
     build_index,
+    change_format_mat_file,
+    change_format_mat_files,
     complete_data_from_db,
     evaluate_and_modify_df,
     find_matching_index,
@@ -419,9 +421,10 @@ def test_shift_two_dt():
     new_df.equals(expected)
 
 
-def test_write_m_data_orig():
-    data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv")
-    df = pd.read_csv(data_file, header=None)
+@pytest.mark.local
+def test_change_format_mat_file():
+    mat_file = "/home/fatemeh/Downloads/bird/data/data_from_Susanne/AnnAcc6016_20150501_110811-20150501_113058.mat"
+    df = change_format_mat_file(mat_file)
 
     def get_start_end_inds(dt):
         cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
@@ -440,3 +443,10 @@ def test_write_m_data_orig():
     dt = 6016, "2015-05-01 11:17:30"
     assert expected == get_start_end_inds(dt)
     print("Done")
+
+
+@pytest.mark.local
+def test_change_format_mat_files():
+    mat_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+    df = change_format_mat_files(mat_path)
+    assert len(df) == 28213

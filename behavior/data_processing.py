@@ -50,14 +50,11 @@ def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
             f.write(item)
 
 
-def write_m_data_orig(mat_file, save_file):
-    """
-    Becareful: save_file appending contents
-    """
+def change_format_mat_file(mat_file):
     dd = loadmat(mat_file)["outputStruct"]
     n_data = dd["nOfSamples"][0][0][0][0]
 
-    file = open(save_file, "a")
+    rows = []
     for i in range(n_data):
         year, month, day, hour, min, sec = (
             dd["year"][0][0][0, i],
@@ -87,20 +84,19 @@ def write_m_data_orig(mat_file, save_file):
             if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
                 continue
             ig = np.round(np.array([x, y, z, gps_single]), 6)
-            item = f"{device_id},{t},{ind},{label},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
-            file.write(item)
-            file.flush()
-    file.close()
+            item = [device_id, t, ind, label, ig[0], ig[1], ig[2], ig[3]]
+            rows.append(item)
+    return pd.DataFrame(rows)
 
 
-# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv")
-# new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
-# ignored_labels = [10, 14, 15, 16, 17]
-# for mat_file in [dpath/"AnnAcc6016_20150501_110811-20150501_113058.mat"]:#tqdm(dpath.glob("An*mat")):
-#     print(mat_file.name)
-#     write_m_data_orig(mat_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
-# print("done")
+def change_format_mat_files(mat_path: Path) -> pd.DataFrame:
+    all_rows = []
+    for mat_file in tqdm(mat_path.glob("An*mat")):
+        print(mat_file.name)
+        rows = change_format_mat_file(mat_file)
+        all_rows.append(rows)
+    df = pd.concat(all_rows)
+    return df
 
 
 def write_w_data_orig(csv_file, save_file):
