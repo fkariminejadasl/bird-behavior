@@ -8,10 +8,10 @@ from behavior import utils as bu
 from behavior.utils import ind2name
 
 # gt2_combined, gt2_sdata
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_j_data_map0")
+gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_m_index")
 # combined_unique_sorted012, s_data_orig_index
 df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv",  # j_data_map0
+    "/home/fatemeh/Downloads/bird/data/final/proc/m_index.csv",  # j_data_map0
     header=None,
 )
 df_db = pd.read_csv(

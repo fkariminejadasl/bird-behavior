@@ -219,39 +219,14 @@ def identify_mistakes(df_s, df, glen=20):
     # df3 = df3.sort_values([0,1,2])
     # df4 = df4.sort_values([0,1,2])
     # print("s_w") # s_w: 9-6, 9-2, 9-8, 9-5, 6-9, 8-0, 8-2
-    # identify_mistakes(df1, df4, glen=20)
+    # identify_mistakes(df1, df4, glen=1)
     # print("j_w") # 8-0, 8-2
-    # identify_mistakes(df2, df4, glen=10)
-    # print("j_m") # 4-17, 6-10, 7-15, 11-10
-    # identify_mistakes(df2, df3, glen=10)
+    # mistakes = identify_mistakes(df2, df4, glen=1)
+    # print("j_m")  # 4-17, 7-15, 7-16
+    # mistakes = identify_mistakes(df2, df3, glen=1)
     # print("j_s")
-    # identify_mistakes(df2, df1, glen=10) # the same
+    # mistakes = identify_mistakes(df2, df1, glen=1)  # the same
 
-
-# df1 = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None
-# )
-# df2 = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None
-# )
-# df3 = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None
-# )
-# df4 = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None
-# )
-# df2 = df2.sort_values([0, 1, 2])
-# df1 = df1.sort_values([0, 1, 2])
-# df3 = df3.sort_values([0, 1, 2])
-# df4 = df4.sort_values([0, 1, 2])
-# # print("s_w") # s_w: 9-6, 9-2, 9-8, 9-5, 6-9, 8-0, 8-2
-# # identify_mistakes(df1, df4, glen=1)
-# # print("j_w") # 8-0, 8-2
-# # mistakes = identify_mistakes(df2, df4, glen=1)
-# print("j_m")  # 4-17, 6-10, 7-15, 11-10
-# mistakes = identify_mistakes(df2, df3, glen=1)
-# print("j_s")
-# mistakes = identify_mistakes(df2, df1, glen=1)  # the same
 
 import itertools
 from collections import defaultdict
