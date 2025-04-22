@@ -101,35 +101,19 @@ def test_load_all_data_from_json(tmp_path, sample_json_data):
     assert ldt[0][0] == 0  # label_id zero-based
 
 
-def test_write_j_data_orig(tmp_path, sample_json_data):
+def test_change_format_json_file(tmp_path, sample_json_data):
     json_file = tmp_path / "input.json"
     save_file = tmp_path / "output.csv"
     with open(json_file, "w") as f:
         json.dump(sample_json_data, f)
 
-    new2old_labels = {i: i for i in range(10)}  # identity mapping
-    bdp.write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels=[])
+    bdp.change_format_json_file(json_file, save_file)
 
     assert save_file.exists()
     content = save_file.read_text()
     lines = content.strip().split("\n")
     assert len(lines) == 2  # 2 measurements
     assert lines[0].startswith("123,2021-01-01 00:00:00,-1,0,0.100000")
-
-
-def test_write_j_data_orig_with_ignored_label(tmp_path, sample_json_data):
-    json_file = tmp_path / "input.json"
-    save_file = tmp_path / "output.csv"
-    with open(json_file, "w") as f:
-        json.dump(sample_json_data, f)
-
-    new2old_labels = {i: i for i in range(10)}
-    bdp.write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels=[0])
-
-    # The label should be ignored
-    assert save_file.exists()
-    content = save_file.read_text()
-    assert content == ""
 
 
 def test_map_to_nearest_divisible_20():

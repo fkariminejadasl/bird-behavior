@@ -13,7 +13,7 @@ import behavior.data as bd
 import behavior.utils as bu
 
 
-def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
+def change_format_json_file(json_file, save_file):
     """
     read json data and save it as formatted csv file
 
@@ -28,9 +28,7 @@ def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
         zip(all_measurements, ldts), total=len(ldts)
     ):  # N x {10,20} x 4
         # labels read 0-based
-        if ldt[0] in ignored_labels:
-            continue
-        label = new2old_labels[ldt[0]]
+        label = ldt[0]
         device_id = ldt[1]
         timestamp = ldt[2]
         start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
@@ -89,17 +87,19 @@ def change_format_mat_file(mat_file):
     return pd.DataFrame(rows)
 
 
-def change_format_mat_files(mat_path: Path) -> pd.DataFrame:
+def change_format_mat_files(mat_path: Path, save_file=None) -> pd.DataFrame:
     all_rows = []
     for mat_file in tqdm(mat_path.glob("An*mat")):
         print(mat_file.name)
         rows = change_format_mat_file(mat_file)
         all_rows.append(rows)
     df = pd.concat(all_rows)
+    if save_file is not None:
+        df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     return df
 
 
-def write_w_data_orig(csv_file, save_file):
+def change_format_csv_file(csv_file, save_file):
     """
     Becareful: save_file appending contents
     """
@@ -215,7 +215,7 @@ def add_index(df_db, df, save_file):
         file.writelines(output_lines)
 
 
-def correct_mistakes():
+def correct_mistakes(df, name):
     """
     Removes mislabeled entries from s_data, w_data, and j_data based on identify_mistakes and manual checks.
     Entries are identified by (id, timestamp) and removed accordingly.
@@ -251,27 +251,21 @@ def correct_mistakes():
         to_remove_set = set(to_remove)
         return df[~df[[0, 1]].apply(tuple, axis=1).isin(to_remove_set)]
 
-    base_path = Path("/home/fatemeh/Downloads/bird/data/final/proc")
-
+    df = df.sort_values([0, 1, 2]).reset_index(drop=True)
     
-    dfs = pd.read_csv(base_path / "s_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
-    dfw = pd.read_csv(base_path / "w_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
-    dfj = pd.read_csv(base_path / "j_data_map0.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
-    dfm = pd.read_csv(base_path / "m_data_index.csv", header=None).sort_values([0, 1, 2]).reset_index(drop=True)
-    
-    dfs = remove_entries(dfs, remove_both + remove_s)
-    dfw = remove_entries(dfw, remove_both + remove_w)
-    dfj = remove_entries(dfj, remove_j)
+    if name == "s":
+        df = remove_entries(df, remove_both + remove_s)
+    if name == "w":
+        df = remove_entries(df, remove_both + remove_w)
+    if name == "j":
+        df = remove_entries(df, remove_j)
+    if name == "m":
+        df = df
 
-    # Save the cleaned files
-    dfs.to_csv(base_path / "s_correct.csv", index=False, header=None, float_format="%.6f")
-    dfw.to_csv(base_path / "w_correct.csv", index=False, header=None, float_format="%.6f")
-    dfj.to_csv(base_path / "j_correct.csv", index=False, header=None, float_format="%.6f")
-    dfm.to_csv(base_path / "m_correct.csv", index=False, header=None, float_format="%.6f")
-    # fmt: on
+    return df
 
 
-def map_new_labels(df, new2old_labels, ignore_labels, save_file=None):
+def map_new_labels(df, new2old_labels, save_file=None, ignore_labels=None):
     """
     Map new labels to old labels and remove data contining ignored labels
     Args:
@@ -287,7 +281,8 @@ def map_new_labels(df, new2old_labels, ignore_labels, save_file=None):
     """
     df[3] = df[3].map(new2old_labels)
     # Keep rows where df[3] is NOT in ignore_labels
-    df = df[~df[3].isin(ignore_labels)]
+    if ignore_labels is not None:
+        df = df[~df[3].isin(ignore_labels)]
     if save_file is not None:
         df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     return df
@@ -322,14 +317,19 @@ def get_rules():
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     ])
+
+    # j_data mapping: labels were wrong
+    mapping_j = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
     # fmt: on
 
     rule = upper_triangle + upper_triangle.T - np.diag(upper_triangle.diagonal())
     rule_df = pd.DataFrame(rule, index=labels, columns=labels)
 
+    # fmt: off
     return SimpleNamespace(
-        ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df
+        ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df, mapping_j = mapping_j
     )
+    # fmt: on
 
 
 def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame:
@@ -497,36 +497,107 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
-# df_db = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
-# )
-# df = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None
-# )
-# save_file = "/home/fatemeh/Downloads/bird/data/final/proc/s_data_complete.csv"
+def make_data_pipeline(name, input_file, save_path, database_file, change_format):
+    """
+    pipeline: format, index, map0, mistake, complete, map, shift, combine, drop
 
-# df_comp = complete_data_from_db(df, df_db)
-# df_comp.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    name: s: set1 (judy), j (json suzzane), m (mat suzzane), w (csv willem)
+    database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+    """
+    # for map_new_labels just use the mapping to -1 for ignore labels
 
-# rule_df = get_rules().rule_df
-# ind2name = get_rules().ind2name
-# ignore_labels = get_rules().ignore_labels
-# df = pd.read_csv(
-#     "/home/fatemeh/Downloads/bird/data/final/proc/s_data_complete.csv", header=None
-# )
-# df_unq_labels = np.unique(df[3])
-# mapping = {idx: -1 if idx in ignore_labels else idx for idx in df_unq_labels}
-# df[3] = df[3].map(mapping)
-# df = df.sort_values([0, 1]).reset_index(drop=True)
-# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_map.csv", index=False, header=None, float_format="%.6f")
+    save_path.mkdir(parents=True, exist_ok=True)
 
-# df = shift_df(df, 20)
-# df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
-# sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
-# print("Done")
+    df_db = pd.read_csv(database_file, header=None)
 
-# for map_new_labels just use the mapping to -1 for ignore labels
-# pipeline: format, index, complete, map, shift, combine, drop, mistakes
+    # Format
+    # TODO csv part should be corrected
+    print("Format")
+    save_file = save_path / f"{name}_format.csv"
+    change_format[name](input_file, save_file)
+    df = pd.read_csv(save_file, header=None)
+
+    # Map to closest divisible of 20
+    # orig_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
+    # save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv")
+    # write_unsorted_data(database_file, orig_file, save_file, 10)
+
+    # Index
+    print("Index")
+    # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None)
+    # save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv"
+    save_file = save_path / f"{name}_index.csv"
+    add_index(df_db, df, save_file)
+    df = pd.read_csv(save_file, header=None)
+
+    # Map0
+    print("Map0")
+    # map0: First mapping due to wrong labels in j_data. The other data remain the same.
+    # For consistency, the other mapping is identity.
+    # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
+    # save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv"
+    if name == "j":
+        mapping = get_rules().mapping_j
+    else:
+        u_label_ids = np.unique(df[3])
+        mapping = dict(zip(u_label_ids, u_label_ids))
+    save_file = save_path / f"{name}_map0.csv"
+    df = map_new_labels(df, mapping, save_file)
+
+    # Misakes
+    print("Misakes")
+    df = correct_mistakes(df, name)
+    save_file = save_path / f"{name}_correct.csv"
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+    # Complete
+    print("Complete")
+    # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None)
+    # save_file = "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv"
+    df = complete_data_from_db(df, df_db)
+    save_file = save_path / f"{name}_complete.csv"
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+    # Map: for ignored labels
+    print("Map")
+    # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_map.csv", index=False, header=None, float_format="%.6f")
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
+    ignored = list(get_rules().ignore_labels.keys())
+    ignore_labels = get_rules().ignore_labels
+    u_label_ids = np.unique(df[3])
+    mapping = {idx: -1 if idx in ignore_labels else idx for idx in u_label_ids}
+    save_file = save_path / f"{name}_map.csv"
+    df = map_new_labels(df, mapping, save_file)
+
+    # Shift
+    # TODO issue with j_data
+    print("Shift")
+    # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
+    df = shift_df(df, 20)
+    save_file = save_path / f"{name}_shift.csv"
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
+    print("Done")
+
+
+"""
+# Old to be removed
+# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
+# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
+# ignored_labels = [8, 14, 15, 16, 17]
+# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+"""
+# change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_file}
+# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+# database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+# name, input_file = "s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
+# name, input_file = "j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
+# name, input_file = "m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+# name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
+# make_data_pipeline(name, input_file, save_path, database_file, change_format)
 
 
 def find_matching_index(keys, query, tol=1e-4):
