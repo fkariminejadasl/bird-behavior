@@ -853,10 +853,12 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
 
     # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
     # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
-    df1.iloc[:, 4:] = np.round(df1.iloc[:, 4:], 4)
-    df2.iloc[:, 4:] = np.round(df2.iloc[:, 4:], 4)
-    a = df1[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
-    b = df2[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    a = df1.copy()
+    b = df2.copy()
+    a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
+    b.iloc[:, 4:] = np.round(b.iloc[:, 4:], 4)
+    a = a[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    b = b[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
     return a.equals(b)
 
     # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
