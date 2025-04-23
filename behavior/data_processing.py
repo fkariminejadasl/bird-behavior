@@ -544,12 +544,96 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
+def combine_data(csv_files):
+    df_list = []
+    for csv_file in csv_files:
+        df = pd.read_csv(csv_file, header=None)
+        df_list.append(df)
+    combined_df = pd.concat(df_list, ignore_index=True)
+    return combined_df
+
+
+def group_equal_elements(df, subset, indices, equal_func):
+    groups = []  # List to store groups of equal elements
+    visited = set()  # Set to track which indices we have already grouped
+
+    for i in tqdm(range(len(indices))):
+        if indices[i] in visited:
+            continue  # Skip if this index is already part of a group
+
+        # Start a new group with the current index
+        current_group = [indices[i]]
+        visited.add(indices[i])
+
+        for j in range(i + 1, len(indices)):
+            if indices[j] not in visited:
+                IS_EQUAL = equal_func(df, subset, indices[i], indices[j])
+                if IS_EQUAL:
+                    current_group.append(indices[j])
+                    visited.add(indices[j])
+
+        # Add the group to the list of groups
+        groups.append(current_group)
+
+    return groups
+
+
+def equal_func(df, subset, ind1, ind2):
+    set1 = df[subset].iloc[ind1 : ind1 + 20].reset_index(drop=True)
+    set2 = df[subset].iloc[ind2 : ind2 + 20].reset_index(drop=True)
+    return set1.equals(set2)
+
+
+def group_equal_elements_optimized(df, subset, indices):
+    hashes = {}
+    for idx in tqdm(indices):
+        # Round the float columns to avoid precision issues
+        set1 = df[subset].iloc[idx : idx + 20].reset_index(drop=True)
+        set1_rounded = set1.round(6)
+        group_rows = pd.util.hash_pandas_object(set1_rounded).values.tobytes()
+
+        if group_rows not in hashes:
+            hashes[group_rows] = []
+        hashes[group_rows].append(idx)
+
+    # Extract groups of duplicates from the hash map
+    groups = [group for group in hashes.values() if len(group) > 1]
+
+    return groups
+
+
+def drop_duplicates(df):
+    subset = [0, 1, 4, 5, 6, 7]
+    df_20 = df.iloc[::20]
+    sel_df_20 = df_20[subset]
+    inds = sel_df_20[sel_df_20.duplicated(keep=False)].index
+    print(len(inds))
+
+    # groups = group_equal_elements(df, subset, inds, equal_func)
+    groups = group_equal_elements_optimized(df, subset, inds)
+    groups = [list(map(int, g)) for g in groups]
+    print(groups)
+
+    # Collect all the indices to be dropped
+    to_drop = []
+    for g in groups:
+        if len(g) > 1:
+            # Collect indices to drop (ignoring the first one)
+            to_drop.extend(range(i, i + 20) for i in g[1:])
+
+    # Flatten the list of indices to drop
+    to_drop = [item for sublist in to_drop for item in sublist]
+
+    # Drop all the collected rows at once
+    df = df.drop(to_drop)
+    return df
+
+
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
-    pipeline: format, index, map0, mistake, complete, map, shift, combine, drop
+    pipeline: format, index, map0, mistake, complete, map, shift, \{combine, drop}
 
     name: s: set1 (judy), j (json suzzane), m (mat suzzane), w (csv willem)
-    database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
     """
     # for map_new_labels just use the mapping to -1 for ignore labels
 
@@ -626,6 +710,23 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     print("Done")
 
 
+def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: list):
+    """
+    pipeline: \{format, index, map0, mistake, complete, map, shift}, combine, drop
+    """
+    print("Combined")
+    csv_files = [input_path / i for i in filenames]
+    save_file = save_path / "combined.csv"
+    df = combine_data(csv_files)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+    print("Drop duplicates")
+    save_file = save_file / "drop.csv"
+    df = drop_duplicates(df)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    print("Done")
+
+
 """
 # Old to be removed
 # dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
@@ -636,13 +737,15 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 # # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 """
 # change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
-# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
 # database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
 # name, input_file = "s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
 # name, input_file = "j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
 # name, input_file = "m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 # name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
 # make_data_pipeline(name, input_file, save_path, database_file, change_format)
+filenames = ["s_shift.csv", "j_shift.csv", "m_shift.csv", "w_shift.csv"]
+make_combined_data_pipeline(save_path, save_path, filenames)
 # print("Done")
 
 
