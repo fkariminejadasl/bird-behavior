@@ -99,11 +99,38 @@ def change_format_mat_files(mat_path: Path, save_file=None) -> pd.DataFrame:
     return df
 
 
-def change_format_csv_file(csv_file, save_file):
-    """
-    Becareful: save_file appending contents
-    """
-    file = open(save_file, "a")
+def change_format_csv_file_pd(csv_file):
+    # Same as change_format_csv_file but only with pandas
+    # 1) parse "NaN" as actual NaN
+    df = pd.read_csv(
+        csv_file,
+        sep=r",\s*",
+        engine="python",
+        names=["device_id", "start_time", "c2", "c3", "c4", "c5", "c6", "label_conf"],
+        dtype=str,
+        na_values=["NaN"],
+    )
+
+    # 2) split out label/conf, filter conf==0
+    df[["label", "conf"]] = df["label_conf"].str.split(" ", expand=True)
+    df["label"] = df["label"].astype(int) - 1
+    df["conf"] = df["conf"].astype(int)
+    df = df[df["conf"] != 0]
+
+    # 3) drop any row with a true NaN in c3,c4,c5 or c6
+    df = df.dropna(subset=["c3", "c4", "c5", "c6"])
+
+    # 4) reformat datetime
+    df["start_time"] = pd.to_datetime(
+        df["start_time"], format="%m/%d/%Y %H:%M:%S"
+    ).dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 5) select & reorder columns
+    return df[["device_id", "start_time", "c2", "label", "c3", "c4", "c5", "c6"]]
+
+
+def change_format_csv_file(csv_file):
+    rows = []
     with open(csv_file, "r") as f:
         for r in f:
             r = r.strip().split(", ")
@@ -117,12 +144,31 @@ def change_format_csv_file(csv_file, save_file):
                 continue
             if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
                 continue
-            item = (
-                f"{device_id},{start_time},{r[2]},{label},{r[3]},{r[4]},{r[5]},{r[6]}\n"
-            )
-            file.write(item)
-        file.flush()
-    file.close()
+            rows.append([device_id, start_time, r[2], label, r[3], r[4], r[5], r[6]])
+    df = pd.DataFrame(rows)
+    return df
+
+
+def change_format_csv_files(input_dir: Path, save_file=None):
+    """
+    Read & reformat many CSVs, then write one combined output.
+
+    :param csv_files: list of input file paths
+    :param save_file: path to write the combined CSV
+    :returns: the concatenated DataFrame
+    """
+    dfs = []
+    csv_files = list(input_dir.glob("*.csv"))
+    for csv_path in tqdm(csv_files, total=len(csv_files)):
+        df = change_format_csv_file(csv_path)
+        dfs.append(df)
+
+    combined = pd.concat(dfs, ignore_index=True)
+
+    if save_file is not None:
+        combined.to_csv(save_file, index=False, header=None)
+
+    return combined
 
 
 def build_index(keys_rounded, n_rows=3):
@@ -590,7 +636,7 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 # ignored_labels = [8, 14, 15, 16, 17]
 # # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 """
-# change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_file}
+# change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
 # save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
 # database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
 # name, input_file = "s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
@@ -598,6 +644,7 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 # name, input_file = "m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 # name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
 # make_data_pipeline(name, input_file, save_path, database_file, change_format)
+# print("Done")
 
 
 def find_matching_index(keys, query, tol=1e-4):
