@@ -501,7 +501,8 @@ def evaluate_and_modify_df(df, rule):
 
 def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
     new_df = []
-    df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+    # df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+    df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
     df_dt = df_dt.reset_index(drop=True)
     for start in range(len(df_dt) - glen + 1):
         cut = df_dt.iloc[start : start + glen].copy()
@@ -557,7 +558,6 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     df_db = pd.read_csv(database_file, header=None)
 
     # Format
-    # TODO csv part should be corrected
     print("Format")
     save_file = save_path / f"{name}_format.csv"
     change_format[name](input_file, save_file)
