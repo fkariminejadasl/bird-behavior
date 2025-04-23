@@ -617,7 +617,6 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     df = map_new_labels(df, mapping, save_file)
 
     # Shift
-    # TODO issue with j_data
     print("Shift")
     # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
     df = shift_df(df, 20)
@@ -645,6 +644,41 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 # name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
 # make_data_pipeline(name, input_file, save_path, database_file, change_format)
 # print("Done")
+
+
+def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
+    """
+    Get all the data from the database (1930 requests)
+    """
+    # data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+    unique_dt = (
+        data[[0, 1]].drop_duplicates().sort_values(by=[0, 1]).reset_index(drop=True)
+    )
+
+    file = open(save_file, "w")
+    for _, row in tqdm(unique_dt.iterrows(), total=len(unique_dt)):
+        device_id, start_time = list(row)
+        try:
+            igs, idts, _ = bd.get_data(
+                database_url, device_id, start_time, start_time, glen
+            )
+        except Exception as e:
+            print(f"Error during data processing or saving results: {e}")
+            continue
+        if len(igs) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+
+        indices = idts[:, 0]
+        sel_igs = np.round(igs, 6)
+        for i, index in zip(sel_igs, indices):
+            item = (
+                f"{device_id},{start_time},{index},-1,{i[0]:.6f},{i[1]:.6f},"
+                f"{i[2]:.6f},{i[3]:.6f}\n"
+            )
+            file.write(item)
+        file.flush()
+    file.close()
 
 
 def find_matching_index(keys, query, tol=1e-4):
