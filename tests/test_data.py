@@ -195,7 +195,7 @@ def identify_mistakes(df_s, df, glen=20):
         if indices and len(indices) == 1:
             index = indices[0]
             label = df.loc[index, 3]
-            if label != sel[3]:
+            if label != sel[3] and sel[3] != -1 and label != -1:
                 mistakes[(key[0], key[1])] = (sel[3], label)
                 # print(f"{sel[0]},{sel[1]},{sel[2]},{sel[3]},{label}")
     return mistakes

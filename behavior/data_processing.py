@@ -346,10 +346,14 @@ def get_rules():
         "Flap", "ExFlap", "Soar", "Manouvre", "Boat", "Float", "Float_groyne",  "SitStand", "TerLoco",
         "Pecking", "Handling_mussel"
     ]
+    
     ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking', 
     10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
 
     ignore_labels = {7: 'Other', 10: 'Looking_food', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra'}
+
+    merge_labels = {17: 4, 11: 9}
+
     upper_triangle = np.array([
         [1, 2, 1, 2, 1, 1, 1, 1, 0, 0, 0],
         [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0],
@@ -373,7 +377,7 @@ def get_rules():
 
     # fmt: off
     return SimpleNamespace(
-        ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df, mapping_j = mapping_j
+        ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df, mapping_j = mapping_j, merge_labels=merge_labels
     )
     # fmt: on
 
@@ -544,13 +548,32 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
-def combine_data(csv_files):
+def combine_csv_files(csv_files):
     df_list = []
     for csv_file in csv_files:
         df = pd.read_csv(csv_file, header=None)
         df_list.append(df)
     combined_df = pd.concat(df_list, ignore_index=True)
     return combined_df
+
+
+def merge_prefer_valid(*dfs):
+    """
+    merge and pick the valid (col 3 ≠ -1) row
+    """
+    df = pd.concat(dfs, ignore_index=True)
+
+    # for each group of (0,1,2), pick the row whose col 3 != -1 if it exists,
+    # otherwise pick whichever row is first.
+    def pick_valid(sub):
+        # boolean mask of “valid” rows
+        valid = (sub[3] != -1).to_numpy()
+        # argmax gives position of first True, or 0 if none
+        return sub.iloc[valid.argmax()]
+
+    return (
+        df.groupby([0, 1, 2], as_index=False).apply(pick_valid).reset_index(drop=True)
+    )
 
 
 def group_equal_elements(df, subset, indices, equal_func):
@@ -631,7 +654,7 @@ def drop_duplicates(df):
 
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
-    pipeline: format, index, map0, mistake, complete, map, shift, \{combine, drop}
+    pipeline: format, index, map0, mistake, complete, map, \{combine, shift, drop}
 
     name: s: set1 (judy), j (json suzzane), m (mat suzzane), w (csv willem)
     """
@@ -691,34 +714,34 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     # Map: for ignored labels
     print("Map")
     # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_map.csv", index=False, header=None, float_format="%.6f")
-    rule_df = get_rules().rule_df
-    ind2name = get_rules().ind2name
-    ignored = list(get_rules().ignore_labels.keys())
     ignore_labels = get_rules().ignore_labels
+    merge_labels = get_rules().merge_labels
     u_label_ids = np.unique(df[3])
     mapping = {idx: -1 if idx in ignore_labels else idx for idx in u_label_ids}
+    mapping.update(merge_labels)
     save_file = save_path / f"{name}_map.csv"
     df = map_new_labels(df, mapping, save_file)
 
-    # Shift
-    print("Shift")
-    # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
-    df = shift_df(df, 20)
-    save_file = save_path / f"{name}_shift.csv"
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-    # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
     print("Done")
 
 
 def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: list):
     """
-    pipeline: \{format, index, map0, mistake, complete, map, shift}, combine, drop
+    pipeline: \{format, index, map0, mistake, complete, map}, combine, shift, drop
     """
     print("Combined")
-    csv_files = [input_path / i for i in filenames]
+    dfs = [pd.read_csv(input_path / i, header=None) for i in filenames]
     save_file = save_path / "combined.csv"
-    df = combine_data(csv_files)
+    df = merge_prefer_valid(*dfs)
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    del dfs
+
+    print("Shift")
+    # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_shift.csv", index=False, header=None, float_format="%.6f")
+    df = shift_df(df, 20)
+    save_file = save_path / f"shift.csv"
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
 
     print("Drop duplicates")
     save_file = save_file / "drop.csv"
@@ -736,16 +759,36 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
 # ignored_labels = [8, 14, 15, 16, 17]
 # # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 """
+
+# dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
+# dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
+# dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None)
+# dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map.csv", header=None)
+# dts = dfs[[0,1]].drop_duplicates().reset_index(drop=True)
+# dtw = dfw[[0,1]].drop_duplicates().reset_index(drop=True)
+# dtj = dfj[[0,1]].drop_duplicates().reset_index(drop=True)
+# msw = pd.merge(dts, dtw).reset_index(drop=True)
+# msj = pd.merge(dts, dtj).reset_index(drop=True)
+# mwj = pd.merge(dtw, dtj).reset_index(drop=True)
+# mswj = pd.merge(msw, msj).reset_index(drop=True)
+# dfswjm = bdp.merge_prefer_valid(dfs, dfj, dfm, dfw)
+# >>> len(dts), len(dtj), len(dtm), len(dtw)
+# (1526, 1854, 706, 1426)
+# >>> len(dfs), len(dfj), len(dfm), len(dfw)
+# (71842, 90668, 32790, 67807)
+# >>> len(dfswjm)
+# 105692
+
 # change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
-save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
 # database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
 # name, input_file = "s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
 # name, input_file = "j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
 # name, input_file = "m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 # name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
 # make_data_pipeline(name, input_file, save_path, database_file, change_format)
-filenames = ["s_shift.csv", "j_shift.csv", "m_shift.csv", "w_shift.csv"]
-make_combined_data_pipeline(save_path, save_path, filenames)
+# filenames = ["s_map.csv", "j_map.csv", "m_map.csv", "w_map.csv"]
+# make_combined_data_pipeline(save_path, save_path, filenames)
 # print("Done")
 
 
