@@ -347,13 +347,17 @@ def plot_labeled_data(df, df_db, ind2name):
             e_inds = list(cut_nc_inds + 1) + [len(cut_df)]
             for s, e in zip(s_inds, e_inds):
                 cut_cut_df = cut_df.iloc[s:e]
-                s_i, e_i = cut_cut_df.iloc[0, 2], cut_cut_df.iloc[-1, 2]
-                ax.plot([s_i, s_i], y_limits, "-", color="black")
-                ax.plot([e_i, e_i], y_limits, "-", color="black")
-                label = ind2name[cut_cut_df.iloc[0, 3]]
-                text_loc = [s_i + (e_i - s_i + 1) // 2 - 2, y_limits[1] - 0.5]
-                ax.text(*text_loc, f"{label}", color="black", fontsize=12)
-                xticks.extend([s_i, e_i])
+                label_id = cut_cut_df.iloc[0, 3]
+                if label_id in ind2name:
+                    label = ind2name[label_id]
+                    s_i, e_i = cut_cut_df.iloc[0, 2], cut_cut_df.iloc[-1, 2]
+                    text_loc = [s_i + (e_i - s_i + 1) // 2 - 2, y_limits[1] - 0.5]
+                    ax.text(*text_loc, f"{label}", color="black", fontsize=12)
+                    ax.plot([s_i, s_i], y_limits, "-", color="black")
+                    ax.plot([e_i, e_i], y_limits, "-", color="black")
+                    xticks.extend([s_i, e_i])
+            if cut_df.iloc[-1, 2] not in xticks:
+                xticks.append(cut_df.iloc[-1, 2])
         ax.set_xticks(xticks)
 
     return fig

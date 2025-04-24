@@ -212,6 +212,9 @@ def match_forward_backward(index_maps, keys_rounded, i):
 
 
 def add_index(df_db, df, save_file):
+    df_db = df_db.copy()
+    df = df.copy()
+
     # Settings
     tol = 1e-4  # precision 6 is issue in original data
     precision = -int(np.log10(tol))
@@ -380,6 +383,22 @@ def get_rules():
         ind2name=ind2name, ignore_labels=ignore_labels, rule_df=rule_df, mapping_j = mapping_j, merge_labels=merge_labels
     )
     # fmt: on
+
+
+def drop_groups_with_all_neg1(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drops groups based on the first two columns where every value in the fourth column is -1.
+
+    Parameters:
+    df (pd.DataFrame): Input DataFrame.
+
+    Returns:
+    pd.DataFrame: Filtered DataFrame with unwanted groups removed.
+    """
+
+    # Use groupby + filter to keep only groups where NOT all values in target_col are -1
+    filtered_df = df.groupby([0, 1]).filter(lambda group: not (group[3] == -1).all())
+    return filtered_df
 
 
 def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame:
@@ -660,6 +679,8 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     """
     # for map_new_labels just use the mapping to -1 for ignore labels
 
+    print(f"Processing {name} data")
+
     save_path.mkdir(parents=True, exist_ok=True)
 
     df_db = pd.read_csv(database_file, header=None)
@@ -703,14 +724,6 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     save_file = save_path / f"{name}_correct.csv"
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
-    # Complete
-    print("Complete")
-    # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None)
-    # save_file = "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv"
-    df = complete_data_from_db(df, df_db)
-    save_file = save_path / f"{name}_complete.csv"
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-
     # Map: for ignored labels
     print("Map")
     # df.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/s_map.csv", index=False, header=None, float_format="%.6f")
@@ -721,6 +734,18 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     mapping.update(merge_labels)
     save_file = save_path / f"{name}_map.csv"
     df = map_new_labels(df, mapping, save_file)
+
+    # Drop groups with all label -1 (invalid)
+    print("Drop groups with all -1( invalid)")
+    df = drop_groups_with_all_neg1(df)
+
+    # Complete
+    print("Complete")
+    # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None)
+    # save_file = "/home/fatemeh/Downloads/bird/data/final/proc/m_data_complete.csv"
+    df = complete_data_from_db(df, df_db)
+    save_file = save_path / f"{name}_complete.csv"
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     print("Done")
 
@@ -782,12 +807,14 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
 # change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
 # save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
 # database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-# name, input_file = "s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-# name, input_file = "j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-# name, input_file = "m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# name, input_file = "w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
-# make_data_pipeline(name, input_file, save_path, database_file, change_format)
-# filenames = ["s_map.csv", "j_map.csv", "m_map.csv", "w_map.csv"]
+# name_input_files = [
+# ("s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")),
+# ("j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")),
+# ("m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
+# ("w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem"))
+# ]
+# [make_data_pipeline(name, input_file, save_path, database_file, change_format) for name, input_file in name_input_files]
+# filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 # make_combined_data_pipeline(save_path, save_path, filenames)
 # print("Done")
 

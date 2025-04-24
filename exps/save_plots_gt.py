@@ -4,22 +4,21 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 
+from behavior import data_processing as bdp
 from behavior import utils as bu
-from behavior.utils import ind2name
 
 # gt2_combined, gt2_sdata
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_m_index")
+gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined")
 # combined_unique_sorted012, s_data_orig_index
 df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc/m_index.csv",  # j_data_map0
+    "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv",  # j_data_map0
     header=None,
 )
 df_db = pd.read_csv(
     "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
 )
 # fmt: off
-ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking', 
-10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
+ind2name = bdp.get_rules().ind2name
 # fmt: on
 glen = 10  # 20
 
@@ -44,7 +43,10 @@ for i, dt in tqdm(enumerate(unique_dt.groups.keys()), total=len(unique_dt)):
     fig = bu.plot_labeled_data(dataframe, dataframe_db, ind2name)
     name = f"{i},{dt[0]},{dt[1]}"
     # Take the first label (it can also be max or any other thing)
-    label = ind2name[dataframe.iloc[0, 3]]
+    lable_ids = dataframe.iloc[:, 3].values
+    lable_ids = [int(i) for i in lable_ids]
+    label_id = next(i for i in lable_ids if i != -1)
+    label = ind2name[label_id]
     save_path = gt_path / f"{label}"
     save_path.mkdir(parents=True, exist_ok=True)
     fig.savefig(save_path / f"{name}.png", bbox_inches="tight")
