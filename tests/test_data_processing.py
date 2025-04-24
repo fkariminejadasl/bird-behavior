@@ -471,3 +471,18 @@ def test_drop_groups_with_all_neg1():
     # fmt:on
     filtered = bdp.drop_groups_with_all_neg1(df)
     assert len(filtered) == 0
+
+
+def test_drop_duplicates():
+    # fmt:off
+    df = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,6,   -0.519570,-0.105422,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",6,6,   -0.504756,-0.041928,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",7,6,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8,6,   -0.394823,-0.244503,0.856317,0.020033],
+    ])
+    # fmt:on
+    df2 = pd.concat([df, df]).reset_index(drop=True)
+
+    result = bdp.drop_duplicates(df2, glen=4)
+    assert result.equals(df)
