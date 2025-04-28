@@ -1,19 +1,12 @@
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from behavior import data_processing as bdp
 from behavior.data import create_balanced_data, save_specific_labels
-from behavior.data_processing import (
-    add_index,
-    map_new_labels,
-    write_j_data_orig,
-    write_m_data_orig,
-    write_unsorted_data,
-    write_w_data_orig,
-)
-from behavior.utils import ind2name
 
 """
 # Create balanced data
@@ -33,106 +26,13 @@ for i in range(5):
 save_specific_labels(data_file, save_path / "s_data_unbalanced.csv", keep_labels)
 """
 
-"""
-# Debugging s_data
-# ======
-# dpath = Path("/home/fatemeh/Downloads/bird/data/set1/data")
-# json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/s_data_format.csv")
-# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-# write_j_data_orig(
-#     json_file, save_file, new2old_labels={k: k for k in ind2name}, ignored_labels=[]
-# )
 
-# all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
-# orig_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/s_data_format.csv")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/s_data_no_shift.csv")
-# write_unsorted_data(all_data_file, orig_file, save_file, 20)
+# TODO
+# new2old_labels: old2new
+# df = df.sort_values([0, 1]).reset_index(drop=True) = df.sort_values(by=[0,1], ignore_index=True) # maybe for everything.
+# check original data preserved.
+# check tests
 
-df_db = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
-)
-df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc/s_data_format.csv", header=None
-)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv"
-add_index(df_db, df, save_file)
-"""
-
-# # correct the code for add_index for missing items
-# # remove the to be removed
-# # visualize
-# # label mapping
-# >>> df3 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv", header=None)
-# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/s_data_index.csv", header=None)
-# >>> df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
-# >>> df2.iloc[:,4:] = np.round(df2.iloc[:,4:], 4)
-# >>> df3.iloc[:,4:] = np.round(df3.iloc[:,4:], 4)
-# >>> df2 = df2.sort_values([0,1,2])
-# >>> df1 = df1.sort_values([0,1,2])
-# >>> df3 = df3.sort_values([0,1,2])
-# >>> common = pd.merge(df2,df3)
-# >>> pd.concat([df3, common]).drop_duplicates(keep=False) # 534  2012-06-08 08:32:46 issue in new code
-
-
-"""
-# Debugging: j_data (Suzzane)
-# ======
-# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-# ignored_labels = [8, 14, 15, 16, 17]
-# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-# write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
-
-# all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
-# orig_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_no_shift.csv")
-# write_unsorted_data(all_data_file, orig_file, save_file, 10)
-
-# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
-# df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv", header=None)
-# save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv"
-# add_index(df_db, df, save_file)
-
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv"
-new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
-map_new_labels(df, new2old_labels, save_file)
-"""
-
-"""
-# Debugging: M_data (Matlab Suzzane)
-# ======
-dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv")
-new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
-ignored_labels = [10, 14, 15, 16, 17]
-for mat_file in tqdm(dpath.glob("An*mat")):
-    print(mat_file.name)
-    write_m_data_orig(mat_file, save_file, new2old_labels = {k:k for k in range(30)}, ignored_labels=[])
-
-df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_format.csv", header=None)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv"
-add_index(df_db, df, save_file)
-"""
-
-""""
-# Debugging: w_data (willem)
-# ======
-dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/w_data_format.csv")
-for p in dpath.glob("*csv"):
-    print(p.name)
-    write_w_data_orig(p, save_file)
-
-df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_format.csv", header=None)
-save_file = "/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv"
-add_index(df_db, df, save_file)
-"""
 
 """
 # Debugging: finding mapping
@@ -176,23 +76,6 @@ ignored_labels = [8, 14, 15, 16, 17]
 new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
 ignored_labels = [10, 14, 15, 16, 17]
 """
-
-# df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_index.csv", header=None)
-# df3 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None)
-# df3_cands = df3[df3[3]==17]
-# for _, r3 in df3_cands.iterrows():
-#     r2 = df2[(df2[0]==r3[0]) & (df2[1]==r3[1]) & (df2[2]==r3[2])]
-#     if len(r2) !=0:
-#         print(r3, r2)
-#         break
-
-# s:w 5: 9 and 9: 2 mistakes
-# ts = np.unique(df4[df4[3]==5][1])
-# for t in ts:
-#     sel = df1[df1[1]==t]
-#     if len(sel) != 0:
-#         label = sel.iloc[0,3]
-#         print(t, label)
 
 """
 # Debugging: Missing keys

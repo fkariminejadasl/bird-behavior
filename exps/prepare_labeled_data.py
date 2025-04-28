@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import utils as bu
-from behavior.data_processing import map_to_nearest_divisible_20
+from behavior.data_processing import get_label_range, map_to_nearest_divisible_20
 from behavior.utils import ind2name
 
 # j: json (set1, sus json)

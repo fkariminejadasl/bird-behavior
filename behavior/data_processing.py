@@ -171,13 +171,13 @@ def change_format_csv_files(input_dir: Path, save_file=None):
     return combined
 
 
-def build_index(keys_rounded, n_rows=3):
+def build_index(data: np.ndarray, n_rows=3, step=1):
     """
     Create a dictionary where key = tuple of n_rows consecutive tuples, value = starting index
     """
     index_map = {}
-    for i in range(len(keys_rounded) - n_rows + 1):
-        key = tuple(tuple(keys_rounded[i + j]) for j in range(n_rows))
+    for i in range(0, len(data) - n_rows + 1, step):
+        key = tuple(tuple(data[i + j]) for j in range(n_rows))
         if key in index_map:
             index_map[key].append(i)
         else:
@@ -837,3 +837,16 @@ def get_label_range(slice):
         label_range = list(map(int, label_range))
         label_ranges.append(label_range)
     return label_ranges
+
+
+def check_batches(df: pd.DataFrame, batch_size=20):
+    for i in tqdm(range(0, len(df), batch_size)):
+        batch = df.iloc[i : i + batch_size]
+        assert len(batch) == batch_size
+
+        assert batch[0].nunique() == 1, "nonunique device id"
+        assert batch[1].nunique() == 1, "nonunique time"
+        assert batch[3].nunique() == 1, "nonunique label"
+        assert batch[7].nunique() == 1, "nonunique GPS"
+
+        assert all(np.diff(batch[2].values) == 1), "not consecutive index"

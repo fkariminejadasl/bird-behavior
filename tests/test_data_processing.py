@@ -367,11 +367,9 @@ def test_process_moving_window_given_dt():
 
 
 @pytest.mark.local
-def test_shift_two_dt():
-    # test for shift two device and time
-    rule_df = get_rules().rule_df
-    ind2name = get_rules().ind2name
+def test_shift_df():
 
+    # test for shift two device and time
     glen = 20  # group length
     dts = [
         [6011, "2015-04-30 09:10:57"],
@@ -390,26 +388,19 @@ def test_shift_two_dt():
     new_df = shift_df(df, glen, dts)
     new_df.equals(expected)
 
-    def check_batches(df, batch_size=20):
-        for i in range(0, len(new_df), batch_size):
-            batch = new_df.iloc[i : i + batch_size]
-            assert len(batch) == batch_size
+    bdp.check_batches(new_df, batch_size=glen)
 
-            assert batch[0].nunique() == 1, "same device id"
-            assert batch[1].nunique() == 1, "same time"
-            assert batch[3].nunique() == 1, "same label"
-            assert batch[7].nunique() == 1, "same GPS"
-
-            assert all(np.diff(batch[2].values) == 1), "consecutive index"
-
-    check_batches(new_df, batch_size=20)
-
+    # Test for all shifted data 
     df = pd.read_csv(
         f"/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv",
         header=None,
     )
-    check_batches(new_df, batch_size=20)
-    print("Done")
+    # bdp.check_batches(df, batch_size=glen)
+
+    # no duplicates. Each group is unique.
+    df_values = df[[0, 1, 2]].values
+    index_maps = bdp.build_index(df_values, n_rows=glen, step=glen)
+    assert all(len(v) == 1 for v in index_maps.values())
 
 
 @pytest.mark.local
