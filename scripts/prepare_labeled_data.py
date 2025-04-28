@@ -1,12 +1,33 @@
+from pathlib import Path
+
+import pandas as pd
+
+from behavior import data_processing as bdp
+from behavior.data_processing import (
+    change_format_csv_files,
+    change_format_json_files,
+    change_format_mat_files,
+    make_combined_data_pipeline,
+    make_data_pipeline,
+)
+
 """
-# Old to be removed
-# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-# ignored_labels = [8, 14, 15, 16, 17]
-# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
+Get the data from the database
+
+"/home/fatemeh/Downloads/bird/data/final/orig/{}_data_orig.csv" or
+first make {}_format.csv (The first operation in the data pipeline).
+/home/fatemeh/Downloads/bird/data/final/proc2/{}_format.csv
 """
+# database_url = "postgresql://username:password@host:port/database_name"
+# save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+# df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+# df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", header=None)
+# df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
+# df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
+# data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+# get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
+# # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
+# # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 
 # dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
 # dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
@@ -27,16 +48,26 @@
 # >>> len(dfswjm)
 # 105692
 
-# change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
-# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
-# database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-# name_input_files = [
-# ("s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")),
-# ("j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")),
-# ("m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
-# ("w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem"))
-# ]
-# [make_data_pipeline(name, input_file, save_path, database_file, change_format) for name, input_file in name_input_files]
-# filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
-# make_combined_data_pipeline(save_path, save_path, filenames)
-# print("Done")
+change_format = {
+    "s": change_format_json_files,
+    "j": change_format_json_files,
+    "m": change_format_mat_files,
+    "w": change_format_csv_files,
+}
+save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+database_file = Path(
+    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
+)
+name_input_files = [
+    ("s", Path("/home/fatemeh/Downloads/bird/data/set1/data")),
+    ("j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
+    ("m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
+    ("w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")),
+]
+[
+    make_data_pipeline(name, input_file, save_path, database_file, change_format)
+    for name, input_file in name_input_files
+]
+filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
+make_combined_data_pipeline(save_path, save_path, filenames)
+print("Done")

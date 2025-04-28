@@ -28,10 +28,14 @@ save_specific_labels(data_file, save_path / "s_data_unbalanced.csv", keep_labels
 
 
 # TODO
-# new2old_labels: old2new
+# Check for mutable parts
 # df = df.sort_values([0, 1]).reset_index(drop=True) = df.sort_values(by=[0,1], ignore_index=True) # maybe for everything.
 # check original data preserved.
 # check tests
+# stats: # devices, # dt, # perlabel data, # combined label ranges
+# all debug put together
+# update documentation
+# test_shift_df test everything. maybe other files.
 
 
 """
@@ -67,20 +71,12 @@ j:m
 7: 15
 ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking', 
 10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
-
-# j:s
-new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-ignored_labels = [8, 14, 15, 16, 17]
-
-# s:m
-new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
-ignored_labels = [10, 14, 15, 16, 17]
 """
 
 """
 # Debugging: Missing keys
 # ======
-# Since, some labels are removed from both j_data, s_data, previous getting data from database doesn't contain all the data.
+# Since, some labels are removed from both j_data, m_data, previous getting data from database doesn't contain all the data.
 # Here the missing keys are downloaded from database and them manually added to the all_database_final.csv.
 m0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig_no_mapping.csv", header=None)
 j0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_no_mapping_with_index.csv", header=None)

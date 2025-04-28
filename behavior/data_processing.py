@@ -330,12 +330,12 @@ def correct_mistakes(df, name):
     return df
 
 
-def map_new_labels(df, new2old_labels, save_file=None, ignore_labels=None):
+def map_new_labels(df, mapping, save_file=None, ignore_labels=None):
     """
     Map new labels to old labels and remove data contining ignored labels
     Args:
         df (pd.DataFrame): DataFrame containing the labels to be mapped.
-        new2old_labels (dict): Dictionary mapping new labels to old labels.
+        mapping (dict): Dictionary mapping from old labels to new labels.
         ignore_labels (list): List of labels to ignore.
         save_file (str, optional): Path to save the modified DataFrame. Defaults to None.
     Returns:
@@ -344,7 +344,7 @@ def map_new_labels(df, new2old_labels, save_file=None, ignore_labels=None):
     Example:
     ignore_labels = [7, 10, 13, 14, 15, 16]
     """
-    df[3] = df[3].map(new2old_labels)
+    df[3] = df[3].map(mapping)
     # Keep rows where df[3] is NOT in ignore_labels
     if ignore_labels is not None:
         df = df[~df[3].isin(ignore_labels)]
