@@ -13,7 +13,7 @@ import behavior.data as bd
 import behavior.utils as bu
 
 
-def change_format_json_file(json_file, save_file):
+def change_format_json_file(json_file) -> pd.DataFrame:
     """
     read json data and save it as formatted csv file
 
@@ -21,12 +21,11 @@ def change_format_json_file(json_file, save_file):
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
     """
 
+    # N x {10,20} x 4
     all_measurements, ldts = bd.load_all_data_from_json(json_file)
 
     items = []
-    for meas, ldt in tqdm(
-        zip(all_measurements, ldts), total=len(ldts)
-    ):  # N x {10,20} x 4
+    for meas, ldt in zip(all_measurements, ldts):
         # labels read 0-based
         label = ldt[0]
         device_id = ldt[1]
@@ -37,15 +36,32 @@ def change_format_json_file(json_file, save_file):
 
         for i in meas:
             i = np.round(i, 6)
-            item = (
-                f"{device_id},{start_time},{-1},{label},{i[0]:.6f},{i[1]:.6f},"
-                f"{i[2]:.6f},{i[3]:.6f}\n"
-            )
-            items.append(item)
+            items.append([device_id, start_time, -1, label, i[0], i[1], i[2], i[3]])
 
-    with open(save_file, "w") as f:
-        for item in items:
-            f.write(item)
+    df = pd.DataFrame(items)
+    return df
+
+
+def change_format_json_files(input_dir: Path, save_file=None):
+    """
+    Read & reformat many Jsons, then write one combined output.
+
+    :param input_dir: input directory containing Json files
+    :param save_file: path to write the combined Json
+    :returns: the concatenated DataFrame
+    """
+    dfs = []
+    json_files = [input_dir / f"{i}_set.json" for i in ["validation", "train", "test"]]
+    for json_file in tqdm(json_files, total=len(json_files)):
+        df = change_format_json_file(json_file)
+        dfs.append(df)
+
+    combined = pd.concat(dfs, ignore_index=True)
+
+    if save_file is not None:
+        combined.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+    return combined
 
 
 def change_format_mat_file(mat_file):
@@ -133,16 +149,18 @@ def change_format_csv_file(csv_file):
     with open(csv_file, "r") as f:
         for r in f:
             r = r.strip().split(", ")
-            device_id = r[0]
+            device_id = np.int64(r[0])
             start_time = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
             label, conf = r[-1].split(" ")
-            label = int(label) - 1  # zero-based
+            label = np.int64(label) - 1  # zero-based
             if conf == "0":
                 continue
             if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
                 continue
+            r[2] = np.int64(r[2])
+            r[3:7] = np.float64(r[3:7])
             rows.append([device_id, start_time, r[2], label, r[3], r[4], r[5], r[6]])
     df = pd.DataFrame(rows)
     return df
@@ -152,20 +170,20 @@ def change_format_csv_files(input_dir: Path, save_file=None):
     """
     Read & reformat many CSVs, then write one combined output.
 
-    :param csv_files: list of input file paths
+    :param input_dir: input directory containing CSV files
     :param save_file: path to write the combined CSV
     :returns: the concatenated DataFrame
     """
     dfs = []
     csv_files = list(input_dir.glob("*.csv"))
-    for csv_path in tqdm(csv_files, total=len(csv_files)):
-        df = change_format_csv_file(csv_path)
+    for csv_file in tqdm(csv_files, total=len(csv_files)):
+        df = change_format_csv_file(csv_file)
         dfs.append(df)
 
     combined = pd.concat(dfs, ignore_index=True)
 
     if save_file is not None:
-        combined.to_csv(save_file, index=False, header=None)
+        combined.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     return combined
 
@@ -369,7 +387,7 @@ def get_rules():
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     ])
 
-    # j_data mapping: labels were wrong
+    # j_data mapping: labels were wrong. mapping = {old: new}
     mapping_j = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
     # fmt: on
 
@@ -726,50 +744,6 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     df = drop_duplicates(df)
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     print("Done")
-
-
-"""
-# Old to be removed
-# dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-# json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc/j_data_format.csv")
-# new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
-# ignored_labels = [8, 14, 15, 16, 17]
-# # bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-"""
-
-# dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
-# dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
-# dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None)
-# dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map.csv", header=None)
-# dts = dfs[[0,1]].drop_duplicates().reset_index(drop=True)
-# dtw = dfw[[0,1]].drop_duplicates().reset_index(drop=True)
-# dtj = dfj[[0,1]].drop_duplicates().reset_index(drop=True)
-# msw = pd.merge(dts, dtw).reset_index(drop=True)
-# msj = pd.merge(dts, dtj).reset_index(drop=True)
-# mwj = pd.merge(dtw, dtj).reset_index(drop=True)
-# mswj = pd.merge(msw, msj).reset_index(drop=True)
-# dfswjm = bdp.merge_prefer_valid(dfs, dfj, dfm, dfw)
-# >>> len(dts), len(dtj), len(dtm), len(dtw)
-# (1526, 1854, 706, 1426)
-# >>> len(dfs), len(dfj), len(dfm), len(dfw)
-# (71842, 90668, 32790, 67807)
-# >>> len(dfswjm)
-# 105692
-
-# change_format = {"s": change_format_json_file, "j": change_format_json_file, "m": change_format_mat_files, "w": change_format_csv_files}
-# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
-# database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-# name_input_files = [
-# ("s", Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")),
-# ("j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")),
-# ("m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
-# ("w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem"))
-# ]
-# [make_data_pipeline(name, input_file, save_path, database_file, change_format) for name, input_file in name_input_files]
-# filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
-# make_combined_data_pipeline(save_path, save_path, filenames)
-# print("Done")
 
 
 def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):

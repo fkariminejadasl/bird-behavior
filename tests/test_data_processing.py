@@ -100,17 +100,40 @@ def test_load_all_data_from_json(tmp_path, sample_json_data):
 
 
 def test_change_format_json_file(tmp_path, sample_json_data):
+    expected = pd.DataFrame(
+        [
+            [123, "2021-01-01 00:00:00", -1, 0, 0.1, 0.2, 0.3, 10.1],
+            [123, "2021-01-01 00:00:00", -1, 0, 0.4, 0.5, 0.6, 10.2],
+        ]
+    )
     json_file = tmp_path / "input.json"
-    save_file = tmp_path / "output.csv"
     with open(json_file, "w") as f:
         json.dump(sample_json_data, f)
 
-    bdp.change_format_json_file(json_file, save_file)
+    df = bdp.change_format_json_file(json_file)
+
+    assert len(df) == 2  # 2 measurements
+    assert expected.equals(df)
+
+
+def test_change_format_json_files(tmp_path, sample_json_data):
+    json_file1 = tmp_path / "validation_set.json"
+    json_file2 = tmp_path / "train_set.json"
+    json_file3 = tmp_path / "test_set.json"
+    save_file = tmp_path / "output.csv"
+    with open(json_file1, "w") as f:
+        json.dump(sample_json_data, f)
+    with open(json_file2, "w") as f:
+        json.dump(sample_json_data, f)
+    with open(json_file3, "w") as f:
+        json.dump(sample_json_data, f)
+
+    df = bdp.change_format_json_files(tmp_path, save_file)
 
     assert save_file.exists()
     content = save_file.read_text()
     lines = content.strip().split("\n")
-    assert len(lines) == 2  # 2 measurements
+    assert len(lines) == 6
     assert lines[0].startswith("123,2021-01-01 00:00:00,-1,0,0.100000")
 
 
@@ -418,8 +441,8 @@ def test_change_format_csv_file():
     data_file = "/home/fatemeh/Downloads/bird/data/data_from_Willem/AnM534_20120608_20120609.csv"
     df = bdp.change_format_csv_file(data_file)
 
-    expected = {("0", "23"): 9, ("24", "59"): 5}
-    dt = "534", "2012-06-08 04:24:26"
+    expected = {(0, 23): 9, (24, 59): 5}
+    dt = 534, "2012-06-08 04:24:26"
     assert expected == bdp.get_start_end_inds(df, dt)
 
 
