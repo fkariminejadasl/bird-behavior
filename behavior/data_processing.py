@@ -90,7 +90,6 @@ def change_format_mat_file(mat_file):
 def change_format_mat_files(mat_path: Path, save_file=None) -> pd.DataFrame:
     all_rows = []
     for mat_file in tqdm(mat_path.glob("An*mat")):
-        print(mat_file.name)
         rows = change_format_mat_file(mat_file)
         all_rows.append(rows)
     df = pd.concat(all_rows)
@@ -239,7 +238,6 @@ def add_index(df_db, df, save_file):
     pbar = tqdm(total=len(df))
     while j < len(df):
         sel_ind, start_j, n_row = match_forward_backward(index_maps, df_values, j)
-        # sel_ind, n_row = match_best_sequence(index_maps, df_values, j)
         if sel_ind is None:
             j += 1
             pbar.update(1)
@@ -823,22 +821,6 @@ def map_to_nearest_divisible_20(start, end):
     return new_values
 
 
-def get_label_range(slice):
-    all_labels = slice[3].squeeze().values
-    idxs = np.where(np.diff(all_labels) != 0)[0] + 1  # len=0 or more
-    start_idxs = np.concatenate(([0], idxs), axis=0)
-    end_idxs = np.concatenate((idxs, [len(all_labels)]), axis=0)
-    label_ranges = []
-    for idx1, idx2 in zip(start_idxs, end_idxs):
-        assert len(np.unique(slice.iloc[idx1:idx2][3])) == 1
-        label = slice.iloc[idx1:idx2].iloc[0, 3]
-        index_range = [idx1, idx2]
-        label_range = [label] + index_range
-        label_range = list(map(int, label_range))
-        label_ranges.append(label_range)
-    return label_ranges
-
-
 def check_batches(df: pd.DataFrame, batch_size=20):
     for i in tqdm(range(0, len(df), batch_size)):
         batch = df.iloc[i : i + batch_size]
@@ -850,3 +832,17 @@ def check_batches(df: pd.DataFrame, batch_size=20):
         assert batch[7].nunique() == 1, "nonunique GPS"
 
         assert all(np.diff(batch[2].values) == 1), "not consecutive index"
+
+
+def get_start_end_inds(df, dt):
+    """
+    Indices are data indices (df[3]).
+    """
+    cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
+    u_labels = np.unique(cut[3])
+    start_end_inds = dict()
+    for u_label in u_labels:
+        sel_inds = cut[cut[3] == u_label][2].values
+        start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
+    start_end_inds = dict(sorted(start_end_inds.items()))
+    return start_end_inds

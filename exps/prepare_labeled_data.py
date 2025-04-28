@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import utils as bu
-from behavior.data_processing import get_label_range, map_to_nearest_divisible_20
+from behavior.data_processing import map_to_nearest_divisible_20
 from behavior.utils import ind2name
 
 # j: json (set1, sus json)
@@ -497,6 +497,37 @@ def write_unsorted_data(all_data_file, w_file, save_file, len_labeled_data):
                 file.write(item)
             file.flush()
     file.close()
+
+
+def get_label_range(slice):
+    """
+    return list of [label, start, end] for each label
+    The start and end are array indices not the df[3] values.
+    e.g: 6016, "2015-05-01 11:18:35" in m_data data and indices are different.
+    """
+    all_labels = slice[3].squeeze().values
+    idxs = np.where(np.diff(all_labels) != 0)[0] + 1  # len=0 or more
+    start_idxs = np.concatenate(([0], idxs), axis=0)
+    end_idxs = np.concatenate((idxs, [len(all_labels)]), axis=0)
+    label_ranges = []
+    for idx1, idx2 in zip(start_idxs, end_idxs):
+        assert len(np.unique(slice.iloc[idx1:idx2][3])) == 1
+        label = slice.iloc[idx1:idx2].iloc[0, 3]
+        index_range = [idx1, idx2]
+        label_range = [label] + index_range
+        label_range = list(map(int, label_range))
+        label_ranges.append(label_range)
+    return label_ranges
+
+
+def test_get_label_range():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/slice_w_data.csv", header=None
+    )
+    device_id, start_time = 533, "2012-05-15 05:41:52"
+    slice = df[(df[0] == device_id) & (df[1] == start_time)]
+    label_ranges = get_label_range(slice)
+    assert label_ranges == [[2, 0, 19], [8, 19, 60]]
 
 
 def write_sorted_data(all_data_file, w_file, save_file, min_thr):

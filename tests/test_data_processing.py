@@ -16,7 +16,6 @@ from behavior.data_processing import (
     change_format_mat_files,
     complete_data_from_db,
     evaluate_and_modify_df,
-    get_label_range,
     get_rules,
     map_to_nearest_divisible_20,
     process_moving_window_given_dt,
@@ -120,16 +119,6 @@ def test_map_to_nearest_divisible_20():
     assert map_to_nearest_divisible_20(23, 37) == [20, 40]
     assert map_to_nearest_divisible_20(35, 55) == [40, 60]
     assert map_to_nearest_divisible_20(30, 50) == [40, 60]
-
-
-def test_get_label_range():
-    df = pd.read_csv(
-        Path(__file__).parent.parent / "data/slice_w_data.csv", header=None
-    )
-    device_id, start_time = 533, "2012-05-15 05:41:52"
-    slice = df[(df[0] == device_id) & (df[1] == start_time)]
-    label_ranges = get_label_range(slice)
-    assert label_ranges == [[2, 0, 19], [8, 19, 60]]
 
 
 def test_build_index_n1():
@@ -390,7 +379,7 @@ def test_shift_df():
 
     bdp.check_batches(new_df, batch_size=glen)
 
-    # Test for all shifted data 
+    # Test for all shifted data
     df = pd.read_csv(
         f"/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv",
         header=None,
@@ -405,33 +394,40 @@ def test_shift_df():
 
 @pytest.mark.local
 def test_change_format_mat_file():
-    mat_file = "/home/fatemeh/Downloads/bird/data/data_from_Susanne/AnnAcc6016_20150501_110811-20150501_113058.mat"
-    df = change_format_mat_file(mat_file)
-
-    def get_start_end_inds(dt):
-        cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
-        u_labels = np.unique(cut[3])
-        start_end_inds = dict()
-        for u_label in u_labels:
-            sel_inds = cut[cut[3] == u_label][2].values
-            start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
-        start_end_inds = dict(sorted(start_end_inds.items()))
-        return start_end_inds
+    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Susanne/AnnAcc6016_20150501_110811-20150501_113058.mat"
+    df = change_format_mat_file(data_file)
 
     expected = {(30, 52): 6, (61, 81): 10, (108, 128): 16, (141, 199): 5}
     dt = 6016, "2015-05-01 11:18:35"
-    assert expected == get_start_end_inds(dt)
+    assert expected == bdp.get_start_end_inds(df, dt)
+
     expected = {(32, 105): 15, (106, 199): 5}
     dt = 6016, "2015-05-01 11:17:30"
-    assert expected == get_start_end_inds(dt)
-    print("Done")
+    assert expected == bdp.get_start_end_inds(df, dt)
 
 
 @pytest.mark.local
 def test_change_format_mat_files():
-    mat_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-    df = change_format_mat_files(mat_path)
+    data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+    df = change_format_mat_files(data_path)
     assert len(df) == 28213
+
+
+@pytest.mark.local
+def test_change_format_csv_file():
+    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Willem/AnM534_20120608_20120609.csv"
+    df = bdp.change_format_csv_file(data_file)
+
+    expected = {("0", "23"): 9, ("24", "59"): 5}
+    dt = "534", "2012-06-08 04:24:26"
+    assert expected == bdp.get_start_end_inds(df, dt)
+
+
+@pytest.mark.local
+def test_change_format_csv_files():
+    data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
+    df = bdp.change_format_csv_files(data_path)
+    assert len(df) == 67689
 
 
 def test_merge_prefer_valid():
