@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import utils as bu
-from behavior.data_processing import write_j_data_orig
+from behavior.data_processing import map_to_nearest_divisible_20
 from behavior.utils import ind2name
 
 # j: json (set1, sus json)
@@ -41,114 +41,35 @@ ind2name = {
 """
 
 
-def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
-    """
-    Get all the data from the database (1930 requests)
-    """
-    # data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-    unique_dt = (
-        data[[0, 1]].drop_duplicates().sort_values(by=[0, 1]).reset_index(drop=True)
-    )
-
-    file = open(save_file, "w")
-    for _, row in tqdm(unique_dt.iterrows(), total=len(unique_dt)):
-        device_id, start_time = list(row)
-        try:
-            igs, idts, _ = bd.get_data(
-                database_url, device_id, start_time, start_time, glen
-            )
-        except Exception as e:
-            print(f"Error during data processing or saving results: {e}")
-            continue
-        if len(igs) == 0:
-            print("Not in database", device_id, start_time)
-            continue
-
-        indices = idts[:, 0]
-        sel_igs = np.round(igs, 6)
-        for i, index in zip(sel_igs, indices):
-            item = (
-                f"{device_id},{start_time},{index},-1,{i[0]:.6f},{i[1]:.6f},"
-                f"{i[2]:.6f},{i[3]:.6f}\n"
-            )
-            file.write(item)
-        file.flush()
-    file.close()
-
-
-def group_equal_elements(df, subset, indices, equal_func):
-    groups = []  # List to store groups of equal elements
-    visited = set()  # Set to track which indices we have already grouped
-
-    for i in tqdm(range(len(indices))):
-        if indices[i] in visited:
-            continue  # Skip if this index is already part of a group
-
-        # Start a new group with the current index
-        current_group = [indices[i]]
-        visited.add(indices[i])
-
-        for j in range(i + 1, len(indices)):
-            if indices[j] not in visited:
-                IS_EQUAL = equal_func(df, subset, indices[i], indices[j])
-                if IS_EQUAL:
-                    current_group.append(indices[j])
-                    visited.add(indices[j])
-
-        # Add the group to the list of groups
-        groups.append(current_group)
-
-    return groups
-
-
-def equal_func(df, subset, ind1, ind2):
-    set1 = df[subset].iloc[ind1 : ind1 + 20].reset_index(drop=True)
-    set2 = df[subset].iloc[ind2 : ind2 + 20].reset_index(drop=True)
-    return set1.equals(set2)
-
-
-def group_equal_elements_optimized(df, subset, indices):
-    hashes = {}
-    for idx in tqdm(indices):
-        # Round the float columns to avoid precision issues
-        set1 = df[subset].iloc[idx : idx + 20].reset_index(drop=True)
-        set1_rounded = set1.round(6)
-        group_rows = pd.util.hash_pandas_object(set1_rounded).values.tobytes()
-
-        if group_rows not in hashes:
-            hashes[group_rows] = []
-        hashes[group_rows].append(idx)
-
-    # Extract groups of duplicates from the hash map
-    groups = [group for group in hashes.values() if len(group) > 1]
-
-    return groups
-
-
 """
 # Step1: Unify all data in csv format
 # ======
 
 # s_data (json set1)
 # ====================
+# Code write_j_data_orig is changed to change_format_json_file and it is not changing labels anymore.
 dpath = Path("/home/fatemeh/Downloads/bird/data/set1/data")
 json_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv")
 bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
-write_j_data_orig(json_file, save_file, new2old_labels = {k:k for k in ind2name}, ignored_labels=[])
+change_format_json_file(json_file, save_file, new2old_labels = {k:k for k in ind2name}, ignored_labels=[])
 
 # j_data (Json Suzzane)
 # ====================
+# Code write_j_data_orig is changed to change_format_json_file and it is not changing labels anymore.
 dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 bd.combine_jsons_to_one_json(list(dpath.glob("*json")), json_file)
 json_file = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne/combined.json")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv")
 new2old_labels = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 9: 9, 10: 9}
 ignored_labels = [8, 14, 15, 16, 17]
-write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels)
+change_format_json_file(json_file, save_file, new2old_labels, ignored_labels)
 
 # m_data (matlab Suzzane)
 # ====================
+# Code write_m_data_orig change to change_format_mat_file. There was a bug in labels. 
+# The labels were shifted. Now the function only does change format and saving 
+# is done outside. The mapping labels are done outside as well.
 dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv")
 new2old_labels = {0: 0, 5: 5, 6: 6, 11: 9, 13: 9}
@@ -163,7 +84,7 @@ dpath = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv")
 for p in dpath.glob("*csv"):
     print(p.name)
-    write_w_data_orig(p, save_file)
+    change_format_csv_file(p, save_file)
 
 # Step 2. Get all the data from database
 ==================
@@ -174,9 +95,9 @@ df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv
 df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
 df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
 data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1) # all_database_final.csv glen=1, all_database, glen=20
-# Since I use glen=20, if the data is not complete, it will be ignored. e.g. 782,2013-06-07 15:33:49 (s_data)
-
+get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
+# e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data. 
+# With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 
 # Step 3. Add index to the data
 ==================
@@ -187,6 +108,11 @@ add_index(df_db, df, save_file)
 
 # Step3: get indices data
 ==================
+# This part has an small issue with map_to_nearest_divisible_20. The numpy and python round function, map the
+# border value such as .5, 1.5, 2.5, 3.5 and so on to the nearest even number 0., 2., 2., 4..
+# So border values such as 10, 30, 50, 70, 90 map differently 0, 40, 40, 80, 80.
+# 2. There is small issue in the getting data from database. There was few cases where two consecutive rows 
+# were equal. The current version only compare two rows. This issue properly resolved in the add_index. 
 all_data_file = "/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv"
 orig_path = Path("/home/fatemeh/Downloads/bird/data/final/orig")
 save_path = Path("/home/fatemeh/Downloads/bird/data/final")
@@ -400,3 +326,221 @@ group = grouped.get_group((805, '2014-06-07 09:34:03')).sort_values(by=2)
 
 # 176100, 22840, 6700
 """
+
+
+def find_matching_index(keys, query, tol=1e-4):
+    """
+    find matching two rows
+    """
+    precision = -int(np.log10(tol))
+    keys = np.round(keys, precision)
+    query = np.round(query, precision)
+    len_keys = len(keys)
+    for i in range(0, len_keys - 1):
+        cond1 = all(np.isclose(keys[i], query[0], rtol=tol))
+        cond2 = all(np.isclose(keys[i + 1], query[1], rtol=tol))
+        if cond1 & cond2:
+            return i
+    return -1
+
+
+def test_find_matching_index():
+    df = pd.read_csv(
+        Path(__file__).parent.parent / "data/data_from_db.csv", header=None
+    )
+    keys = df[(df[0] == 533) & (df[1] == "2012-05-15 05:41:52")][[4, 5, 6, 7]].values
+    query = np.array(
+        [
+            [0.225012, -0.433472, 1.318443, 9.072514],
+            [0.281927, 1.049555, 0.661937, 9.072514],
+        ]
+    )
+    assert find_matching_index(keys, query) == 19
+
+
+def write_j_data_orig(json_file, save_file, new2old_labels, ignored_labels):
+    """
+    read json data and save it as formatted csv file
+
+    input:  device, time, index, label, imux, imuy, imuz, gps
+    e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+    """
+
+    all_measurements, ldts = bd.load_all_data_from_json(json_file)
+
+    items = []
+    for meas, ldt in tqdm(zip(all_measurements, ldts)):  # N x {10,20} x 4
+        # labels read 0-based
+        if ldt[0] in ignored_labels:
+            continue
+        label = new2old_labels[ldt[0]]
+        device_id = ldt[1]
+        timestamp = ldt[2]
+        start_time = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        for i in meas:
+            i = np.round(i, 6)
+            item = (
+                f"{device_id},{start_time},{-1},{label},{i[0]:.6f},{i[1]:.6f},"
+                f"{i[2]:.6f},{i[3]:.6f}\n"
+            )
+            items.append(item)
+
+    with open(save_file, "w") as f:
+        for item in items:
+            f.write(item)
+
+
+def write_m_data_orig(mat_file, save_file, new2old_labels, ignored_labels):
+    dd = loadmat(mat_file)["outputStruct"]
+    n_data = dd["nOfSamples"][0][0][0][0]
+
+    file = open(save_file, "a")
+    for i in range(n_data):
+        year, month, day, hour, min, sec = (
+            dd["year"][0][0][0, i],
+            dd["month"][0][0][0, i],
+            dd["day"][0][0][0, i],
+            dd["hour"][0][0][0, i],
+            dd["min"][0][0][0, i],
+            dd["sec"][0][0][i, 0],
+        )
+        t = datetime(year, month, day, hour, min, sec).strftime("%Y-%m-%d %H:%M:%S")
+
+        device_id = dd["sampleID"][0][0][0, i]
+        imu_x = dd["accX"][0][0][i][0][0]
+        imu_y = dd["accY"][0][0][i][0][0]
+        imu_z = dd["accZ"][0][0][i][0][0]
+        gps_single = dd["gpsSpd"][0][0][i, 0]
+        tags = dd["tags"][0][0][0][i]
+
+        labels = tags[tags[:, 1] == 1][:, 0] - 1  # 0-based
+        if len(labels) == 0:
+            continue
+
+        for label, x, y, z in zip(labels, imu_x, imu_y, imu_z):
+            if label in ignored_labels:
+                continue
+            nlabel = new2old_labels[label]
+            if any([np.isnan(x), np.isnan(y), np.isnan(z), np.isnan(gps_single)]):
+                continue
+            ig = np.round(np.array([x, y, z, gps_single]), 6)
+            item = f"{device_id},{t},-1,{nlabel},{ig[0]:.6f},{ig[1]:.6f},{ig[2]:.6f},{ig[3]:.6f}\n"
+            file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_w_data_orig(csv_file, save_file):
+    file = open(save_file, "a")
+    with open(csv_file, "r") as f:
+        for r in f:
+            r = r.strip().split(", ")
+            device_id = r[0]
+            start_time = datetime.strptime(r[1], "%m/%d/%Y %H:%M:%S").strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            label, conf = r[-1].split(" ")
+            label = int(label) - 1  # zero-based
+            if conf == "0":
+                continue
+            if r[3] == "NaN" or r[4] == "NaN" or r[5] == "NaN" or r[6] == "NaN":
+                continue
+            item = (
+                f"{device_id},{start_time},{r[2]},{label},{r[3]},{r[4]},{r[5]},{r[6]}\n"
+            )
+            file.write(item)
+        file.flush()
+    file.close()
+
+
+def write_unsorted_data(all_data_file, w_file, save_file, len_labeled_data):
+    df = pd.read_csv(all_data_file, header=None)
+    df_w = pd.read_csv(w_file, header=None)
+    file = open(save_file, "w")
+
+    # Sort by device, time
+    df_w = df_w.sort_values(by=[0, 1], ignore_index=True)
+    # Unique device, time
+    uniq_device_times = df_w[[0, 1]].drop_duplicates(ignore_index=True).values
+    for device_id, start_time in tqdm(uniq_device_times):
+        # device_id, start_time = 534,"2012-06-02 12:38:01"
+        slice_df = df[(df[0] == device_id) & (df[1] == start_time)]
+        keys = slice_df[[4, 5, 6, 7]].values
+        if len(keys) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+        # Get label ranges
+        slice = df_w[(df_w[0] == device_id) & (df_w[1] == start_time)]
+        for i in range(0, len(slice), len_labeled_data):
+            label = slice.iloc[i, 3]
+            st_idx, en_idx = i, i + len_labeled_data
+            # Get index: Query on IMU&GPS first two rows of label range
+            query = slice.iloc[st_idx : st_idx + 2][[4, 5, 6, 7]].values
+            ind = find_matching_index(keys, query)
+            if ind == -1:
+                print("No matching in database", device_id, start_time, query[0])
+                continue
+            # Map index range
+            st_idx, en_idx = ind, ind + len_labeled_data
+            st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
+            # Get data from database
+            s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Write data
+            for _, i in s_slice_df.iterrows():
+                item = (
+                    f"{device_id},{start_time},{i[2]},{label},{i[4]:.6f},{i[5]:.6f},"
+                    f"{i[6]:.6f},{i[7]:.6f}\n"
+                )
+                file.write(item)
+            file.flush()
+    file.close()
+
+
+def write_sorted_data(all_data_file, w_file, save_file, min_thr):
+    df = pd.read_csv(all_data_file, header=None)
+    df_w = pd.read_csv(w_file, header=None)
+    file = open(save_file, "w")
+
+    # Sort by device, time
+    df_w = df_w.sort_values(by=[0, 1], ignore_index=True)
+    # Unique device, time
+    uniq_device_times = df_w[[0, 1]].drop_duplicates(ignore_index=True).values
+    for device_id, start_time in tqdm(uniq_device_times):
+        slice_df = df[(df[0] == device_id) & (df[1] == start_time)]
+        keys = slice_df[[4, 5, 6, 7]].values
+        if len(keys) == 0:
+            print("Not in database", device_id, start_time)
+            continue
+        # Get label ranges
+        slice = df_w[(df_w[0] == device_id) & (df_w[1] == start_time)]
+        label_ranges = get_label_range(slice)
+        for label_range in label_ranges:
+            label = label_range[0]
+            st_idx, en_idx = label_range[1:]
+            # Drop data from database
+            len_labeled_data = en_idx - st_idx
+            if len_labeled_data < min_thr:
+                continue
+            # Get index: Query on IMU&GPS first two rows of label range
+            query = slice.iloc[st_idx : st_idx + 2][[4, 5, 6, 7]].values
+            ind = find_matching_index(keys, query)
+            if ind == -1:
+                print("No matching in database", device_id, start_time, query[0])
+                continue
+            # Map index range
+            st_idx, en_idx = ind, ind + len_labeled_data
+            st_idx, en_idx = map_to_nearest_divisible_20(st_idx, en_idx)
+            # Get data from database
+            s_slice_df = slice_df.iloc[st_idx:en_idx]
+            # Write data
+            for _, i in s_slice_df.iterrows():
+                item = (
+                    f"{device_id},{start_time},{i[2]},{label},{i[4]:.6f},{i[5]:.6f},"
+                    f"{i[6]:.6f},{i[7]:.6f}\n"
+                )
+                file.write(item)
+            file.flush()
+    file.close()

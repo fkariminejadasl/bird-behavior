@@ -16,7 +16,6 @@ from behavior.data_processing import (
     change_format_mat_files,
     complete_data_from_db,
     evaluate_and_modify_df,
-    find_matching_index,
     get_label_range,
     get_rules,
     map_to_nearest_divisible_20,
@@ -121,20 +120,6 @@ def test_map_to_nearest_divisible_20():
     assert map_to_nearest_divisible_20(23, 37) == [20, 40]
     assert map_to_nearest_divisible_20(35, 55) == [40, 60]
     assert map_to_nearest_divisible_20(30, 50) == [40, 60]
-
-
-def test_find_matching_index():
-    df = pd.read_csv(
-        Path(__file__).parent.parent / "data/data_from_db.csv", header=None
-    )
-    keys = df[(df[0] == 533) & (df[1] == "2012-05-15 05:41:52")][[4, 5, 6, 7]].values
-    query = np.array(
-        [
-            [0.225012, -0.433472, 1.318443, 9.072514],
-            [0.281927, 1.049555, 0.661937, 9.072514],
-        ]
-    )
-    assert find_matching_index(keys, query) == 19
 
 
 def test_get_label_range():
@@ -394,16 +379,37 @@ def test_shift_two_dt():
     ]
 
     expected = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc/m_shift2.csv",
+        f"/home/fatemeh/Downloads/bird/data/final/proc2/test_shift_2.csv",
         header=None,
     )
     df = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc/m_map.csv",
+        f"/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv",
         header=None,
     )
 
     new_df = shift_df(df, glen, dts)
     new_df.equals(expected)
+
+    def check_batches(df, batch_size=20):
+        for i in range(0, len(new_df), batch_size):
+            batch = new_df.iloc[i : i + batch_size]
+            assert len(batch) == batch_size
+
+            assert batch[0].nunique() == 1, "same device id"
+            assert batch[1].nunique() == 1, "same time"
+            assert batch[3].nunique() == 1, "same label"
+            assert batch[7].nunique() == 1, "same GPS"
+
+            assert all(np.diff(batch[2].values) == 1), "consecutive index"
+
+    check_batches(new_df, batch_size=20)
+
+    df = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv",
+        header=None,
+    )
+    check_batches(new_df, batch_size=20)
+    print("Done")
 
 
 @pytest.mark.local
