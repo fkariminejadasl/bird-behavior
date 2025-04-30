@@ -842,6 +842,10 @@ def map_to_nearest_divisible_20(start, end):
 
 
 def check_batches(df: pd.DataFrame, batch_size=20):
+    assert len(df) % batch_size == 0, "not divisible by batch size"
+
+    # Same code but slower
+    """""
     for i in tqdm(range(0, len(df), batch_size)):
         batch = df.iloc[i : i + batch_size]
         assert len(batch) == batch_size
@@ -852,6 +856,21 @@ def check_batches(df: pd.DataFrame, batch_size=20):
         assert batch[7].nunique() == 1, "nonunique GPS"
 
         assert all(np.diff(batch[2].values) == 1), "not consecutive index"
+    """
+
+    # shape = (n_batches, batch_size, n_features=8)
+    arr = df.values.reshape(-1, batch_size, df.shape[1])
+    idx_slab = arr[:, :, 2]
+    diffs = np.diff(idx_slab, axis=1)
+    assert np.all(diffs == 1), "not consecutive index"
+
+    const_cols = [0, 1, 3, 7]
+    names = {0: "device id", 1: "time", 3: "label", 7: "GPS"}
+    # fmt: off
+    for col in const_cols:
+        slab = arr[:, :, col]
+        assert all(np.max(slab, axis=1) == np.min(slab, axis=1)), f"nonunique {names[col]}"
+    # fmt: on
 
     # no duplicates. Each group is unique.
     df_values = df[[0, 1, 2]].values

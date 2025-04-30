@@ -407,7 +407,7 @@ def test_shift_df():
         f"/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv",
         header=None,
     )
-    # bdp.check_batches(df, batch_size=glen)
+    bdp.check_batches(df, batch_size=glen)
 
 
 @pytest.mark.local

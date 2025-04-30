@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -30,24 +31,6 @@ first make {}_format.csv (The first operation in the data pipeline).
 # # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
 # # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 
-# dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
-# dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
-# dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None)
-# dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map.csv", header=None)
-# dts = dfs[[0,1]].drop_duplicates().reset_index(drop=True)
-# dtw = dfw[[0,1]].drop_duplicates().reset_index(drop=True)
-# dtj = dfj[[0,1]].drop_duplicates().reset_index(drop=True)
-# msw = pd.merge(dts, dtw).reset_index(drop=True)
-# msj = pd.merge(dts, dtj).reset_index(drop=True)
-# mwj = pd.merge(dtw, dtj).reset_index(drop=True)
-# mswj = pd.merge(msw, msj).reset_index(drop=True)
-# dfswjm = bdp.merge_prefer_valid(dfs, dfj, dfm, dfw)
-# >>> len(dts), len(dtj), len(dtm), len(dtw)
-# (1526, 1854, 706, 1426)
-# >>> len(dfs), len(dfj), len(dfm), len(dfw)
-# (71842, 90668, 32790, 67807)
-# >>> len(dfswjm)
-# 105692
 
 # seed = 42
 # np.random.seed(seed)
@@ -80,3 +63,34 @@ filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
 print("Done")
 """
+
+
+def get_stats(df: pd.DataFrame, glen=20):
+    # dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
+    # dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
+    # dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None)
+    # dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map.csv", header=None)
+    # dts = dfs[[0,1]].drop_duplicates().reset_index(drop=True)
+    # dtw = dfw[[0,1]].drop_duplicates().reset_index(drop=True)
+    # dtj = dfj[[0,1]].drop_duplicates().reset_index(drop=True)
+    # msw = pd.merge(dts, dtw).reset_index(drop=True)
+    # msj = pd.merge(dts, dtj).reset_index(drop=True)
+    # mwj = pd.merge(dtw, dtj).reset_index(drop=True)
+    # mswj = pd.merge(msw, msj).reset_index(drop=True)
+    # dfswjm = bdp.merge_prefer_valid(dfs, dfj, dfm, dfw)
+    # >>> len(dts), len(dtj), len(dtm), len(dtw)
+    # (1526, 1854, 706, 1426)
+    # >>> len(dfs), len(dfj), len(dfm), len(dfw)
+    # (71842, 90668, 32790, 67807)
+    # >>> len(dfswjm)
+    # 105692
+    save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    a = [
+        pd.read_csv(save_path / f"{i}_map.csv", header=None)
+        for i in ["s", "j", "m", "w"]
+    ]
+    [len(a[i][[0, 1]].drop_duplicates()) for i in range(len(a))]
+    [len(a[i]) for i in range(len(a))]
+    sorted({k: v // glen for k, v in Counter(df[3].values).items()}.items())
+    len(df[[0, 1]].drop_duplicates())
+    # train, valid, test: 832020/20, 163940/20, 166520/20
