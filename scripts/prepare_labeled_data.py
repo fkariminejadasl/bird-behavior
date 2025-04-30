@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from behavior import data_processing as bdp
@@ -48,6 +49,13 @@ first make {}_format.csv (The first operation in the data pipeline).
 # >>> len(dfswjm)
 # 105692
 
+# seed = 42
+# np.random.seed(seed)
+# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+# data_file = save_path / "shift.csv"
+# make_train_valid_test_split(data_file, save_path)
+
+""""
 change_format = {
     "s": change_format_json_files,
     "j": change_format_json_files,
@@ -71,3 +79,4 @@ name_input_files = [
 filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
 print("Done")
+"""

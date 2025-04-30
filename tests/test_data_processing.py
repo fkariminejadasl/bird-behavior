@@ -409,10 +409,26 @@ def test_shift_df():
     )
     # bdp.check_batches(df, batch_size=glen)
 
-    # no duplicates. Each group is unique.
-    df_values = df[[0, 1, 2]].values
-    index_maps = bdp.build_index(df_values, n_rows=glen, step=glen)
-    assert all(len(v) == 1 for v in index_maps.values())
+
+@pytest.mark.local
+def test_combine_shift():
+    dfc = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
+    )
+    dfs = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None
+    )
+    gc = dfc.groupby([0, 1])
+    gs = dfs.groupby([0, 1])
+    cdt = set(gc.groups.keys())
+    sdt = set(gs.groups.keys())
+
+    assert len(sdt.difference(cdt)) == 0
+
+    diff_dts = cdt.difference(sdt)
+    for dt in diff_dts:
+        slice = gc.get_group(dt)
+        assert len(slice[slice[3] != -1]) < 20
 
 
 @pytest.mark.local

@@ -746,6 +746,52 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     print("Done")
 
 
+def make_train_valid_test_split(input_file, save_path: Path):
+    # Load the dataset
+    df = pd.read_csv(input_file, header=None)
+
+    # Group by device id and timestamp (columns 0 and 1)
+    groups = df.groupby([0, 1])
+    dts = list(groups.groups.keys())
+
+    # Shuffle the (device_id, timestamp) pairs
+    np.random.shuffle(dts)
+
+    # Compute split sizes
+    n = len(dts)
+    train_size = int(n * 0.7)
+    valid_size = int(n * 0.15)
+    test_size = n - train_size - valid_size
+
+    # Assign splits
+    train_dts = dts[:train_size]
+    valid_dts = dts[train_size : train_size + valid_size]
+    test_dts = dts[train_size + valid_size :]
+
+    # Helper to get DataFrame for a split
+    def get_split_df(split_dts):
+        split_dt = [groups.get_group(dt) for dt in split_dts]
+        return pd.concat(split_dt, ignore_index=True)
+
+    # Create DataFrames
+    train_df = get_split_df(train_dts)
+    valid_df = get_split_df(valid_dts)
+    test_df = get_split_df(test_dts)
+
+    # Save to CSV
+    train_df.to_csv(
+        save_path / "train.csv", index=False, header=None, float_format="%.6f"
+    )
+    valid_df.to_csv(
+        save_path / "valid.csv", index=False, header=None, float_format="%.6f"
+    )
+    test_df.to_csv(
+        save_path / "test.csv", index=False, header=None, float_format="%.6f"
+    )
+
+    print(f"Done. Train: {len(train_df)}, Valid: {len(valid_df)}, Test: {len(test_df)}")
+
+
 def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
     """
     Get all the data from the database (1930 requests)
@@ -806,6 +852,11 @@ def check_batches(df: pd.DataFrame, batch_size=20):
         assert batch[7].nunique() == 1, "nonunique GPS"
 
         assert all(np.diff(batch[2].values) == 1), "not consecutive index"
+
+    # no duplicates. Each group is unique.
+    df_values = df[[0, 1, 2]].values
+    index_maps = build_index(df_values, n_rows=batch_size, step=batch_size)
+    assert all(len(v) == 1 for v in index_maps.values())
 
 
 def get_start_end_inds(df, dt):

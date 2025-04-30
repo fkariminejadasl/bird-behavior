@@ -126,12 +126,12 @@ def test_equal_dataframes_false():
     "file_path1, file_path2",
     [
         (
-            "/home/fatemeh/Downloads/bird/data/final/proc2/j_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc3/j_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/proc2/m_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/proc2/m_index.csv",
         ),
         (
             "/home/fatemeh/Downloads/bird/data/final/proc2/w_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc3/w_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/proc2/w_index.csv",
         ),
     ],
 )
@@ -139,4 +139,5 @@ def test_files_equal(file_path1, file_path2):
     df1 = pd.read_csv(file_path1, header=None)
     df2 = pd.read_csv(file_path2, header=None)
 
+    assert df1.equals(df2)
     assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5, 6, 7])
