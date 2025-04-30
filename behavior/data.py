@@ -389,13 +389,13 @@ def reindex_ids(ldts):
     return new_ldts
 
 
-def get_specific_labesl(all_measurements, ldts, target_labels):
+def get_specific_labesl(all_measurements, ldts, labels_to_use):
     """
-    e.g. target_labels=[0, 2, 4, 5]
+    e.g. labels_to_use=[0, 2, 4, 5]
     """
     agps_imus = np.empty(shape=(0, 20, 4))
     new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
-    for i in target_labels:
+    for i in labels_to_use:
         agps_imus = np.concatenate(
             (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
         )
@@ -905,37 +905,55 @@ def load_csv(csv_file, g_len=20):
     return igs, ldts
 
 
+def load_filter_shuffle(data_file, labels_to_use):
+    all_measurements, ldts = load_csv(data_file)
+    # ldts = bd.combine_specific_labesl(ldts, [2, 8])
+    all_measurements, ldts = get_specific_labesl(all_measurements, ldts, labels_to_use)
+    all_measurements, ldts = shuffle_data(all_measurements, ldts)
+    # make data shorter
+    # ldts = np.repeat(ldts, 2, axis=0)
+    # all_measurements = all_measurements.reshape(-1, 10, 4)
+    return all_measurements, ldts
+
+
+def get_train_valid_datase(train_file, valid_file, labels_to_use, channel_first=True):
+    train_measurements, train_ldts = load_filter_shuffle(train_file, labels_to_use)
+    valid_measurements, valid_ldts = load_filter_shuffle(valid_file, labels_to_use)
+
+    train_dataset = BirdDataset(
+        train_measurements, train_ldts, channel_first=channel_first
+    )
+    eval_dataset = BirdDataset(
+        valid_measurements, valid_ldts, channel_first=channel_first
+    )
+    print(
+        len(train_ldts),
+        len(valid_ldts),
+        train_measurements.shape,
+        valid_measurements.shape,
+    )
+    return train_dataset, eval_dataset
+
+
 def prepare_train_valid_dataset(
-    data_file, train_per, data_per, target_labels, channel_first=True
+    data_file, train_per, data_per, labels_to_use, channel_first=True
 ):
     """Load and prepare data, return train and eval Dataset."""
-    # data_file = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-    # all_measurements, label_ids = load_all_data_from_json(data_file)
-    # s_data, combined_unique.csv"
-    all_measurements, label_ids = load_csv(data_file)
-    # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
-    all_measurements, label_ids = get_specific_labesl(
-        all_measurements, label_ids, target_labels
-    )
-    all_measurements, label_ids = shuffle_data(all_measurements, label_ids)
-    # make data shorter
-    # label_ids = np.repeat(label_ids, 2, axis=0)
-    # all_measurements = all_measurements.reshape(-1, 10, 4)
-
+    all_measurements, ldts = load_filter_shuffle(data_file, labels_to_use)
     n_trainings = int(all_measurements.shape[0] * train_per * data_per)
     n_valid = int(all_measurements.shape[0] * (1 - train_per) * data_per)
-    train_measurments = all_measurements[:n_trainings]
+    train_measurements = all_measurements[:n_trainings]
     valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-    train_labels, valid_labels = (
-        label_ids[:n_trainings],
-        label_ids[n_trainings : n_trainings + n_valid],
+    train_ldts, valid_ldts = (
+        ldts[:n_trainings],
+        ldts[n_trainings : n_trainings + n_valid],
     )
 
     train_dataset = BirdDataset(
-        train_measurments, train_labels, channel_first=channel_first
+        train_measurements, train_ldts, channel_first=channel_first
     )
     eval_dataset = BirdDataset(
-        valid_measurements, valid_labels, channel_first=channel_first
+        valid_measurements, valid_ldts, channel_first=channel_first
     )
 
     # train_size = int(train_per * len(dataset))
@@ -953,9 +971,9 @@ def prepare_train_valid_dataset(
     # dataset = bd.BirdDataset3(csv_files)
 
     print(
-        len(train_labels),
-        len(valid_labels),
-        train_measurments.shape,
+        len(train_ldts),
+        len(valid_ldts),
+        train_measurements.shape,
         valid_measurements.shape,
     )
 
@@ -1311,9 +1329,9 @@ import torch
 from torch.utils.data import DataLoader
 
 
-all_measurements, label_ids = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
-all_measurements, label_ids = get_specific_labesl(all_measurements, label_ids, [0, 1, 2, 3, 4, 5, 6, 8, 9])
-train_dataset = BirdDataset(all_measurements, label_ids)
+all_measurements, ldts = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
+all_measurements, ldts = get_specific_labesl(all_measurements, ldts, [0, 1, 2, 3, 4, 5, 6, 8, 9])
+train_dataset = BirdDataset(all_measurements, ldts)
 
 train_loader = DataLoader(
     train_dataset,

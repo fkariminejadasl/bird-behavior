@@ -30,6 +30,7 @@ models = {
 class PathConfig:
     save_path: Path
     data_file: Path
+    valid_path: Optional[Path] = None
 
 
 cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
@@ -51,9 +52,14 @@ bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Prepare datasets
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use
-)
+if cfg.valid_file is not None:
+    train_dataset, eval_dataset = bd.get_train_valid_datase(
+        cfg.data_file, cfg.valid_file, cfg.labels_to_use, channel_first=True
+    )
+else:
+    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+        cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use
+    )
 batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
 train_loader = DataLoader(
     train_dataset,
