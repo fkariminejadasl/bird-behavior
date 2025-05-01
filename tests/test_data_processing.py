@@ -518,3 +518,28 @@ def test_drop_duplicates():
 
     result = bdp.drop_duplicates(df2, glen=4)
     assert result.equals(df)
+
+
+@pytest.mark.local
+@pytest.mark.debug
+def test_issue_previous_m_data_format():
+    df = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/m_complete.csv", header=None
+    )
+    df = df.sort_values(by=[0, 1], ignore_index=True)
+    groups = df.groupby([0, 1])
+    issues = dict()
+    for name, group in groups:
+        if (
+            group.iloc[0, 3] == -1
+            and len(group[group[3] != -1]) > 20
+            and group[group[3] != -1].iloc[0, 2] > 4
+        ):
+            print(
+                f"{name[0]},{name[1]}, {len(group[group[3]!=-1])}, {group[group[3]!=-1].iloc[0,2]}"
+            )
+            issues[name] = len(group[group[3] != -1])
+    issues = dict(sorted(issues.items(), key=lambda x: x[1]))
+    max_wrong_labels = sum([(round(i / 20) * 20) // 20 for i in issues.values()])
+    assert max_wrong_labels == 52
+    assert len(issues) == 15
