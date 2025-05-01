@@ -53,8 +53,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Prepare datasets
 if cfg.valid_file is not None:
-    train_dataset, eval_dataset = bd.get_train_valid_datase(
-        cfg.data_file, cfg.valid_file, cfg.labels_to_use, channel_first=True
+    train_dataset = bd.get_bird_dataset_from_csv(
+        cfg.data_file, cfg.labels_to_use, channel_first=True
+    )
+    eval_dataset = bd.get_bird_dataset_from_csv(
+        cfg.valid_file, cfg.labels_to_use, channel_first=True
     )
 else:
     train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
@@ -197,33 +200,33 @@ model.eval()
 fail_path = cfg.save_path / f"failed/{cfg.exp}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-data, ldts = next(iter(train_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    bu.target_labels_names,
-    n_classes,
-    stage="train",
-    SAVE_FAILED=False,
-)
-
-data, ldts = next(iter(eval_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    bu.target_labels_names,
-    n_classes,
-    stage="valid",
-    SAVE_FAILED=False,
-)
+data_files = {"train": cfg.data_file, "valid": cfg.valid_file, "test": cfg.test_file}
+for stage, data_file in data_files.items():
+    if data_file is not None:
+        # del eval_loader, train_loader, train_dataset, eval_dataset
+        dataset = bd.get_bird_dataset_from_csv(
+            data_file, cfg.labels_to_use, channel_first=True
+        )
+        loader = DataLoader(
+            dataset,
+            batch_size=len(dataset),
+            shuffle=False,
+            num_workers=cfg.num_workers,
+            drop_last=False,
+        )
+    data, ldts = next(iter(loader))
+    bu.helper_results(
+        data,
+        ldts,
+        model,
+        criterion,
+        device,
+        fail_path,
+        bu.target_labels_names,
+        n_classes,
+        stage=stage,
+        SAVE_FAILED=False,
+    )
 
 """
 from copy import deepcopy

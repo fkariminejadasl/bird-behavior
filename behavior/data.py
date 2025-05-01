@@ -906,55 +906,48 @@ def load_csv(csv_file, g_len=20):
 
 
 def load_filter_shuffle(data_file, labels_to_use):
-    all_measurements, ldts = load_csv(data_file)
+    """
+    imugs: N x 20 x 4 or N x 4 x 20 (channel_first): (imu_x, imu_y, imu_z, gps_speed)
+    ldts: N x 3: (label, device_id, timestamp)
+    """
+    imugs, ldts = load_csv(data_file)
     # ldts = bd.combine_specific_labesl(ldts, [2, 8])
-    all_measurements, ldts = get_specific_labesl(all_measurements, ldts, labels_to_use)
-    all_measurements, ldts = shuffle_data(all_measurements, ldts)
+    imugs, ldts = get_specific_labesl(imugs, ldts, labels_to_use)
+    imugs, ldts = shuffle_data(imugs, ldts)
     # make data shorter
     # ldts = np.repeat(ldts, 2, axis=0)
-    # all_measurements = all_measurements.reshape(-1, 10, 4)
-    return all_measurements, ldts
+    # imugs = imugs.reshape(-1, 10, 4)
+    return imugs, ldts
 
 
-def get_train_valid_datase(train_file, valid_file, labels_to_use, channel_first=True):
-    train_measurements, train_ldts = load_filter_shuffle(train_file, labels_to_use)
-    valid_measurements, valid_ldts = load_filter_shuffle(valid_file, labels_to_use)
-
-    train_dataset = BirdDataset(
-        train_measurements, train_ldts, channel_first=channel_first
-    )
-    eval_dataset = BirdDataset(
-        valid_measurements, valid_ldts, channel_first=channel_first
-    )
-    print(
-        len(train_ldts),
-        len(valid_ldts),
-        train_measurements.shape,
-        valid_measurements.shape,
-    )
-    return train_dataset, eval_dataset
+def get_bird_dataset_from_csv(data_file, labels_to_use, channel_first=True):
+    """
+    Load and prepare data, return Dataset.
+    imugs: N x 20 x 4 or N x 4 x 20 (channel_first): (imu_x, imu_y, imu_z, gps_speed)
+    ldts: N x 3: (label, device_id, timestamp)
+    """
+    imugs, ldts = load_filter_shuffle(data_file, labels_to_use)
+    dataset = BirdDataset(imugs, ldts, channel_first=channel_first)
+    print(len(ldts), imugs.shape)
+    return dataset
 
 
 def prepare_train_valid_dataset(
     data_file, train_per, data_per, labels_to_use, channel_first=True
 ):
     """Load and prepare data, return train and eval Dataset."""
-    all_measurements, ldts = load_filter_shuffle(data_file, labels_to_use)
-    n_trainings = int(all_measurements.shape[0] * train_per * data_per)
-    n_valid = int(all_measurements.shape[0] * (1 - train_per) * data_per)
-    train_measurements = all_measurements[:n_trainings]
-    valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
+    imugs, ldts = load_filter_shuffle(data_file, labels_to_use)
+    n_trainings = int(imugs.shape[0] * train_per * data_per)
+    n_valid = int(imugs.shape[0] * (1 - train_per) * data_per)
+    train_imugs = imugs[:n_trainings]
+    valid_imugs = imugs[n_trainings : n_trainings + n_valid]
     train_ldts, valid_ldts = (
         ldts[:n_trainings],
         ldts[n_trainings : n_trainings + n_valid],
     )
 
-    train_dataset = BirdDataset(
-        train_measurements, train_ldts, channel_first=channel_first
-    )
-    eval_dataset = BirdDataset(
-        valid_measurements, valid_ldts, channel_first=channel_first
-    )
+    train_dataset = BirdDataset(train_imugs, train_ldts, channel_first=channel_first)
+    eval_dataset = BirdDataset(valid_imugs, valid_ldts, channel_first=channel_first)
 
     # train_size = int(train_per * len(dataset))
     # val_size = len(dataset) - train_size
@@ -973,8 +966,8 @@ def prepare_train_valid_dataset(
     print(
         len(train_ldts),
         len(valid_ldts),
-        train_measurements.shape,
-        valid_measurements.shape,
+        train_imugs.shape,
+        valid_imugs.shape,
     )
 
     return train_dataset, eval_dataset

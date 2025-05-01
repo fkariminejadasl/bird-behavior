@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -118,6 +119,7 @@ class PathConfig:
     save_path: Path
     data_file: Path
     model_checkpoint: Path
+    valid_path: Optional[Path] = None
 
 
 cfg_file = Path(__file__).parents[1] / "configs/finetune_memory_load.yaml"
@@ -153,11 +155,21 @@ torch.manual_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
-# TODO: Ugly.  Need to fix this. The balanced data has 6 classes. I have to change the target_labels to 6.
-# target_labels = [0, 1, 2, 3, 4, 5]
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use, channel_first=False
-)
+if cfg.valid_file is not None:
+    train_dataset = bd.get_bird_dataset_from_csv(
+        cfg.data_file, cfg.labels_to_use, channel_first=False
+    )
+    eval_dataset = bd.get_bird_dataset_from_csv(
+        cfg.valid_file, cfg.labels_to_use, channel_first=False
+    )
+else:
+    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+        cfg.data_file,
+        cfg.train_per,
+        cfg.data_per,
+        cfg.labels_to_use,
+        channel_first=False,
+    )
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
@@ -200,7 +212,7 @@ for name, p in pmodel.items():
     ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
         # freeze all layers except class head
-        dict(model.named_parameters())[name].requires_grad = False
+        # dict(model.named_parameters())[name].requires_grad = False
 print(
     f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
 )
@@ -275,3 +287,35 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
 # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+
+bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
+model.eval()
+fail_path = cfg.save_path / f"failed/{cfg.exp}"
+fail_path.mkdir(parents=True, exist_ok=True)
+
+del eval_loader, train_loader, train_dataset, eval_dataset
+data_files = {"valid": cfg.valid_file, "test": cfg.test_file}
+for stage, data_file in data_files.items():
+    dataset = bd.get_bird_dataset_from_csv(
+        data_file, cfg.labels_to_use, channel_first=False
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
+    data, ldts = next(iter(loader))
+    bu.helper_results(
+        data,
+        ldts,
+        model,
+        criterion,
+        device,
+        fail_path,
+        bu.target_labels_names,
+        n_classes,
+        stage=stage,
+        SAVE_FAILED=False,
+    )

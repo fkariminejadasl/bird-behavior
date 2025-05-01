@@ -2,9 +2,10 @@
 save_path: "/home/fatemeh/Downloads/bird/result"
 data_file: /home/fatemeh/Downloads/bird/data/final/proc2/train.csv #"/home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_balanced_1.csv" # 
 valid_file: /home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
+test_file: /home/fatemeh/Downloads/bird/data/final/proc2/test.csv
 # General
 seed: 32984
-exp: 124  # Experiment number
+exp: 125  # Experiment number
 num_workers: 1 # 1, 15
 no_epochs: 4000
 save_every: 2000
@@ -12,7 +13,7 @@ save_every: 2000
 train_per: 0.9
 data_per: 1.0
 batch_size: # 4096, 4241 if not given len(train_dataset)
-labels_to_use: [0, 2, 4, 5, 6, 9]
+labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6, 9]
 # Training
 warmup_epochs: 1000
 step_size: 2000
