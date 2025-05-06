@@ -880,9 +880,12 @@ def check_batches(df: pd.DataFrame, batch_size=20):
 
 def get_start_end_inds(df, dt):
     """
-    Indices are data indices (df[3]).
+    Indices are data indices (df[2]).
+    Example:
+        dt = 534, "2012-06-08 04:24:26"
+        expected = {(0, 23): 9, (24, 59): 5}
     """
-    cut = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
+    cut = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
     u_labels = np.unique(cut[3])
     start_end_inds = dict()
     for u_label in u_labels:
@@ -890,3 +893,28 @@ def get_start_end_inds(df, dt):
         start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
     start_end_inds = dict(sorted(start_end_inds.items()))
     return start_end_inds
+
+
+def get_all_start_end_inds(df):
+    df = df[df[3] != -1]
+    dts = df[[0, 1]].drop_duplicates().values
+    start_end_inds = dict()
+    for dt in tqdm(dts):
+        start_end_inds[tuple(dt)] = get_start_end_inds(df, dt)
+    return start_end_inds
+
+
+def write_all_start_end_inds(df, save_file):
+    """
+    Write the start and end indices. Format: devic,time,label:start-end,...
+    """
+    start_ends = get_all_start_end_inds(df)
+
+    with open(save_file, "w") as file:
+        for dt, values in start_ends.items():
+            segments = [
+                f"{label}:{start}-{end}" for (start, end), label in values.items()
+            ]
+            segment_str = ",".join(segments)
+            line = f"{dt[0]},{dt[1]},{segment_str}\n"
+            file.write(line)

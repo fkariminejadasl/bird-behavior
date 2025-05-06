@@ -38,7 +38,8 @@ first make {}_format.csv (The first operation in the data pipeline).
 # data_file = save_path / "shift.csv"
 # make_train_valid_test_split(data_file, save_path)
 
-""""
+"""
+# Prepare data: complete pipeline
 change_format = {
     "s": change_format_json_files,
     "j": change_format_json_files,
@@ -62,6 +63,13 @@ name_input_files = [
 filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
 print("Done")
+"""
+
+"""
+# stats: write the start and end indices. Format: devic,time,label:start-end,...
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None)
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/combined_start_ends.txt")
+bdp.write_all_start_end_inds(df, save_file)
 """
 
 
@@ -94,3 +102,27 @@ def get_stats(df: pd.DataFrame, glen=20):
     sorted({k: v // glen for k, v in Counter(df[3].values).items()}.items())
     len(df[[0, 1]].drop_duplicates())
     # train, valid, test: 832020/20, 163940/20, 166520/20
+
+
+# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map0.csv", header=None)
+# >>> df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map0.csv", header=None)
+# >>> dts1 = set(df1.groupby([0,1]).groups.keys())
+# >>> dts2 = set(df2.groupby([0,1]).groups.keys())
+# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map0.csv", header=None)
+# >>> dts1 = set(df1.groupby([0,1]).groups.keys())
+# dts1.difference(dts2)
+# >>> len(dts1), len(dts2), len(df1), len(df2)
+# (1536, 1439, 70100, 67689)
+
+# path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+# for n in ["s","j","m","w"]:
+#     df = pd.read_csv(path/f"{n}_map0.csv",header=None)
+#     df = df.sort_values([0,1]).reset_index(drop=True)
+#     print(f"{n}: {len(df)}, {np.unique(df[0])}")
+
+# for n in ["s"]:#,"j","m","w"]:
+#     df = pd.read_csv(path/f"{n}_map0.csv",header=None)
+#     df = df.sort_values([0,1]).reset_index(drop=True)
+#     groups = df.groupby([0])
+#     for name, group in groups:
+#         print(f"{name[0]}_{min(group[1])}_{max(group[1])}")
