@@ -890,7 +890,14 @@ def get_start_end_inds(df, dt):
     start_end_inds = dict()
     for u_label in u_labels:
         sel_inds = cut[cut[3] == u_label][2].values
-        start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
+        inds = np.where(np.diff(sel_inds) != 1)[0]
+        if len(inds) != 0:
+            st_inds = np.concatenate(([0], inds + 1))
+            en_inds = np.concatenate((inds, [len(sel_inds) - 1]))
+            for s, e in zip(st_inds, en_inds):
+                start_end_inds[sel_inds[s], sel_inds[e]] = u_label
+        else:
+            start_end_inds[sel_inds[0], sel_inds[-1]] = u_label
     start_end_inds = dict(sorted(start_end_inds.items()))
     return start_end_inds
 
@@ -918,3 +925,12 @@ def write_all_start_end_inds(df, save_file):
             segment_str = ",".join(segments)
             line = f"{dt[0]},{dt[1]},{segment_str}\n"
             file.write(line)
+
+
+df = pd.read_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
+)
+save_file = Path(
+    "/home/fatemeh/Downloads/bird/data/final/proc2/combined_start_ends.txt"
+)
+write_all_start_end_inds(df, save_file)

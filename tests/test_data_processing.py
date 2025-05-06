@@ -463,6 +463,16 @@ def test_change_format_csv_file():
 
 
 @pytest.mark.local
+def test_get_start_end_inds():
+    # fmt:off
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None)
+    dt = 6011, "2015-04-30 09:10:31"
+    expected = {(0, 13): 9, (43, 60): 9, (84, 104): 9, (114, 132): 5, (165, 199): 9}
+    # fmt:on
+    assert expected == bdp.get_start_end_inds(df, dt)
+
+
+@pytest.mark.local
 def test_change_format_csv_files():
     data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
     df = bdp.change_format_csv_files(data_path)
