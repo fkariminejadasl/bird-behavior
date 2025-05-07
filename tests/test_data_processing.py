@@ -1,5 +1,6 @@
 import json
 import tempfile
+from collections import Counter
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
@@ -553,3 +554,31 @@ def test_issue_previous_m_data_format():
     max_wrong_labels = sum([(round(i / 20) * 20) // 20 for i in issues.values()])
     assert max_wrong_labels == 52
     assert len(issues) == 15
+
+
+@pytest.mark.local
+@pytest.mark.debug
+def test_labels_comes_together():
+    """
+    Check which labels come together.
+    """
+    with open(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/combined_label_range.txt", "r"
+    ) as file:
+        lines = file.readlines()
+        data = []
+        for line in lines:
+            parts = line.strip().split(",")
+            labels = [int(part.split(":")[0]) for part in parts[2:]]
+            labels = np.unique(labels)
+            if len(labels) > 1:
+                labels = tuple(sorted(labels))
+                data.append(labels)
+    print(Counter(data))
+    # {(2, 8): 36, (5, 9): 25, (6, 9): 22, (5, 6): 19, (0, 2): 14, (0, 8): 8, (0, 1): 7, (1, 2): 3, (1, 8): 3, (0, 2, 8): 1, (1, 5): 1}
+
+
+def test_get_rules():
+    rules = bdp.get_rules().rule_df
+    assert rules.loc["Pecking", "SitStand"] == 1
+    assert rules.loc["SitStand", "Pecking"] == 2

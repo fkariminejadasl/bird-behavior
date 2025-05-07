@@ -373,7 +373,7 @@ def get_rules():
 
     merge_labels = {17: 4, 11: 9}
 
-    upper_triangle = np.array([
+    upper_diag = np.array([
         [1, 2, 1, 2, 1, 1, 1, 1, 0, 0, 0],
         [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0],
         [0, 0, 1, 2, 0, 0, 0, 1, 2, 2, 2],
@@ -391,7 +391,12 @@ def get_rules():
     mapping_j = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
     # fmt: on
 
-    rule = upper_triangle + upper_triangle.T - np.diag(upper_triangle.diagonal())
+    # rule = upper_diag + upper_diag.T - np.diag(upper_diag.diagonal())
+    upper_tri = np.triu(upper_diag, 1)
+    lower_tri = np.zeros_like(upper_tri)
+    lower_tri[upper_tri == 1] = 2
+    lower_tri[upper_tri == 2] = 1
+    rule = lower_tri.T + upper_diag
     rule_df = pd.DataFrame(rule, index=labels, columns=labels)
 
     # fmt: off
@@ -557,7 +562,7 @@ def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
         if len(valid_labels) == 2:
             l1_label = next((val for val in cut[3] if val != -1), None)
             l2_label = [i for i in valid_labels if i != l1_label][0]
-            which_label = rule_df[ind2name[l1_label]][ind2name[l2_label]]
+            which_label = rule_df.loc[ind2name[l1_label], ind2name[l2_label]]
         else:
             which_label = 1
 
@@ -657,7 +662,7 @@ def drop_duplicates(df, glen=20):
 
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
-    pipeline: format, index, map0, mistake, map, drop_neg1, complete, \{combine, shift, drop}
+    pipeline: format, index, map0, mistake, map, drop_neg1, complete, not{combine, shift, drop}
 
     name: s: set1 (judy), j (json suzzane), m (mat suzzane), w (csv willem)
     """
@@ -724,7 +729,7 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 
 def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: list):
     """
-    pipeline: \{format, index, map0, mistake, map, drop_neg1, complete}, combine, shift, drop
+    pipeline: not{format, index, map0, mistake, map, drop_neg1, complete}, combine, shift, drop
     """
     print("Combined")
     dfs = [pd.read_csv(input_path / i, header=None) for i in filenames]
@@ -925,12 +930,3 @@ def write_all_start_end_inds(df, save_file):
             segment_str = ",".join(segments)
             line = f"{dt[0]},{dt[1]},{segment_str}\n"
             file.write(line)
-
-
-df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
-)
-save_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/combined_start_ends.txt"
-)
-write_all_start_end_inds(df, save_file)
