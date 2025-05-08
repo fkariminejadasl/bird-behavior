@@ -281,6 +281,47 @@ def add_index(df_db, df, save_file):
         file.writelines(output_lines)
 
 
+def identify_mistakes(df_s, df, glen=20):
+    """
+    Identify mistakes in the mapping between two dataframes based on specific columns.
+
+    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    dfs = pd.read_csv(path / "s_map0.csv", header=None)
+    dfj = pd.read_csv(path / "j_map0.csv", header=None)
+    dfm = pd.read_csv(path / "m_map0.csv", header=None)
+    dfw = pd.read_csv(path / "w_map0.csv", header=None)
+    dfj = dfj.sort_values([0,1,2])
+    dfs = dfs.sort_values([0,1,2])
+    dfm = dfm.sort_values([0,1,2])
+    dfw = dfw.sort_values([0,1,2])
+    print("s_w") # s_w: 9-6, 9-2, 9-8, 9-5, 6-9, 8-0, 8-2
+    mistakes = identify_mistakes(dfs, dfw, glen=1)
+    print("j_w") # 8-0, 8-2
+    mistakes = identify_mistakes(dfj, dfw, glen=1)
+    print("j_m")  # 4-17, 7-15, 7-16
+    mistakes = identify_mistakes(dfj, dfm, glen=1)
+    print("j_s")
+    mistakes = identify_mistakes(dfj, dfs, glen=1)
+    """
+    # build index
+    index_map = defaultdict(list)
+    for i, row in df.iterrows():
+        key = (row[0], row[1], row[2])
+        index_map[key].append(i)
+
+    mistakes = dict()
+    sels = df_s.iloc[::glen]  # source
+    for _, sel in sels.iterrows():
+        key = (sel[0], sel[1], sel[2])
+        indices = index_map.get(key)
+        if indices and len(indices) == 1:
+            index = indices[0]
+            label = df.loc[index, 3]
+            if label != sel[3] and sel[3] != -1 and label != -1:
+                mistakes[(key[0], key[1])] = (sel[3], label)
+    return mistakes
+
+
 def correct_mistakes(df, name):
     """
     Removes mislabeled entries from s_data, w_data, and j_data based on identify_mistakes and manual checks.
@@ -355,12 +396,50 @@ def map_new_labels(df, mapping, save_file=None, ignore_labels=None):
     return df
 
 
+def Discovered_mapping():
+    """
+    Use the original data with the indices ({}_index.csv) and sort them by device, time, index.
+    Then for each label check which mapping is used for the other data.
+    Usually top of the list had common data.
+
+    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    df1 = pd.read_csv(path / "s_index.csv", header=None)
+    df2 = pd.read_csv(path / "j_index.csv", header=None)
+    df3 = pd.read_csv(path / "m_index.csv", header=None)
+    df4 = pd.read_csv(path / "w_index.csv", header=None)
+    df2 = df2.sort_values([0,1,2])
+    df1 = df1.sort_values([0,1,2])
+    df3 = df3.sort_values([0,1,2])
+    df4 = df4.sort_values([0,1,2])
+    # df2[df2[3]==3] # look for the label 3
+
+    >>> np.unique(df1[3])
+    array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    >>> np.unique(df2[3])
+    array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10])
+    >>> np.unique(df3[3])
+    array([ 0,  5,  6, 10, 11, 13, 14, 15, 16, 17])
+
+    # Discovered mapping
+    # ======
+    j:s
+    5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8
+    j:m
+    0: 6, 1: 5, 5: 0,
+    8: 10, 9: 11, 10: 13
+    7: 15
+    """
+
+
+pass
+
+
 def get_rules():
     """
     Get rules for label selection
 
     Example:
-    rule["Flap"]["ExFlap"] is 2, which mean the second label ExFlap is selected.
+    rule.loc["Flap", "ExFlap"] is 2, which mean the second label ExFlap is selected.
     """
     # fmt: off
     labels = [
@@ -390,6 +469,7 @@ def get_rules():
     ])
 
     # j_data mapping: labels were wrong. mapping = {old: new}
+    # Mapping is discovered in "Discovered mapping".
     mapping_j = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
     # fmt: on
 

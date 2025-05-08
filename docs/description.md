@@ -9,9 +9,47 @@ The code to get the data is in `scripts/get_data.py`.
 
 ### Labeled data
 
-The data is a combination of several datasets annotated by different annotators. Each individual dataset is in a different format, and there is overlap between them. The pipeline is used in `scripts/prepare_labeled_data.py` to create the final data.
+#### Data Preparation Pipeline
 
-These datasets are:
+The data is a combination of several datasets annotated by different experts. Each individual dataset is in a different format: JSON, MATLAB, or CSV. Some data appears in more than one dataset. We identified some mismatches between labels, which were either removed or corrected.
+
+The data contains missing values and inconsistent label mappings. Since we have access to the database, missing items can be retrieved as needed.
+
+The pipeline used to prepare the final dataset is implemented in `scripts/prepare_labeled_data.py`. It consists of two parts: one for individual datasets and one for the combined dataset.
+
+#### Individual Dataset Pipeline
+
+Steps:
+
+1. **format**: Convert data to CSV format with the following columns:
+
+   * `device_id`, `datetimes`, `indices`, `label`, `IMU_x`, `IMU_y`, `IMU_z` (acceleration in g), and `GPS_2D_speed` (in m/s).
+   * Missing labels or indices are represented by `-1`.
+
+2. **index**: Add indices from the database.
+
+3. **map0**: Apply a common, unified label mapping.
+
+4. **mistakes**: Correct mismatched labels.
+
+5. **map**: Merge some label classes and ignore others using `-1` as the label.
+
+6. **drop negatives**: Remove entries where all labels are `-1`.
+
+7. **complete**: Retrieve missing data (without labels) from the database.
+
+#### Combined Dataset Pipeline
+
+Steps:
+
+1. **combine**: Merge all individual datasets into one.
+
+2. **shift**: Group data into sets of 20 items. Assign a common label to each group or drop the group based on length and labeling rules.
+
+3. **drop duplicates**: Perform a sanity check to ensure there are no duplicate groups of 20 items.
+
+
+#### These datasets are:
 
 ```
 s_data: (Publish data. set1 Json format)
@@ -20,7 +58,7 @@ m_data: (Suzanne Matlab)
 w_data: (Willem Csv)
 ```
 
-Considerations
+#### Considerations
 
 - The IMU and GPS are rounded and then saved with a precision of 1e-6.
 - It is possible to have the same IMU and GPS values. This issue is resolved by looking at three IMU and GPS items.
@@ -33,18 +71,22 @@ Considerations
 - j_data, s_data: 10 and 20 items per burst, respectively. 
 - m_data, w_data: data of different lengths.
 
-Here is the number of labels:
+#### Here is the number of labels:
 
-```
+```bash
 {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
-s_data: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
-j_data: {0: 216, 1: 19, 2: 146, 3: 0,   4: 460, 5: 375,  6: 127, 7: 10, 8: 47,  9: 66}
-m_data: {0: 5,   1: 0,  2: 0,   3: 0,   4: 0,   5: 642,  6: 23,  7: 0,  8: 0,   9: 187}
-w_data: {0: 652, 1: 45, 2: 504, 3: 176, 4: 558, 5: 806,  6: 304, 7: 30, 8: 143, 9: 153}
-shift : {0: 8145, 1: 497, 2: 6074, 3: 1888, 4: 8443, 5: 22807,  6: 4377, 8: 1648, 9: 4245}
+# items
+s_complete: {-1: 2422, 0: 12680, 1: 760, 2: 10020, 3: 3520, 4: 11160, 5: 17880, 6: 6280, 8: 2980, 9: 3740}
+j_complete: {-1: 68059, 0: 2640, 1: 240, 2: 2310, 4: 5060, 5: 4170, 6: 1310, 8: 780, 9: 850}
+m_complete: {-1: 5699, 0: 100, 4: 6587, 5: 12869, 6: 455, 9: 3327}
+w_complete: {-1: 1040, 0: 13059, 1: 847, 2: 9977, 3: 3530, 4: 11230, 5: 16100, 6: 5842, 8: 2875, 9: 2907}
+shift : {0: 161400, 1: 12040, 2: 113540, 3: 37760, 4: 168860, 5: 448760, 6: 86780, 8: 40700, 9: 92780}
+# burst
+s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
+shift : {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
-Example row of the CSV format:
+#### Example row of the CSV format:
 
 ```bash
 # no index (index==-1)
