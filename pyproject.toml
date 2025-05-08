@@ -51,12 +51,16 @@ where = ["."]
 include = ["behavior"]
 
 # for test with markers. Use pytest -s sometest.py  -m "not ignore"
+# for all tests with markers: pytest tests  -m "not ignore and not debug"
 [tool.pytest.ini_options]
 markers = [
     "ignore: mark test as ignored",
     "local: mark test as run locally",
     "debug: mark test as debug",
 ]
+
+# For linters:
+# for i in app tests exps scripts behavior;do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i;done
 
 # Remove packages completely
 # pip-autoremove -y bird_behavior einops matplotlib numpy tqdm tensorboard psycopg2-binary timm torch torchvision scikit-learn pandas omegaconf 

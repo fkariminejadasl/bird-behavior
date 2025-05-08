@@ -11,16 +11,6 @@ import pytest
 
 import behavior.data as bd
 import behavior.data_processing as bdp
-from behavior.data_processing import (
-    build_index,
-    change_format_mat_file,
-    change_format_mat_files,
-    complete_data_from_db,
-    evaluate_and_modify_df,
-    get_rules,
-    map_to_nearest_divisible_20,
-    shift_df,
-)
 
 
 @pytest.fixture
@@ -137,63 +127,159 @@ def test_change_format_json_files(tmp_path, sample_json_data):
     assert lines[0].startswith("123,2021-01-01 00:00:00,-1,0,0.100000")
 
 
-def test_map_to_nearest_divisible_20():
-    assert map_to_nearest_divisible_20(2, 18) == [0, 20]
-    assert map_to_nearest_divisible_20(23, 37) == [20, 40]
-    assert map_to_nearest_divisible_20(35, 55) == [40, 60]
-    assert map_to_nearest_divisible_20(30, 50) == [40, 60]
+@pytest.mark.local
+def test_change_format_mat_file():
+    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Susanne/AnnAcc6016_20150501_110811-20150501_113058.mat"
+    df = bdp.change_format_mat_file(data_file)
+
+    expected = {(30, 52): 6, (61, 81): 10, (108, 128): 16, (141, 199): 5}
+    dt = 6016, "2015-05-01 11:18:35"
+    assert expected == bdp.get_start_end_inds(df, dt)
+
+    expected = {(32, 105): 15, (106, 199): 5}
+    dt = 6016, "2015-05-01 11:17:30"
+    assert expected == bdp.get_start_end_inds(df, dt)
+
+
+@pytest.mark.local
+def test_change_format_mat_files():
+    data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
+    df = bdp.change_format_mat_files(data_path)
+    assert len(df) == 28213
+
+
+@pytest.mark.local
+def test_change_format_csv_file():
+    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Willem/AnM534_20120608_20120609.csv"
+    df = bdp.change_format_csv_file(data_file)
+
+    expected = {(0, 23): 9, (24, 59): 5}
+    dt = 534, "2012-06-08 04:24:26"
+    assert expected == bdp.get_start_end_inds(df, dt)
 
 
 def test_build_index_n1():
     keys = [[1], [2], [3]]
     expected = {((1,),): [0], ((2,),): [1], ((3,),): [2]}
-    assert build_index(keys, n_rows=1) == expected
+    assert bdp.build_index(keys, n_rows=1) == expected
 
 
 def test_build_index_n2():
     keys = [[1], [2], [3]]
     expected = {((1,), (2,)): [0], ((2,), (3,)): [1]}
-    assert build_index(keys, n_rows=2) == expected
+    assert bdp.build_index(keys, n_rows=2) == expected
 
 
 def test_build_index_n3():
     keys = [[1], [2], [3]]
     expected = {((1,), (2,), (3,)): [0]}
-    assert build_index(keys, n_rows=3) == expected
+    assert bdp.build_index(keys, n_rows=3) == expected
 
 
 def test_build_index_too_few_elements():
     keys = [[1]]
     expected = {}
-    assert build_index(keys, n_rows=2) == expected
+    assert bdp.build_index(keys, n_rows=2) == expected
 
 
 def test_build_index_exact_elements():
     keys = [[1], [2]]
     expected = {((1,), (2,)): [0]}
-    assert build_index(keys, n_rows=2) == expected
+    assert bdp.build_index(keys, n_rows=2) == expected
 
 
 def test_build_index_duplicates_n1():
     keys = [[1], [1], [1]]
     expected = {((1,),): [0, 1, 2]}
-    assert build_index(keys, n_rows=1) == expected
+    assert bdp.build_index(keys, n_rows=1) == expected
 
 
 def test_build_index_duplicates_n2():
     keys = [[1], [1], [1]]
     expected = {((1,), (1,)): [0, 1]}
-    assert build_index(keys, n_rows=2) == expected
+    assert bdp.build_index(keys, n_rows=2) == expected
+
+
+def test_add_index():
+    df_csv = """
+6073,2016-06-07 12:34:34,-1,5,0.367562,0.042074,1.061825,0.044410
+6073,2016-06-07 12:34:34,-1,5,0.186180,0.038160,0.921492,0.044410
+6073,2016-06-07 12:34:34,-1,5,0.367562,0.042074,1.061825,0.044410"""
+
+    df_db_csv = """
+6073,2016-06-07 12:34:34,8,-1,0.300384,0.037182,1.015702,0.044410
+6073,2016-06-07 12:34:34,9,-1,0.367562,0.042074,1.061825,0.044410
+6073,2016-06-07 12:34:34,10,-1,0.186180,0.038160,0.921492,0.044410
+6073,2016-06-07 12:34:34,11,-1,0.367562,0.042074,1.061825,0.044410
+6073,2016-06-07 12:34:34,12,-1,0.093090,-0.208415,0.884200,0.044410"""
+
+    expected_df_csv = """
+6073,2016-06-07 12:34:34,9,5,0.367562,0.042074,1.061825,0.044410
+6073,2016-06-07 12:34:34,10,5,0.186180,0.038160,0.921492,0.044410
+6073,2016-06-07 12:34:34,11,5,0.367562,0.042074,1.061825,0.044410"""
+
+    df = pd.read_csv(StringIO(df_csv), header=None)
+    df_db = pd.read_csv(StringIO(df_db_csv), header=None)
+    expected_df = pd.read_csv(StringIO(expected_df_csv), header=None)
+
+    # tmp_file = tempfile.NamedTemporaryFile(delete=False)
+    tmp_file = tempfile.NamedTemporaryFile()
+    bdp.add_index(df_db, df, tmp_file.name)
+    result_df = pd.read_csv(tmp_file.name, header=None)
+
+    assert result_df.equals(expected_df)
+
+
+@pytest.mark.local
+def test_map0():
+    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    for name in ["s", "m", "w"]:
+        df1 = pd.read_csv(path / f"{name}_index.csv", header=None)
+        df2 = pd.read_csv(path / f"{name}_map0.csv", header=None)
+        assert df1.equals(df2)
+
+
+@pytest.mark.local
+def test_correct_mistakes():
+    dt = (534, "2012-06-08 12:39:39")
+    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    for name in ["s", "j", "w", "m"]:
+        df1 = pd.read_csv(path / f"{name}_map0.csv", header=None)
+        df2 = bdp.correct_mistakes(df1, name)
+        if name == "m":
+            df1 = df1.sort_values([0, 1, 2]).reset_index(drop=True)
+            assert df1.equals(df2)
+        else:
+            crop1 = df1[(df1[0] == dt[0]) & (df1[1] == dt[1])]
+            crop2 = df2[(df2[0] == dt[0]) & (df2[1] == dt[1])]
+            assert len(crop1) != 0
+            assert len(crop2) == 0
+
+
+def test_drop_groups_with_all_neg1():
+    # fmt:off
+    df = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,-1,   -0.519600,-0.105400,0.880500,0.020000],
+        [533,"2012-05-15 03:10:11",6,-1,   -0.504800,-0.041900,0.880500,0.020000],
+        [533,"2012-05-15 03:10:11",7,-1,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8,-1,   -0.394823,-0.244503,0.856317,0.020033],
+        [533,"2012-05-15 03:10:11",9,-1,   -0.055668, 0.134946,0.904723,0.020033]
+    ])
+    # fmt:on
+    filtered = bdp.drop_groups_with_all_neg1(df)
+    assert len(filtered) == 0
 
 
 def test_complete_data_from_db_with_example():
-    df_csv = """6073,2016-06-07 12:34:34,9,11,0.367562,0.042074,1.061825,0.044410
+    df_csv = """
+6073,2016-06-07 12:34:34,9,11,0.367562,0.042074,1.061825,0.044410
 6073,2016-06-07 12:34:34,11,5,0.586372,0.191781,1.155054,0.044410
 6073,2016-06-07 12:38:39,0,10,0.357965,-0.109589,1.020608,0.004212
 6073,2016-06-07 12:38:39,1,10,0.324376,0.019569,0.933268,0.004212
 6073,2016-06-07 12:38:39,2,10,0.228407,-0.244618,0.868499,0.004212"""
 
-    df_db_csv = """6073,2016-06-07 12:34:34,8,-1,0.300384,0.037182,1.015702,0.044410
+    df_db_csv = """
+6073,2016-06-07 12:34:34,8,-1,0.300384,0.037182,1.015702,0.044410
 6073,2016-06-07 12:34:34,9,-1,0.367562,0.042074,1.061825,0.044410
 6073,2016-06-07 12:34:34,10,-1,0.186180,0.038160,0.921492,0.044410
 6073,2016-06-07 12:34:34,11,-1,0.586372,0.191781,1.155054,0.044410
@@ -205,7 +291,8 @@ def test_complete_data_from_db_with_example():
 6073,2016-06-07 12:38:39,4,-1,0.351248,0.069472,0.966634,0.004212
 6210,2016-05-09 11:09:51,10,-1,0.400588,-0.271930,0.916008,0.061925"""
 
-    expected_df_csv = """6073,2016-06-07 12:34:34,8,-1,0.300384,0.037182,1.015702,0.044410
+    expected_df_csv = """
+6073,2016-06-07 12:34:34,8,-1,0.300384,0.037182,1.015702,0.044410
 6073,2016-06-07 12:34:34,9,11,0.367562,0.042074,1.061825,0.044410
 6073,2016-06-07 12:34:34,10,-1,0.186180,0.038160,0.921492,0.044410
 6073,2016-06-07 12:34:34,11,5,0.586372,0.191781,1.155054,0.044410
@@ -220,7 +307,7 @@ def test_complete_data_from_db_with_example():
     df_db = pd.read_csv(StringIO(df_db_csv), header=None)
     expected_df = pd.read_csv(StringIO(expected_df_csv), header=None)
 
-    result_df = complete_data_from_db(df, df_db)
+    result_df = bdp.complete_data_from_db(df, df_db)
 
     # Sort to ensure row order doesn’t interfere with equality check
     result_df_sorted = result_df.sort_values(by=[0, 1, 2]).reset_index(drop=True)
@@ -236,21 +323,45 @@ def test_complete_data_from_db():
         header=None,
     )
     df = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc/m_data_index.csv", header=None
+        "/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None
     )
 
-    df_comp = complete_data_from_db(df, df_db)
+    df = bdp.drop_groups_with_all_neg1(df)
+    df_comp = bdp.complete_data_from_db(df, df_db)
 
-    a = df_comp[df_comp[3] != -1]
-    a = a.sort_values([0, 1, 2]).reset_index(drop=True)
-    b = df.sort_values([0, 1, 2]).reset_index(drop=True)
-    assert a.equals(b)
+    df_comp = df_comp[df_comp[3] != -1]
+    df = df[df[3] != -1]
+    df_comp = df_comp.sort_values([0, 1, 2]).reset_index(drop=True)
+    df = df.sort_values([0, 1, 2]).reset_index(drop=True)
+    assert df.equals(df_comp)
+
+
+def test_merge_prefer_valid():
+    # fmt:off
+    df1 = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,-1,   -0.519600,-0.105400,0.880500,0.020000],
+        [533,"2012-05-15 03:10:11",6,-1,   -0.504800,-0.041900,0.880500,0.020000],
+        [533,"2012-05-15 03:10:11",7, 6,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8, 6,   -0.394823,-0.244503,0.856317,0.020033],
+        [533,"2012-05-15 03:10:11",9, 6,   -0.055668, 0.134946,0.904723,0.020033]
+    ])
+
+    df2 = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,6,   -0.519570,-0.105422,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",6,6,   -0.504756,-0.041928,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",7,6,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8,6,   -0.394823,-0.244503,0.856317,0.020033],
+        [533,"2012-05-15 03:10:11",9,6,   -0.055668, 0.134946,0.904723,0.020033]
+    ])
+    # fmt:on
+    merged = bdp.merge_prefer_valid(df1, df2)
+    assert merged.equals(df2)
 
 
 def test_accept_rule_2():
     data = {3: [-1] * 9 + [1] * 4 + [2] * 7}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=2)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=2)
 
     assert result is not None
     assert all(result[3] == 2)
@@ -259,7 +370,7 @@ def test_accept_rule_2():
 def test_reject_rule_2_not_enough_l2():
     data = {3: [-1] * 9 + [1] * 4 + [2] * 3}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=2)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=2)
 
     assert result is None
 
@@ -267,7 +378,7 @@ def test_reject_rule_2_not_enough_l2():
 def test_accept_rule_1():
     data = {3: [-1] * 9 + [1] * 5 + [2] * 3}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
 
     assert result is not None
     assert all(result[3] == 1)
@@ -276,7 +387,7 @@ def test_accept_rule_1():
 def test_reject_more_than_3_unique_labels():
     data = {3: [-1] * 3 + [1] * 3 + [2] * 3 + [3] * 3}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=2)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=2)
 
     assert result is None
 
@@ -284,7 +395,7 @@ def test_reject_more_than_3_unique_labels():
 def test_reject_only_negative_ones():
     data = {3: [-1] * 10}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
 
     assert result is None
 
@@ -292,7 +403,7 @@ def test_reject_only_negative_ones():
 def test_accept_two_labels_with_negative():
     data = {3: [-1] * 6 + [1] * 5}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
 
     assert result is not None
     assert all(result[3] == 1)
@@ -301,7 +412,7 @@ def test_accept_two_labels_with_negative():
 def test_reject_two_labels_with_negative_not_enough():
     data = {3: [-1] * 5 + [1] * 3}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
 
     assert result is None
 
@@ -309,12 +420,12 @@ def test_reject_two_labels_with_negative_not_enough():
 def test_accept_based_on_rule_order_label_matter():
     data = {3: [-1] * 5 + [4] * 6 + [3] * 7}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
 
     assert result is not None
     assert all(result[3] == 4)
 
-    result = evaluate_and_modify_df(df.copy(), rule=2)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=2)
 
     assert result is not None
     assert all(result[3] == 3)
@@ -323,7 +434,7 @@ def test_accept_based_on_rule_order_label_matter():
 def test_reject_three_labels_with_negative_not_enough_l2():
     data = {3: [-1] * 5 + [1] * 6 + [2] * 2}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=2)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=2)
 
     assert result is None
 
@@ -331,13 +442,13 @@ def test_reject_three_labels_with_negative_not_enough_l2():
 def test_reject_single_label_not_enough():
     data = {3: [1] * 4}
     df = pd.DataFrame(data)
-    result = evaluate_and_modify_df(df.copy(), rule=1)
+    result = bdp.evaluate_and_modify_df(df.copy(), rule=1)
     assert result is None
 
 
 def test_process_moving_window():
-    rule_df = get_rules().rule_df
-    ind2name = get_rules().ind2name
+    rule_df = bdp.get_rules().rule_df
+    ind2name = bdp.get_rules().ind2name
     glen = 6
 
     # fmt:off
@@ -361,8 +472,8 @@ def test_process_moving_window():
 
 @pytest.mark.local
 def test_process_moving_window_given_dt():
-    rule_df = get_rules().rule_df
-    ind2name = get_rules().ind2name
+    rule_df = bdp.get_rules().rule_df
+    ind2name = bdp.get_rules().ind2name
 
     glen = 20  # group length
     dt = 6011, "2015-04-30 09:10:57"
@@ -423,7 +534,7 @@ def test_shift_df():
         header=None,
     )
 
-    new_df = shift_df(df, glen, dts)
+    new_df = bdp.shift_df(df, glen, dts)
     new_df.equals(expected)
 
     bdp.check_batches(new_df, batch_size=glen)
@@ -454,38 +565,23 @@ def test_combine_shift():
     diff_dts = cdt.difference(sdt)
     for dt in diff_dts:
         slice = gc.get_group(dt)
+        # Not a srong assert
         assert len(slice[slice[3] != -1]) < 20
 
 
-@pytest.mark.local
-def test_change_format_mat_file():
-    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Susanne/AnnAcc6016_20150501_110811-20150501_113058.mat"
-    df = change_format_mat_file(data_file)
+def test_drop_duplicates():
+    # fmt:off
+    df = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,6,   -0.519570,-0.105422,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",6,6,   -0.504756,-0.041928,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",7,6,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8,6,   -0.394823,-0.244503,0.856317,0.020033],
+    ])
+    # fmt:on
+    df2 = pd.concat([df, df]).reset_index(drop=True)
 
-    expected = {(30, 52): 6, (61, 81): 10, (108, 128): 16, (141, 199): 5}
-    dt = 6016, "2015-05-01 11:18:35"
-    assert expected == bdp.get_start_end_inds(df, dt)
-
-    expected = {(32, 105): 15, (106, 199): 5}
-    dt = 6016, "2015-05-01 11:17:30"
-    assert expected == bdp.get_start_end_inds(df, dt)
-
-
-@pytest.mark.local
-def test_change_format_mat_files():
-    data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")
-    df = change_format_mat_files(data_path)
-    assert len(df) == 28213
-
-
-@pytest.mark.local
-def test_change_format_csv_file():
-    data_file = "/home/fatemeh/Downloads/bird/data/data_from_Willem/AnM534_20120608_20120609.csv"
-    df = bdp.change_format_csv_file(data_file)
-
-    expected = {(0, 23): 9, (24, 59): 5}
-    dt = 534, "2012-06-08 04:24:26"
-    assert expected == bdp.get_start_end_inds(df, dt)
+    result = bdp.drop_duplicates(df2, glen=4)
+    assert result.equals(df)
 
 
 @pytest.mark.local
@@ -503,57 +599,6 @@ def test_change_format_csv_files():
     data_path = Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")
     df = bdp.change_format_csv_files(data_path)
     assert len(df) == 67689
-
-
-def test_merge_prefer_valid():
-    # fmt:off
-    df1 = pd.DataFrame([
-        [533,"2012-05-15 03:10:11",5,-1,   -0.519600,-0.105400,0.880500,0.020000],
-        [533,"2012-05-15 03:10:11",6,-1,   -0.504800,-0.041900,0.880500,0.020000],
-        [533,"2012-05-15 03:10:11",7, 6,   -0.391704, 0.071453,1.172469,0.020033],
-        [533,"2012-05-15 03:10:11",8, 6,   -0.394823,-0.244503,0.856317,0.020033],
-        [533,"2012-05-15 03:10:11",9, 6,   -0.055668, 0.134946,0.904723,0.020033]
-    ])
-
-    df2 = pd.DataFrame([
-        [533,"2012-05-15 03:10:11",5,6,   -0.519570,-0.105422,0.880520,0.020033],
-        [533,"2012-05-15 03:10:11",6,6,   -0.504756,-0.041928,0.880520,0.020033],
-        [533,"2012-05-15 03:10:11",7,6,   -0.391704, 0.071453,1.172469,0.020033],
-        [533,"2012-05-15 03:10:11",8,6,   -0.394823,-0.244503,0.856317,0.020033],
-        [533,"2012-05-15 03:10:11",9,6,   -0.055668, 0.134946,0.904723,0.020033]
-    ])
-    # fmt:on
-    merged = bdp.merge_prefer_valid(df1, df2)
-    assert merged.equals(df2)
-
-
-def test_drop_groups_with_all_neg1():
-    # fmt:off
-    df = pd.DataFrame([
-        [533,"2012-05-15 03:10:11",5,-1,   -0.519600,-0.105400,0.880500,0.020000],
-        [533,"2012-05-15 03:10:11",6,-1,   -0.504800,-0.041900,0.880500,0.020000],
-        [533,"2012-05-15 03:10:11",7,-1,   -0.391704, 0.071453,1.172469,0.020033],
-        [533,"2012-05-15 03:10:11",8,-1,   -0.394823,-0.244503,0.856317,0.020033],
-        [533,"2012-05-15 03:10:11",9,-1,   -0.055668, 0.134946,0.904723,0.020033]
-    ])
-    # fmt:on
-    filtered = bdp.drop_groups_with_all_neg1(df)
-    assert len(filtered) == 0
-
-
-def test_drop_duplicates():
-    # fmt:off
-    df = pd.DataFrame([
-        [533,"2012-05-15 03:10:11",5,6,   -0.519570,-0.105422,0.880520,0.020033],
-        [533,"2012-05-15 03:10:11",6,6,   -0.504756,-0.041928,0.880520,0.020033],
-        [533,"2012-05-15 03:10:11",7,6,   -0.391704, 0.071453,1.172469,0.020033],
-        [533,"2012-05-15 03:10:11",8,6,   -0.394823,-0.244503,0.856317,0.020033],
-    ])
-    # fmt:on
-    df2 = pd.concat([df, df]).reset_index(drop=True)
-
-    result = bdp.drop_duplicates(df2, glen=4)
-    assert result.equals(df)
 
 
 @pytest.mark.local
@@ -607,3 +652,10 @@ def test_get_rules():
     rules = bdp.get_rules().rule_df
     assert rules.loc["Pecking", "SitStand"] == 1
     assert rules.loc["SitStand", "Pecking"] == 2
+
+
+def test_map_to_nearest_divisible_20():
+    assert bdp.map_to_nearest_divisible_20(2, 18) == [0, 20]
+    assert bdp.map_to_nearest_divisible_20(23, 37) == [20, 40]
+    assert bdp.map_to_nearest_divisible_20(35, 55) == [40, 60]
+    assert bdp.map_to_nearest_divisible_20(30, 50) == [40, 60]

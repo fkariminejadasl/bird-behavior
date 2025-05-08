@@ -161,6 +161,7 @@ def change_format_csv_file(csv_file):
                 continue
             r[2] = np.int64(r[2])
             r[3:7] = np.float64(r[3:7])
+            r[3:7] = np.round(np.array(r[3:7]), 6)
             rows.append([device_id, start_time, r[2], label, r[3], r[4], r[5], r[6]])
     df = pd.DataFrame(rows)
     return df
@@ -284,6 +285,7 @@ def correct_mistakes(df, name):
     """
     Removes mislabeled entries from s_data, w_data, and j_data based on identify_mistakes and manual checks.
     Entries are identified by (id, timestamp) and removed accordingly.
+    name is the name of the dataset: s, w, j, m
     """
 
     # fmt: off
@@ -482,6 +484,25 @@ def complete_data_from_db(df: pd.DataFrame, df_db: pd.DataFrame) -> pd.DataFrame
     return df_labeled.sort_values([0, 1, 2]).reset_index(drop=True)
 
 
+def merge_prefer_valid(*dfs):
+    """
+    merge and pick the valid (col 3 ≠ -1) row
+    """
+    df = pd.concat(dfs, ignore_index=True)
+
+    # for each group of (0,1,2), pick the row whose col 3 != -1 if it exists,
+    # otherwise pick whichever row is first.
+    def pick_valid(sub):
+        # boolean mask of “valid” rows
+        valid = (sub[3] != -1).to_numpy()
+        # argmax gives position of first True, or 0 if none
+        return sub.iloc[valid.argmax()]
+
+    return (
+        df.groupby([0, 1, 2], as_index=False).apply(pick_valid).reset_index(drop=True)
+    )
+
+
 def evaluate_and_modify_df(df, rule):
     """
     Applies label evaluation logic on df[3] and potentially modifies labels.
@@ -586,34 +607,6 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
-def combine_csv_files(csv_files):
-    df_list = []
-    for csv_file in csv_files:
-        df = pd.read_csv(csv_file, header=None)
-        df_list.append(df)
-    combined_df = pd.concat(df_list, ignore_index=True)
-    return combined_df
-
-
-def merge_prefer_valid(*dfs):
-    """
-    merge and pick the valid (col 3 ≠ -1) row
-    """
-    df = pd.concat(dfs, ignore_index=True)
-
-    # for each group of (0,1,2), pick the row whose col 3 != -1 if it exists,
-    # otherwise pick whichever row is first.
-    def pick_valid(sub):
-        # boolean mask of “valid” rows
-        valid = (sub[3] != -1).to_numpy()
-        # argmax gives position of first True, or 0 if none
-        return sub.iloc[valid.argmax()]
-
-    return (
-        df.groupby([0, 1, 2], as_index=False).apply(pick_valid).reset_index(drop=True)
-    )
-
-
 def group_equal_elements_optimized(df, subset, indices, glen=20):
     hashes = {}
     for idx in tqdm(indices, total=len(indices)):
@@ -675,8 +668,7 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
     # Format
     print("Format")
     save_file = save_path / f"{name}_format.csv"
-    change_format[name](input_file, save_file)
-    df = pd.read_csv(save_file, header=None)
+    df = change_format[name](input_file, save_file)
 
     # Index
     print("Index")
