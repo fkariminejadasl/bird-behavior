@@ -19,7 +19,6 @@ from behavior.data_processing import (
     evaluate_and_modify_df,
     get_rules,
     map_to_nearest_divisible_20,
-    process_moving_window_given_dt,
     shift_df,
 )
 
@@ -336,6 +335,30 @@ def test_reject_single_label_not_enough():
     assert result is None
 
 
+def test_process_moving_window():
+    rule_df = get_rules().rule_df
+    ind2name = get_rules().ind2name
+    glen = 6
+
+    # fmt:off
+    df = pd.DataFrame([
+    [533, "2012-05-15 03:10:11", 0, 6, -0.184313, -0.280029, 0.929683, 0.020033],
+    [533, "2012-05-15 03:10:11", 1, 6, -0.170279, -0.252818, 0.929683, 0.020033],
+    [533, "2012-05-15 03:10:11", 2, 6, -0.199906, -0.274738, 0.929683, 0.020033],
+    [533, "2012-05-15 03:10:11", 3, 5, -0.222517, -0.222583, 0.904723, 0.020033],
+    [533, "2012-05-15 03:10:11", 4, 6, -0.337907, -0.205953, 0.856317, 0.020033],
+    [533, "2012-05-15 03:10:11", 5, 6, -0.519570, -0.105422, 0.880520, 0.020033],
+    [533, "2012-05-15 03:10:11", 6, 6, -0.504756, -0.041928, 0.880520, 0.020033]
+    ])
+    # fmt:on
+
+    new_df = bdp.process_moving_window_given_dt(df, rule_df, ind2name, glen)
+    df.iloc[3, 3] = 6  # just for the assert
+    assert new_df[0].equals(df.iloc[:glen])
+    assert new_df[1].equals(df.iloc[1 : 1 + glen])
+    assert len(new_df) == 2
+
+
 @pytest.mark.local
 def test_process_moving_window_given_dt():
     rule_df = get_rules().rule_df
@@ -353,7 +376,8 @@ def test_process_moving_window_given_dt():
         header=None,
     )
 
-    new_df = process_moving_window_given_dt(cut, dt, rule_df, ind2name, glen)
+    cut_dt = cut[(cut[0] == dt[0]) & (cut[1] == dt[1])].copy()
+    new_df = bdp.process_moving_window_given_dt(cut_dt, rule_df, ind2name, glen)
     new_df = pd.concat(new_df)
     new_df.equals(expected)
     """
@@ -371,7 +395,8 @@ def test_process_moving_window_given_dt():
     df[3] = df[3].map(mapping)
     cut = df[(df[0] == dt[0]) & (df[1] == dt[1])]
     
-    new_df = process_moving_window_given_dt(cut, dt, rule_df, ind2name, glen)
+    cut_dt = cut[(cut[0] == dt[0]) & (cut[1] == dt[1])].copy()
+    new_df = bdp.process_moving_window_given_dt(cut_dt, rule_df, ind2name, glen)
     new_df = pd.concat(new_df)
 
     cut.to_csv(f"/home/fatemeh/Downloads/bird/data/final/proc/example_{dt[0]}_{dt[1]}.csv", index=False, header=None, float_format="%.6f")

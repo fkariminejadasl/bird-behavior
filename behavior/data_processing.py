@@ -391,7 +391,6 @@ def get_rules():
     mapping_j = {5: 0, 4: 1, 3: 2, 2: 4, 1: 5, 0: 6, 7: 7, 6: 8, 8: 10, 9: 11, 10: 13}
     # fmt: on
 
-    # rule = upper_diag + upper_diag.T - np.diag(upper_diag.diagonal())
     upper_tri = np.triu(upper_diag, 1)
     lower_tri = np.zeros_like(upper_tri)
     lower_tri[upper_tri == 1] = 2
@@ -543,10 +542,8 @@ def evaluate_and_modify_df(df, rule):
     return None
 
 
-def process_moving_window_given_dt(df, dt, rule_df, ind2name, glen):
+def process_moving_window_given_dt(df_dt, rule_df, ind2name, glen):
     new_df = []
-    # df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
-    df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
     df_dt = df_dt.reset_index(drop=True)
     for start in range(len(df_dt) - glen + 1):
         cut = df_dt.iloc[start : start + glen].copy()
@@ -582,7 +579,8 @@ def shift_df(df, glen, dts=None):
     if dts is None:
         dts = df[[0, 1]].drop_duplicates().values
     for dt in tqdm(dts):
-        new_data = process_moving_window_given_dt(df, dt, rule_df, ind2name, glen)
+        df_dt = df[(df[0] == dt[0]) & (df[1] == dt[1])].copy()
+        new_data = process_moving_window_given_dt(df_dt, rule_df, ind2name, glen)
         new_df.extend(new_data)
     new_df = pd.concat(new_df, ignore_index=True)
     return new_df
