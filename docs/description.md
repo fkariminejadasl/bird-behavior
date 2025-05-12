@@ -25,17 +25,11 @@ Steps:
 
    * `device_id`, `datetimes`, `indices`, `label`, `IMU_x`, `IMU_y`, `IMU_z` (acceleration in g), and `GPS_2D_speed` (in m/s).
    * Missing labels or indices are represented by `-1`.
-
 2. **index**: Add indices from the database.
-
 3. **map0**: Apply a common, unified label mapping.
-
 4. **mistakes**: Correct mismatched labels.
-
 5. **map**: Merge some label classes and ignore others using `-1` as the label.
-
 6. **drop negatives**: Remove entries where all labels are `-1`.
-
 7. **complete**: Retrieve missing data (without labels) from the database.
 
 #### Combined Dataset Pipeline
@@ -43,9 +37,7 @@ Steps:
 Steps:
 
 1. **combine**: Merge all individual datasets into one.
-
-2. **shift**: Group data into sets of 20 items. Assign a common label to each group or drop the group based on length and labeling rules.
-
+2. **shift**: Group data into sets of 20 items. Assign a common label to each group or drop the group based on length and labeling rules. **starts** can be used instead. In this case, extracts a slice of n rows from the DataFrame starting at the first row where a valid label (0-9) appears.
 3. **drop duplicates**: Perform a sanity check to ensure there are no duplicate groups of 20 items.
 
 
@@ -65,7 +57,7 @@ w_data: (Willem Csv)
 - Data can start from the middle of a burst (index not divisible by 20). Since we take bursts of 20 items, there are several ways to account for that. The rules are defined in `get_rules`. 
     - Shift each item by one and take 20 elements. This can also be implemented in data augmentation.
     - Mapping all data to values divisible by 20. (Old version in `exp/prepare_labeled_data`)
-    - Other options: take the start of the signal, a random part of the signal, or sample at a regular step.
+    - Other options: take the start of the signal (slice_from_first_label), a random part of the signal, or sample at a regular step.
 - j_data, m_data have extra classes. The Float_groyne and Handling_mussel classes are mapped to Float and Pecking, respectively; the other classes are removed.
 - j_data uses different ids for the same labels (remap: s_map0)
 - j_data, s_data: 10 and 20 items per burst, respectively. 
@@ -83,7 +75,8 @@ w_complete: {-1: 1040, 0: 13059, 1: 847, 2: 9977, 3: 3530, 4: 11230, 5: 16100, 6
 shift : {0: 161400, 1: 12040, 2: 113540, 3: 37760, 4: 168860, 5: 448760, 6: 86780, 8: 40700, 9: 92780}
 # burst
 s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
-shift : {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
+starts:  {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}
+shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
 #### Example row of the CSV format:

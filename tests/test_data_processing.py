@@ -134,11 +134,11 @@ def test_change_format_mat_file():
 
     expected = {(30, 52): 6, (61, 81): 10, (108, 128): 16, (141, 199): 5}
     dt = 6016, "2015-05-01 11:18:35"
-    assert expected == bdp.get_start_end_inds(df, dt)
+    assert expected == bdp.get_label_ranges_per_dt(df, dt)
 
     expected = {(32, 105): 15, (106, 199): 5}
     dt = 6016, "2015-05-01 11:17:30"
-    assert expected == bdp.get_start_end_inds(df, dt)
+    assert expected == bdp.get_label_ranges_per_dt(df, dt)
 
 
 @pytest.mark.local
@@ -155,7 +155,7 @@ def test_change_format_csv_file():
 
     expected = {(0, 23): 9, (24, 59): 5}
     dt = 534, "2012-06-08 04:24:26"
-    assert expected == bdp.get_start_end_inds(df, dt)
+    assert expected == bdp.get_label_ranges_per_dt(df, dt)
 
 
 def test_build_index_n1():
@@ -575,7 +575,7 @@ def test_starts_class_stats():
         "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
     )
     expected = {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}
-    df = bdp.get_only_start_indices(df, 20)
+    df = bdp.slice_from_first_label(df, 20)
     class_stats = dict(
         sorted({k: v // 20 for k, v in Counter(df[3].values).items()}.items())
     )
@@ -584,7 +584,7 @@ def test_starts_class_stats():
     assert len(df) == 86760
 
 
-def test_get_only_start_indices():
+def test_slice_from_first_label():
     # fmt:off
     df = pd.DataFrame([
         [533,"2012-05-15 03:10:11",5,-1,   -0.519570,-0.105422,0.880520,0.020033],
@@ -598,7 +598,7 @@ def test_get_only_start_indices():
     ])
     # fmt:on
     expected = pd.concat([df.iloc[1:4], df.iloc[4:7]], ignore_index=True)
-    new_df = bdp.get_only_start_indices(df, glen=3)
+    new_df = bdp.slice_from_first_label(df, glen=3)
     assert new_df.equals(expected)
 
 
@@ -618,13 +618,13 @@ def test_drop_duplicates():
 
 
 @pytest.mark.local
-def test_get_start_end_inds():
+def test_get_label_ranges_per_dt():
     # fmt:off
     df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None)
     dt = 6011, "2015-04-30 09:10:31"
     expected = {(0, 13): 9, (43, 60): 9, (84, 104): 9, (114, 132): 5, (165, 199): 9}
     # fmt:on
-    assert expected == bdp.get_start_end_inds(df, dt)
+    assert expected == bdp.get_label_ranges_per_dt(df, dt)
 
 
 @pytest.mark.local

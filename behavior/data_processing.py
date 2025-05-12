@@ -687,10 +687,13 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
-def get_only_start_indices(df, glen):
+def slice_from_first_label(df, glen):
+    """
+    Extracts a slice of n rows from the DataFrame starting at the first row where a valid label (0-9) appears.
+    """
     df = df.copy()
     new_df = []
-    dt_labe_ranges = get_all_start_end_inds(df)
+    dt_labe_ranges = get_label_ranges(df)
     for dt, ranges in tqdm(dt_labe_ranges.items()):
         for (start, end), label in ranges.items():
             if end - start + 1 >= glen:
@@ -837,7 +840,7 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
 
     # save_file = save_path / "starts.csv"
-    # df = get_only_start_indices(df, glen=20)
+    # df = slice_from_first_label(df, glen=20)
     # df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     print("Drop duplicates")
@@ -979,7 +982,7 @@ def check_batches(df: pd.DataFrame, batch_size=20):
     assert all(len(v) == 1 for v in index_maps.values())
 
 
-def get_start_end_inds(df, dt):
+def get_label_ranges_per_dt(df, dt):
     """
     Indices are data indices (df[2]).
     Example:
@@ -1003,12 +1006,12 @@ def get_start_end_inds(df, dt):
     return start_end_inds
 
 
-def get_all_start_end_inds(df):
+def get_label_ranges(df):
     df = df[df[3] != -1]
     dts = df[[0, 1]].drop_duplicates().values
     start_end_inds = dict()
     for dt in tqdm(dts):
-        start_end_inds[tuple(dt)] = get_start_end_inds(df, dt)
+        start_end_inds[tuple(dt)] = get_label_ranges_per_dt(df, dt)
     return start_end_inds
 
 
@@ -1016,7 +1019,7 @@ def write_all_start_end_inds(df, save_file):
     """
     Write the start and end indices. Format: devic,time,label:start-end,...
     """
-    start_ends = get_all_start_end_inds(df)
+    start_ends = get_label_ranges(df)
 
     with open(save_file, "w") as file:
         for dt, values in start_ends.items():
