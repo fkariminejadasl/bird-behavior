@@ -687,6 +687,28 @@ def shift_df(df, glen, dts=None):
     return new_df
 
 
+def get_only_start_indices(df, glen):
+    df = df.copy()
+    new_df = []
+    dt_labe_ranges = get_all_start_end_inds(df)
+    for dt, ranges in tqdm(dt_labe_ranges.items()):
+        for (start, end), label in ranges.items():
+            if end - start + 1 >= glen:
+                n_groups = (end - start + 1) // glen
+                for i in range(n_groups):
+                    s_start = start + i * glen
+                    s_end = s_start + glen - 1
+                    slice = df[
+                        (df[0] == dt[0])
+                        & (df[1] == dt[1])
+                        & (df[2] >= s_start)
+                        & (df[2] <= s_end)
+                    ].copy()
+                    new_df.append(slice)
+    new_df = pd.concat(new_df, ignore_index=True)
+    return new_df
+
+
 def group_equal_elements_optimized(df, subset, indices, glen=20):
     hashes = {}
     for idx in tqdm(indices, total=len(indices)):
@@ -813,6 +835,10 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     save_file = save_path / "shift.csv"
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
+
+    # save_file = save_path / "starts.csv"
+    # df = get_only_start_indices(df, glen=20)
+    # df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     print("Drop duplicates")
     save_file = save_path / "drop.csv"

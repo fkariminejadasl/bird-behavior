@@ -569,6 +569,39 @@ def test_combine_shift():
         assert len(slice[slice[3] != -1]) < 20
 
 
+@pytest.mark.local
+def test_starts_class_stats():
+    df = pd.read_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
+    )
+    expected = {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}
+    df = bdp.get_only_start_indices(df, 20)
+    class_stats = dict(
+        sorted({k: v // 20 for k, v in Counter(df[3].values).items()}.items())
+    )
+    assert expected == class_stats
+    assert len(df) // 20 == 4338
+    assert len(df) == 86760
+
+
+def test_get_only_start_indices():
+    # fmt:off
+    df = pd.DataFrame([
+        [533,"2012-05-15 03:10:11",5,-1,   -0.519570,-0.105422,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",6,9,   -0.504756,-0.041928,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",7,9,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",8,9,   -0.394823,-0.244503,0.856317,0.020033],
+        [533,"2012-05-15 03:10:11",9,6,   -0.519570,-0.105422,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",10,6,   -0.504756,-0.041928,0.880520,0.020033],
+        [533,"2012-05-15 03:10:11",11,6,   -0.391704, 0.071453,1.172469,0.020033],
+        [533,"2012-05-15 03:10:11",12,6,   -0.394823,-0.244503,0.856317,0.020033],
+    ])
+    # fmt:on
+    expected = pd.concat([df.iloc[1:4], df.iloc[4:7]], ignore_index=True)
+    new_df = bdp.get_only_start_indices(df, glen=3)
+    assert new_df.equals(expected)
+
+
 def test_drop_duplicates():
     # fmt:off
     df = pd.DataFrame([
