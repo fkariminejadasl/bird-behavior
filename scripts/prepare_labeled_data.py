@@ -1,10 +1,12 @@
 from collections import Counter
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from behavior import data_processing as bdp
+from behavior import utils as bu
 from behavior.data_processing import (
     change_format_csv_files,
     change_format_json_files,
@@ -31,12 +33,6 @@ first make {}_format.csv (The first operation in the data pipeline).
 # # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
 # # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 
-
-# seed = 42
-# np.random.seed(seed)
-# save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
-# data_file = save_path / "shift.csv"
-# make_train_valid_test_split(data_file, save_path)
 
 """
 # Prepare data: complete pipeline
@@ -66,10 +62,45 @@ print("Done")
 """
 
 """
+# Train, valid, test split
+seed = 42
+np.random.seed(seed)
+save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+data_file = save_path / "shift.csv"
+bdp.make_train_valid_test_split(data_file, save_path)
+"""
+
+"""
 # stats: write the start and end indices. Format: devic,time,label:start-end,...
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None)
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/combined_start_ends.txt")
-bdp.write_all_start_end_inds(df, save_file)
+for i in ["s", "j", "m", "w"]:  # ["combined"]:
+    name = f"{i}_complete"  # "combined"
+    df = pd.read_csv(
+        f"/home/fatemeh/Downloads/bird/data/final/proc2/{name}.csv", header=None
+    )
+    save_file = Path(
+        f"/home/fatemeh/Downloads/bird/data/final/proc2/{name}_label_range.txt"
+    )
+    bdp.write_all_start_end_inds(df, save_file)
+"""
+
+"""
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
+save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+glen = 20
+dt = 6011, "2015-04-30 09:10:31"
+ind2name = bdp.get_rules().ind2name
+save_path = save_path/ f"{dt[0]}_{dt[1]}"
+save_path.mkdir(parents=True, exist_ok=True)
+slice = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+for i in range(0, len(slice), glen):
+    crop = slice.iloc[i:i + glen]
+    bu.plot_one(np.array(crop.iloc[:,4:]))
+    ind, label_id, gps = crop.iloc[0,[2,3,7]]
+    label = ind2name[label_id]
+    name = f"{crop.iloc[0,2]}"
+    plt.title(f"{label}, {ind}, {gps:.2f}")
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    plt.close()
 """
 
 
