@@ -30,7 +30,6 @@ models = {
 class PathConfig:
     save_path: Path
     data_file: Path
-    valid_path: Optional[Path] = None
 
 
 cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
@@ -60,6 +59,7 @@ if cfg.valid_file is not None:
         cfg.valid_file, cfg.labels_to_use, channel_first=True
     )
 else:
+    print("No validation file provided, using train dataset for evaluation.")
     train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
         cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use
     )
@@ -140,7 +140,7 @@ print(
     f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
     f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
 )
-
+# """
 # Training loop
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
@@ -194,26 +194,39 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 # Save the final model
 # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+# """
 
 bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
 fail_path = cfg.save_path / f"failed/{cfg.exp}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-data_files = {"train": cfg.data_file, "valid": cfg.valid_file, "test": cfg.test_file}
-for stage, data_file in data_files.items():
-    if data_file is not None:
-        # del eval_loader, train_loader, train_dataset, eval_dataset
-        dataset = bd.get_bird_dataset_from_csv(
-            data_file, cfg.labels_to_use, channel_first=True
-        )
-        loader = DataLoader(
-            dataset,
-            batch_size=len(dataset),
-            shuffle=False,
-            num_workers=cfg.num_workers,
-            drop_last=False,
-        )
+datasets = dict()
+if cfg.valid_file is not None:
+    data_files = {
+        "train": cfg.data_file,
+        "valid": cfg.valid_file,
+        "test": cfg.test_file,
+    }
+    for stage, data_file in data_files.items():
+        if data_file is not None:
+            # del eval_loader, train_loader, train_dataset, eval_dataset
+            dataset = bd.get_bird_dataset_from_csv(
+                data_file, cfg.labels_to_use, channel_first=True
+            )
+            datasets[stage] = dataset
+
+else:
+    datasets = {"train": train_dataset, "valid": eval_dataset}
+
+for stage, dataset in datasets.items():
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
     data, ldts = next(iter(loader))
     bu.helper_results(
         data,
