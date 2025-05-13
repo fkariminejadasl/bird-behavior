@@ -14,13 +14,16 @@
 # TEST
 # ===========
 # Paths
-save_path: /home/fatemeh/Downloads/bird/result/f_mem2_bal1_gull_fc # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
+save_path: /home/fatemeh/Downloads/bird/result/124 # f_mem1_1 # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final/gull  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
-test_data_file: /home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_unbalanced.csv #orig/s_data_orig.csv, s_data/s_data_unbalanced.csv # s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem1_bal121_best.pth # 117_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # /home/fatemeh/Downloads/bird/result/45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+test_data_file: /home/fatemeh/Downloads/bird/data/final/proc2/s_correct.csv #test.csv #final/s_data_shift/s_data_unbalanced.csv, orig/s_data_orig.csv, s_data/s_data_unbalanced.csv # s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem1_half_data_best.pth # 124_best.pth, f_mem1_1_best.pth, 117_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+# f_mem1_bal5.pth 5 classes no sitstand
+# f_mem1_bal121_best.pth, 121_best.pth 6 classes
+# f_mem1_half_data_best.pth, 113_best.pth 9 classes
 # Data
-labels_to_use: [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 7, 8] # [0, 2, 4, 5, 6, 9]
+labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 1, 2, 3, 4, 5, 6, 7, 8] # [0, 2, 4, 5, 6, 9]
 # General
 seed: 1234
 exp: 45
@@ -61,7 +64,7 @@ layer_name: fc # norm # fc # avgpool
 channel_first: False
 g_len: 20
 in_channel: 4
-out_channel: 6 # 6, 9
+out_channel: 9 # 6, 9
 patch_size: 1
 embed_dim: 256  # 256, 16
 depth: 6  # 6, 1
@@ -76,7 +79,7 @@ layer_norm_eps: 1e-6
 eps: 0.035  # Maximum distance between two samples for them to be considered as in the same neighborhood
 min_samples: 5  # Minimum number of samples in a neighborhood for a point to be considered as a core point
 # Parameters for MiniBatchKMeans
-n_clusters: 6 #[8,9,10,11,12,13,14,15,16,17,18] #[9, 10, 18]  # Test multiple cluster numbers
+n_clusters: 9 #[8,9,10,11,12,13,14,15,16,17,18] #[9, 10, 18]  # Test multiple cluster numbers
 batch_size: [8192] #[8192, 16384, 32768] #[1024, 2048, 4096, 8192, 16384]  # Test multiple batch sizes # 1024, 4096
 normalize: no
 n_init: 1 # number of random restarts

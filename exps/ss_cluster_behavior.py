@@ -115,10 +115,16 @@ def setup_training_dataloader(cfg, batch_size):
 
 def setup_testing_dataloader(cfg):
     # Load data
-    all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
-    all_measurements, label_ids = bd.get_specific_labesl(
-        all_measurements, label_ids, cfg.labels_to_use
-    )
+    # all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
+    # all_measurements, label_ids = bd.get_specific_labesl(
+    #     all_measurements, label_ids, cfg.labels_to_use
+    # )
+    df = pd.read_csv(cfg.test_data_file, header=None)
+    df = df[df[3].isin(cfg.labels_to_use)]
+    mapping = {l: i for i, l in enumerate(cfg.labels_to_use)}
+    df[3] = df[3].map(mapping)
+    all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
+    label_ids = df[[3, 0, 0]].iloc[::20].values
     dataset = bd.BirdDataset(
         all_measurements, label_ids, channel_first=cfg.channel_first
     )
@@ -316,6 +322,20 @@ def collect_labeled_embeddings(loader, model, layer_to_hook, device):
     return embeddings, labels
 
 
+class Mapper:
+    def __init__(self, old2new: dict):
+        # old is a list like [0,2,4,5,6,9], new is [0, ..., 5]
+        self.old2new = old2new
+        self.new2old = {n: o for o, n in old2new.items()}
+
+    def encode(self, orig: torch.Tensor):
+        """Map original labels → 0…K-1 space"""
+        return torch.tensor([self.old2new[int(i)] for i in orig],device=orig.device)
+    
+
+    def decode(self, chang):
+        """Map 0…K-1 predictions back → original labels"""
+        return torch.tensor([self.new2old[int(i)] for i in chang],device=chang.device)
 """
 # Save Embeddings
 # ==============
@@ -399,13 +419,8 @@ with torch.no_grad():
 hook_handle.remove()
 """
 
-# [0, 1, 2, 3, 4, 5] -> [0, 2, 4, 5, 6, 9]
-# TODO: ind2name contains all labels (0-9). But label 7 is removed. In the balance data everything is mapped to 0-5.
-# mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
-keep_labels = [0, 2, 4, 5, 6, 9]  # [0, 2, 4, 6, 9] # [0, 2, 4, 5, 6, 9]
-discover_labels = [3]  # [1, 3, 5, 7] # [1, 3, 7]
-rem_labels = [1, 3, 7, 8]
-mapping = {i: l for i, l in enumerate(keep_labels)}
+old2new = {l: i for i, l in enumerate(cfg.labels_to_use)}
+mapper = Mapper(old2new)
 
 test_loader = setup_testing_dataloader(cfg)
 save_labeled_embeddings(test_loader, model, layer_to_hook, device)
@@ -416,9 +431,9 @@ feats, labels, output = load_labeled_embeddings("test.npz")
 l_feats = torch.tensor(feats, device="cuda")
 l_targets = torch.tensor(labels, device="cuda")
 
-# Load train embeddings
-u_feats_np = load_unlabeled_embeddings()  # (n=0)
-u_feats = torch.tensor(u_feats_np, device="cuda")
+# # Load train embeddings
+# u_feats_np = load_unlabeled_embeddings()  # (n=0)
+# u_feats = torch.tensor(u_feats_np, device="cuda")
 
 # classification
 preds = torch.argmax(torch.tensor(output), dim=1).cpu().numpy()
@@ -449,6 +464,7 @@ bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in cfg.labels_to_
 # bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in [0, 1, 2, 3, 4, 5, 6, 8, 9]], pred_labels=[bu.ind2name[i] for i in keep_labels])
 # fmt: on
 
+"""
 # Some plotting
 # fmt: off
 from datetime import datetime, timezone
@@ -465,8 +481,8 @@ def plot_one(i):
     bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
     plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
 
-label, pred = 3, 5
-label_name, pred_name = bu.ind2name[mapping[label]], bu.ind2name[mapping[pred]]
+label, pred = 3, 6
+label_name, pred_name = bu.ind2name[mapper.new2old[label]], bu.ind2name[mapper.new2old[pred]]
 inds = np.where((labels==label) & (preds==pred))[0]
 save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem/f"{label_name}_{pred_name}"
 save_path.mkdir(parents=True, exist_ok=True)
@@ -477,6 +493,7 @@ for i in inds:
     plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
     plt.close()
 # fmt: on
+"""
 
 # # Get second max probability value
 # second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
@@ -566,22 +583,71 @@ def test_old2new():
         pred_l_old2new == l_old2new
     ), f"l_old2new mismatch: {pred_l_old2new} != {l_old2new}"
 
+def gcd_old2new(lt_labels, discover_labels):
+    l_old2new = {l:i for i, l in enumerate(lt_labels)}
+    u_old2new = l_old2new.copy()
+    max_lt_label = len(lt_labels)
+    for i, l in enumerate(discover_labels):
+        u_old2new[l] = i + max_lt_label
+    return l_old2new, u_old2new
+
+def test_gcd_old2new():
+    discover_labels = [1, 3, 8]
+    lt_labels = [0, 2, 4, 5, 6, 9]
+    ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
+    # fmt:off
+    assert sorted(discover_labels + lt_labels)==ut_labels
+    assert l_old2new == {0: 0, 2: 1, 4: 2, 5: 3, 6: 4, 9: 5}
+    assert u_old2new == {0: 0, 2: 1, 4: 2, 5: 3, 6: 4, 9: 5, 1: 6, 3: 7, 8: 8}
+    # fmt:on
+
+    discover_labels = [5]
+    lt_labels = [0, 2, 4, 6, 9]
+    ut_labels = [0, 2, 4, 5, 6, 9]
+    # fmt:off
+    assert sorted(discover_labels + lt_labels)==ut_labels
+    assert l_old2new == {0: 0, 2: 1, 4: 2, 6: 3, 9: 4}
+    assert u_old2new == {0: 0, 2: 1, 4: 2, 6: 3, 9: 4, 5: 5}
+    # fmt:on
 
 # """
 # 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering.
-uf1 = l_feats[np.isin(labels, discover_labels)]
-ut1 = l_targets[np.isin(labels, discover_labels)]
-uf2 = l_feats[~np.isin(labels, discover_labels)][2000:]
-ut2 = l_targets[~np.isin(labels, discover_labels)][2000:]
+# uf1 = l_feats[np.isin(labels, discover_labels)]
+# ut1 = l_targets[np.isin(labels, discover_labels)]
+# uf2 = l_feats[~np.isin(labels, discover_labels)][2000:]
+# ut2 = l_targets[~np.isin(labels, discover_labels)][2000:]
+discover_labels = [1, 3, 8]
+lt_labels = [0, 2, 4, 5, 6, 9]
+ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+
+l_targets = mapper.decode(l_targets)
+
+tensor_dl = torch.tensor(discover_labels, device=device)
+mask = torch.isin(l_targets, tensor_dl)
+uf1 = l_feats[mask]
+ut1 = l_targets[mask]
+uf2 = l_feats[~mask][2000:]
+ut2 = l_targets[~mask][2000:]
 ut = torch.cat((ut1, ut2))
-uf = torch.cat((uf1, uf2, u_feats))
-lf = l_feats[~np.isin(labels, discover_labels)][:2000]
-lt = l_targets[~np.isin(labels, discover_labels)][:2000]
-all_labels = list(np.unique(labels))
-pred_labels = list(np.unique(preds))
-l_old2new, u_old2new = old2new(all_labels, pred_labels, discover_labels)
-ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
-lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
+uf = torch.cat((uf1, uf2))  # uf = torch.cat((uf1, uf2, u_feats))
+# lf = l_feats[~np.isin(labels, discover_labels)][:2000]
+# lt = l_targets[~np.isin(labels, discover_labels)][:2000]
+lf = l_feats[~mask][:2000]
+lt = l_targets[~mask][:2000]
+
+
+l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
+l_mapper = Mapper(l_old2new)
+u_mapper = Mapper(u_old2new)
+ut = u_mapper.encode(ut)
+lt = l_mapper.encode(lt)
+
+# all_labels = list(np.unique(labels))
+# pred_labels = list(np.unique(preds))
+# l_old2new, u_old2new = old2new(all_labels, pred_labels, discover_labels)
+# ut = torch.tensor([u_old2new[i.item()] for i in ut], device=device)
+# lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 # """
 
 
@@ -589,8 +655,15 @@ lt = torch.tensor([l_old2new[i.item()] for i in lt], device=device)
 kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
 # fmt: off
 kmeans.fit_mix(uf, lf, lt)
-preds = kmeans.labels_.cpu().numpy()
-assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
+# preds = kmeans.labels_.cpu().numpy()
+preds = kmeans.labels_
+
+# ut = u_mapper.decode(ut)
+# lt = l_mapper.decode(lt)
+# preds = u_mapper.decode(preds)
+
+# assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
+assert preds[:lt.shape[0]].equal(lt)
 # 1092 1092 2184 # balanced data
 # 2313 2014 4327 # unbalance_1378
 print(uf.shape[0], lf.shape[0], l_feats.shape[0])
@@ -599,14 +672,19 @@ print(uf.shape[0], lf.shape[0], l_feats.shape[0])
 # ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
 # cm = contingency_matrix(ordered_labels, preds)
 
-ordered_feat = np.concatenate((lf.cpu(),uf1.cpu(), uf2.cpu()), axis=0)
-ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
-cm = contingency_matrix(ordered_labels, preds[:labels.shape[0]])
+# ordered_feat = np.concatenate((lf.cpu(),uf1.cpu(), uf2.cpu()), axis=0)
+# ordered_labels = np.concatenate((lt.cpu(), ut.cpu()))
+# cm = contingency_matrix(ordered_labels, preds[:labels.shape[0]])
+
+ordered_feat = torch.concatenate((lf, uf1, uf2), axis=0)
+ordered_labels = torch.concatenate((lt, ut))
+cm = contingency_matrix(ordered_labels.cpu(), preds[:labels.shape[0]].cpu())
 
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 5, 6, 9, 1, 3, 8]])
+# bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 5, 6, 9, 1, 3, 8]])
+bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[o] for _, o in u_mapper.new2old.items()], pred_labels=range(len(u_old2new)))
 # bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 6, 9, 5]])
 # ['Flap', 'Soar', 'Float', 'SitStand', 'TerLoco', 'Pecking', 'ExFlap', 'Boat', 'Manouvre']
 # fmt: on
@@ -652,19 +730,22 @@ bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in [0, 2, 4, 5, 6, 9, 1, 3, 8
 # Clustering
 kmeans = MiniBatchKMeans(cfg.n_clusters, random_state=cfg.seed)
 kmeans.fit(feats)
-preds = kmeans.labels_
-cm = contingency_matrix(labels, preds)
+k_preds = kmeans.labels_
+cm = contingency_matrix(labels, k_preds)
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
-# bu.plot_confusion_matrix(cm, [bu.ind2name[i] for i in range(10) if i != 7])
+# bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in cfg.labels_to_use], pred_labels=range(len(cfg.labels_to_use)))
+bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[o] for _, o in mapper.new2old.items()], pred_labels=range(len(mapper.new2old)))
 
 # fmt: off
 reducer = TSNE(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(feats)
+labels = mapper.decode(torch.tensor(labels)).numpy()
+k_preds = mapper.decode(torch.tensor(k_preds)).numpy()
 plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
+plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=k_preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 plt.show(block=True)
 # fm: off
 print("done")
