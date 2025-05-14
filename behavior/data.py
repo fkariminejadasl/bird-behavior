@@ -235,6 +235,9 @@ def read_json_data(json_path: Union[Path, str]):
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
+import torch
+
+
 class BirdDataset(Dataset):
     def __init__(
         self,
@@ -266,15 +269,18 @@ class BirdDataset(Dataset):
     def __getitem__(self, ind):
         data = self.data[ind]  # LxC
 
-        # Rearrange channels if channel_first is True
-        if self.channel_first:
-            data = data.transpose((1, 0))  # LxC -> CxL
-
+        data = torch.from_numpy(data)  # torch
         if self.transform:
             data = self.transform(data)
 
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose(1, 0)  # LxC -> CxL
+            # data = data.transpose((1, 0))  # LxC -> CxL numpy
+
         if self.has_label:
-            ldt = self.ldts[ind]  # 3
+            ldt = torch.from_numpy(self.ldts[ind]).long()  # 3 torch
+            # ldt = self.ldts[ind]  # 3 numpy
             return data, ldt  # Return both data and label
         else:
             return data
@@ -933,7 +939,7 @@ def get_bird_dataset_from_csv(data_file, labels_to_use, channel_first=True):
 
 
 def prepare_train_valid_dataset(
-    data_file, train_per, data_per, labels_to_use, channel_first=True
+    data_file, train_per, data_per, labels_to_use, channel_first=True, transforms=None
 ):
     """Load and prepare data, return train and eval Dataset."""
     imugs, ldts = load_filter_shuffle(data_file, labels_to_use)
@@ -946,8 +952,8 @@ def prepare_train_valid_dataset(
         ldts[n_trainings : n_trainings + n_valid],
     )
 
-    train_dataset = BirdDataset(train_imugs, train_ldts, channel_first=channel_first)
-    eval_dataset = BirdDataset(valid_imugs, valid_ldts, channel_first=channel_first)
+    train_dataset = BirdDataset(train_imugs, train_ldts, transforms, channel_first)
+    eval_dataset = BirdDataset(valid_imugs, valid_ldts, transforms, channel_first)
 
     # train_size = int(train_per * len(dataset))
     # val_size = len(dataset) - train_size

@@ -4,14 +4,17 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
 import torch
 import torch.nn as nn
 import tqdm
 from omegaconf import OmegaConf
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
+from torchvision.transforms import v2 as tvt2
 
 from behavior import data as bd
+from behavior import data_augmentation as bau
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
@@ -47,6 +50,15 @@ import wandb
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# Use one of the augmentation. transforms.Compose use all the augmentations.
+transforms = tvt2.RandomChoice(
+    [
+        bau.RandomJitter(sigma=0.05),
+        bau.RandomScaling(sigma=0.05),
+    ]
+)
+transforms = None
+
 # Prepare datasets
 if cfg.valid_file is not None:
     train_dataset = bd.get_bird_dataset_from_csv(
@@ -58,22 +70,38 @@ if cfg.valid_file is not None:
 else:
     print("No validation file provided, using train dataset for evaluation.")
     train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-        cfg.data_file, cfg.train_per, cfg.data_per, cfg.labels_to_use
+        cfg.data_file,
+        cfg.train_per,
+        cfg.data_per,
+        cfg.labels_to_use,
+        channel_first=True,
+        transforms=transforms,
     )
+
+# Build the sampler: inversely weight by class frequency
+labels = train_dataset.ldts[:, 0]
+class_counts = torch.bincount(torch.tensor(labels))
+class_weights = 1.0 / class_counts.float()
+sample_weights = class_weights[labels]  # one weight per sample
+sampler = WeightedRandomSampler(
+    weights=sample_weights, num_samples=len(sample_weights), replacement=True
+)
+
 batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
 train_loader = DataLoader(
     train_dataset,
     batch_size=batch_size,
+    # sampler=sampler,
     shuffle=True,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
 )
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=len(eval_dataset),
     shuffle=False,
     num_workers=cfg.num_workers,
-    drop_last=True,
+    drop_last=False,
 )
 
 # Model setup
