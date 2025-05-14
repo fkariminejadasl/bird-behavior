@@ -29,14 +29,11 @@ models = {
 @dataclass
 class PathConfig:
     save_path: Path
-    data_file: Path
 
 
 cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
 cfg = OmegaConf.load(cfg_file)
-cfg_paths = OmegaConf.structured(
-    PathConfig(save_path=cfg.save_path, data_file=cfg.data_file)
-)
+cfg_paths = OmegaConf.structured(PathConfig(save_path=cfg.save_path))
 cfg = OmegaConf.merge(cfg, cfg_paths)
 cfg.min_lr = cfg.max_lr / 10
 
@@ -198,7 +195,8 @@ bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
 
 bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
-fail_path = cfg.save_path / f"failed/{cfg.exp}"
+name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
+fail_path = cfg.save_path / f"failed/{name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
 datasets = dict()
