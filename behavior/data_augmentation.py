@@ -36,6 +36,50 @@ class RandomScaling(nn.Module):
         return x * scales.unsqueeze(0)
 
 
+def magnitude_warp_torch(
+    x: torch.Tensor, sigma: float = 0.2, knot: int = 4
+) -> torch.Tensor:
+    """
+    Applies a magnitude warp to a 2D time‐series tensor via cubic (bicubic) interpolation.
+
+    Args:
+        x      (Tensor): shape (seq_len, channels) or (batch, seq_len, channels)
+        sigma  (float): std. dev. of the random warping factors (around 1.0)
+        knot   (int):   number of internal knots (the total control points will be knot+2)
+
+    Returns:
+        Tensor of same shape as x, warped in magnitude.
+    """
+    # collapse batch dimension if present
+    orig_shape = x.shape
+    if x.dim() == 3:  # (B, T, C)
+        B, T, C = x.shape
+        x_ = x.permute(0, 2, 1).contiguous()  # → (B, C, T)
+    elif x.dim() == 2:  # (T, C)
+        T, C = x.shape
+        x_ = x.t().unsqueeze(0)  # → (1, C, T)
+        B = 1
+    else:
+        raise ValueError("Expected x of shape (T,C) or (B,T,C)")
+
+    # sample random warp control points
+    device = x_.device
+    cps = torch.normal(1.0, sigma, size=(B, 1, 1, knot + 2), device=device)
+    # bicubically interpolate from width=knot+2 → width=T
+    # treat H=1, W=knots+2 → H=1, W=T
+    warp = F.interpolate(cps, size=(1, T), mode="bicubic", align_corners=True)
+    warp = warp.view(B, 1, T)  # → (B,1,T)
+
+    # apply warp
+    x_warped = x_ * warp
+
+    # reshape back
+    if orig_shape.__len__() == 3:  # (B,T,C)
+        return x_warped.permute(0, 2, 1).contiguous()
+    else:  # (T,C)
+        return x_warped.squeeze(0).permute(1, 0).contiguous()
+
+
 # Python implementation
 # =====================
 
@@ -115,17 +159,22 @@ df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv", hea
 a = df[df[1]=="2012-05-15 03:15:00"].iloc[:20].copy()
 time = a.iloc[:,2].values.copy()
 x = a.iloc[:,4:7].values
-y = jitter(x, .05)
-# tx = torch.tensor(x, dtype=torch.float32)
-tx = torch.tensor(a.iloc[:,4:].values.copy(), dtype=torch.float32)
-y2 = RandomJitter(0.05)(tx)
+tx = torch.tensor(x, dtype=torch.float32)
+# tx = torch.tensor(a.iloc[:,4:].values.copy(), dtype=torch.float32)
 
-y = scaling(x, .05)
-y2 = RandomScaling(0.05)(tx)
+y2 = magnitude_warp_torch(tx, sigma=0.05, knot=4)
+y = magnitude_warp(x, sigma=0.05, knot=4)
+
+y2 = RandomJitter(0.05)(tx)
+# y2 = RandomScaling(0.05)(tx)
+
+y = jitter(x, .05)
+# y = scaling(x, .05)
 # y = time_warp(x, .05)
 # y = magnitude_warp(x, sigma=0.05, knot=4)
-y = window_warp(x)
+# y = window_warp(x)
 bu.plot_one(x)
 bu.plot_one(y)
+# bu.plot_one(np.array(y2))
 print("Done")
 """
