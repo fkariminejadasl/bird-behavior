@@ -105,7 +105,7 @@ def plot_confusion_matrix(confusion_matrix, true_labels=None, pred_labels=None):
     plt.tight_layout()
 
 
-def plot_one(data):
+def plot_one(data, SHOW=True):
     data_len = data.shape[0]  # 20, 60, 200
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
@@ -113,8 +113,37 @@ def plot_one(data):
     ax.set_ylim(-3.5, 3.5)
     plt.xticks(np.linspace(0, data_len, 5).astype(np.int64))
     plt.title(f"gps speed: {data[0,-1]:.2f}")
-    plt.show(block=False)
+    if SHOW:
+        plt.show(block=False)
     return ax
+
+
+def generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20):
+    """
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from pathlib import Path
+    >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
+    >>> save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+    >>> glen = 20
+    >>> dt = 6011, "2015-04-30 09:10:31"
+    >>> ind2name = bdp.get_rules().ind2name
+    >>> generate_per_glen_figures_for_dt(save_path, df, dt, glen=20)
+    """
+    save_path = save_path / f"{dt[0]}_{dt[1]}"
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    slice = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+    for i in range(0, len(slice), glen):
+        crop = slice.iloc[i : i + glen]
+        plot_one(np.array(crop.iloc[:, 4:]), SHOW=False)
+        ind, label_id, gps = crop.iloc[0, [2, 3, 7]]
+        label = ind2name[label_id]
+        name = f"{crop.iloc[0,2]}"
+        plt.title(f"{label}, {ind}, {gps:.2f}")
+        plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+        plt.close()
 
 
 def plot_all(dataframe, dataframe_db, glen=20):

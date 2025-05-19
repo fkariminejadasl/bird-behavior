@@ -71,7 +71,8 @@ bdp.make_train_valid_test_split(data_file, save_path)
 """
 
 """
-# stats: write the start and end indices. Format: devic,time,label:start-end,...
+# Stats: write the start and end indices. Format: devic,time,label:start-end,...
+# test_labels_comes_together: count which classes comes together
 for i in ["s", "j", "m", "w"]:  # ["combined"]:
     name = f"{i}_complete"  # "combined"
     df = pd.read_csv(
@@ -88,19 +89,11 @@ df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", head
 save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
 glen = 20
 dt = 6011, "2015-04-30 09:10:31"
+dt = 6210, "2016-05-09 11:09:55"
+dt = 6210, "2016-05-09 11:09:15"
+dt = 6011, "2015-04-30 09:10:18"
 ind2name = bdp.get_rules().ind2name
-save_path = save_path/ f"{dt[0]}_{dt[1]}"
-save_path.mkdir(parents=True, exist_ok=True)
-slice = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
-for i in range(0, len(slice), glen):
-    crop = slice.iloc[i:i + glen]
-    bu.plot_one(np.array(crop.iloc[:,4:]))
-    ind, label_id, gps = crop.iloc[0,[2,3,7]]
-    label = ind2name[label_id]
-    name = f"{crop.iloc[0,2]}"
-    plt.title(f"{label}, {ind}, {gps:.2f}")
-    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
-    plt.close()
+bu.generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20)
 """
 
 
