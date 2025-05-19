@@ -73,6 +73,64 @@ def magnitude_warp_torch(
     return x_warped
 
 
+def time_warp_torch(x: torch.Tensor, sigma: float = 0.2) -> torch.Tensor:
+    """
+    Applies a time warp to a 2D time-series tensor via linear interpolation.
+
+    Args:
+        x      (Tensor): shape (seq_len, channels) [T, C]
+        sigma  (float): std. dev. of the random warping factors (around 1.0)
+
+    Returns:
+        Tensor of same shape as x, warped in time dimension.
+    """
+    if x.dim() != 2:
+        raise ValueError("Expected x of shape (T, C)")
+
+    T, C = x.shape
+    device = x.device
+
+    # Generate random warping factors
+    random_warp = torch.normal(1.0, sigma, size=(T,), device=device)
+
+    # Create cumulative sum to generate warped time steps
+    warp_steps = torch.cumsum(random_warp, dim=0)
+
+    # Normalize to range [0, T-1]
+    warp_steps = (
+        (warp_steps - warp_steps.min())
+        / (warp_steps.max() - warp_steps.min())
+        * (T - 1)
+    )
+
+    # Prepare x for grid_sample: [batch=1, channels=C, height=1, width=T]
+    x_4d = x.t().contiguous().view(1, C, 1, T)
+
+    # First, create a grid that maps from original to warped positions
+    warp_norm = 2.0 * warp_steps / (T - 1) - 1.0  # Normalize to [-1, 1]
+
+    # Create sampling grid
+    sample_grid = torch.zeros(1, 1, T, 2, device=device)
+    sample_grid[0, 0, :, 0] = warp_norm  # X coordinates (time)
+    # Y coordinates remain 0
+
+    # Use grid_sample for the warping
+    x_warped = F.grid_sample(
+        x_4d, sample_grid, mode="bicubic", padding_mode="border", align_corners=True
+    )
+
+    # Reshape back to [T, C]
+    x_warped = x_warped.squeeze(2).squeeze(0).t()
+
+    return x_warped
+    # # Linear interp indices
+    # idx0 = torch.floor(cum).long().clamp(0, T-2)
+    # idx1 = idx0 + 1
+    # x0, x1 = x[idx0], x[idx1] # (T,C)
+    # frac = (cum - idx0.float()).unsqueeze(1) # (T,1)
+    # return x0 * (1 - frac) + x1 * frac  # (T,C)
+
+
 # Python implementation
 # =====================
 
@@ -90,6 +148,14 @@ def scaling(x, sigma=0.1):
     return x * factor
 
 
+def magnitude_warp(x, sigma=0.2, knot=4):
+    orig_steps = np.arange(x.shape[0])
+    random_warps = np.random.normal(loc=1.0, scale=sigma, size=(knot + 2,))
+    warp_steps = np.linspace(0, x.shape[0] - 1, num=knot + 2)
+    cs = CubicSpline(warp_steps, random_warps)
+    return x * cs(orig_steps).reshape(-1, 1)
+
+
 def time_warp(x, sigma=0.2):
     orig_steps = np.arange(x.shape[0])
     random_warp = np.random.normal(loc=1.0, scale=sigma, size=x.shape[0])
@@ -101,14 +167,6 @@ def time_warp(x, sigma=0.2):
     )
     cs = CubicSpline(warp_steps, x, axis=0)
     return cs(orig_steps)
-
-
-def magnitude_warp(x, sigma=0.2, knot=4):
-    orig_steps = np.arange(x.shape[0])
-    random_warps = np.random.normal(loc=1.0, scale=sigma, size=(knot + 2,))
-    warp_steps = np.linspace(0, x.shape[0] - 1, num=knot + 2)
-    cs = CubicSpline(warp_steps, random_warps)
-    return x * cs(orig_steps).reshape(-1, 1)
 
 
 def window_warp2(x, window_ratio=0.1, scales=[0.5, 2.0]):
@@ -158,10 +216,13 @@ x = a.iloc[:, 4:7].values
 tx = torch.tensor(x, dtype=torch.float32)
 # tx = torch.tensor(a.iloc[:,4:].values.copy(), dtype=torch.float32)
 
-y2 = magnitude_warp_torch(tx, sigma=0.05, knot=4)
-y = magnitude_warp(x, sigma=0.05, knot=4)
+y = time_warp(x, sigma=0.05)
+y2 = time_warp_torch(tx, sigma=0.05)
 
-y2 = RandomJitter(0.05)(tx)
+# y = magnitude_warp(x, sigma=0.05, knot=4)
+# y2 = magnitude_warp_torch(tx, sigma=0.05, knot=4)
+
+# y2 = RandomJitter(0.05)(tx)
 # y2 = RandomScaling(0.05)(tx)
 
 # y = jitter(x, 0.05)
