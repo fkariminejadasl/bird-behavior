@@ -7,28 +7,25 @@ from tqdm import tqdm
 from behavior import data_processing as bdp
 from behavior import utils as bu
 
-# gt2_combined, gt2_sdata
-gt_path = Path("/home/fatemeh/Downloads/bird/result/gt2_combined")
-# combined_unique_sorted012, s_data_orig_index
-df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv",  # j_data_map0
-    header=None,
-)
-df_db = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None
-)
-# fmt: off
+# combined.csv -> gt2_combined
+save_path = Path("/home/fatemeh/Downloads/bird/result")
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+
+df = pd.read_csv(data_file, header=None) # combined.csv
+df_db = pd.read_csv(database_file, header=None)
 ind2name = bdp.get_rules().ind2name
-# fmt: on
 glen = 10  # 20
 
 # # Since balance.csv labels are 0, 1, 2, 3, 4, 5 and orig labels are 0, 2, 4, 5, 6, 9
 # mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
 # df[3] = df[3].map(mapping)
 
-# Unique device and starting times
-save_all_path = gt_path / "all"
+save_path = save_path / f"gt2_{data_file.stem}" 
+save_all_path = save_path / "all"
 save_all_path.mkdir(parents=True, exist_ok=True)
+
+# Unique device and starting times
 df_db = df_db.sort_values([0, 1, 2])
 df = df.sort_values([0, 1, 2])
 # df = df[df[3] != 7]
@@ -47,9 +44,9 @@ for i, dt in tqdm(enumerate(unique_dt.groups.keys()), total=len(unique_dt)):
     lable_ids = [int(i) for i in lable_ids]
     label_id = next(i for i in lable_ids if i != -1)
     label = ind2name[label_id]
-    save_path = gt_path / f"{label}"
-    save_path.mkdir(parents=True, exist_ok=True)
-    fig.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    save_label_path = save_path / f"{label}"
+    save_label_path.mkdir(parents=True, exist_ok=True)
+    fig.savefig(save_label_path / f"{name}.png", bbox_inches="tight")
     fig.savefig(save_all_path / f"{name}.png", bbox_inches="tight")
     plt.close()
 
