@@ -114,6 +114,12 @@ def test_time_warp_torch():
     y2 = bau.TimeWarp(sigma=0.05)(tx)
     assert torch.allclose(y2, expected, atol=1e-4)
 
+    torch.manual_seed(123)
+    tx = torch.concat([tx, torch.ones((tx.shape[0], 1))], axis=1)
+    y2 = bau.TimeWarp(sigma=0.05)(tx)
+    assert torch.allclose(y2[:, :3], expected, atol=1e-4)
+    assert len(torch.unique(y2[:, 3])) == 1
+
 
 def test_magnitude_warp_torch():
     torch.manual_seed(123)
@@ -151,3 +157,9 @@ def test_magnitude_warp_torch():
     # y2 = bau.magnitude_warp_torch(tx, sigma=0.05, knot=4)
     y2 = bau.MagnitudeWarp(sigma=0.05, knot=4)(tx)
     assert torch.allclose(y2, expected, atol=1e-4)
+
+    torch.manual_seed(123)
+    tx = torch.concat([tx, torch.ones((tx.shape[0], 1))], axis=1)
+    y2 = bau.MagnitudeWarp(sigma=0.05, knot=4)(tx)
+    assert torch.allclose(y2[:, :3], expected, atol=1e-4)
+    assert len(torch.unique(y2[:, 3])) == 1

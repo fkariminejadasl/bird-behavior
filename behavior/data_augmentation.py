@@ -35,8 +35,10 @@ class RandomScaling(nn.Module):
         )
         return x * scales.unsqueeze(0)
 
-class MagnitudeWarp(nn.Module): 
-    
+
+class MagnitudeWarp(nn.Module):
+    """Apply magnitude warping to first 3 dims and Gaussian jitter to the 4th dim when C==4."""
+
     def __init__(self, sigma: float = 0.2, knot: int = 4):
         super().__init__()
         self.sigma = sigma
@@ -55,26 +57,34 @@ class MagnitudeWarp(nn.Module):
             Tensor of same shape as x, warped in magnitude.
         """
         if x.dim() != 2:
-            raise ValueError("Expected x of shape (T, C)")
+            raise ValueError(f"Expected (T, C) but got {tuple(x.shape)}")
 
         T, C = x.shape
+        device, dtype = x.device, x.dtype
 
-        # sample random warp control points (shape: [B=1, 1, 1, knot+2])
-        device = x.device
-        cps = torch.normal(1.0, self.sigma, size=(1, 1, 1, self.knot + 2), device=device)
-
-        # bicubically interpolate from width=knot+2 → width=T
-        # treat H=1, W=knots+2 → H=1, W=T
-        # warp shape: [B=1, 1, 1, knot+2]
+        # 1) build one shared warp curve of shape [T]
+        cps = torch.normal(
+            1.0, self.sigma, size=(1, 1, 1, self.knot + 2), device=device, dtype=dtype
+        )
         warp = F.interpolate(cps, size=(1, T), mode="bicubic", align_corners=True)
         warp = warp.view(1, T)  # [1, T]
 
-        # Apply warp to each channel (broadcasting over C)
-        x_ = x.t().contiguous()
-        x_warped = x_ * warp  # [C, T]
-        x_warped = x_warped.permute(1, 0).contiguous()  # [T, C]
+        # 2) if 4 channels, split; else, warp everything
+        if C == 4:
+            # warp first 3 dims
+            x3 = x[:, :3].t().contiguous()  # [3, T]
+            x3_warp = (x3 * warp).permute(1, 0)  # [T, 3]
 
-        return x_warped
+            # jitter last dim independently per time step
+            noise4 = torch.randn((), device=device, dtype=dtype) * self.sigma
+            x4_jit = x[:, 3] + noise4  # [T]
+
+            return torch.cat([x3_warp, x4_jit.unsqueeze(1)], dim=1)
+
+        # otherwise warp all C channels
+        x_t = x.t().contiguous()  # [C, T]
+        x_all_w = (x_t * warp).permute(1, 0)  # [T, C]
+        return x_all_w
 
 
 def magnitude_warp_torch(
@@ -118,7 +128,7 @@ class TimeWarp(nn.Module):
     def __init__(self, sigma: float = 0.2):
         super().__init__()
         self.sigma = sigma
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Applies a time warp to a 2D time-series tensor via linear interpolation.
@@ -131,50 +141,62 @@ class TimeWarp(nn.Module):
             Tensor of same shape as x, warped in time dimension.
         """
         if x.dim() != 2:
-            raise ValueError("Expected x of shape (T, C)")
+            raise ValueError(f"Expected x of shape (T, C), got {x.shape}")
 
         T, C = x.shape
-        device = x.device
+        device, dtype = x.device, x.dtype
 
-        # Generate random warping factors
-        random_warp = torch.normal(1.0, self.sigma, size=(T,), device=device)
-
-        # Create cumulative sum to generate warped time steps
-        warp_steps = torch.cumsum(random_warp, dim=0)
-
-        # Normalize to range [0, T-1]
+        # 1) generate a warp curve of length T
+        rw = torch.normal(1.0, self.sigma, size=(T,), device=device, dtype=dtype)
+        warp_steps = torch.cumsum(rw, dim=0)
         warp_steps = (
             (warp_steps - warp_steps.min())
             / (warp_steps.max() - warp_steps.min())
             * (T - 1)
         )
 
-        # Prepare x for grid_sample: [batch=1, channels=C, height=1, width=T]
-        x_4d = x.t().contiguous().view(1, C, 1, T)
+        # normalize to [-1,1] for grid_sample
+        warp_norm = 2.0 * warp_steps / (T - 1) - 1.0  # shape: [T]
 
-        # First, create a grid that maps from original to warped positions
-        warp_norm = 2.0 * warp_steps / (T - 1) - 1.0  # Normalize to [-1, 1]
+        # build sampling grid: [1, 1, T, 2]; X=warp_norm, Y=0
+        sample_grid = torch.zeros(1, 1, T, 2, device=device, dtype=dtype)
+        sample_grid[..., 0] = warp_norm.view(1, 1, T)  # time coords
+        # sample_grid[..., 1] stays zero (height coord)
 
-        # Create sampling grid
-        sample_grid = torch.zeros(1, 1, T, 2, device=device)
-        sample_grid[0, 0, :, 0] = warp_norm  # X coordinates (time)
-        # Y coordinates remain 0
+        # helper to grid-sample any (batch=1,H=1,W=T) input
+        def apply_warp(inp: torch.Tensor) -> torch.Tensor:
+            # inp: [T, c] → [1, c, 1, T]
+            inp4 = inp.t().view(1, inp.shape[1], 1, T)
+            out4 = F.grid_sample(
+                inp4,
+                sample_grid,
+                mode="bicubic",
+                padding_mode="border",
+                align_corners=True,
+            )
+            # → [1, c, 1, T] → [T, c]
+            return out4.squeeze(2).squeeze(0).t()
 
-        # Use grid_sample for the warping
-        x_warped = F.grid_sample(
-            x_4d, sample_grid, mode="bicubic", padding_mode="border", align_corners=True
-        )
+        if C == 4:
+            # warp first 3 channels
+            x3 = x[:, :3]  # [T,3]
+            x3_w = apply_warp(x3)  # [T,3]
 
-        # Reshape back to [T, C]
-        x_warped = x_warped.squeeze(2).squeeze(0).t()
+            # jitter 4th channel
+            noise4 = torch.randn((), device=device, dtype=dtype) * self.sigma
+            x4_j = x[:, 3] + noise4  # [T]
 
-        return x_warped
+            return torch.cat([x3_w, x4_j.unsqueeze(1)], dim=1)
+
+        # else: warp all channels
+        return apply_warp(x)
         # # Linear interp indices
         # idx0 = torch.floor(cum).long().clamp(0, T-2)
         # idx1 = idx0 + 1
         # x0, x1 = x[idx0], x[idx1] # (T,C)
         # frac = (cum - idx0.float()).unsqueeze(1) # (T,1)
         # return x0 * (1 - frac) + x1 * frac  # (T,C)
+
 
 def time_warp_torch(x: torch.Tensor, sigma: float = 0.2) -> torch.Tensor:
     """
