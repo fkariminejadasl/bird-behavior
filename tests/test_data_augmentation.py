@@ -110,7 +110,8 @@ def test_time_warp_torch():
             [2.9875, 0.2092, -2.8353],
         ]
     )
-    y2 = bau.time_warp_torch(tx, sigma=0.05)
+    # y2 = bau.time_warp_torch(tx, sigma=0.05)
+    y2 = bau.TimeWarp(sigma=0.05)(tx)
     assert torch.allclose(y2, expected, atol=1e-4)
 
 
@@ -147,5 +148,6 @@ def test_magnitude_warp_torch():
             [3.0188, 0.2114, -2.8649],
         ]
     )
-    y2 = bau.magnitude_warp_torch(tx, sigma=0.05, knot=4)
+    # y2 = bau.magnitude_warp_torch(tx, sigma=0.05, knot=4)
+    y2 = bau.MagnitudeWarp(sigma=0.05, knot=4)(tx)
     assert torch.allclose(y2, expected, atol=1e-4)
