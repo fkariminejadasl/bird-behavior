@@ -55,6 +55,8 @@ transforms = tvt2.RandomChoice(
     [
         bau.RandomJitter(sigma=0.05),
         bau.RandomScaling(sigma=0.05),
+        # bau.TimeWarp(sigma=0.05),
+        # bau.MagnitudeWarp(sigma=0.05, knot=4),
     ]
 )
 transforms = None

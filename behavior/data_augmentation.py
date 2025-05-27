@@ -3,48 +3,48 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class RandomJitter(nn.Module):
+class RandomJitter:
     """Add element-wise Gaussian noise N(0, σ²) to the first 3 dims;
     to the 4th dim, apply one single random offset (or zero if you prefer)."""
 
     def __init__(self, sigma: float = 0.03):
-        super().__init__()
         self.sigma = sigma
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
         # x: (T, D)
         noise = torch.randn_like(x) * self.sigma
         if x.size(1) == 4:
             # draw one scalar noise for the last column
-            last_noise = torch.randn((), device=x.device, dtype=x.dtype) * self.sigma
-            noise[:, 3] = last_noise
+            # last_noise = torch.randn((), device=x.device, dtype=x.dtype) * self.sigma
+            # noise[:, 3] = last_noise
+            noise[:, 3] = 0  # keep the last channel unchanged
         return x + noise
 
 
-class RandomScaling(nn.Module):
+class RandomScaling:
     """Scale each feature channel by a factor ~ N(1, σ²)."""
 
     def __init__(self, sigma: float = 0.1):
-        super().__init__()
         self.sigma = sigma
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
         # x: (T, D)
         scales = (
             torch.randn(x.size(1), device=x.device, dtype=x.dtype) * self.sigma + 1.0
         )
+        if x.size(1) == 4:
+            scales[3] = 1.0  # keep the last channel unchanged
         return x * scales.unsqueeze(0)
 
 
-class MagnitudeWarp(nn.Module):
+class MagnitudeWarp:
     """Apply magnitude warping to first 3 dims and Gaussian jitter to the 4th dim when C==4."""
 
     def __init__(self, sigma: float = 0.2, knot: int = 4):
-        super().__init__()
         self.sigma = sigma
         self.knot = knot
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
         """
         Applies a magnitude warp to a 2D time-series tensor via cubic interpolation.
 
@@ -124,12 +124,12 @@ def magnitude_warp_torch(
     return x_warped
 
 
-class TimeWarp(nn.Module):
+class TimeWarp:
     def __init__(self, sigma: float = 0.2):
-        super().__init__()
+
         self.sigma = sigma
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
         """
         Applies a time warp to a 2D time-series tensor via linear interpolation.
 

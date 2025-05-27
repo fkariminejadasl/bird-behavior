@@ -5,7 +5,7 @@ valid_file: #/home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
 test_file: #/home/fatemeh/Downloads/bird/data/final/proc2/test.csv
 # General
 seed: 32984
-exp: 128  # Experiment number
+exp: 131  # Experiment number
 num_workers: 1 # 1, 15
 no_epochs: 4000
 save_every: 2000
