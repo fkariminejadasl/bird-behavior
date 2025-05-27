@@ -637,6 +637,9 @@ def test_change_format_csv_files():
 @pytest.mark.local
 @pytest.mark.debug
 def test_issue_previous_m_data_format():
+    """
+    Check how impactful the bug is in the m_data format. The impact is not significant.
+    """
     df = pd.read_csv(
         "/home/fatemeh/Downloads/bird/data/final/proc2/m_complete.csv", header=None
     )

@@ -85,6 +85,7 @@ for i in ["s", "j", "m", "w"]:  # ["combined"]:
 """
 
 """
+# Visualize shift data
 df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
 save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
 glen = 20
@@ -128,12 +129,10 @@ def get_stats(df: pd.DataFrame, glen=20):
     # train, valid, test: 832020/20, 163940/20, 166520/20
 
 
-# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map0.csv", header=None)
+# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map0.csv", header=None)
 # >>> df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map0.csv", header=None)
 # >>> dts1 = set(df1.groupby([0,1]).groups.keys())
 # >>> dts2 = set(df2.groupby([0,1]).groups.keys())
-# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map0.csv", header=None)
-# >>> dts1 = set(df1.groupby([0,1]).groups.keys())
 # dts1.difference(dts2)
 # >>> len(dts1), len(dts2), len(df1), len(df2)
 # (1536, 1439, 70100, 67689)

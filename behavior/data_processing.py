@@ -283,7 +283,7 @@ def add_index(df_db, df, save_file):
 
 def identify_mistakes(df_s, df, glen=20):
     """
-    Identify mistakes in the mapping between two dataframes based on specific columns.
+    Identify labeling mistakes. Find which data points are labeled differently.
 
     path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
     dfs = pd.read_csv(path / "s_map0.csv", header=None)

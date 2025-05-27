@@ -181,14 +181,31 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 ## List of scripts
 
-#### Save IMU plots
+#### Visualization
 
 - `exps/save_plots_gt.py`: save IMU plots for ground truth data based on device id and starting times.
 - `exps/save_plots.py`: save IMU plots for each label, run inference for the predictions. 
-- `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
-- `exps/exps1`: Inference and save the metrics
+- `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: generates IMU plots for structured data (divisible by glen=20) such as shift.csv. 
 - `exps/imu_3d_movie`: make a movie from IMU data
-- `exps/panda_csv_python_read_data_in_memory`: check performance of panda, csv and pure python on reading large data in the memory 
 - `exps/visualize`: old (I should remove)
+
+
+#### Training/Inference Scripts
+
 - `exps/cluster_behavior.py`: unsupervised clustering
 - `exps/ss_cluster_behavior.py`: semi-supervised clustering
+- `exps/exps1`: Inference and save the metrics
+
+#### Helper Scripts
+
+- `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
+
+#### Analysis and Debugging
+
+- `test_labels_comes_together`: check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds`, by calculating the index ranges in which the labels appear (device, time, label: start–end, ...).
+- `identify_mistakes`: identify labeling mistakes. Find which data points are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.
+- `test_find_index_jumps`: identify discontinuities in the indices. Determine whether the signal contains labeled segments separated by unlabeled intervals.
+- `test_issue_previous_m_data_format`: check how impactful the bug is in the m_data format. The impact is not significant.
+- `check_batches`: check that each batch with glen=20 meets certain conditions, such as consecutively increasing indices and unique values in columns 0, 1, 3, and 7 and having unique batches.
+- `exps/panda_csv_python_read_data_in_memory`: check performance of panda, csv and pure python on reading large data in the memory 
+

@@ -153,6 +153,10 @@ def test_data_contents(file_path):
 
 @pytest.mark.debug
 def test_find_index_jumps(df):
+    """
+    Identify discontinuities in the indices. Determine whether the signal contains
+    labeled segments separated by unlabeled intervals.
+    """
     df = df.sort_values([0, 1, 2])
     groups = df.groupby([0, 1])
     for k, v in groups:
