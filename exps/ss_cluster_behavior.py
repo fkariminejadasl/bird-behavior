@@ -330,12 +330,13 @@ class Mapper:
 
     def encode(self, orig: torch.Tensor):
         """Map original labels → 0…K-1 space"""
-        return torch.tensor([self.old2new[int(i)] for i in orig],device=orig.device)
-    
+        return torch.tensor([self.old2new[int(i)] for i in orig], device=orig.device)
 
     def decode(self, chang):
         """Map 0…K-1 predictions back → original labels"""
-        return torch.tensor([self.new2old[int(i)] for i in chang],device=chang.device)
+        return torch.tensor([self.new2old[int(i)] for i in chang], device=chang.device)
+
+
 """
 # Save Embeddings
 # ==============
@@ -583,13 +584,15 @@ def test_old2new():
         pred_l_old2new == l_old2new
     ), f"l_old2new mismatch: {pred_l_old2new} != {l_old2new}"
 
+
 def gcd_old2new(lt_labels, discover_labels):
-    l_old2new = {l:i for i, l in enumerate(lt_labels)}
+    l_old2new = {l: i for i, l in enumerate(lt_labels)}
     u_old2new = l_old2new.copy()
     max_lt_label = len(lt_labels)
     for i, l in enumerate(discover_labels):
         u_old2new[l] = i + max_lt_label
     return l_old2new, u_old2new
+
 
 def test_gcd_old2new():
     discover_labels = [1, 3, 8]
@@ -610,6 +613,7 @@ def test_gcd_old2new():
     assert l_old2new == {0: 0, 2: 1, 4: 2, 6: 3, 9: 4}
     assert u_old2new == {0: 0, 2: 1, 4: 2, 6: 3, 9: 4, 5: 5}
     # fmt:on
+
 
 # """
 # 6 classes for supervised learning. 3 (1, 3, 7) classes for clustering.
@@ -737,7 +741,11 @@ false_neg = cm.sum(axis=1) - cm.max(axis=1)
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
 # bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in cfg.labels_to_use], pred_labels=range(len(cfg.labels_to_use)))
-bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[o] for _, o in mapper.new2old.items()], pred_labels=range(len(mapper.new2old)))
+bu.plot_confusion_matrix(
+    cm,
+    true_labels=[bu.ind2name[o] for _, o in mapper.new2old.items()],
+    pred_labels=range(len(mapper.new2old)),
+)
 
 # fmt: off
 reducer = TSNE(n_components=2, random_state=cfg.seed)

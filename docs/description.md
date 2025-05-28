@@ -200,6 +200,10 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 - `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
 
+#### Data 
+
+- `create_five_balanced_data_and_unbalanced`: create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
+
 #### Analysis and Debugging
 
 - `test_labels_comes_together`: check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds`, by calculating the index ranges in which the labels appear (device, time, label: start–end, ...).

@@ -10,9 +10,11 @@ from behavior import utils as bu
 # combined.csv -> gt2_combined
 save_path = Path("/home/fatemeh/Downloads/bird/result")
 data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
-database_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+database_file = Path(
+    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
+)
 
-df = pd.read_csv(data_file, header=None) # combined.csv
+df = pd.read_csv(data_file, header=None)  # combined.csv
 df_db = pd.read_csv(database_file, header=None)
 ind2name = bdp.get_rules().ind2name
 glen = 10  # 20
@@ -21,7 +23,7 @@ glen = 10  # 20
 # mapping = {0: 0, 1: 2, 2: 4, 3: 5, 4: 6, 5: 9}
 # df[3] = df[3].map(mapping)
 
-save_path = save_path / f"gt2_{data_file.stem}" 
+save_path = save_path / f"gt2_{data_file.stem}"
 save_all_path = save_path / "all"
 save_all_path.mkdir(parents=True, exist_ok=True)
 

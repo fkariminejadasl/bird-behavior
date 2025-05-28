@@ -16,23 +16,50 @@ from behavior.data_processing import (
 )
 
 """
+'''
 Get the data from the database
 
 "/home/fatemeh/Downloads/bird/data/final/orig/{}_data_orig.csv" or
 first make {}_format.csv (The first operation in the data pipeline).
 /home/fatemeh/Downloads/bird/data/final/proc2/{}_format.csv
-"""
-# database_url = "postgresql://username:password@host:port/database_name"
-# save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-# df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
-# df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", header=None)
-# df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
-# df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
-# data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-# get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
-# # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
-# # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 
+Since get_s_j_w_m_data_from_database is very slow, we previously downloaded the data from the database. But some keys 
+wwere missing, so we need to download them again. Below is the code to download the missing keys.
+'''
+
+'''
+# Find missing keys
+# ======
+# Since, some labels are removed from both j_data, m_data, previous getting data from database doesn't contain all the data.
+# Here the missing keys are downloaded from database and them manually added to the all_database_final.csv.
+m0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig_no_mapping.csv", header=None)
+j0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_no_mapping_with_index.csv", header=None)
+a0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final_no_missing_keys.csv", header=None)
+mk = list(m0.groupby([0,1]).groups.keys())
+jk = list(j0.groupby([0,1]).groups.keys())
+ak = list(a0.groupby([0,1]).groups.keys())
+a = set(jk).difference(ak)
+b = set(mk).difference(ak)
+# sum these two since a.difference(b) empty
+n = pd.DataFrame(list(a.intersection(b)) + list(b.difference(a)))
+n.to_csv("/home/fatemeh/Downloads/bird/data/final/orig/to_be_download.csv", header=None)
+database_url = "postgresql://username:password@host:port/database_name"
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final_missing_keys.csv")
+data = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/missing_keys.csv", header=None)
+get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
+'''
+
+database_url = "postgresql://username:password@host:port/database_name"
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", header=None)
+df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
+df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
+data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+bdp.get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
+# e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
+# With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
+"""
 
 """
 # Prepare data: complete pipeline
@@ -95,6 +122,16 @@ dt = 6210, "2016-05-09 11:09:15"
 dt = 6011, "2015-04-30 09:10:18"
 ind2name = bdp.get_rules().ind2name
 bu.generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20)
+"""
+
+"""
+# Create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
+
+# data_file = "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv"
+# save_path = Path("/home/fatemeh/Downloads/bird/data/final/s_data")
+data_file = "/home/fatemeh/Downloads/bird/data/final/s_data_shift.csv"
+save_path = Path("/home/fatemeh/Downloads/bird/data/final/s_data_shift")
+create_five_balanced_data_and_unbalanced(data_file, save_path)
 """
 
 

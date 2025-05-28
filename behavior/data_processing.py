@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
-from scipy.io import loadmat
+from scipy.io import loadmat  # also works with `import hdf5storage`
 from tqdm import tqdm
 
 import behavior.data as bd
@@ -1029,3 +1029,23 @@ def write_all_start_end_inds(df, save_file):
             segment_str = ",".join(segments)
             line = f"{dt[0]},{dt[1]},{segment_str}\n"
             file.write(line)
+
+
+def create_five_balanced_data_and_unbalanced(data_file, save_path):
+    """
+    Create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
+    """
+    save_path.mkdir(parents=True, exist_ok=True)
+    keep_labels = [0, 2, 4, 5, 6, 9]
+    np.random.seed(123)
+    for i in range(5):
+        df = pd.read_csv(data_file, header=None)
+        sel_df = bd.create_balanced_data(df, keep_labels, glen=20)
+        sel_df.to_csv(
+            save_path / f"s_data_balanced_{i}.csv",
+            index=False,
+            header=None,
+            float_format="%.6f",
+        )
+        print(f"Done {i}")
+    bd.save_specific_labels(data_file, save_path / "s_data_unbalanced.csv", keep_labels)
