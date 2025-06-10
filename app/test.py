@@ -45,21 +45,19 @@ def load_configuration():
         "--input_file",
         type=Path,
         help="Path to the input CSV file",
-        default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/input.csv"),
+        default=Path("/home/fatemeh/Downloads/bird/data/tests/input.csv"),
     )
     parser.add_argument(
         "--model_checkpoint",
         type=Path,
         help="Path to the model checkpoint",
-        default=Path(
-            "/home/fatemeh/Downloads/bird/data/classify_bird_3conv/45_best.pth"
-        ),
+        default=Path("/home/fatemeh/Downloads/bird/data/tests/45_best.pth"),
     )
     parser.add_argument(
         "--save_path",
         type=Path,
         help="Path to save the results",
-        default=Path("/home/fatemeh/Downloads/bird/data/classify_bird_3conv/exp2"),
+        default=Path("/home/fatemeh/Downloads/bird/data/tests/exp2"),
     )
     parser.add_argument("--username", type=str, help="Database username")
     parser.add_argument("--password", type=str, help="Database password")

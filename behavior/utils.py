@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Tuple
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # no Other
 target_labels_names = [ind2name[t] for t in target_labels]
 new_label_inds = np.arange(len(target_labels))
 n_classes = len(target_labels_names)
+new_ind2name = {int(i): name for i, name in zip(new_label_inds, target_labels_names)}
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 # target_labels = [0, 2, 3, 4, 5, 6] # no: Exflap:1, Other:7, Manauvre:8, Pecking:9
 # target_labels = [0, 3, 4, 5, 6]  # no: Exflap:1, Soar:2, Other:7, Manauvre:8, Pecking:9
@@ -70,32 +72,40 @@ def set_seed(seed):
     # torch.backends.cudnn.benchmark = False
 
 
-def plot_confusion_matrix(confusion_matrix, class_names):
+def plot_confusion_matrix(confusion_matrix, true_labels=None, pred_labels=None):
     plt.figure(figsize=(8, 6))
     plt.imshow(confusion_matrix, interpolation="nearest", cmap=plt.get_cmap("Blues"))
     plt.title("Confusion Matrix")
     plt.colorbar()
 
-    num_classes = len(class_names)
-    plt.xticks(np.arange(num_classes), class_names, rotation=45)
-    plt.yticks(np.arange(num_classes), class_names)
-
-    for i in range(num_classes):
-        for j in range(num_classes):
+    n_rows, n_cols = confusion_matrix.shape
+    for r in range(n_rows):
+        for c in range(n_cols):
             plt.text(
-                j,
-                i,
-                str(confusion_matrix[i, j]),
+                c,
+                r,
+                str(confusion_matrix[r, c]),
                 horizontalalignment="center",
                 color="black",
             )
+    if pred_labels is None:
+        pred_labels = true_labels
+
+    if true_labels is not None:
+        num_classes = len(true_labels)
+        num_clusters = len(pred_labels)
+        plt.xticks(np.arange(num_clusters), pred_labels, rotation=45)
+        plt.yticks(np.arange(num_classes), true_labels)
+    else:
+        plt.xticks(np.arange(n_cols), rotation=45)
+        plt.yticks(np.arange(n_rows))
 
     plt.ylabel("True label")
     plt.xlabel("Predicted label")
     plt.tight_layout()
 
 
-def plot_one(data):
+def plot_one(data, SHOW=True):
     data_len = data.shape[0]  # 20, 60, 200
     _, ax = plt.subplots(1, 1)
     ax.plot(data[:, 0], "r-*", data[:, 1], "b-*", data[:, 2], "g-*")
@@ -103,21 +113,114 @@ def plot_one(data):
     ax.set_ylim(-3.5, 3.5)
     plt.xticks(np.linspace(0, data_len, 5).astype(np.int64))
     plt.title(f"gps speed: {data[0,-1]:.2f}")
-    plt.show(block=False)
+    if SHOW:
+        plt.show(block=False)
     return ax
 
 
-# dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
-def plot_all(dataframe, glen=20):
-    n_plots = len(dataframe) // glen
-    fig, axs = plt.subplots(1, n_plots, figsize=(18, 4))
-    fig.suptitle(f"gps: {dataframe.iloc[0,7]:.2f}")  # , fontsize=16
+def generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20):
+    """
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from pathlib import Path
+    >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
+    >>> save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+    >>> glen = 20
+    >>> dt = 6011, "2015-04-30 09:10:31"
+    >>> ind2name = bdp.get_rules().ind2name
+    >>> generate_per_glen_figures_for_dt(save_path, df, dt, glen=20)
+    """
+    save_path = save_path / f"{dt[0]}_{dt[1]}"
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    slice = df[(df[0] == dt[0]) & (df[1] == dt[1]) & (df[3] != -1)].copy()
+    for i in range(0, len(slice), glen):
+        crop = slice.iloc[i : i + glen]
+        plot_one(np.array(crop.iloc[:, 4:]), SHOW=False)
+        ind, label_id, gps = crop.iloc[0, [2, 3, 7]]
+        label = ind2name[label_id]
+        name = f"{crop.iloc[0,2]}"
+        plt.title(f"{label}, {ind}, {gps:.2f}")
+        plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+        plt.close()
+
+
+def plot_all(dataframe, dataframe_db, glen=20):
+    """
+    Plot IMU of a device and starting time with correctly aligned vertical lines and labels.
+
+    Parameters:
+    dataframe: Labeled dataframe (subset of dataframe_db)
+    dataframe_db: Full database dataframe (no labels)
+    glen: Interval for vertical lines (default=20)
+
+    Returns:
+    fig: Matplotlib figure object
+
+    e.g.:
+    dt = (6011, "2015-04-30 09:09:26") # 200
+    dt = (6011, "2015-04-30 09:10:31") # 200 (only 120 labeled)
+    dt = (6016, "2015-05-01 11:15:46") # 120
+    dt = (533, "2012-05-15 03:10:11") # 60
+    dt = (534, "2013-06-10 10:36:23") # start from 7
+    dt = (533, "2012-05-15 03:38:59") # separate
+
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None) # s_data_orig_index
+    dataframe = df.groupby(by=[0, 1]).get_group(dt).sort_values(by=[2])
+    dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
+    fig = plot_all(dataframe, dataframe_db)
+    plt.show(block=True)
+    """
+
+    max_index = 100  # Number of indices per row
+    n_plot_rows = 2  # Number of rows for the plot
+    y_limits = [-3.5, 3.5]
+
+    # Create figure and subplots
+    fig, axs = plt.subplots(n_plot_rows, 1, figsize=(18, 4 * n_plot_rows))
+    if isinstance(axs, matplotlib.axes._axes.Axes):
+        axs = [axs]
+
+    plt.title(f"gps: {dataframe.iloc[0,7]:.2f}")  # GPS info
     fig.tight_layout()
-    fig.subplots_adjust(wspace=0)
-    for i, ax in enumerate(axs):
-        slice = dataframe.iloc[i * glen : i * glen + glen]
-        data = slice[[4, 5, 6]].values
-        indices = slice[[2]].values.squeeze()
+
+    # Extract IMU data
+    all_data_db = dataframe_db[[4, 5, 6]].values
+    all_indices_db = dataframe_db[2].values.squeeze()
+    all_indices = dataframe[2].values.squeeze()
+
+    # Sort indices
+    indices_from_data = np.sort(all_indices)
+
+    start_inds = indices_from_data[::glen]  # Starting indices of segments
+    end_inds = indices_from_data[glen - 1 :: glen]  # Ending indices of segments
+    # Ensure last index is included in end_inds
+    if indices_from_data[-1] not in end_inds:
+        end_inds = np.append(end_inds, indices_from_data[-1])
+
+    # Non consecutive end indices
+    nc_end_inds = []
+    for i in range(0, len(end_inds) - 1):
+        if start_inds[i + 1] - end_inds[i] > 1:  # Only keep if not consecutive
+            nc_end_inds.append(end_inds[i])
+    nc_end_inds.append(end_inds[-1])
+
+    # Determine index ranges for each subplot
+    first_row_range = all_indices[all_indices < max_index]
+    second_row_range = all_indices[all_indices >= max_index]
+
+    # Plot data and vertical lines for each row
+    for j, ax in enumerate(axs):
+        # Get data for the current row
+        data = all_data_db[j * max_index : j * max_index + max_index]
+        if len(data) == 0:
+            continue
+
+        indices = all_indices_db[j * max_index : j * max_index + max_index]
+
+        # Plot IMU data
         ax.plot(
             indices,
             data[:, 0],
@@ -129,17 +232,177 @@ def plot_all(dataframe, glen=20):
             data[:, 2],
             "g-*",
         )
-        ax.set_xlim(indices[0], indices[-1])
-        ax.set_ylim(-3.5, 3.5)
-        ax.set_yticks([])
-        if i == n_plots - 1:  # for last plot
-            ax.set_xticks([indices[0], indices[-1]])
+
+        # Set axis limits
+        ax.set_xlim(indices[0], indices[0] + max_index - 1)
+        ax.set_ylim(*y_limits)
+        ax.set_yticks([y_limits[0], 0, y_limits[1]])
+        ax.set_xticks(indices[::glen])
+        ind_xticks = ax.get_xticks()
+
+        # Draw horizontal zero line
+        ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
+
+        # Determine which row to plot vertical lines
+        row_range = first_row_range if j == 0 else second_row_range
+
+        new_ticks = []
+        for ind, end_ind in zip(start_inds, end_inds):
+            if ind in row_range:  # Only plot if the index belongs to this row
+                # Draw vertical line: Draw only start index and end index if not consecutive
+                if end_ind in nc_end_inds:
+                    ax.plot([end_ind, end_ind], y_limits, "-", color="black")
+                ax.plot([ind, ind], y_limits, "-", color="black")
+
+                # Get label for the corresponding index
+                crop = dataframe[dataframe[2] == ind]
+                label = ind2name[crop.iloc[0, 3]] if not crop.empty else None
+
+                # Position text
+                text_loc = [ind + glen // 2 - 2, y_limits[1] - 0.5]
+                ax.text(*text_loc, f"label: {label}", color="black", fontsize=12)
+
+                # Add index value to x-axis ticks
+                if len(np.where(abs(ind_xticks - ind) < 2)[0]) == 0:
+                    new_ticks.append(ind)
+                if (len(np.where(abs(ind_xticks - end_ind) < 2)[0]) == 0) and (
+                    end_ind in nc_end_inds
+                ):
+                    new_ticks.append(end_ind)
+        ax.set_xticks(sorted(set(new_ticks + list(ind_xticks))))
+    return fig
+
+
+def plot_labeled_data(df, df_db, ind2name):
+    """
+    Plot IMU of a device and starting time with correctly aligned vertical lines and labels.
+
+    Parameters:
+    dataframe: Labeled dataframe (subset of dataframe_db)
+    dataframe_db: Full database dataframe (no labels)
+    glen: Interval for vertical lines (default=20)
+
+    Returns:
+    fig: Matplotlib figure object
+
+    e.g.:
+    dt = (6011, "2015-04-30 09:09:26") # 200
+    dt = (6011, "2015-04-30 09:10:31") # 200 (only 120 labeled)
+    dt = (6016, "2015-05-01 11:15:46") # 120
+    dt = (533, "2012-05-15 03:10:11") # 60
+    dt = (534, "2013-06-10 10:36:23") # start from 7
+    dt = (533, "2012-05-15 03:38:59") # separate
+
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None) # s_data_orig_index
+    df = df.groupby(by=[0, 1]).get_group(dt).sort_values(by=[2])
+    dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
+    fig = plot_all(dataframe, df_db)
+    plt.show(block=True)
+    """
+
+    max_index = 100  # Number of indices per row
+    n_plot_rows = 2  # Number of rows for the plot
+    y_limits = [-3.5, 3.5]
+
+    df = df.sort_values([0, 1, 2])
+    df_db = df_db.sort_values([0, 1, 2])
+    assert len(np.unique(df[0])) == 1
+    assert len(np.unique(df[1])) == 1
+    assert len(np.unique(df[7])) == 1
+
+    # Create figure and subplots
+    fig, axs = plt.subplots(n_plot_rows, 1, figsize=(18, 4 * n_plot_rows))
+    if isinstance(axs, matplotlib.axes._axes.Axes):
+        axs = [axs]
+
+    plt.title(f"gps: {df.iloc[0,7]:.2f}")  # GPS info
+    fig.tight_layout()
+
+    # Extract IMU data
+    all_data_db = df_db[[4, 5, 6]].values
+
+    # Get indices
+    all_indices_db = df_db[2].values
+
+    # Plot data and vertical lines for each row
+    for j, ax in enumerate(axs):
+        # Get data for the current row
+        data = all_data_db[j * max_index : j * max_index + max_index]
+        if len(data) == 0:
+            continue
+
+        indices = all_indices_db[j * max_index : j * max_index + max_index]
+
+        # Plot IMU data
+        ax.plot(
+            indices,
+            data[:, 0],
+            "r-*",
+            indices,
+            data[:, 1],
+            "b-*",
+            indices,
+            data[:, 2],
+            "g-*",
+        )
+
+        # Set axis limits
+        ax.set_xlim(indices[0], indices[0] + max_index - 1)
+        ax.set_ylim(*y_limits)
+        ax.set_yticks([y_limits[0], 0, y_limits[1]])
+
+        # Draw horizontal zero line
+        ax.plot([indices[0], indices[-1]], [0, 0], "-", color="black")
+
+        if j == 0:
+            sel_df = df[df[2] < max_index]
         else:
-            ax.set_xticks([indices[0]])
-        label = ind2name[slice.iloc[0, 3]]
-        ax.set_title(f"label: {label}")
-    plt.show(block=False)
-    return ax
+            sel_df = df[df[2] >= max_index]
+        if sel_df.empty:
+            continue
+        labels = sel_df[3].values
+        label_diffs = np.diff(labels)
+        label_change_inds = np.where(label_diffs != 0)[0]
+        sl_inds = [0] + list(label_change_inds + 1)
+        el_inds = list(label_change_inds + 1) + [len(sel_df)]
+        xticks = []
+        for sl, el in zip(sl_inds, el_inds):
+            cut_df = sel_df.iloc[sl:el]
+            cut_ind_diffs = np.diff(cut_df[2].values)
+            # Non consecutive indices
+            cut_nc_inds = np.where(cut_ind_diffs != 1)[0]
+            s_inds = [0] + list(cut_nc_inds + 1)
+            e_inds = list(cut_nc_inds + 1) + [len(cut_df)]
+            for s, e in zip(s_inds, e_inds):
+                cut_cut_df = cut_df.iloc[s:e]
+                label_id = cut_cut_df.iloc[0, 3]
+                if label_id in ind2name:
+                    label = ind2name[label_id]
+                    s_i, e_i = cut_cut_df.iloc[0, 2], cut_cut_df.iloc[-1, 2]
+                    text_loc = [s_i + (e_i - s_i + 1) // 2 - 2, y_limits[1] - 0.5]
+                    ax.text(*text_loc, f"{label}", color="black", fontsize=12)
+                    ax.plot([s_i, s_i], y_limits, "-", color="black")
+                    ax.plot([e_i, e_i], y_limits, "-", color="black")
+                    xticks.extend([s_i, e_i])
+            if cut_df.iloc[-1, 2] not in xticks:
+                xticks.append(cut_df.iloc[-1, 2])
+        ax.set_xticks(xticks)
+
+    return fig
+
+
+# ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking',
+# 10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
+# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
+# df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None)
+# # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None)
+# df_db = df_db.sort_values([0, 1, 2])
+# df = df.sort_values([0, 1, 2])
+# device, start_time = 6011, '2015-04-30 09:09:26' #533,"2012-05-15 03:19:46" # 6080, '2014-06-26 07:59:49' #533, "2012-05-15 03:15:00"
+# cut_df = df[(df[0] == device) & (df[1] == start_time)]
+# cut_df_db = df_db[(df_db[0] == device) & (df_db[1] == start_time)]
+# fig = plot_labeled_data(cut_df, cut_df_db, ind2name)
 
 
 # dataframe = df_s.groupby(by=[0,1]).get_group((533, "2012-05-15 03:10:11")).sort_values(by=[2])
@@ -184,7 +447,7 @@ def plot_all_with_map(dataframe, glen=20):
     ax.axis("off")
     axs[1, 0].remove()
     axs[1, 2].remove()
-    plt.show(block=False)
+    # plt.show(block=False)
     return ax
 
 
@@ -326,7 +589,12 @@ def helper_results(
         ap = average_precision_score(labels, np.argmax(prob, axis=1))
     else:
         ap = average_precision_score(labels, prob)
-    print(f"AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}")
+    app_loss_acc = (
+        f"{stage}: AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}\n"
+    )
+    with open(fail_path / "app_loss_acc.txt", "a") as f:
+        f.write(app_loss_acc)
+    print(app_loss_acc)
     print(confmat)
 
     if SAVE_FAILED:
@@ -583,3 +851,51 @@ print(metrics_df)
 # _ = save_data_prediction(
 #     save_file.parent, 'float', 'pred_float', .54, data_item, ldts_item, i
 # )
+
+
+def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
+    """
+    Compare two DataFrames for equality based on selected columns,
+    after rounding float features and sorting rows.
+
+    Args:
+        df1 (pd.DataFrame): First DataFrame to compare.
+        df2 (pd.DataFrame): Second DataFrame to compare.
+        cols_to_compare (List[int], optional): Column indices to use for comparison.
+            Default is [0, 1, 3, 4, 5, 6, 7].
+
+    Returns:
+        bool: True if DataFrames are equal on the selected columns, False otherwise.
+
+    Note:
+        Columns from index 4 onward are assumed to be float features that will be rounded.
+
+    Example:
+        df1 =
+             0                    1  2  3         4         5         6         7
+        0  608  2013-05-31 02:12:41 -1  6 -1.020301 -0.305263  1.234586  0.186449
+        1  608  2013-05-31 02:12:41 -1  6 -0.940602 -0.292481  1.041353  0.186449
+
+        df2 =
+             0                    1   2  3         4         5         6         7
+        0  608  2013-05-31 02:12:41  20  6 -1.020301 -0.305263  1.234586  0.186449
+        1  608  2013-05-31 02:12:41  21  6 -0.940602 -0.292481  1.041353  0.186449
+
+        equal_dataframe(df1, df2) → True
+    """
+
+    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
+    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+    a = df1.copy()
+    b = df2.copy()
+    a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
+    b.iloc[:, 4:] = np.round(b.iloc[:, 4:], 4)
+    a = a[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    b = b[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    return a.equals(b)
+
+    # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
+    # dd = df.iloc[j:j+1]
+    # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
+    # if len(found) != 0:
+    #     print("Found", found)

@@ -86,13 +86,14 @@ class MaskedAutoencoderViT(nn.Module):
         decoder_depth=1,
         decoder_num_heads=8,
         mlp_ratio=4.0,
-        norm_layer=nn.LayerNorm,
+        layer_norm_eps=1e-5,
         norm_pix_loss=False,
         drop=0.7,
     ):
         super().__init__()
 
         # --------------------------------------------------------------------------
+        norm_layer = partial(nn.LayerNorm, eps=layer_norm_eps)
         # MAE encoder specifics
         # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim) # me: rem
         # num_patches = self.patch_embed.num_patches
@@ -265,7 +266,9 @@ class MaskedAutoencoderViT(nn.Module):
         x = self.patch_embed(x)
 
         # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
+        # x = x + self.pos_embed[:, 1:, :]
+        L = x.shape[1]  # batch, length, dim
+        x = x + self.pos_embed[:, 1 : L + 1, :]
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
@@ -297,7 +300,9 @@ class MaskedAutoencoderViT(nn.Module):
         x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
 
         # add pos embed
-        x = x + self.decoder_pos_embed
+        # x = x + self.decoder_pos_embed
+        L = x.shape[1]  # batch, length, dim
+        x = x + self.decoder_pos_embed[:, :L, :]
 
         # apply Transformer blocks
         for blk in self.decoder_blocks:
@@ -344,35 +349,35 @@ class MaskedAutoencoderViT(nn.Module):
 #     img_size=196, in_chans=4, patch_size=16,
 #     embed_dim=768, depth=12, num_heads=12,
 #     decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#     mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+#     mlp_ratio=4, layer_norm_eps=1e-6)
 # # mae_vit_large_patch16_dec512d8b 300M
 # model = MaskedAutoencoderViT(
 #     img_size=196, in_chans=4, patch_size=16,
 #     embed_dim=1024, depth=24, num_heads=16,
 #     decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#     mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+#     mlp_ratio=4, layer_norm_eps=1e-6)
 # # mae_vit_huge_patch14_dec512d8b 600M
 # model = MaskedAutoencoderViT(
 #     img_size=196, in_chans=4, patch_size=14, embed_dim=1280, depth=32, num_heads=16,
 #     decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-#     mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+#     mlp_ratio=4, layer_norm_eps=1e-6)
 
 # # 7K
 # model = MaskedAutoencoderViT(
-#     img_size=20, in_chans=4, patch_size=1,
+#     img_size=60, in_chans=4, patch_size=1,
 #     embed_dim=16, depth=1, num_heads=8,
 #     decoder_embed_dim=16, decoder_depth=1, decoder_num_heads=8,
-#     mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+#     mlp_ratio=4, layer_norm_eps=1e-6)
 # # 9M
 # model = MaskedAutoencoderViT(
 #     img_size=20, in_chans=4, patch_size=1,
 #     embed_dim=256, depth=6, num_heads=8,
 #     decoder_embed_dim=256, decoder_depth=6, decoder_num_heads=8,
-#     mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6))
+#     mlp_ratio=4, layer_norm_eps=1e-6)
 # f"{sum(i.numel() for i in model.parameters() if i.requires_grad):,}"
-# x = torch.rand(5, 4, 20)
-# x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+# x = torch.rand(1, 20, 4) # NxLxC
 # loss, pred, mask = model(x, mask_ratio=0.7)
+# print("done")
 
 
 class TransformerEncoderMAE(nn.Module):
@@ -387,12 +392,13 @@ class TransformerEncoderMAE(nn.Module):
         depth=1,
         num_heads=8,
         mlp_ratio=4.0,
-        norm_layer=nn.LayerNorm,
+        layer_norm_eps=1e-5,
         drop=0.7,
     ):
         super().__init__()
 
         # --------------------------------------------------------------------------
+        norm_layer = partial(nn.LayerNorm, eps=layer_norm_eps)
         # MAE encoder specifics
         self.patch_embed = nn.Linear(in_chans, embed_dim)
         num_patches = img_size
@@ -451,12 +457,15 @@ class TransformerEncoderMAE(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
-        x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+        # x = x.permute((0, 2, 1))  # NxCxL -> NxLxC
+        # x: NxLxC
         # embed patches
         x = self.patch_embed(x)
 
         # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
+        # x = x + self.pos_embed[:, 1:, :]
+        L = x.shape[1]  # batch, length, dim
+        x = x + self.pos_embed[:, 1 : L + 1, :]
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
@@ -482,8 +491,8 @@ class TransformerEncoderMAE(nn.Module):
 #     depth=1,
 #     num_heads=8,
 #     mlp_ratio=4,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
+#     layer_norm_eps=1e-6,
 # )
-# x = torch.rand(1, 4, 20)
+# x = torch.rand(1, 20, 4) # NxLxC
 # y = model(x)
 # print(y)

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,8 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
+from behavior import utils as bu
+from behavior.utils import n_classes, new_label_inds, target_labels
 
 
 def read_csv_file(csv_file):
@@ -31,11 +34,11 @@ def read_csv_file(csv_file):
     return gimus
 
 
-def read_csv_files(data_path):
+def read_csv_files(directory):
     gimus = []
     dis = []
     timestamps = []
-    for csv_file in data_path.glob("*.csv"):
+    for csv_file in directory.glob("*.csv"):
         df = pd.read_csv(csv_file, header=None)
         gimus.append(df[[4, 5, 6, 7]].values)
         dis.append(df[[0, 2]].values)
@@ -54,7 +57,8 @@ def write_info_in_tensorboard(writer, epoch, loss, stage):
 
 
 def caculate_metrics(data, model, device):
-    data = data.to(device)  # NxLxC
+    data = data.permute((0, 2, 1))  # NxCxL -> NxLxC
+    data = data.to(device)
     loss, _, _ = model(data)  # NxC
     return loss
 
@@ -95,7 +99,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     total_loss = running_loss / (i + 1)
     print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
-    return total_loss
 
 
 def get_gpu_memory():
@@ -114,16 +117,17 @@ def get_gpu_memory():
 @dataclass
 class PathConfig:
     save_path: Path
-    data_path: Path
+    data_file: Path
     model_checkpoint: Path
+    valid_path: Optional[Path] = None
 
 
-cfg_file = Path(__file__).parents[1] / "configs/pretrain_memory_load.yaml"
+cfg_file = Path(__file__).parents[1] / "configs/finetune_memory_load.yaml"
 cfg = OmegaConf.load(cfg_file)
 cfg_paths = OmegaConf.structured(
     PathConfig(
         save_path=cfg.save_path,
-        data_path=cfg.data_path,
+        data_file=cfg.data_file,
         model_checkpoint=cfg.model_checkpoint,
     )
 )
@@ -134,7 +138,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="bird-large-pt", config=cfg_dict)
+# wandb.init(project="bird-large-pt", config=cfg_dict)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
@@ -151,18 +155,22 @@ torch.manual_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
-gimus = read_csv_files(cfg.data_path)
-print(gimus.shape)
-gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
-gimus = np.ascontiguousarray(gimus)
-print(gimus.shape)
-dataset = bd.BirdDataset(gimus, channel_first=False)
-# Calculate the sizes for training and validation datasets
-train_size = int(cfg.train_per * cfg.data_per * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
-
-print(len(dataset), len(train_dataset), len(eval_dataset))
+if cfg.valid_file is not None:
+    train_dataset = bd.get_bird_dataset_from_csv(
+        cfg.data_file, cfg.labels_to_use, channel_first=False
+    )
+    eval_dataset = bd.get_bird_dataset_from_csv(
+        cfg.valid_file, cfg.labels_to_use, channel_first=False
+    )
+else:
+    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+        cfg.data_file,
+        cfg.train_per,
+        cfg.data_per,
+        cfg.labels_to_use,
+        channel_first=False,
+    )
+print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
     train_dataset,
@@ -183,25 +191,38 @@ eval_loader = DataLoader(
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 # in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm1.MaskedAutoencoderViT(
+model = bm1.TransformerEncoderMAE(
     img_size=cfg.g_len,
     in_chans=cfg.in_channel,
-    patch_size=cfg.patch_size,
+    out_chans=cfg.out_channel,
     embed_dim=cfg.embed_dim,
     depth=cfg.depth,
     num_heads=cfg.num_heads,
-    decoder_embed_dim=cfg.decoder_embed_dim,
-    decoder_depth=cfg.decoder_depth,
-    decoder_num_heads=cfg.decoder_num_heads,
     mlp_ratio=cfg.mlp_ratio,
+    drop=cfg.drop,
     layer_norm_eps=cfg.layer_norm_eps,
 ).to(device)
-if cfg.model_checkpoint != Path("."):
-    bm.load_model(cfg.model_checkpoint, model, device)
-    print(f"{cfg.model_checkpoint} used")
-else:
-    print("NO Check point is used")
 
+# bm.load_model(model_checkpoint, model, device)
+pmodel = torch.load(cfg.model_checkpoint, weights_only=True)["model"]
+state_dict = model.state_dict()
+for name, p in pmodel.items():
+    if (
+        "decoder" not in name and "mask" not in name
+    ):  # and name!="norm.weight" and name!="norm.bias":
+        state_dict[name].data.copy_(p.data)
+        # freeze all layers except class head
+        # dict(model.named_parameters())[name].requires_grad = False
+print(
+    f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
+)
+
+# bm.load_model("/home/fatemeh/Downloads/bird/result/f_mem1_bal116_best.pth", model, device)
+del pmodel, name, p, state_dict
+torch.cuda.empty_cache()
+print("model is loaded")
+
+criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(
     model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
 )
@@ -215,17 +236,31 @@ print(
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
-
-best_loss = best_loss = float("inf")
+best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
+        # After these epochs, train all layers
+        if epoch == 500:
+            for param in model.parameters():
+                param.requires_grad = True
+            print("all layers are trainable")
+        torch.cuda.empty_cache()
         start_time = datetime.now()
         print(f"start time: {start_time}")
         get_gpu_memory()
-        train_one_epoch(
-            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+        bm.train_one_epoch(
+            train_loader,
+            model,
+            criterion,
+            device,
+            epoch,
+            cfg.no_epochs,
+            writer,
+            optimizer,
         )
-        loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer)
+        accuracy = bm.evaluate(
+            eval_loader, model, criterion, device, epoch, cfg.no_epochs, writer
+        )
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -241,14 +276,46 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
         if epoch % cfg.save_every == 0:
             bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
-            # save best model
-        if loss < best_loss:
-            best_loss = loss
+        # save best model
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
             # 1-based save for epoch
             bm.save_model(
                 cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
             )
-            print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
+            print(f"best model accuracy: {best_accuracy:.2f} at epoch: {epoch}")
 
 # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+
+bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
+model.eval()
+fail_path = cfg.save_path / f"failed/{cfg.exp}"
+fail_path.mkdir(parents=True, exist_ok=True)
+
+del eval_loader, train_loader, train_dataset, eval_dataset
+data_files = {"valid": cfg.valid_file, "test": cfg.test_file}
+for stage, data_file in data_files.items():
+    dataset = bd.get_bird_dataset_from_csv(
+        data_file, cfg.labels_to_use, channel_first=False
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
+    data, ldts = next(iter(loader))
+    bu.helper_results(
+        data,
+        ldts,
+        model,
+        criterion,
+        device,
+        fail_path,
+        bu.target_labels_names,
+        n_classes,
+        stage=stage,
+        SAVE_FAILED=False,
+    )

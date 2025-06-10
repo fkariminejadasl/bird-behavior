@@ -1,183 +1,273 @@
+from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
+from typing import Optional
 
+import pandas as pd
 import torch
+import torch.nn as nn
 import tqdm
+from omegaconf import OmegaConf
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
+from torchvision.transforms import v2 as tvt2
 
 from behavior import data as bd
+from behavior import data_augmentation as bau
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, target_labels
+from behavior.utils import n_classes, new_label_inds, target_labels
 
-# import wandb
-# wandb.init(project="uncategorized")
-
-seed = 32984
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
-exp = 113  # sys.argv[1]
-no_epochs = 4000  # int(sys.argv[2])
-save_every = 2000
-train_per = 0.9
-data_per = 1.0
-# hyperparam
-warmup_epochs = 1000
-step_size = 2000
-max_lr = 3e-4  # 1e-3
-min_lr = max_lr / 10
-weight_decay = 1e-2  # default 1e-2
-# model
-width = 30
+models = {
+    "BirdModel": bm.BirdModel,
+    "ResNet18_1D": bm.ResNet18_1D,
+    "BirdModelTransformer": bm.BirdModelTransformer,
+    "TransformerEncoderMAE": bm1.TransformerEncoderMAE,
+    "BirdModelTransformer_": bm.BirdModelTransformer_,
+}
 
 
-bu.set_seed(seed)
+@dataclass
+class PathConfig:
+    save_path: Path
+
+
+cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
+cfg = OmegaConf.load(cfg_file)
+cfg_paths = OmegaConf.structured(PathConfig(save_path=cfg.save_path))
+cfg = OmegaConf.merge(cfg, cfg_paths)
+cfg.min_lr = cfg.max_lr / 10
+
+# Convert the DictConfig to a standard dictionary
+cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+import wandb
+
+# wandb.init(project="small-bird", config=cfg_dict)
+
+# Set seed and device
+bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    train_per, data_per, target_labels
+# Use one of the augmentation. transforms.Compose use all the augmentations.
+transforms = tvt2.RandomChoice(
+    [
+        bau.RandomJitter(sigma=0.05),
+        bau.RandomScaling(sigma=0.05),
+        # bau.TimeWarp(sigma=0.05),
+        # bau.MagnitudeWarp(sigma=0.05, knot=4),
+    ]
 )
+transforms = None
+
+# Prepare datasets
+if cfg.valid_file is not None:
+    train_dataset = bd.get_bird_dataset_from_csv(
+        cfg.data_file, cfg.labels_to_use, channel_first=True
+    )
+    eval_dataset = bd.get_bird_dataset_from_csv(
+        cfg.valid_file, cfg.labels_to_use, channel_first=True
+    )
+else:
+    print("No validation file provided, using train dataset for evaluation.")
+    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+        cfg.data_file,
+        cfg.train_per,
+        cfg.data_per,
+        cfg.labels_to_use,
+        channel_first=True,
+        transforms=transforms,
+    )
+
+# Build the sampler: inversely weight by class frequency
+labels = train_dataset.ldts[:, 0]
+class_counts = torch.bincount(torch.tensor(labels))
+class_weights = 1.0 / class_counts.float()
+sample_weights = class_weights[labels]  # one weight per sample
+sampler = WeightedRandomSampler(
+    weights=sample_weights, num_samples=len(sample_weights), replacement=True
+)
+
+batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
 train_loader = DataLoader(
     train_dataset,
-    batch_size=len(train_dataset),
+    batch_size=batch_size,
+    # sampler=sampler,
     shuffle=True,
-    num_workers=1,
-    drop_last=True,
+    num_workers=cfg.num_workers,
+    drop_last=False,
 )
 eval_loader = DataLoader(
     eval_dataset,
     batch_size=len(eval_dataset),
     shuffle=False,
-    num_workers=1,
-    drop_last=True,
+    num_workers=cfg.num_workers,
+    drop_last=False,
 )
 
-
-"""
-torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
-dataloader change 1xCxL to Nx1xCxL
-I don't use ToTensor anymore. I put everything now in dataset instead of model.
-"""
-
+# Model setup
+# Number of input channels
 in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm.BirdModel(in_channel, width, n_classes).to(device)
-# model = bm.ResNet18_1D(n_classes, dropout=0.3).to(device)
-# model = bm.BirdModelTransformer(n_classes, embed_dim=16, drop=0.7).to(device)
-# model = bm1.TransformerEncoderMAE(
-#     img_size=20,
-#     in_chans=4,
-#     out_chans=9,
-#     embed_dim=16,
-#     depth=1,
-#     num_heads=8,
-#     mlp_ratio=4,
-#     drop=0.0,
-#     norm_layer=partial(nn.LayerNorm, eps=1e-6),
-# ).to(device)
 
-# model = bm.BirdModelTransformer_(in_channel, n_classes).to(device)
+if cfg.model.name not in models:
+    raise ValueError(f"Unknown model name: {cfg.model_name}")
+model = models[cfg.model.name](**cfg.model.parameters).to(device)
+print(cfg.model.name)
+
 # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
 
-# weights = bd.get_labels_weights(label_ids)
-# criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
-criterion = torch.nn.CrossEntropyLoss()
-# optimizer = torch.optim.SGD(
-#     filter(lambda p: p.requires_grad, model.parameters()), lr=0.001, momentum=0.9
-# )
-optimizer = torch.optim.AdamW(model.parameters(), lr=max_lr, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=0.1)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-#     optimizer, T_max=no_epochs, eta_min=min_lr
-# )
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-#     optimizer, warmup_epochs, eta_min=min_lr
-# )
-# warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
-#     optimizer, start_factor=0.1, end_factor=1, total_iters=warmup_epochs
-# )
-# main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-#     optimizer, T_max=no_epochs - warmup_epochs, eta_min=min_lr
-# )
-# scheduler = torch.optim.lr_scheduler.SequentialLR(
-#     optimizer,
-#     schedulers=[warmup_lr_scheduler, main_lr_scheduler],
-#     milestones=[warmup_epochs],
-# )
 
+# Loss function and optimizer
+if cfg.use_weighted_loss:
+    weights = bd.get_labels_weights(new_label_inds)
+    criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
+else:
+    criterion = torch.nn.CrossEntropyLoss()
+
+# Select optimizer based on configuration
+if cfg.optimizer_name == "AdamW":
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
+    )
+else:
+    raise ValueError(f"Unknown optimizer name: {cfg.optimizer_name}")
+
+# Select scheduler based on configuration
+if cfg.scheduler_name == "StepLR":
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer, step_size=cfg.step_size, gamma=0.1
+    )
+elif cfg.scheduler_name == "CosineAnnealingLR":
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.no_epochs, eta_min=cfg.min_lr
+    )
+elif cfg.scheduler_name == "CosineAnnealingWarmRestarts":
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer, cfg.warmup_epochs, eta_min=cfg.min_lr
+    )
+elif cfg.scheduler_name == "SequentialLR":
+    warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.1, end_factor=1, total_iters=cfg.warmup_epochs
+    )
+    main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.no_epochs - cfg.warmup_epochs, eta_min=cfg.min_lr
+    )
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_lr_scheduler, main_lr_scheduler],
+        milestones=[cfg.warmup_epochs],
+    )
+else:
+    raise ValueError(f"Unknown scheduler name: {cfg.scheduler_name}")
+
+# Print dataset sizes and device
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
-    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+    f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
+    f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
 )
+# """
+# Training loop
 best_accuracy = 0
-with tensorboard.SummaryWriter(save_path / f"tensorboard/{exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, no_epochs + 1)):
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         # tqdm.tqdm(range(4001, no_epochs + 1)): # start from a checkpoint
         start_time = datetime.now()
-        print(f"start time: {start_time}")
+        print(f"Start time: {start_time}")
+
+        # Train for one epoch
         bm.train_one_epoch(
-            train_loader, model, criterion, device, epoch, no_epochs, writer, optimizer
+            train_loader,
+            model,
+            criterion,
+            device,
+            epoch,
+            cfg.no_epochs,
+            writer,
+            optimizer,
         )
         accuracy = bm.evaluate(
-            eval_loader, model, criterion, device, epoch, no_epochs, writer
+            eval_loader, model, criterion, device, epoch, cfg.no_epochs, writer
         )
-        end_time = datetime.now()
-        print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
+        end_time = datetime.now()
+        print(f"End time: {end_time}, Elapsed time: {end_time - start_time}")
+
+        # Update scheduler and log learning rates
         scheduler.step()
         lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
         lr_sched = scheduler.get_last_lr()[0]
         writer.add_scalar("lr/optim", lr_optim, epoch)
         writer.add_scalar("lr/sched", lr_sched, epoch)
         print(
-            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+            f"Optimizer LR: {optimizer.param_groups[-1]['lr']:.6f}, "
+            f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
         )
 
-        if epoch % save_every == 0:
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
-        # save best model
+        # Save model at intervals
+        if epoch % cfg.save_every == 0:
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+        # Save best model
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             # 1-based save for epoch
-            bm.save_model(save_path, exp, epoch, model, optimizer, scheduler, best=True)
-            print(f"best model accuracy: {best_accuracy:.2f} at epoch: {epoch}")
+            bm.save_model(
+                cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
+            )
+            print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
 
+
+# Save the final model
 # 1-based save for epoch
-bm.save_model(save_path, exp, epoch, model, optimizer, scheduler)
+bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+# """
 
-bm.load_model(save_path / f"{exp}_best.pth", model, device)
+bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
-fail_path = save_path / f"failed/{exp}"
+name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
+fail_path = cfg.save_path / f"failed/{name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-data, ldts = next(iter(train_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    bu.target_labels_names,
-    n_classes,
-    stage="train",
-    SAVE_FAILED=False,
-)
+datasets = dict()
+if cfg.valid_file is not None:
+    data_files = {
+        "train": cfg.data_file,
+        "valid": cfg.valid_file,
+        "test": cfg.test_file,
+    }
+    for stage, data_file in data_files.items():
+        if data_file is not None:
+            # del eval_loader, train_loader, train_dataset, eval_dataset
+            dataset = bd.get_bird_dataset_from_csv(
+                data_file, cfg.labels_to_use, channel_first=True
+            )
+            datasets[stage] = dataset
 
-data, ldts = next(iter(eval_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    bu.target_labels_names,
-    n_classes,
-    stage="valid",
-    SAVE_FAILED=False,
-)
+else:
+    datasets = {"train": train_dataset, "valid": eval_dataset}
+
+for stage, dataset in datasets.items():
+    loader = DataLoader(
+        dataset,
+        batch_size=len(dataset),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
+    data, ldts = next(iter(loader))
+    bu.helper_results(
+        data,
+        ldts,
+        model,
+        criterion,
+        device,
+        fail_path,
+        bu.target_labels_names,
+        n_classes,
+        stage=stage,
+        SAVE_FAILED=False,
+    )
 
 """
 from copy import deepcopy

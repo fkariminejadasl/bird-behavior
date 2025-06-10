@@ -7,6 +7,7 @@ from typing import Union
 
 import matplotlib.pylab as plt
 import numpy as np
+import pandas as pd
 import psycopg2
 from torch.utils.data import Dataset
 
@@ -234,31 +235,55 @@ def read_json_data(json_path: Union[Path, str]):
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
+import torch
+
+
 class BirdDataset(Dataset):
-    def __init__(self, all_measurements: np.ndarray, ldts: np.ndarray, transform=None):
+    def __init__(
+        self,
+        all_measurements: np.ndarray,
+        ldts: np.ndarray = None,
+        transform=None,
+        channel_first=True,
+    ):
         """
         dtype: all_measurements np.float32
-        dtype: ldts np.int64
+        dtype: ldts np.int64 or None (if no labels are provided)
+        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
         """
-        self.ldts = np.ascontiguousarray(ldts)  # Nx3
         self.data = all_measurements.copy()  # NxLxC C=4
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         self.data = self.data.astype(np.float32)
 
+        self.has_label = ldts is not None  # Check if labels are provided
+        if self.has_label:
+            self.ldts = np.ascontiguousarray(ldts)  # Nx3
+
         self.transform = transform
+        self.channel_first = channel_first  # Flag for channel arrangement
 
     def __len__(self):
         return self.data.shape[0]
 
     def __getitem__(self, ind):
-        data = self.data[ind].transpose((1, 0))  # LxC -> CxL
-        ldt = self.ldts[ind]  # 3
+        data = self.data[ind]  # LxC
 
+        data = torch.from_numpy(data)  # torch
         if self.transform:
             data = self.transform(data)
 
-        return data, ldt
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose(1, 0)  # LxC -> CxL
+            # data = data.transpose((1, 0))  # LxC -> CxL numpy
+
+        if self.has_label:
+            ldt = torch.from_numpy(self.ldts[ind]).long()  # 3 torch
+            # ldt = self.ldts[ind]  # 3 numpy
+            return data, ldt  # Return both data and label
+        else:
+            return data
 
 
 # for new data
@@ -370,13 +395,13 @@ def reindex_ids(ldts):
     return new_ldts
 
 
-def get_specific_labesl(all_measurements, ldts, target_labels):
+def get_specific_labesl(all_measurements, ldts, labels_to_use):
     """
-    e.g. target_labels=[0, 2, 4, 5]
+    e.g. labels_to_use=[0, 2, 4, 5]
     """
     agps_imus = np.empty(shape=(0, 20, 4))
     new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
-    for i in target_labels:
+    for i in labels_to_use:
         agps_imus = np.concatenate(
             (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
         )
@@ -753,25 +778,6 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     return format_sensor_data(matched_groups, device_id)
 
 
-def test_identify_and_process_groups():
-    # fmt: off
-    data = [
-        [1, 20], [2, 14], [1, 50], [2, 34], [3, 28], [4, 22], [5, 18], [6, 15], [7, 14], [8, 13],
-        [9, 12], [10, 11], [11, 10], [12, 9], [13, 8], [14, 7], [15, 6], [16, 5], [17, 4], [18, 3],
-        [19, 2], [20, 1], [21, 50], [22, 49], [23, 48], [24, 47], [25, 46], [26, 45], [27, 44],
-        [28, 43], [29, 42], [30, 41], [31, 40], [32, 39], [33, 38], [34, 37], [35, 36], [36, 35],
-        [37, 34], [38, 33], [39, 32], [40, 31], [41, 30], [42, 29], [43, 28], [44, 27], [45, 26], [46, 25]
-    ]
-    # fmt: on
-    processed_groups = identify_and_process_groups(data)
-    np.testing.assert_equal(np.array(data)[2:22], np.array(processed_groups[0]))
-    np.testing.assert_equal(np.array(data)[22:42], np.array(processed_groups[1]))
-
-
-# Test the function
-test_identify_and_process_groups()
-
-
 def random_time_between(start_time_str, end_time_str, time_format="%Y-%m-%d %H:%M:%S"):
     """
     Generate a random time between two given times.
@@ -905,35 +911,49 @@ def load_csv(csv_file, g_len=20):
     return igs, ldts
 
 
-def prepare_train_valid_dataset(train_per, data_per, target_labels):
-    """Load and prepare data, return train and eval Dataset."""
-    # data_path = Path("/home/fatemeh/Downloads/bird/data/set1/data/combined.json")
-    # all_measurements, label_ids = load_all_data_from_json(data_path)
-    all_measurements, label_ids = load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv"  # s_data, combined_unique.csv"
-    )
-    # label_ids = bd.combine_specific_labesl(label_ids, [2, 8])
-    all_measurements, label_ids = get_specific_labesl(
-        all_measurements, label_ids, target_labels
-    )
-    all_measurements, label_ids = shuffle_data(all_measurements, label_ids)
+def load_filter_shuffle(data_file, labels_to_use):
+    """
+    imugs: N x 20 x 4 or N x 4 x 20 (channel_first): (imu_x, imu_y, imu_z, gps_speed)
+    ldts: N x 3: (label, device_id, timestamp)
+    """
+    imugs, ldts = load_csv(data_file)
+    # ldts = bd.combine_specific_labesl(ldts, [2, 8])
+    imugs, ldts = get_specific_labesl(imugs, ldts, labels_to_use)
+    imugs, ldts = shuffle_data(imugs, ldts)
     # make data shorter
-    # label_ids = np.repeat(label_ids, 2, axis=0)
-    # all_measurements = all_measurements.reshape(-1, 10, 4)
+    # ldts = np.repeat(ldts, 2, axis=0)
+    # imugs = imugs.reshape(-1, 10, 4)
+    return imugs, ldts
 
-    n_trainings = int(
-        all_measurements.shape[0] * train_per * data_per
-    )  # 100  # (10% data of 4365)
-    n_valid = all_measurements.shape[0] - n_trainings  # 100
-    train_measurments = all_measurements[:n_trainings]
-    valid_measurements = all_measurements[n_trainings : n_trainings + n_valid]
-    train_labels, valid_labels = (
-        label_ids[:n_trainings],
-        label_ids[n_trainings : n_trainings + n_valid],
+
+def get_bird_dataset_from_csv(data_file, labels_to_use, channel_first=True):
+    """
+    Load and prepare data, return Dataset.
+    imugs: N x 20 x 4 or N x 4 x 20 (channel_first): (imu_x, imu_y, imu_z, gps_speed)
+    ldts: N x 3: (label, device_id, timestamp)
+    """
+    imugs, ldts = load_filter_shuffle(data_file, labels_to_use)
+    dataset = BirdDataset(imugs, ldts, channel_first=channel_first)
+    print(len(ldts), imugs.shape)
+    return dataset
+
+
+def prepare_train_valid_dataset(
+    data_file, train_per, data_per, labels_to_use, channel_first=True, transforms=None
+):
+    """Load and prepare data, return train and eval Dataset."""
+    imugs, ldts = load_filter_shuffle(data_file, labels_to_use)
+    n_trainings = int(imugs.shape[0] * train_per * data_per)
+    n_valid = int(imugs.shape[0] * (1 - train_per) * data_per)
+    train_imugs = imugs[:n_trainings]
+    valid_imugs = imugs[n_trainings : n_trainings + n_valid]
+    train_ldts, valid_ldts = (
+        ldts[:n_trainings],
+        ldts[n_trainings : n_trainings + n_valid],
     )
 
-    train_dataset = BirdDataset(train_measurments, train_labels)
-    eval_dataset = BirdDataset(valid_measurements, valid_labels)
+    train_dataset = BirdDataset(train_imugs, train_ldts, transforms, channel_first)
+    eval_dataset = BirdDataset(valid_imugs, valid_ldts, transforms, channel_first)
 
     # train_size = int(train_per * len(dataset))
     # val_size = len(dataset) - train_size
@@ -950,13 +970,114 @@ def prepare_train_valid_dataset(train_per, data_per, target_labels):
     # dataset = bd.BirdDataset3(csv_files)
 
     print(
-        len(train_labels),
-        len(valid_labels),
-        train_measurments.shape,
-        valid_measurements.shape,
+        len(train_ldts),
+        len(valid_ldts),
+        train_imugs.shape,
+        valid_imugs.shape,
     )
 
     return train_dataset, eval_dataset
+
+
+def balance_data(data_file, save_file, keep_labels):
+    """
+    Balances the dataset by keeping only specified classes and downsampling
+    the remaining classes to have an equal number of instances based on the smallest
+    class size. The balanced dataset is then saved to a specified file.
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+    """
+    df = pd.read_csv(data_file, header=None)
+    # len_data = 364*20 # 7280 for keep_labels=[0, 2, 4, 5, 6, 9]
+    len_data = min([len(df[df[3] == i]) for i in keep_labels])
+    df = pd.concat([df[df[3] == i].iloc[:len_data] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # To get label names
+    # from behavior import utils as bu
+    # ind2keep = {i:j for i, j in enumerate(keep_labels)}
+    # {i: bu.ind2name[j] for i, j in ind2keep.items()}
+    # {0: 'Flap', 1: 'Soar', 2: 'Float', 3: 'SitStand', 4: 'TerLoco', 5: 'Pecking'}
+
+
+def select_random_groups(df, n_samples, glen=20):
+    sel_df = []
+    inds = df.iloc[::glen].index.tolist()
+    ii = np.random.choice(len(inds), n_samples, replace=False)
+    sel_inds = [inds[i] for i in ii]
+    for ind in sel_inds:
+        # NB. loc is inclusive. df.loc[0:10] includes 10.
+        sel_df.append(df.loc[ind : ind + glen - 1])
+    return pd.concat(sel_df)
+
+
+def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
+    """
+    Creates a balanced dataset by sampling equal number of groups from each specified class.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing bird behavior data
+    keep_labels : list of int
+        List of class labels to retain in the dataset
+        Example: [0, 2, 4, 5, 6, 9] for specific behaviors
+    n_samples : int, optional
+        Number of groups to sample per class. If None, uses size of smallest class
+    glen : int, default=20
+        Number of measurements per group
+
+    Returns
+    -------
+    pd.DataFrame
+        Balanced dataframe containing equal number of groups from each class
+
+    Notes
+    -----
+    - Original data typically has unbalanced classes
+    - Each group contains glen consecutive measurements
+    - If n_samples=None, will use smallest class size divided by glen
+    - Random sampling is used to select groups within each class
+    """
+    len_data = min([len(df[df[3] == i]) for i in keep_labels])
+    if n_samples is None:
+        n_samples = len_data // glen
+        print(f"n_samples: {n_samples}")
+
+    sel_df = []
+    for i in keep_labels:
+        label_df = df[df[3] == i].copy()
+        sel_df.append(select_random_groups(label_df, n_samples, glen))
+    sel_df = pd.concat(sel_df).reset_index(drop=True)
+    return sel_df
+    # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+# TODO replace get_specific_labesl
+def save_specific_labels(data_file, save_file, keep_labels):
+    """
+    Keeping only specified classes
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+    """
+    df = pd.read_csv(data_file, header=None)
+    df = pd.concat([df[df[3] == i] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    # for i, j in enumerate(keep_labels):
+    #     df.loc[df[3] == j, 3] = i
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
 # TODO to check and remove
@@ -1207,9 +1328,9 @@ import torch
 from torch.utils.data import DataLoader
 
 
-all_measurements, label_ids = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
-all_measurements, label_ids = get_specific_labesl(all_measurements, label_ids, [0, 1, 2, 3, 4, 5, 6, 8, 9])
-train_dataset = BirdDataset(all_measurements, label_ids)
+all_measurements, ldts = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
+all_measurements, ldts = get_specific_labesl(all_measurements, ldts, [0, 1, 2, 3, 4, 5, 6, 8, 9])
+train_dataset = BirdDataset(all_measurements, ldts)
 
 train_loader = DataLoader(
     train_dataset,
