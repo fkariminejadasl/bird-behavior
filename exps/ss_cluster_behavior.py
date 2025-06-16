@@ -435,7 +435,6 @@ print("train data is finished")
 # Settings
 # ==============
 
-# 6 classes for supervised learning. 3 (1, 3, 8) classes for clustering.
 discover_labels = [1, 3, 8]
 lt_labels = [0, 2, 4, 5, 6, 9]
 ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
@@ -446,8 +445,6 @@ u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
 mapper_trained = Mapper({l: i for i, l in enumerate(cfg.labels_trained)})
 
-# """
-# # small test for small bird
 model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
 # model = bm1.TransformerEncoderMAE(
@@ -500,66 +497,6 @@ l_targets = torch.tensor(labels, device="cuda")
 # u_feats_np = load_unlabeled_embeddings()  # (n=0)
 # u_feats = torch.tensor(u_feats_np, device="cuda")
 
-# classification
-# ==============
-
-preds = torch.argmax(torch.tensor(output), dim=1)
-probs = torch.softmax(torch.tensor(output), dim=1)
-
-preds = mapper_trained.decode(preds).cpu().numpy()
-cm = contingency_matrix(labels, preds)
-
-if cm.shape[0] != cm.shape[1]:
-    print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
-else:
-    print(sum(cm.diagonal()), l_feats.shape[0])
-
-false_neg = cm.sum(axis=1) - cm.max(axis=1)
-# fmt: off
-print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-# fmt: on
-
-reducer = TSNE(n_components=2, random_state=cfg.seed)
-reduced = reducer.fit_transform(feats)
-
-true_labels = [bu.ind2name[i] for i in ut_labels]
-pred_labels = [bu.ind2name[i] for i in cfg.labels_trained]
-name = "cls_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
-save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
-"""
-# Some plotting
-# fmt: off
-from datetime import datetime, timezone
-
-df = pd.read_csv(cfg.test_data_file, header=None)
-d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
-if cfg.channel_first:
-    d = d.permute(0, 2, 1)
-d = d.cpu().numpy()
-l = l.cpu().numpy()
-
-def plot_one(i):
-    j = np.where((np.abs(df.iloc[:,4] - d[i,0,0]) < 1e-6) & (np.abs(df.iloc[:,5] - d[i,0,1]) < 1e-6) & (np.abs(df.iloc[:,6] - d[i,0,2]) < 1e-6))[0][0]
-    bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
-    plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
-
-name2ind = {name: ind for ind, name in bu.ind2name.items()}
-label_name, pred_name = "Boat", "SitStand"
-label, pred = name2ind["Boat"], name2ind["SitStand"]
-inds = np.where((labels==label) & (preds==pred))[0]
-save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem.split('_')[0]/f"{label_name}_{pred_name}"
-save_path.mkdir(parents=True, exist_ok=True)
-for i in inds:
-    plot_one(i)
-    dt = datetime.fromtimestamp(l[i,2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    name = f"{i},{l[i,1]},{dt},{torch.max(probs[i]).item():.2f}"
-    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
-    plt.close()
-# fmt: on
-"""
-
-# # Get second max probability value
-# second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
 
 # GCD
 # ==============
@@ -611,6 +548,68 @@ pred_labels = range(len(u_old2new))
 name = "gcd_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
 save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
 
+# classification
+# ==============
+
+preds = torch.argmax(torch.tensor(output), dim=1)
+probs = torch.softmax(torch.tensor(output), dim=1)
+
+preds = mapper_trained.decode(preds).cpu().numpy()
+cm = contingency_matrix(labels, preds)
+
+if cm.shape[0] != cm.shape[1]:
+    print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
+else:
+    print(sum(cm.diagonal()), l_feats.shape[0])
+
+false_neg = cm.sum(axis=1) - cm.max(axis=1)
+# fmt: off
+print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+# fmt: on
+
+reducer = TSNE(n_components=2, random_state=cfg.seed)
+reduced = reducer.fit_transform(feats)
+
+true_labels = [bu.ind2name[i] for i in ut_labels]
+pred_labels = [bu.ind2name[i] for i in cfg.labels_trained]
+name = "cls_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
+
+"""
+# Some plotting
+# fmt: off
+from datetime import datetime, timezone
+
+df = pd.read_csv(cfg.test_data_file, header=None)
+d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
+if cfg.channel_first:
+    d = d.permute(0, 2, 1)
+d = d.cpu().numpy()
+l = l.cpu().numpy()
+
+def plot_one(i):
+    j = np.where((np.abs(df.iloc[:,4] - d[i,0,0]) < 1e-6) & (np.abs(df.iloc[:,5] - d[i,0,1]) < 1e-6) & (np.abs(df.iloc[:,6] - d[i,0,2]) < 1e-6))[0][0]
+    bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
+    plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
+
+name2ind = {name: ind for ind, name in bu.ind2name.items()}
+label_name, pred_name = "Boat", "SitStand"
+label, pred = name2ind["Boat"], name2ind["SitStand"]
+inds = np.where((labels==label) & (preds==pred))[0]
+save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem.split('_')[0]/f"{label_name}_{pred_name}"
+save_path.mkdir(parents=True, exist_ok=True)
+for i in inds:
+    plot_one(i)
+    dt = datetime.fromtimestamp(l[i,2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    name = f"{i},{l[i,1]},{dt},{torch.max(probs[i]).item():.2f}"
+    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+    plt.close()
+# fmt: on
+"""
+
+# # Get second max probability value
+# second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
+
 # Clustering
 # ==============
 
@@ -621,9 +620,6 @@ cm = contingency_matrix(labels, k_preds)
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-
-reducer = TSNE(n_components=2, random_state=cfg.seed)
-reduced = reducer.fit_transform(feats)
 # fm: on
 
 true_labels = range(len(mapper.new2old))

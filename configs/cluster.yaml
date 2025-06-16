@@ -94,7 +94,7 @@ min_dist: 0.1 # UMAP
 # Model:  
 #   Self Supervised: /home/fatemeh/Downloads/bird/snellius/ p20_1_1500.pth:cp+gull,20, p20_2_1500.pth:gull,20, p_mem6_500.pth:cp+gull,60
 #   Fine Tune:
-#   Small: /home/fatemeh/Downloads/bird/result/ 125_best.pth:starts,9
+#   Small: /home/fatemeh/Downloads/bird/result/ 125_best.pth:starts,9; exp132:starts,6;
 # Experiment:
 #   Sanity: 125(small,starts,9),6use,3discover,(avg|fc)
 #   Sanity: (p20_2,all,starts,9),6use,3discover,(norm|fc))
