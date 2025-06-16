@@ -3,6 +3,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -367,6 +368,27 @@ def test_gcd_old2new():
     # fmt:on
 
 
+# fmt: off
+def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False):
+    bu.plot_confusion_matrix(cm, true_labels=true_labels, pred_labels=pred_labels)
+    plt.savefig(save_path / f"{name}_cm.png", bbox_inches="tight")
+
+    plt.figure()
+    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5)
+    plt.colorbar(scatter, label="Label")
+    plt.title("Predictions")
+    plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
+
+    if PLOT_LABELS:
+        plt.figure()
+        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5)
+        plt.colorbar(scatter, label="Label")
+        plt.title("Labeled Data")
+        plt.savefig(save_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
+    # plt.show(block=True)
+# fmt: on
+
+
 """
 # Save Embeddings
 # ==============
@@ -416,7 +438,7 @@ print("train data is finished")
 # 6 classes for supervised learning. 3 (1, 3, 8) classes for clustering.
 discover_labels = [1, 3, 8]
 lt_labels = [0, 2, 4, 5, 6, 9]
-ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # labels_to_use or origianl labels
+ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
 
 l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
 l_mapper = Mapper(l_old2new)
@@ -487,8 +509,6 @@ probs = torch.softmax(torch.tensor(output), dim=1)
 preds = mapper_trained.decode(preds).cpu().numpy()
 cm = contingency_matrix(labels, preds)
 
-bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in ut_labels], pred_labels=[bu.ind2name[i] for i in cfg.labels_trained])
-
 if cm.shape[0] != cm.shape[1]:
     print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
 else:
@@ -499,6 +519,13 @@ false_neg = cm.sum(axis=1) - cm.max(axis=1)
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
 
+reducer = TSNE(n_components=2, random_state=cfg.seed)
+reduced = reducer.fit_transform(feats)
+
+true_labels = [bu.ind2name[i] for i in ut_labels]
+pred_labels = [bu.ind2name[i] for i in cfg.labels_trained]
+name = "cls_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
 """
 # Some plotting
 # fmt: off
@@ -571,28 +598,18 @@ k_preds = u_mapper.decode(preds.cpu()).numpy()
 # fmt: off
 reducer = TSNE(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(ordered_feat.cpu().numpy())
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=ordered_labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=k_preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
 
 cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
-bu.plot_confusion_matrix(cm, true_labels=[bu.ind2name[i] for i in cfg.labels_to_use], pred_labels=range(len(u_old2new)))
 
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
 
-def plot_tsne(reduced, labels, k_preds):
-    plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5)
-    plt.colorbar(scatter, label="Cluster Label")
-    plt.title("t-SNE of Labeled Data")
-    plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap="tab20", s=5)
-    plt.colorbar(scatter, label="Cluster Label")
-    plt.title("t-SNE of KMeans Predictions")
-    # plt.show(block=True)
 
-
+true_labels = [bu.ind2name[i] for i in cfg.labels_to_use]
+pred_labels = range(len(u_old2new))
+name = "gcd_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
 
 # Clustering
 # ==============
@@ -604,18 +621,16 @@ cm = contingency_matrix(labels, k_preds)
 false_neg = cm.sum(axis=1) - cm.max(axis=1)
 # fmt: off
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-# fmt: on
-bu.plot_confusion_matrix(cm, true_labels=range(len(mapper.new2old)), pred_labels=range(len(mapper.new2old)))
 
-# fmt: off
 reducer = TSNE(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(feats)
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=labels,cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
-plt.figure();scatter=plt.scatter(reduced[:,0], reduced[:,1],c=k_preds, cmap="tab20",s=5);plt.colorbar(scatter, label="Cluster Label")
-# fm: off
-print("done")
+# fm: on
 
-from scipy.optimize import linear_sum_assignment
+true_labels = range(len(mapper.new2old))
+pred_labels = range(len(mapper.new2old))
+name = "kmn_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
+
 n = max(cm.shape)
 padded = np.zeros((n, n), dtype=cm.dtype)
 padded[:cm.shape[0], :cm.shape[1]] = cm.max() - cm
