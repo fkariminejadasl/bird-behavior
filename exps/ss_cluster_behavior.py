@@ -86,7 +86,7 @@ batch_sizes_list = (
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-cfg.save_path.mkdir(parents=True, exist_ok=True)
+# cfg.save_path.mkdir(parents=True, exist_ok=True)
 
 
 def setup_training_dataloader(cfg, batch_size):
@@ -114,20 +114,20 @@ def setup_training_dataloader(cfg, batch_size):
     return loader
 
 
-def setup_testing_dataloader(cfg):
+def setup_testing_dataloader(test_data_file, labels_to_use, channel_first):
     # Load data
-    # all_measurements, label_ids = bd.load_csv(cfg.test_data_file)
+    # all_measurements, label_ids = bd.load_csv(test_data_file)
     # all_measurements, label_ids = bd.get_specific_labesl(
-    #     all_measurements, label_ids, cfg.labels_to_use
+    #     all_measurements, label_ids, labels_to_use
     # )
-    df = pd.read_csv(cfg.test_data_file, header=None)
-    df = df[df[3].isin(cfg.labels_to_use)]
-    mapping = {l: i for i, l in enumerate(cfg.labels_to_use)}
+    df = pd.read_csv(test_data_file, header=None)
+    df = df[df[3].isin(labels_to_use)]
+    mapping = {l: i for i, l in enumerate(labels_to_use)}
     df[3] = df[3].map(mapping)
     all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
     label_ids = df[[3, 0, 0]].iloc[::20].values
     dataset = bd.BirdDataset(
-        all_measurements, label_ids, channel_first=cfg.channel_first
+        all_measurements, label_ids, channel_first=channel_first
     )
     loader = DataLoader(
         dataset,
@@ -151,7 +151,7 @@ def get_activation(activation):
     return hook
 
 
-def save_unlabeled_embeddings(loader, model, layer_to_hook, device):
+def save_unlabeled_embeddings(save_path, loader, model, layer_to_hook, device):
     """
     collect all embeddings.
     Returns:
@@ -175,9 +175,9 @@ def save_unlabeled_embeddings(loader, model, layer_to_hook, device):
                 feats = activation.pop()  # shape (B, embed_dim, 1)
                 feats = feats.flatten(1)  # shape (B, embed_dim)
                 # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
-                # torch.save(feats.detach().cpu().numpy(), cfg.save_path / f"{i}.npy")
+                # torch.save(feats.detach().cpu().numpy(), save_path / f"{i}_{cfg.layer_name}.npy")
                 feats = feats.cpu().numpy()
-                np.savez(cfg.save_path / f"{i}", **{"feats": feats})
+                np.savez(save_path / f"{i}_{cfg.layer_name}", **{"feats": feats})
             del data, feats
             torch.cuda.empty_cache()
 
@@ -187,7 +187,7 @@ def save_unlabeled_embeddings(loader, model, layer_to_hook, device):
     print(f"Train embeddings are loaded in {end_time - start_time:.2f} seconds.")
 
 
-def save_labeled_embeddings(loader, model, layer_to_hook, device):
+def save_labeled_embeddings(save_file, loader, model, layer_to_hook, device):
     """
     save all embeddings and their labels.
     Returns:
@@ -210,9 +210,9 @@ def save_labeled_embeddings(loader, model, layer_to_hook, device):
                 labels = ldts[:, 0].cpu().numpy()
                 feats = feats.detach().cpu().numpy()
                 ouput = output.detach().cpu().numpy()
-                # torch.save({"feats": feats, "labels": labels}, cfg.save_path / "test.npy")
+                # torch.save({"feats": feats, "labels": labels}, save_file) # "test*.npy"
                 np.savez(
-                    cfg.save_path / "test",
+                    save_file, # test*.npz
                     **{"feats": feats, "labels": labels, "output": ouput},
                 )
             del data, feats, labels
@@ -224,9 +224,9 @@ def save_labeled_embeddings(loader, model, layer_to_hook, device):
     print(f"Test embeddings are loaded in {end_time - start_time:.2f} seconds.")
 
 
-def load_labeled_embeddings(file_name):
+def load_labeled_embeddings(save_file):
     # Load test embeddings
-    results = np.load(cfg.save_path / file_name)
+    results = np.load(save_file)
     feats = results["feats"]  # N x D
     labels = results["labels"]  # N
     output = results["output"]
@@ -234,13 +234,13 @@ def load_labeled_embeddings(file_name):
     return feats, labels, output
 
 
-def load_unlabeled_embeddings():
-    n = len(list(cfg.save_path.glob("*.npz"))) - 1
+def load_unlabeled_embeddings(save_path):
+    n = len(list(save_path.glob("*.npz"))) - 1
     # Load train embeddings
     u_feats = []
     for i in range(n):
-        # feats = torch.load(cfg.save_path/f"{i}.npy")
-        feats = np.load(cfg.save_path / f"{i}.npz")["feats"]
+        # feats = torch.load(save_path/f"{i}.npy")
+        feats = np.load(save_path / f"{i}_{cfg.layer_name}.npz")["feats"]
         u_feats.append(feats)
     u_feats = np.concatenate(u_feats, axis=0)  # N x D
     print(u_feats.shape)
@@ -422,28 +422,27 @@ del pmodel, name, p, state_dict
 torch.cuda.empty_cache()
 print("model is loaded")
 """
-"""
-test_loader = setup_testing_dataloader(cfg)
-save_labeled_embeddings(test_loader, model, layer_to_hook, device)
-print("test data is finished")
 
-train_loader = setup_training_dataloader(cfg, 8192)
-save_unlabeled_embeddings(train_loader, model, layer_to_hook, device)
-print("train data is finished")
-"""
 
 # Settings
 # ==============
 
+save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_')[0]
+save_path.mkdir(parents=True, exist_ok=True)
+
 discover_labels = [1, 3, 8]
 lt_labels = [0, 2, 4, 5, 6, 9]
-ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
+labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
+labels_trained = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+# discover_labels = [5]
+# lt_labels = [0, 2, 4, 6, 9]
+# labels_to_use = ut_labels = [0, 2, 4, 5, 6, 9]
 
 l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
 l_mapper = Mapper(l_old2new)
 u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
-mapper_trained = Mapper({l: i for i, l in enumerate(cfg.labels_trained)})
+mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
 model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
@@ -465,41 +464,34 @@ torch.cuda.empty_cache()
 print("model is loaded")
 layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
-"""
-activation = []
-hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
-test_loader = setup_testing_dataloader(cfg)
-with torch.no_grad():
-    for data, ldts in tqdm(test_loader):
-        data = data.to(device)
-        output = model(data)  # shape (B, embed_dim)
-        feats = activation.pop()  # shape (B, embed_dim, 1)
-        feats = feats.flatten(1)  # shape (B, embed_dim)
-        # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
-        labels = ldts[:, 0].cpu().numpy()
-        feats = feats.detach().cpu().numpy()
-        # torch.save({'feats':feats,'labels':labels}, cfg.save_path/"test_c3_avg.npy")
-        # np.savez(cfg.save_path/"test_c3_avg_np", **{'feats':feats,'labels':labels})
-hook_handle.remove()
-"""
 
-test_loader = setup_testing_dataloader(cfg)
-save_labeled_embeddings(test_loader, model, layer_to_hook, device)
+save_file = save_path / f"test_{cfg.layer_name}.npz"
+test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, cfg.channel_first)
+save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
 print("test data is finished")
 
 # Load test embeddings
-feats, labels, output = load_labeled_embeddings("test.npz")
+feats, labels, output = load_labeled_embeddings(save_file)
 labels = mapper.decode(torch.tensor(labels)).numpy()
-l_feats = torch.tensor(feats, device="cuda")
-l_targets = torch.tensor(labels, device="cuda")
 
+"""
+train_loader = setup_training_dataloader(cfg, 8192)
+save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
+print("train data is finished")
+"""
 # # Load train embeddings
-# u_feats_np = load_unlabeled_embeddings()  # (n=0)
+# u_feats_np = load_unlabeled_embeddings(save_path) # (n=0)
 # u_feats = torch.tensor(u_feats_np, device="cuda")
-
 
 # GCD
 # ==============
+l_feats = torch.tensor(feats, device="cuda")
+l_targets = torch.tensor(labels, device="cuda")
+
+# tensor_utl = torch.tensor(ut_labels, device=device)
+# mask = torch.isin(l_targets, tensor_utl)
+# l_feats = l_feats[mask]
+# l_targets = l_targets[mask]
 
 tensor_dl = torch.tensor(discover_labels, device=device)
 mask = torch.isin(l_targets, tensor_dl)
@@ -531,6 +523,7 @@ ordered_feat = torch.concatenate((lf, uf), axis=0)
 ordered_labels = torch.concatenate((lt, ut))
 ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
 k_preds = u_mapper.decode(preds.cpu()).numpy()
+# k_preds = preds.cpu().numpy() # for more than 9 clusters
 
 # fmt: off
 reducer = TSNE(n_components=2, random_state=cfg.seed)
@@ -542,11 +535,12 @@ false_neg = cm.sum(axis=1) - cm.max(axis=1)
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
 
-
-true_labels = [bu.ind2name[i] for i in cfg.labels_to_use]
+save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in ut_labels]))
+save_path_results.mkdir(parents=True, exist_ok=True)
+true_labels = [bu.ind2name[i] for i in labels_to_use]
 pred_labels = range(len(u_old2new))
-name = "gcd_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
-save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
+name = f"gcd_gvn" + "".join([str(i) for i in ut_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
 
 # classification
 # ==============
@@ -571,9 +565,9 @@ reducer = TSNE(n_components=2, random_state=cfg.seed)
 reduced = reducer.fit_transform(feats)
 
 true_labels = [bu.ind2name[i] for i in ut_labels]
-pred_labels = [bu.ind2name[i] for i in cfg.labels_trained]
-name = "cls_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
-save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
+pred_labels = [bu.ind2name[i] for i in labels_trained]
+name = "cls_gvn" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
 
 """
 # Some plotting
@@ -624,13 +618,13 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 
 true_labels = range(len(mapper.new2old))
 pred_labels = range(len(mapper.new2old))
-name = "kmn_tr" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
-save_cm_embeddings(cfg.save_path, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
+name = "kmn_gvn" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
 
 n = max(cm.shape)
 padded = np.zeros((n, n), dtype=cm.dtype)
 padded[:cm.shape[0], :cm.shape[1]] = cm.max() - cm
-linear_sum_assignment(cm.max() - cm)
+linear_sum_assignment(padded)
 
 
 """
