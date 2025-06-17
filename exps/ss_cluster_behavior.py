@@ -173,7 +173,10 @@ def save_unlabeled_embeddings(save_path, loader, model, layer_to_hook, device):
             _ = model(data)
             if activation:
                 feats = activation.pop()  # shape (B, embed_dim, 1)
-                feats = feats.flatten(1)  # shape (B, embed_dim)
+                if cfg.layer_name == "norm":
+                    feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                else:
+                    feats = feats.flatten(1)  # shape (B, embed_dim)
                 # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
                 # torch.save(feats.detach().cpu().numpy(), save_path / f"{i}_{cfg.layer_name}.npy")
                 feats = feats.cpu().numpy()
@@ -205,8 +208,10 @@ def save_labeled_embeddings(save_file, loader, model, layer_to_hook, device):
             output = model(data)
             if activation:
                 feats = activation.pop()  # shape (B, embed_dim, 1)
-                feats = feats.flatten(1)  # shape (B, embed_dim)
-                # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                if cfg.layer_name == "norm":
+                    feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                else:
+                    feats = feats.flatten(1)  # shape (B, embed_dim)
                 labels = ldts[:, 0].cpu().numpy()
                 feats = feats.detach().cpu().numpy()
                 ouput = output.detach().cpu().numpy()
@@ -382,7 +387,8 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, l
     if PLOT_LABELS:
         plt.figure()
         scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5)
-        plt.colorbar(scatter, label="Label")
+        cbar = plt.colorbar(scatter, label="Label")
+        # cbar.set_ticklabels(true_labels)
         plt.title("Labeled Data")
         plt.savefig(save_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
     # plt.show(block=True)
@@ -433,7 +439,7 @@ save_path.mkdir(parents=True, exist_ok=True)
 discover_labels = [1, 3, 8]
 lt_labels = [0, 2, 4, 5, 6, 9]
 labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
-labels_trained = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+labels_trained = [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9]
 # discover_labels = [5]
 # lt_labels = [0, 2, 4, 6, 9]
 # labels_to_use = ut_labels = [0, 2, 4, 5, 6, 9]
@@ -444,19 +450,19 @@ u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
 mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-# model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
-model = bm1.TransformerEncoderMAE(
-    img_size=cfg.g_len,
-    in_chans=cfg.in_channel,
-    out_chans=cfg.out_channel,
-    embed_dim=cfg.embed_dim,
-    depth=cfg.depth,
-    num_heads=cfg.num_heads,
-    mlp_ratio=cfg.mlp_ratio,
-    drop=cfg.drop,
-    layer_norm_eps=cfg.layer_norm_eps,
-)
+# model = bm1.TransformerEncoderMAE(
+#     img_size=cfg.g_len,
+#     in_chans=cfg.in_channel,
+#     out_chans=cfg.out_channel,
+#     embed_dim=cfg.embed_dim,
+#     depth=cfg.depth,
+#     num_heads=cfg.num_heads,
+#     mlp_ratio=cfg.mlp_ratio,
+#     drop=cfg.drop,
+#     layer_norm_eps=cfg.layer_norm_eps,
+# )
 bm.load_model(cfg.model_checkpoint, model, device)
 model.to(device)
 model.eval()
@@ -466,9 +472,10 @@ layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
 
 save_file = save_path / f"test_{cfg.layer_name}.npz"
-test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, cfg.channel_first)
-save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
-print("test data is finished")
+if not save_file.exists():
+    test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, cfg.channel_first)
+    save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
+    print("test data is finished")
 
 # Load test embeddings
 feats, labels, output = load_labeled_embeddings(save_file)
@@ -535,11 +542,11 @@ false_neg = cm.sum(axis=1) - cm.max(axis=1)
 print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
 # fmt: on
 
-save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in ut_labels]))
+save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained]))
 save_path_results.mkdir(parents=True, exist_ok=True)
 true_labels = [bu.ind2name[i] for i in labels_to_use]
 pred_labels = range(len(u_old2new))
-name = f"gcd_gvn" + "".join([str(i) for i in ut_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+name = f"gcd_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
 
 # classification
@@ -566,7 +573,7 @@ reduced = reducer.fit_transform(feats)
 
 true_labels = [bu.ind2name[i] for i in ut_labels]
 pred_labels = [bu.ind2name[i] for i in labels_trained]
-name = "cls_gvn" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+name = "cls"
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
 
 """
@@ -618,7 +625,7 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 
 true_labels = range(len(mapper.new2old))
 pred_labels = range(len(mapper.new2old))
-name = "kmn_gvn" + "".join([str(i) for i in ut_labels]) + "_ds" + "".join([str(i) for i in discover_labels])
+name = f"kmn_gvn_ds{cfg.n_clusters}" 
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
 
 n = max(cm.shape)
