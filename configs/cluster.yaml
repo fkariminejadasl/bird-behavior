@@ -18,7 +18,7 @@ save_path: /home/fatemeh/Downloads/bird/result/125 # f_mem1_1 # f_mem1_bal5_gull
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final/gull  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #final/proc2/s_correct.csv, test.csv, final/s_data_shift/s_data_unbalanced.csv, orig/s_data_orig.csv, s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/125_best.pth #f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_mem2_1_best.pth #f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # Data
 labels_trained: [0, 2, 4, 5, 6, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
 labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
@@ -26,9 +26,9 @@ labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2,
 seed: 1234
 exp: 45
 num_workers: 1 # 15
-layer_name: avgpool # norm # fc # avgpool
+layer_name: fc # norm # fc # avgpool
 # # Model
-channel_first: True
+# channel_first: True
 # # Model
 # channel_first: False
 # g_len: 60  # 60, 20
@@ -59,7 +59,7 @@ channel_first: True
 # drop: 0.0
 # layer_norm_eps: 1e-6
 # Model
-# channel_first: False
+channel_first: False
 g_len: 20
 in_channel: 4
 out_channel: 9 # 6, 9
@@ -93,7 +93,7 @@ min_dist: 0.1 # UMAP
 #   Balanced: /home/fatemeh/Downloads/bird/data/final/s_data:create_balanced_data, /home/fatemeh/Downloads/bird/data/final/balanced.csv:balance_data
 # Model:  
 #   Self Supervised: /home/fatemeh/Downloads/bird/snellius/ p20_1_1500.pth:cp+gull,20, p20_2_1500.pth:gull,20, p_mem6_500.pth:cp+gull,60
-#   Fine Tune:
+#   Fine Tune: /home/fatemeh/Downloads/bird/result/ f_mem2_1,starts,9; f_mem2_2,starts,6
 #   Small: /home/fatemeh/Downloads/bird/result/ 125_best.pth:starts,9; exp132:starts,6;
 # Experiment:
 #   Sanity: 125(small,starts,9),6use,3discover,(avg|fc)

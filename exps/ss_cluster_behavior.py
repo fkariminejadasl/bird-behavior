@@ -427,7 +427,7 @@ print("model is loaded")
 # Settings
 # ==============
 
-save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_')[0]
+save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
 save_path.mkdir(parents=True, exist_ok=True)
 
 discover_labels = [1, 3, 8]
@@ -444,19 +444,19 @@ u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
 mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+# model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
-# model = bm1.TransformerEncoderMAE(
-#     img_size=cfg.g_len,
-#     in_chans=cfg.in_channel,
-#     out_chans=cfg.out_channel,
-#     embed_dim=cfg.embed_dim,
-#     depth=cfg.depth,
-#     num_heads=cfg.num_heads,
-#     mlp_ratio=cfg.mlp_ratio,
-#     drop=cfg.drop,
-#     layer_norm_eps=cfg.layer_norm_eps,
-# )
+model = bm1.TransformerEncoderMAE(
+    img_size=cfg.g_len,
+    in_chans=cfg.in_channel,
+    out_chans=cfg.out_channel,
+    embed_dim=cfg.embed_dim,
+    depth=cfg.depth,
+    num_heads=cfg.num_heads,
+    mlp_ratio=cfg.mlp_ratio,
+    drop=cfg.drop,
+    layer_norm_eps=cfg.layer_norm_eps,
+)
 bm.load_model(cfg.model_checkpoint, model, device)
 model.to(device)
 model.eval()

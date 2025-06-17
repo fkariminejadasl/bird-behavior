@@ -236,6 +236,8 @@ print(
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
+
+# """
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
@@ -287,18 +289,33 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
 # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+# """
 
 bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
-fail_path = cfg.save_path / f"failed/{cfg.exp}"
+name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
+fail_path = cfg.save_path / f"failed/{name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-del eval_loader, train_loader, train_dataset, eval_dataset
-data_files = {"valid": cfg.valid_file, "test": cfg.test_file}
-for stage, data_file in data_files.items():
-    dataset = bd.get_bird_dataset_from_csv(
-        data_file, cfg.labels_to_use, channel_first=False
-    )
+datasets = dict()
+if cfg.valid_file is not None:
+    data_files = {
+        "train": cfg.data_file,
+        "valid": cfg.valid_file,
+        "test": cfg.test_file,
+    }
+    for stage, data_file in data_files.items():
+        if data_file is not None:
+            # del eval_loader, train_loader, train_dataset, eval_dataset
+            dataset = bd.get_bird_dataset_from_csv(
+                data_file, cfg.labels_to_use, channel_first=True
+            )
+            datasets[stage] = dataset
+
+else:
+    datasets = {"train": train_dataset, "valid": eval_dataset}
+
+for stage, dataset in datasets.items():
     loader = DataLoader(
         dataset,
         batch_size=len(dataset),
