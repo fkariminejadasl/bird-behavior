@@ -5,6 +5,7 @@ from pathlib import Path
 
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 import numpy as np
 import pandas as pd
 import torch
@@ -375,20 +376,25 @@ def test_gcd_old2new():
 
 # fmt: off
 def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False):
+    base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
+    cmap9 = ListedColormap(base[:len(true_labels)])
+    
     bu.plot_confusion_matrix(cm, true_labels=true_labels, pred_labels=pred_labels)
     plt.savefig(save_path / f"{name}_cm.png", bbox_inches="tight")
 
     plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5)
+    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
     plt.colorbar(scatter, label="Label")
     plt.title("Predictions")
     plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
 
     if PLOT_LABELS:
         plt.figure()
-        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5)
+        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap=cmap9, s=5, vmin=0, vmax=len(true_labels)-1)
         cbar = plt.colorbar(scatter, label="Label")
-        # cbar.set_ticklabels(true_labels)
+        # place ticks at integer positions 0…n-1: place ticks before relabel them
+        cbar.set_ticks(np.arange(len(true_labels)))
+        cbar.set_ticklabels(true_labels)
         plt.title("Labeled Data")
         plt.savefig(save_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
     # plt.show(block=True)
@@ -439,7 +445,7 @@ save_path.mkdir(parents=True, exist_ok=True)
 discover_labels = [1, 3, 8]
 lt_labels = [0, 2, 4, 5, 6, 9]
 labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
-labels_trained = [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9]
+labels_trained = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
 # discover_labels = [5]
 # lt_labels = [0, 2, 4, 6, 9]
 # labels_to_use = ut_labels = [0, 2, 4, 5, 6, 9]
@@ -450,19 +456,19 @@ u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
 mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+# model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
-# model = bm1.TransformerEncoderMAE(
-#     img_size=cfg.g_len,
-#     in_chans=cfg.in_channel,
-#     out_chans=cfg.out_channel,
-#     embed_dim=cfg.embed_dim,
-#     depth=cfg.depth,
-#     num_heads=cfg.num_heads,
-#     mlp_ratio=cfg.mlp_ratio,
-#     drop=cfg.drop,
-#     layer_norm_eps=cfg.layer_norm_eps,
-# )
+model = bm1.TransformerEncoderMAE(
+    img_size=cfg.g_len,
+    in_chans=cfg.in_channel,
+    out_chans=cfg.out_channel,
+    embed_dim=cfg.embed_dim,
+    depth=cfg.depth,
+    num_heads=cfg.num_heads,
+    mlp_ratio=cfg.mlp_ratio,
+    drop=cfg.drop,
+    layer_norm_eps=cfg.layer_norm_eps,
+)
 bm.load_model(cfg.model_checkpoint, model, device)
 model.to(device)
 model.eval()
@@ -547,6 +553,12 @@ save_path_results.mkdir(parents=True, exist_ok=True)
 true_labels = [bu.ind2name[i] for i in labels_to_use]
 pred_labels = range(len(u_old2new))
 name = f"gcd_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+
+# base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
+# cmap9 = ListedColormap(base[:len(true_labels)])
+# scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
+# cbar = plt.colorbar(scatter, label="Label")
+# cbar.set_ticklabels(true_labels)
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
 
 # classification
