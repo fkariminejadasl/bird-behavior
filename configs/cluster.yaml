@@ -24,9 +24,14 @@ labels_trained: [0, 2, 4, 5, 6, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6
 labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
 # General
 seed: 1234
-exp: 45
 num_workers: 1 # 15
 layer_name: fc # norm # fc # avgpool
+model:
+  # name: small
+  # channel_first: True
+  name: mae
+  channel_first: False
+
 # # Model
 # channel_first: True
 # # Model

@@ -90,19 +90,19 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # cfg.save_path.mkdir(parents=True, exist_ok=True)
 
 
-def setup_training_dataloader(cfg, batch_size):
+def setup_training_dataloader(cfg, batch_size, channel_first):
     # Load data
     # all_measurements, label_ids = bd.load_csv(cfg.data_file)
     # all_measurements, label_ids = bd.get_specific_labesl(
     #     all_measurements, label_ids, bu.target_labels
     # )
-    # dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=cfg.channel_first)
+    # dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=channel_first)
     gimus = read_csv_files(cfg.data_file)
     print(gimus.shape)
     gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
     gimus = np.ascontiguousarray(gimus)
     print(gimus.shape)
-    dataset = bd.BirdDataset(gimus, channel_first=cfg.channel_first)
+    dataset = bd.BirdDataset(gimus, channel_first=channel_first)
     loader = DataLoader(
         dataset,
         batch_size=batch_size,  # len(dataset), # 4096
@@ -438,6 +438,7 @@ print("model is loaded")
 
 # Settings
 # ==============
+channel_first = cfg.model.channel_first
 
 save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
 save_path.mkdir(parents=True, exist_ok=True)
@@ -456,19 +457,21 @@ u_mapper = Mapper(u_old2new)
 mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
 mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-# model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+if cfg.model.name == "small":
+    model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
-model = bm1.TransformerEncoderMAE(
-    img_size=cfg.g_len,
-    in_chans=cfg.in_channel,
-    out_chans=cfg.out_channel,
-    embed_dim=cfg.embed_dim,
-    depth=cfg.depth,
-    num_heads=cfg.num_heads,
-    mlp_ratio=cfg.mlp_ratio,
-    drop=cfg.drop,
-    layer_norm_eps=cfg.layer_norm_eps,
-)
+if cfg.model.name == "mae":
+    model = bm1.TransformerEncoderMAE(
+        img_size=cfg.g_len,
+        in_chans=cfg.in_channel,
+        out_chans=cfg.out_channel,
+        embed_dim=cfg.embed_dim,
+        depth=cfg.depth,
+        num_heads=cfg.num_heads,
+        mlp_ratio=cfg.mlp_ratio,
+        drop=cfg.drop,
+        layer_norm_eps=cfg.layer_norm_eps,
+    )
 bm.load_model(cfg.model_checkpoint, model, device)
 model.to(device)
 model.eval()
@@ -479,7 +482,7 @@ layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
 save_file = save_path / f"test_{cfg.layer_name}.npz"
 if not save_file.exists():
-    test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, cfg.channel_first)
+    test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, channel_first)
     save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
     print("test data is finished")
 
@@ -488,7 +491,7 @@ feats, labels, output = load_labeled_embeddings(save_file)
 labels = mapper.decode(torch.tensor(labels)).numpy()
 
 """
-train_loader = setup_training_dataloader(cfg, 8192)
+train_loader = setup_training_dataloader(cfg, 8192, channel_first)
 save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
 print("train data is finished")
 """
@@ -595,7 +598,7 @@ from datetime import datetime, timezone
 
 df = pd.read_csv(cfg.test_data_file, header=None)
 d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
-if cfg.channel_first:
+if channel_first:
     d = d.permute(0, 2, 1)
 d = d.cpu().numpy()
 l = l.cpu().numpy()
