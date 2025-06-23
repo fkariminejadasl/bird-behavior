@@ -5,6 +5,7 @@ from pathlib import Path
 
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib.colors import ListedColormap
 import numpy as np
 import pandas as pd
@@ -376,30 +377,53 @@ def test_gcd_old2new():
 
 # fmt: off
 def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False):
-    base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
-    cmap9 = ListedColormap(base[:len(true_labels)])
+    # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
+    # cmap9 = ListedColormap(base[:len(true_labels)])
     
     bu.plot_confusion_matrix(cm, true_labels=true_labels, pred_labels=pred_labels)
     plt.savefig(save_path / f"{name}_cm.png", bbox_inches="tight")
 
+    unique_classes = np.unique(preds)
+    bounds = np.concatenate((unique_classes-0.5, [unique_classes[-1]+0.5]))
+    norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+    
     plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
-    plt.colorbar(scatter, label="Label")
+    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5, norm=norm)#, vmin=0, vmax=len(pred_labels)-1)
+    cbar = plt.colorbar(scatter, label="Label")
+    cbar.set_ticks(unique_classes)
     plt.title("Predictions")
     plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
 
     if PLOT_LABELS:
+        unique_classes = np.unique(labels)
+        bounds = np.concatenate((unique_classes-0.5, [unique_classes[-1]+0.5]))
+        norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+
         plt.figure()
-        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap=cmap9, s=5, vmin=0, vmax=len(true_labels)-1)
+        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm)#, vmin=0, vmax=len(true_labels)-1)
         cbar = plt.colorbar(scatter, label="Label")
+        # cbar = plt.colorbar(scatter, ticks=unique_classes, label="Label")
         # place ticks at integer positions 0…n-1: place ticks before relabel them
-        cbar.set_ticks(np.arange(len(true_labels)))
+        cbar.set_ticks(unique_classes)
         cbar.set_ticklabels(true_labels)
         plt.title("Labeled Data")
         plt.savefig(save_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
     # plt.show(block=True)
 # fmt: on
 
+
+def save_hungarian(cm, method_name, save_path):
+    """
+    Save the Hungarian assignment for the contingency matrix.
+    """
+    # n = max(cm.shape)
+    # padded = np.zeros((n, n), dtype=cm.dtype)
+    # padded[:cm.shape[0], :cm.shape[1]] = cm.max() - cm
+    rows, cols = linear_sum_assignment(cm.max() - cm)
+    with open(save_path, "a") as f:
+        f.write(f"{method_name}:\n")
+        f.write(", ".join(map(str, rows)) + "\n")
+        f.write(", ".join(map(str, cols)) + "\n\n")
 
 """
 # Save Embeddings
@@ -443,13 +467,18 @@ channel_first = cfg.model.channel_first
 save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
 save_path.mkdir(parents=True, exist_ok=True)
 
-discover_labels = [1, 3, 8]
-lt_labels = [0, 2, 4, 5, 6, 9]
+discover_labels = [1, 2, 4, 5, 8, 9]
+lt_labels = [0, 3, 6]
 labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
-labels_trained = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
+labels_trained = [0, 3, 6] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
+# discover_labels = [1, 3, 8]
+# lt_labels = [0, 2, 4, 5, 6, 9]
+# labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
+# labels_trained = [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
 # discover_labels = [5]
 # lt_labels = [0, 2, 4, 6, 9]
 # labels_to_use = ut_labels = [0, 2, 4, 5, 6, 9]
+assert sorted(discover_labels + lt_labels) == labels_to_use
 
 l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
 l_mapper = Mapper(l_old2new)
@@ -553,9 +582,11 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 
 save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained]))
 save_path_results.mkdir(parents=True, exist_ok=True)
+hungarian_file = save_path_results / "hungarian.txt"
 true_labels = [bu.ind2name[i] for i in labels_to_use]
 pred_labels = range(len(u_old2new))
-name = f"gcd_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+method_name = "gcd"
+name = f"{method_name}_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
 
 # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
 # cmap9 = ListedColormap(base[:len(true_labels)])
@@ -563,6 +594,7 @@ name = f"gcd_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str
 # cbar = plt.colorbar(scatter, label="Label")
 # cbar.set_ticklabels(true_labels)
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
+save_hungarian(cm, method_name, hungarian_file)
 
 # classification
 # ==============
@@ -590,7 +622,7 @@ true_labels = [bu.ind2name[i] for i in ut_labels]
 pred_labels = [bu.ind2name[i] for i in labels_trained]
 name = "cls"
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
-
+save_hungarian(cm, name, hungarian_file)
 """
 # Some plotting
 # fmt: off
@@ -640,14 +672,11 @@ print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false
 
 true_labels = range(len(mapper.new2old))
 pred_labels = range(len(mapper.new2old))
-name = f"kmn_gvn_ds{cfg.n_clusters}" 
+method_name = "kmn"
+name = f"{method_name}_gvn_ds{cfg.n_clusters}" 
 save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
-
-n = max(cm.shape)
-padded = np.zeros((n, n), dtype=cm.dtype)
-padded[:cm.shape[0], :cm.shape[1]] = cm.max() - cm
-linear_sum_assignment(padded)
-
+save_hungarian(cm, method_name, hungarian_file)
+print("Done")
 
 """
 GCD (Generalized Category Discovery)
