@@ -5,7 +5,7 @@ valid_file: #/home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
 test_file: #/home/fatemeh/Downloads/bird/data/final/proc2/test.csv
 # General
 seed: 32984
-exp: 133  # Experiment number
+exp: 134  # Experiment number
 num_workers: 1 # 1, 15
 no_epochs: 4000
 save_every: 2000
@@ -13,7 +13,7 @@ save_every: 2000
 train_per: 0.9
 data_per: 1.0
 batch_size: # 4096, 4241 if not given len(train_dataset)
-labels_to_use: [0, 3, 6] # [0, 1, 2, 3, 4, 5, 6, 8, 9] [0, 2, 4, 5, 6, 9]
+labels_to_use: [2, 3, 4, 6, 9] # [0, 1, 2, 3, 4, 5, 6, 8, 9] [0, 2, 4, 5, 6, 9]
 # Training
 warmup_epochs: 1000
 step_size: 2000
@@ -29,7 +29,7 @@ model:
   parameters:
     in_channels: 4
     mid_channels: 30
-    out_channels: 3
+    out_channels: 5
   # name: ResNet18_1D
   # parameters:
   #   dropout: 0.3

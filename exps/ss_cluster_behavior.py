@@ -459,226 +459,234 @@ torch.cuda.empty_cache()
 print("model is loaded")
 """
 
+def main(cfg):
+    # Settings
+    # ==============
+    channel_first = cfg.model.channel_first
 
-# Settings
-# ==============
-channel_first = cfg.model.channel_first
-
-save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
-save_path.mkdir(parents=True, exist_ok=True)
-
-
-lt_labels = cfg.lt_labels
-discover_labels = cfg.discover_labels
-labels_to_use = ut_labels = cfg.labels_to_use
-labels_trained = cfg.labels_trained
-all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-if discover_labels is None:
-    discover_labels = sorted(set(all_labels) - set(cfg.lt_labels))
-if labels_to_use is None:
-    labels_to_use = ut_labels = all_labels.copy()
-if labels_trained is None:
-    labels_trained = ut_labels.copy() #lt_labels.copy() ut_labels.copy()
-
-# assert sorted(discover_labels + lt_labels) == labels_to_use
-
-l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
-l_mapper = Mapper(l_old2new)
-u_mapper = Mapper(u_old2new)
-mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
-mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
-
-if cfg.model.name == "small":
-    model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
-
-if cfg.model.name == "mae":
-    model = bm1.TransformerEncoderMAE(
-        img_size=cfg.g_len,
-        in_chans=cfg.in_channel,
-        out_chans=cfg.out_channel,
-        embed_dim=cfg.embed_dim,
-        depth=cfg.depth,
-        num_heads=cfg.num_heads,
-        mlp_ratio=cfg.mlp_ratio,
-        drop=cfg.drop,
-        layer_norm_eps=cfg.layer_norm_eps,
-    )
-bm.load_model(cfg.model_checkpoint, model, device)
-model.to(device)
-model.eval()
-torch.cuda.empty_cache()
-print("model is loaded")
-layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
+    save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
+    save_path.mkdir(parents=True, exist_ok=True)
 
 
-save_file = save_path / f"test_{cfg.layer_name}.npz"
-if not save_file.exists():
-    test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, channel_first)
-    save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
-    print("test data is finished")
+    lt_labels = cfg.lt_labels
+    discover_labels = cfg.discover_labels
+    labels_to_use = ut_labels = cfg.labels_to_use
+    labels_trained = cfg.labels_trained
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    if discover_labels is None:
+        discover_labels = sorted(set(all_labels) - set(cfg.lt_labels))
+    if labels_to_use is None:
+        labels_to_use = ut_labels = all_labels.copy()
+    if labels_trained is None:
+        labels_trained = lt_labels.copy() #lt_labels.copy() ut_labels.copy()
 
-# Load test embeddings
-feats, labels, output = load_labeled_embeddings(save_file)
-labels = mapper.decode(torch.tensor(labels)).numpy()
+    # assert sorted(discover_labels + lt_labels) == labels_to_use
 
-"""
-train_loader = setup_training_dataloader(cfg, 8192, channel_first)
-save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
-print("train data is finished")
-"""
-# # Load train embeddings
-# u_feats_np = load_unlabeled_embeddings(save_path) # (n=0)
-# u_feats = torch.tensor(u_feats_np, device="cuda")
+    l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
+    l_mapper = Mapper(l_old2new)
+    u_mapper = Mapper(u_old2new)
+    mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
+    mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-# GCD
-# ==============
-l_feats = torch.tensor(feats, device="cuda")
-l_targets = torch.tensor(labels, device="cuda")
+    if cfg.model.name == "small":
+        model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
-# tensor_utl = torch.tensor(ut_labels, device=device)
-# mask = torch.isin(l_targets, tensor_utl)
-# l_feats = l_feats[mask]
-# l_targets = l_targets[mask]
+    if cfg.model.name == "mae":
+        model = bm1.TransformerEncoderMAE(
+            img_size=cfg.g_len,
+            in_chans=cfg.in_channel,
+            out_chans=cfg.out_channel,
+            embed_dim=cfg.embed_dim,
+            depth=cfg.depth,
+            num_heads=cfg.num_heads,
+            mlp_ratio=cfg.mlp_ratio,
+            drop=cfg.drop,
+            layer_norm_eps=cfg.layer_norm_eps,
+        )
+    bm.load_model(cfg.model_checkpoint, model, device)
+    model.to(device)
+    model.eval()
+    torch.cuda.empty_cache()
+    print("model is loaded")
+    layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
-tensor_dl = torch.tensor(discover_labels, device=device)
-mask = torch.isin(l_targets, tensor_dl)
-uf1 = l_feats[mask]
-ut1 = l_targets[mask]
-uf2 = l_feats[~mask][2000:]
-ut2 = l_targets[~mask][2000:]
-ut = torch.cat((ut1, ut2))
-uf = torch.cat((uf1, uf2))  # uf = torch.cat((uf1, uf2, u_feats))
-lf = l_feats[~mask][:2000]
-lt = l_targets[~mask][:2000]
 
-ut = u_mapper.encode(ut)
-lt = l_mapper.encode(lt)
+    save_file = save_path / f"test_{cfg.layer_name}.npz"
+    if not save_file.exists():
+        test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, channel_first)
+        save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
+        print("test data is finished")
 
-# fmt: off
-kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
-# fmt: off
-kmeans.fit_mix(uf, lf, lt)
-# preds = kmeans.labels_.cpu().numpy()
-preds = kmeans.labels_
+    # Load test embeddings
+    feats, labels, output = load_labeled_embeddings(save_file)
+    labels = mapper.decode(torch.tensor(labels)).numpy()
 
-# assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
-assert preds[:lt.shape[0]].equal(lt)
-print(uf.shape[0], lf.shape[0], l_feats.shape[0])
+    """
+    train_loader = setup_training_dataloader(cfg, 8192, channel_first)
+    save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
+    print("train data is finished")
+    """
+    # # Load train embeddings
+    # u_feats_np = load_unlabeled_embeddings(save_path) # (n=0)
+    # u_feats = torch.tensor(u_feats_np, device="cuda")
 
-# ordered_feat = torch.concatenate((lf, uf1, uf2), axis=0)
-ordered_feat = torch.concatenate((lf, uf), axis=0)
-ordered_labels = torch.concatenate((lt, ut))
-ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
-k_preds = u_mapper.decode(preds.cpu()).numpy()
-# k_preds = preds.cpu().numpy() # for more than 9 clusters
+    # GCD
+    # ==============
+    l_feats = torch.tensor(feats, device="cuda")
+    l_targets = torch.tensor(labels, device="cuda")
 
-# fmt: off
-reducer = TSNE(n_components=2, random_state=cfg.seed)
-reduced = reducer.fit_transform(ordered_feat.cpu().numpy())
+    # tensor_utl = torch.tensor(ut_labels, device=device)
+    # mask = torch.isin(l_targets, tensor_utl)
+    # l_feats = l_feats[mask]
+    # l_targets = l_targets[mask]
 
-cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
+    tensor_dl = torch.tensor(discover_labels, device=device)
+    mask = torch.isin(l_targets, tensor_dl)
+    uf1 = l_feats[mask]
+    ut1 = l_targets[mask]
+    uf2 = l_feats[~mask][2000:]
+    ut2 = l_targets[~mask][2000:]
+    ut = torch.cat((ut1, ut2))
+    uf = torch.cat((uf1, uf2))  # uf = torch.cat((uf1, uf2, u_feats))
+    lf = l_feats[~mask][:2000]
+    lt = l_targets[~mask][:2000]
 
-false_neg = cm.sum(axis=1) - cm.max(axis=1)
-print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-# fmt: on
+    ut = u_mapper.encode(ut)
+    lt = l_mapper.encode(lt)
 
-save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained]))
-save_path_results.mkdir(parents=True, exist_ok=True)
-hungarian_file = save_path_results / "hungarian.txt"
-true_labels = [bu.ind2name[i] for i in labels_to_use]
-pred_labels = range(len(u_old2new))
-method_name = "gcd"
-name = f"{method_name}_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+    # fmt: off
+    kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
+    # fmt: off
+    kmeans.fit_mix(uf, lf, lt)
+    # preds = kmeans.labels_.cpu().numpy()
+    preds = kmeans.labels_
 
-# base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
-# cmap9 = ListedColormap(base[:len(true_labels)])
-# scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
-# cbar = plt.colorbar(scatter, label="Label")
-# cbar.set_ticklabels(true_labels)
-save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
-save_hungarian(cm, method_name, hungarian_file)
+    # assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
+    assert preds[:lt.shape[0]].equal(lt)
+    print(uf.shape[0], lf.shape[0], l_feats.shape[0])
 
-# classification
-# ==============
+    # ordered_feat = torch.concatenate((lf, uf1, uf2), axis=0)
+    ordered_feat = torch.concatenate((lf, uf), axis=0)
+    ordered_labels = torch.concatenate((lt, ut))
+    ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
+    k_preds = u_mapper.decode(preds.cpu()).numpy()
+    # k_preds = preds.cpu().numpy() # for more than 9 clusters
 
-preds = torch.argmax(torch.tensor(output), dim=1)
-probs = torch.softmax(torch.tensor(output), dim=1)
+    # fmt: off
+    reducer = TSNE(n_components=2, random_state=cfg.seed)
+    reduced = reducer.fit_transform(ordered_feat.cpu().numpy())
 
-preds = mapper_trained.decode(preds).cpu().numpy()
-cm = contingency_matrix(labels, preds)
+    cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
 
-if cm.shape[0] != cm.shape[1]:
-    print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
-else:
-    print(sum(cm.diagonal()), l_feats.shape[0])
+    false_neg = cm.sum(axis=1) - cm.max(axis=1)
+    print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+    # fmt: on
 
-false_neg = cm.sum(axis=1) - cm.max(axis=1)
-# fmt: off
-print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-# fmt: on
+    save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained]))
+    save_path_results.mkdir(parents=True, exist_ok=True)
+    hungarian_file = save_path_results / "hungarian.txt"
+    true_labels = [bu.ind2name[i] for i in labels_to_use]
+    pred_labels = range(len(u_old2new))
+    method_name = "gcd"
+    name = f"{method_name}_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
 
-reducer = TSNE(n_components=2, random_state=cfg.seed)
-reduced = reducer.fit_transform(feats)
+    # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
+    # cmap9 = ListedColormap(base[:len(true_labels)])
+    # scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
+    # cbar = plt.colorbar(scatter, label="Label")
+    # cbar.set_ticklabels(true_labels)
+    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
+    save_hungarian(cm, method_name, hungarian_file)
 
-true_labels = [bu.ind2name[i] for i in ut_labels]
-pred_labels = [bu.ind2name[i] for i in labels_trained]
-name = "cls"
-save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
-save_hungarian(cm, name, hungarian_file)
-"""
-# Some plotting
-# fmt: off
-from datetime import datetime, timezone
+    # classification
+    # ==============
 
-df = pd.read_csv(cfg.test_data_file, header=None)
-d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
-if channel_first:
-    d = d.permute(0, 2, 1)
-d = d.cpu().numpy()
-l = l.cpu().numpy()
+    preds = torch.argmax(torch.tensor(output), dim=1)
+    probs = torch.softmax(torch.tensor(output), dim=1)
 
-def plot_one(i):
-    j = np.where((np.abs(df.iloc[:,4] - d[i,0,0]) < 1e-6) & (np.abs(df.iloc[:,5] - d[i,0,1]) < 1e-6) & (np.abs(df.iloc[:,6] - d[i,0,2]) < 1e-6))[0][0]
-    bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
-    plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
+    preds = mapper_trained.decode(preds).cpu().numpy()
+    cm = contingency_matrix(labels, preds)
 
-name2ind = {name: ind for ind, name in bu.ind2name.items()}
-label_name, pred_name = "Boat", "SitStand"
-label, pred = name2ind["Boat"], name2ind["SitStand"]
-inds = np.where((labels==label) & (preds==pred))[0]
-save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem.split('_')[0]/f"{label_name}_{pred_name}"
-save_path.mkdir(parents=True, exist_ok=True)
-for i in inds:
-    plot_one(i)
-    dt = datetime.fromtimestamp(l[i,2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    name = f"{i},{l[i,1]},{dt},{torch.max(probs[i]).item():.2f}"
-    plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
-    plt.close()
-# fmt: on
-"""
+    if cm.shape[0] != cm.shape[1]:
+        print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
+    else:
+        print(sum(cm.diagonal()), l_feats.shape[0])
 
-# # Get second max probability value
-# second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
+    false_neg = cm.sum(axis=1) - cm.max(axis=1)
+    # fmt: off
+    print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+    # fmt: on
 
-# Clustering
-# ==============
+    reducer = TSNE(n_components=2, random_state=cfg.seed)
+    reduced = reducer.fit_transform(feats)
 
-kmeans = MiniBatchKMeans(cfg.n_clusters, random_state=cfg.seed)
-kmeans.fit(feats)
-k_preds = kmeans.labels_
-cm = contingency_matrix(labels, k_preds)
-false_neg = cm.sum(axis=1) - cm.max(axis=1)
-# fmt: off
-print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-# fm: on
+    true_labels = [bu.ind2name[i] for i in ut_labels]
+    pred_labels = [bu.ind2name[i] for i in labels_trained]
+    name = "cls"
+    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
+    save_hungarian(cm, name, hungarian_file)
+    """
+    # Some plotting
+    # fmt: off
+    from datetime import datetime, timezone
 
-true_labels = range(len(mapper.new2old))
-pred_labels = range(len(mapper.new2old))
-method_name = "kmn"
-name = f"{method_name}_gvn_ds{cfg.n_clusters}" 
-save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
-save_hungarian(cm, method_name, hungarian_file)
-print("Done")
+    df = pd.read_csv(cfg.test_data_file, header=None)
+    d, l = next(iter(test_loader)) # d.shape 4694 x 20 x 4, l.shape 4694 x 3
+    if channel_first:
+        d = d.permute(0, 2, 1)
+    d = d.cpu().numpy()
+    l = l.cpu().numpy()
+
+    def plot_one(i):
+        j = np.where((np.abs(df.iloc[:,4] - d[i,0,0]) < 1e-6) & (np.abs(df.iloc[:,5] - d[i,0,1]) < 1e-6) & (np.abs(df.iloc[:,6] - d[i,0,2]) < 1e-6))[0][0]
+        bu.plot_one(np.array(df.iloc[j:j+20,4:])) # bu.plot_one(d[i])
+        plt.title(f"{torch.max(probs[i]).item():.2f}, {df.iloc[j,7]:.2f}")
+
+    name2ind = {name: ind for ind, name in bu.ind2name.items()}
+    label_name, pred_name = "Boat", "SitStand"
+    label, pred = name2ind["Boat"], name2ind["SitStand"]
+    inds = np.where((labels==label) & (preds==pred))[0]
+    save_path = cfg.model_checkpoint.parent/cfg.model_checkpoint.stem.split('_')[0]/f"{label_name}_{pred_name}"
+    save_path.mkdir(parents=True, exist_ok=True)
+    for i in inds:
+        plot_one(i)
+        dt = datetime.fromtimestamp(l[i,2], tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        name = f"{i},{l[i,1]},{dt},{torch.max(probs[i]).item():.2f}"
+        plt.savefig(save_path / f"{name}.png", bbox_inches="tight")
+        plt.close()
+    # fmt: on
+    """
+
+    # # Get second max probability value
+    # second_max_probs = torch.sort(probs, dim=1, descending=True)[0][:,1]
+
+    # Clustering
+    # ==============
+
+    kmeans = MiniBatchKMeans(cfg.n_clusters, random_state=cfg.seed)
+    kmeans.fit(feats)
+    k_preds = kmeans.labels_
+    cm = contingency_matrix(labels, k_preds)
+    false_neg = cm.sum(axis=1) - cm.max(axis=1)
+    # fmt: off
+    print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
+    # fm: on
+
+    true_labels = range(len(mapper.new2old))
+    pred_labels = range(len(mapper.new2old))
+    method_name = "kmn"
+    name = f"{method_name}_gvn_ds{cfg.n_clusters}" 
+    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
+    save_hungarian(cm, method_name, hungarian_file)
+    print("Done")
+
+cfg.lt_labels = [0, 1, 2, 3, 4, 5, 6, 9]
+exp = 135
+cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+cfg.model.name = "small"
+cfg.model.channel_first = True
+cfg.out_channel = len(cfg.lt_labels)
+main(cfg)
 
 """
 GCD (Generalized Category Discovery)

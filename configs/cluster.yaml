@@ -18,7 +18,7 @@ save_path: /home/fatemeh/Downloads/bird/result/125 # f_mem1_1 # f_mem1_bal5_gull
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final/gull  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #final/proc2/s_correct.csv, test.csv, final/s_data_shift/s_data_unbalanced.csv, orig/s_data_orig.csv, s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/125_best.pth #13_best.pth, f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+model_checkpoint: /home/fatemeh/Downloads/bird/result/134_best.pth #13_best.pth, f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # Data
 lt_labels: [2, 3, 4, 6, 9]
 discover_labels: 
