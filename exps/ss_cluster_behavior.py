@@ -467,18 +467,20 @@ channel_first = cfg.model.channel_first
 save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
 save_path.mkdir(parents=True, exist_ok=True)
 
-discover_labels = [1, 2, 4, 5, 8, 9]
-lt_labels = [0, 3, 6]
-labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
-labels_trained = [0, 3, 6] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
-# discover_labels = [1, 3, 8]
-# lt_labels = [0, 2, 4, 5, 6, 9]
-# labels_to_use = ut_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # labels_to_use or origianl labels
-# labels_trained = [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
-# discover_labels = [5]
-# lt_labels = [0, 2, 4, 6, 9]
-# labels_to_use = ut_labels = [0, 2, 4, 5, 6, 9]
-assert sorted(discover_labels + lt_labels) == labels_to_use
+
+lt_labels = cfg.lt_labels
+discover_labels = cfg.discover_labels
+labels_to_use = ut_labels = cfg.labels_to_use
+labels_trained = cfg.labels_trained
+all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+if discover_labels is None:
+    discover_labels = sorted(set(all_labels) - set(cfg.lt_labels))
+if labels_to_use is None:
+    labels_to_use = ut_labels = all_labels.copy()
+if labels_trained is None:
+    labels_trained = ut_labels.copy() #lt_labels.copy() ut_labels.copy()
+
+# assert sorted(discover_labels + lt_labels) == labels_to_use
 
 l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
 l_mapper = Mapper(l_old2new)
