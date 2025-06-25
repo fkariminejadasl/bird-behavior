@@ -169,7 +169,7 @@ def main(cfg):
         f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
         f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
     )
-    """
+    # """
     # Training loop
     best_accuracy = 0
     with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
@@ -223,7 +223,7 @@ def main(cfg):
     # Save the final model
     # 1-based save for epoch
     bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
-    """
+    # """
 
     bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
     model.eval()
@@ -272,10 +272,13 @@ def main(cfg):
             SAVE_FAILED=False,
         )
 
-cfg.exp = 135
-cfg.labels_to_use = [0, 1, 2, 3, 4, 5, 6, 9]
-cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-main(cfg)
+all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+for i, exclude in enumerate(all_labels):
+    cfg.exp = 135 + i 
+    cfg.labels_to_use = sorted(set(all_labels) - {exclude})
+    cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+    print(f"Experiment {cfg.exp}: Excluding label {exclude}")
+    main(cfg)
 
 """
 from copy import deepcopy

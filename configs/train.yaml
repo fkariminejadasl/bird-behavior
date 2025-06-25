@@ -8,7 +8,7 @@ seed: 32984
 exp: 134  # Experiment number
 num_workers: 1 # 1, 15
 no_epochs: 4000
-save_every: 2000
+save_every: 4000
 # Data
 train_per: 0.9
 data_per: 1.0
