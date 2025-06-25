@@ -588,7 +588,7 @@ def main(cfg):
     true_labels = [bu.ind2name[i] for i in labels_to_use]
     pred_labels = range(len(u_old2new))
     method_name = "gcd"
-    name = f"{method_name}_gvn" + "".join([str(i) for i in lt_labels]) + "_dsl" + "".join([str(i) for i in discover_labels])
+    name = f"{method_name}_gvn" + "".join(map(str, lt_labels)) + "_dsl" + "".join(map(str, discover_labels))
 
     # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
     # cmap9 = ListedColormap(base[:len(true_labels)])
@@ -597,6 +597,27 @@ def main(cfg):
     # cbar.set_ticklabels(true_labels)
     save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
     save_hungarian(cm, method_name, hungarian_file)
+
+    def save_scores(save_path, cm, discover_labels, name):
+        all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+        org2new = {l: i for i, l in enumerate(all_labels)}
+        rows, cols = linear_sum_assignment(cm.max() - cm)
+        acc = 0
+        sum = 0
+        for discover_label in discover_labels:
+            idx = np.where(rows == org2new[discover_label])[0][0]
+            sum += cm[rows[idx]].sum()
+            acc += cm[rows[idx], cols[idx]]
+        acc /= sum
+
+        score_file = save_path.parent / "scores.txt"
+        with open(score_file, "a") as f:
+            f.write(f"{name}:\n")
+            f.write(f"{acc:.3f}\n")
+
+    exp = cfg.model_checkpoint.stem.split('_best')[0]
+    name = f"{exp}_tr" + "".join(map(str, labels_trained)) + f"_gvn" + "".join(map(str, lt_labels)) + "_dsl" + "".join(map(str, discover_labels))
+    save_scores(save_path, cm, discover_labels, name)
 
     # classification
     # ==============
@@ -680,13 +701,27 @@ def main(cfg):
     save_hungarian(cm, method_name, hungarian_file)
     print("Done")
 
-cfg.lt_labels = [0, 1, 2, 3, 4, 5, 6, 9]
-exp = 135
-cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
-cfg.model.name = "small"
-cfg.model.channel_first = True
-cfg.out_channel = len(cfg.lt_labels)
-main(cfg)
+# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+# exclude = 0
+# cfg.lt_labels = [2,3,4,6,9]#sorted(set(all_labels) - {exclude})
+# exp = 134
+# cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+# cfg.model.name = "small"
+# cfg.model.channel_first = True
+# cfg.out_channel = len(cfg.lt_labels)
+# main(cfg)
+
+# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+# for i, exclude in enumerate(all_labels):
+#     cfg.lt_labels = sorted(set(all_labels) - {exclude})
+#     exp = 135 + i 
+#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+#     cfg.model.name = "small"
+#     cfg.model.channel_first = True
+#     cfg.out_channel = len(cfg.lt_labels)
+    
+#     print(f"Experiment {exp}: Excluding label {exclude}")
+#     main(cfg)
 
 """
 GCD (Generalized Category Discovery)

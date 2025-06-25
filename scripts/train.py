@@ -272,13 +272,13 @@ def main(cfg):
             SAVE_FAILED=False,
         )
 
-all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-for i, exclude in enumerate(all_labels):
-    cfg.exp = 135 + i 
-    cfg.labels_to_use = sorted(set(all_labels) - {exclude})
-    cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-    print(f"Experiment {cfg.exp}: Excluding label {exclude}")
-    main(cfg)
+# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+# for i, exclude in enumerate(all_labels):
+#     cfg.exp = 135 + i 
+#     cfg.labels_to_use = sorted(set(all_labels) - {exclude})
+#     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+#     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
+#     main(cfg)
 
 """
 from copy import deepcopy
