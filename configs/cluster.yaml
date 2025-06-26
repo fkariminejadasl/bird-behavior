@@ -62,7 +62,7 @@ model:
 # Model
 g_len: 20
 in_channel: 4
-out_channel: 9 # 6, 9
+out_channel: 5 # 6, 9
 patch_size: 1
 embed_dim: 256  # 256, 16
 depth: 6  # 6, 1

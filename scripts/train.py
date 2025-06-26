@@ -207,9 +207,9 @@ def main(cfg):
                 f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
             )
 
-            # Save model at intervals
-            if epoch % cfg.save_every == 0:
-                bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+            # # Save model at intervals
+            # if epoch % cfg.save_every == 0:
+            #     bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
             # Save best model
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
@@ -272,13 +272,15 @@ def main(cfg):
             SAVE_FAILED=False,
         )
 
-# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-# for i, exclude in enumerate(all_labels):
-#     cfg.exp = 135 + i 
-#     cfg.labels_to_use = sorted(set(all_labels) - {exclude})
-#     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-#     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
-#     main(cfg)
+
+def get_config():
+    return cfg
+
+
+if __name__ == "__main__":
+    main(cfg)
+
+
 
 """
 from copy import deepcopy

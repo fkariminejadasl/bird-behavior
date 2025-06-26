@@ -10,7 +10,7 @@ from matplotlib.colors import ListedColormap
 import numpy as np
 import pandas as pd
 import torch
-import umap  # umap-learn
+# import umap  # umap-learn
 from omegaconf import ListConfig, OmegaConf
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
@@ -701,27 +701,13 @@ def main(cfg):
     save_hungarian(cm, method_name, hungarian_file)
     print("Done")
 
-# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-# exclude = 0
-# cfg.lt_labels = [2,3,4,6,9]#sorted(set(all_labels) - {exclude})
-# exp = 134
-# cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
-# cfg.model.name = "small"
-# cfg.model.channel_first = True
-# cfg.out_channel = len(cfg.lt_labels)
-# main(cfg)
 
-# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-# for i, exclude in enumerate(all_labels):
-#     cfg.lt_labels = sorted(set(all_labels) - {exclude})
-#     exp = 135 + i 
-#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
-#     cfg.model.name = "small"
-#     cfg.model.channel_first = True
-#     cfg.out_channel = len(cfg.lt_labels)
-    
-#     print(f"Experiment {exp}: Excluding label {exclude}")
-#     main(cfg)
+def get_config():
+    return cfg
+
+
+if __name__ == "__main__":
+    main(cfg)
 
 """
 GCD (Generalized Category Discovery)
