@@ -207,7 +207,7 @@ def main(cfg):
                 f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
             )
 
-            # # Save model at intervals
+            # Save model at intervals
             # if epoch % cfg.save_every == 0:
             #     bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
             # Save best model
@@ -222,7 +222,7 @@ def main(cfg):
 
     # Save the final model
     # 1-based save for epoch
-    bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+    # bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
     # """
 
     bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
