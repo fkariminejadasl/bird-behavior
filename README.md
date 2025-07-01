@@ -4,7 +4,7 @@ A tool for classifying bird behaviors from sensor data.
 
 ## Installation
 
-The minimum required Python version is **3.10**. If you don't have a newer version of Python installed, using **conda** or **miniconda** is the cleanest way to set it up. To install conda or miniconda, follow [these instructions](https://github.com/fkariminejadasl/ml-notebooks/blob/main/tutorial/python.md#setup-python).
+The minimum required Python version is **3.10**. If you don't have a newer version of Python installed, using **conda** or **miniconda** is the cleanest way to set it up. To install conda or miniconda, follow [these instructions](https://fkariminejadasl.github.io/ml-notebooks/python/#setup-python).
 
 The following commands are required when using conda:
 
