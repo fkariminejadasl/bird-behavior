@@ -7,8 +7,8 @@ import random
 
 import numpy as np
 import torch
-from sklearn.utils import check_random_state
 from joblib import Parallel, delayed, effective_n_jobs
+from sklearn.utils import check_random_state
 from tqdm import tqdm
 
 

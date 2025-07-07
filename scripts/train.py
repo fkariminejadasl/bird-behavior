@@ -46,6 +46,7 @@ import wandb
 
 # wandb.init(project="small-bird", config=cfg_dict)
 
+
 def main(cfg):
     # Set seed and device
     bu.set_seed(cfg.seed)
@@ -118,7 +119,6 @@ def main(cfg):
     print(cfg.model.name)
 
     # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
-
 
     # Loss function and optimizer
     if cfg.use_weighted_loss:
@@ -215,10 +215,15 @@ def main(cfg):
                 best_accuracy = accuracy
                 # 1-based save for epoch
                 bm.save_model(
-                    cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
+                    cfg.save_path,
+                    cfg.exp,
+                    epoch,
+                    model,
+                    optimizer,
+                    scheduler,
+                    best=True,
                 )
                 print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
-
 
     # Save the final model
     # 1-based save for epoch
@@ -285,7 +290,6 @@ if __name__ == "__main__":
     # cfg.model.parameters.out_channels = len(cfg.labels_to_use)
     # cfg.exp = "tmp"
     main(cfg)
-
 
 
 """

@@ -3,15 +3,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from scipy.optimize import linear_sum_assignment
-import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+from matplotlib.colors import ListedColormap
+
 # import umap  # umap-learn
 from omegaconf import ListConfig, OmegaConf
+from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -128,9 +129,7 @@ def setup_testing_dataloader(test_data_file, labels_to_use, channel_first):
     df[3] = df[3].map(mapping)
     all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
     label_ids = df[[3, 0, 0]].iloc[::20].values
-    dataset = bd.BirdDataset(
-        all_measurements, label_ids, channel_first=channel_first
-    )
+    dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=channel_first)
     loader = DataLoader(
         dataset,
         batch_size=len(dataset),  # 4096
@@ -174,12 +173,11 @@ def save_unlabeled_embeddings(save_path, loader, model, layer_to_hook, device):
             data = data.to(device)
             _ = model(data)
             if activation:
-                feats = activation.pop()  # shape (B, embed_dim, 1)
+                feats = activation.pop()
                 if cfg.layer_name == "norm":
-                    feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                    feats = feats[:, 0, :]  # B x L x embed_dim -> B x embed_dim
                 else:
-                    feats = feats.flatten(1)  # shape (B, embed_dim)
-                # feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                    feats = feats.flatten(1)  # B x embed_dim x 1 -> B x embed_dim
                 # torch.save(feats.detach().cpu().numpy(), save_path / f"{i}_{cfg.layer_name}.npy")
                 feats = feats.cpu().numpy()
                 np.savez(save_path / f"{i}_{cfg.layer_name}", **{"feats": feats})
@@ -211,17 +209,17 @@ def save_labeled_embeddings(save_file, loader, model, layer_to_hook, device):
             if len(output) == 2:
                 output = output[1]
             if activation:
-                feats = activation.pop()  # shape (B, embed_dim, 1)
+                feats = activation.pop()
                 if cfg.layer_name == "norm":
-                    feats = feats[:, 0, :] # shape (B, L, embed_dim) -> (B, embed_dim) # for norm
+                    feats = feats[:, 0, :]  # B x L x embed_dim -> B x embed_dim
                 else:
-                    feats = feats.flatten(1)  # shape (B, embed_dim)
+                    feats = feats.flatten(1)  # B x embed_dim x 1 -> B x embed_dim
                 labels = ldts[:, 0].cpu().numpy()
                 feats = feats.detach().cpu().numpy()
                 ouput = output.detach().cpu().numpy()
                 # torch.save({"feats": feats, "labels": labels}, save_file) # "test*.npy"
                 np.savez(
-                    save_file, # test*.npz
+                    save_file,  # test*.npz
                     **{"feats": feats, "labels": labels, "output": ouput},
                 )
             del data, feats, labels
@@ -427,6 +425,7 @@ def save_hungarian(cm, method_name, save_path):
         f.write(", ".join(map(str, rows)) + "\n")
         f.write(", ".join(map(str, cols)) + "\n\n")
 
+
 """
 # Save Embeddings
 # ==============
@@ -461,14 +460,16 @@ torch.cuda.empty_cache()
 print("model is loaded")
 """
 
+
 def main(cfg):
     # Settings
     # ==============
     channel_first = cfg.model.channel_first
 
-    save_path = cfg.model_checkpoint.parent/ cfg.model_checkpoint.stem.split('_best')[0]
+    save_path = (
+        cfg.model_checkpoint.parent / cfg.model_checkpoint.stem.split("_best")[0]
+    )
     save_path.mkdir(parents=True, exist_ok=True)
-
 
     lt_labels = cfg.lt_labels
     discover_labels = cfg.discover_labels
@@ -480,7 +481,7 @@ def main(cfg):
     if labels_to_use is None:
         labels_to_use = ut_labels = all_labels.copy()
     if labels_trained is None:
-        labels_trained = lt_labels.copy() #lt_labels.copy() ut_labels.copy()
+        labels_trained = lt_labels.copy()  # lt_labels.copy() ut_labels.copy()
 
     # assert sorted(discover_labels + lt_labels) == labels_to_use
 
@@ -515,10 +516,11 @@ def main(cfg):
     print("model is loaded")
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
-
     save_file = save_path / f"test_{cfg.layer_name}.npz"
     if not save_file.exists():
-        test_loader = setup_testing_dataloader(cfg.test_data_file, labels_to_use, channel_first)
+        test_loader = setup_testing_dataloader(
+            cfg.test_data_file, labels_to_use, channel_first
+        )
         save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
         print("test data is finished")
 
@@ -587,20 +589,36 @@ def main(cfg):
     print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
     # fmt: on
 
-    save_path_results = save_path/(f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained]))
+    save_path_results = save_path / (
+        f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained])
+    )
     save_path_results.mkdir(parents=True, exist_ok=True)
     hungarian_file = save_path_results / "hungarian.txt"
     true_labels = [bu.ind2name[i] for i in labels_to_use]
     pred_labels = range(len(u_old2new))
     method_name = "gcd"
-    name = f"{method_name}_gvn" + "".join(map(str, lt_labels)) + "_dsl" + "".join(map(str, discover_labels))
+    name = (
+        f"{method_name}_gvn"
+        + "".join(map(str, lt_labels))
+        + "_dsl"
+        + "".join(map(str, discover_labels))
+    )
 
     # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
     # cmap9 = ListedColormap(base[:len(true_labels)])
     # scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
     # cbar = plt.colorbar(scatter, label="Label")
     # cbar.set_ticklabels(true_labels)
-    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, ordered_labels, k_preds)
+    save_cm_embeddings(
+        save_path_results,
+        name,
+        cm,
+        true_labels,
+        pred_labels,
+        reduced,
+        ordered_labels,
+        k_preds,
+    )
     save_hungarian(cm, method_name, hungarian_file)
 
     def save_scores(save_path, cm, discover_labels, name):
@@ -620,8 +638,15 @@ def main(cfg):
             f.write(f"{name}:\n")
             f.write(f"{acc:.3f}\n")
 
-    exp = cfg.model_checkpoint.stem.split('_best')[0]
-    name = f"{exp}_tr" + "".join(map(str, labels_trained)) + f"_gvn" + "".join(map(str, lt_labels)) + "_dsl" + "".join(map(str, discover_labels))
+    exp = cfg.model_checkpoint.stem.split("_best")[0]
+    name = (
+        f"{exp}_tr"
+        + "".join(map(str, labels_trained))
+        + f"_gvn"
+        + "".join(map(str, lt_labels))
+        + "_dsl"
+        + "".join(map(str, discover_labels))
+    )
     save_scores(save_path, cm, discover_labels, name)
 
     # classification
@@ -649,7 +674,17 @@ def main(cfg):
     true_labels = [bu.ind2name[i] for i in ut_labels]
     pred_labels = [bu.ind2name[i] for i in labels_trained]
     name = "cls"
-    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, preds, PLOT_LABELS=True)
+    save_cm_embeddings(
+        save_path_results,
+        name,
+        cm,
+        true_labels,
+        pred_labels,
+        reduced,
+        labels,
+        preds,
+        PLOT_LABELS=True,
+    )
     save_hungarian(cm, name, hungarian_file)
     """
     # Some plotting
@@ -719,9 +754,9 @@ if __name__ == "__main__":
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
     cfg.model.name = "smallemb"
     cfg.model.channel_first = True
-    cfg.labels_trained = all_labels.copy() # cfg.lt_labels.copy()
+    cfg.labels_trained = all_labels.copy()  # cfg.lt_labels.copy()
     cfg.out_channel = len(cfg.labels_trained)
-    cfg.layer_name = "avgpool" # avgpool, fc
+    cfg.layer_name = "avgpool"  # avgpool, fc
     print(f"Experiment {exp}: Excluding label {exclude}")
     main(cfg)
 

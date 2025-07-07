@@ -558,7 +558,7 @@ def helper_results(
         outputs = model(data)  # N x C
         if len(outputs) == 2:  # for models with embeddings
             embs, outputs = outputs
-            embs = embs.unsqueeze(1) # N x 1 x C
+            embs = embs.unsqueeze(1)  # N x 1 x C
             embs = torch.nn.functional.normalize(embs, dim=-1)
             # loss = criterion(outputs, labels) + criterion2(embs, labels)
             losses = dict()
@@ -571,7 +571,7 @@ def helper_results(
             for key, val in losses.items():
                 loss += val
         else:
-            loss = criterion(outputs, labels)  # 1    
+            loss = criterion(outputs, labels)  # 1
         prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
         pred = torch.argmax(outputs.data, 1)  # N
         corrects = (pred == labels).sum().item()

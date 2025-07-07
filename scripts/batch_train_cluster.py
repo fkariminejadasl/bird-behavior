@@ -1,8 +1,8 @@
-import itertools
 import argparse
+import itertools
+import sys
 from pathlib import Path
 
-import sys
 script_path = Path(__file__).parent
 exp_path = script_path.parent / "exps"
 sys.path.append(str(script_path))
@@ -16,7 +16,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 
 # # Exclude one label at a time: exp135-143
 # for i, exclude in enumerate(all_labels):
-#     cfg.exp = 135 + i 
+#     cfg.exp = 135 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - {exclude})
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
@@ -27,7 +27,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 8), (0, 9), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8), (1, 9), (2, 3), (2, 4), (2, 5), (2, 6), (2, 8), (2, 9), (3, 4), (3, 5), (3, 6), (3, 8), (3, 9), (4, 5), (4, 6), (4, 8), (4, 9), (5, 6), (5, 8), (5, 9), (6, 8), (6, 9), (8, 9)]
 # cfg.no_epochs = 2000
 # for i, exclude in enumerate(pairs): #[(0,1)]
-#     cfg.exp = 144 + i 
+#     cfg.exp = 144 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
 #     # cfg.data_file = Path("/home/fkarimi/data/bird/starts.csv")
@@ -41,7 +41,7 @@ cfg = cluster_module.get_config()
 # # Exclude one label at a time: exp135-143
 # all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # for i, exclude in enumerate(all_labels):
-#     exp = 135 + i 
+#     exp = 135 + i
 #     cfg.lt_labels = sorted(set(all_labels) - {exclude})
 #     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
 #     cfg.model.name = "small"
@@ -52,8 +52,10 @@ cfg = cluster_module.get_config()
 
 # Exclude two labels at a time: exp144-179
 # pairs = list(itertools.combinations(all_labels, 2))
+# fmt:off
 pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 8), (0, 9), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8), (1, 9), (2, 3), (2, 4), (2, 5), (2, 6), (2, 8), (2, 9), (3, 4), (3, 5), (3, 6), (3, 8), (3, 9), (4, 5), (4, 6), (4, 8), (4, 9), (5, 6), (5, 8), (5, 9), (6, 8), (6, 9), (8, 9)]
-for i, exclude in enumerate(pairs): #[(0,1)]
+# fmt:on
+for i, exclude in enumerate(pairs):  # [(0,1)]
     exp = 144 + i
     cfg.lt_labels = sorted(set(all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
@@ -67,7 +69,7 @@ exp_exclude = dict()
 all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 pairs = list(itertools.combinations(all_labels, 1))
 for i, exclude in enumerate(pairs):
-    exp = 135 + i 
+    exp = 135 + i
     exp_exclude[exp] = exclude
     print(f"Experiment {exp}: Excluding label {exclude}")
 
