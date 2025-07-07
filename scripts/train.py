@@ -279,10 +279,11 @@ def get_config():
 
 if __name__ == "__main__":
     # cfg.no_epochs = 2000
-    # exclude = {1, 8}
+    # exclude = {} #{1, 8}
     # all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     # cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
     # cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+    # cfg.exp = "tmp"
     main(cfg)
 
 

@@ -208,6 +208,8 @@ def save_labeled_embeddings(save_file, loader, model, layer_to_hook, device):
         for data, ldts in tqdm(loader):
             data = data.to(device)
             output = model(data)
+            if len(output) == 2:
+                output = output[1]
             if activation:
                 feats = activation.pop()  # shape (B, embed_dim, 1)
                 if cfg.layer_name == "norm":
@@ -488,6 +490,9 @@ def main(cfg):
     mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
     mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
+    if cfg.model.name == "smallemb":
+        model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
+
     if cfg.model.name == "small":
         model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 
@@ -707,6 +712,17 @@ def get_config():
 
 
 if __name__ == "__main__":
+    exclude = [1, 3, 8]
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    exp = "con1"
+    cfg.lt_labels = sorted(set(all_labels) - set(exclude))
+    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+    cfg.model.name = "smallemb"
+    cfg.model.channel_first = True
+    cfg.labels_trained = all_labels.copy() # cfg.lt_labels.copy()
+    cfg.out_channel = len(cfg.labels_trained)
+    cfg.layer_name = "avgpool" # avgpool, fc
+    print(f"Experiment {exp}: Excluding label {exclude}")
     main(cfg)
 
 """

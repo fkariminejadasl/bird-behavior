@@ -549,16 +549,31 @@ def helper_results(
     n_classes,
     stage="valid",
     SAVE_FAILED=False,
+    # criterion2=None,
 ):
     with torch.no_grad():
         labels = ldts[:, 0]
         labels = labels.to(device)  # N
         data = data.to(device)  # N x C x L
         outputs = model(data)  # N x C
+        if len(outputs) == 2:  # for models with embeddings
+            embs, outputs = outputs
+            embs = embs.unsqueeze(1) # N x 1 x C
+            embs = torch.nn.functional.normalize(embs, dim=-1)
+            # loss = criterion(outputs, labels) + criterion2(embs, labels)
+            losses = dict()
+            loss = 0
+            for key, crit in criterion.items():
+                if key == "cls":
+                    losses[key] = crit(outputs, labels)  # 1
+                if key == "sup_con":
+                    losses[key] = crit(embs, labels)  # 1]
+            for key, val in losses.items():
+                loss += val
+        else:
+            loss = criterion(outputs, labels)  # 1    
         prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
         pred = torch.argmax(outputs.data, 1)  # N
-        # loss and accuracy
-        loss = criterion(outputs, labels)  # 1
         corrects = (pred == labels).sum().item()
         accuracy = corrects / len(labels) * 100
 
