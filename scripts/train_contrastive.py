@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
@@ -242,10 +243,14 @@ class SupConLoss(torch.nn.Module):
 # images = torch.rand(1, 3, 100, 200)
 # student_proj, student_out = model(images.cuda()) # Nx256, Nx10
 
+# # clustering, unsup
 # cluster_criterion = DistillLoss(30, 200, 2, 0.07, 0.04)
 # student_out = torch.randn(6, 10)  # N=3, views=2
 # teacher_out = torch.randn(6, 10)  # Example teacher output
 # cluster_loss = cluster_criterion(student_out, teacher_out, 1)
+# avg_probs = (student_out / 0.1).softmax(dim=1).mean(dim=0)
+# me_max_loss = - torch.sum(torch.log(avg_probs**(-avg_probs))) + math.log(float(len(avg_probs)))
+# cluster_loss += 2 * me_max_loss
 
 # # representation learning, sup
 # labels = torch.tensor([5, 5, 4, 5, 4, 4]) #torch.randint(0, 10, (6,))  # Example labels for supervised contrastive loss
@@ -277,6 +282,16 @@ def _caculate_metrics(data, ldts, model, criteria, device):
         for key, val in losses.items():
             loss += val
             loss_text += f"{key}: {val.item():.4f}, "
+        
+        # # mean-entropy-maximization loss
+        # sup_weight = 0.35
+        # avg_probs = (outputs / 0.1).softmax(dim=1).mean(dim=0)
+        # me_max_loss = -torch.sum(torch.log(avg_probs ** (-avg_probs))) + math.log(
+        #     float(len(avg_probs))
+        # )
+        # loss = (1 - sup_weight) * (2 * me_max_loss) + sup_weight * loss
+        # loss_text += f"ME-Max Loss: {me_max_loss:.4f}, "
+
         loss_text += f"Total Loss: {loss.item():.4f}"
         print(f"{loss_text}")
     else:
@@ -589,5 +604,5 @@ if __name__ == "__main__":
     all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-    cfg.exp = "con3"
+    cfg.exp = "con4"
     main(cfg)
