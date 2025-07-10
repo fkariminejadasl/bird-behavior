@@ -50,6 +50,16 @@ cfg.min_lr = cfg.max_lr / 10
 
 
 # =============================
+"""
+Below part implementation is based on SimGCD https://arxiv.org/pdf/2211.11727
+https://github.com/CVMI-Lab/SimGCD/blob/main/train_mp.py#L254
+https://github.com/CVMI-Lab/SimGCD/blob/main/model.py#L58
+Also the same implementation is used in SPTNet https://arxiv.org/pdf/2403.13684
+and original GCD https://arxiv.org/pdf/2201.02609
+https://github.com/sgvaze/generalized-category-discovery/blob/main/methods/contrastive_training/contrastive_training.py
+"""
+
+
 class DINOHead(nn.Module):
     def __init__(
         self,
@@ -282,7 +292,7 @@ def _caculate_metrics(data, ldts, model, criteria, device):
         for key, val in losses.items():
             loss += val
             loss_text += f"{key}: {val.item():.4f}, "
-        
+
         # # mean-entropy-maximization loss
         # sup_weight = 0.35
         # avg_probs = (outputs / 0.1).softmax(dim=1).mean(dim=0)
