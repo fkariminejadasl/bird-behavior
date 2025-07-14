@@ -16,9 +16,9 @@ from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
 
-"""
+# """
 model = MOMENTPipeline.from_pretrained(
-    "AutonLab/MOMENT-1-large",
+    "AutonLab/MOMENT-1-base",
     model_kwargs={"task_name": "embedding"},
     # local_files_only=True,  # Whether or not to only look at local files (i.e., do not try to download the model).
 )
@@ -37,7 +37,9 @@ model.eval()
 device = "cuda"
 model = model.to(device)
 
-all_measurements, label_ids = bd.load_csv("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+all_measurements, label_ids = bd.load_csv(
+    "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
+)
 all_measurements, label_ids = bd.get_specific_labesl(
     all_measurements, label_ids, bu.target_labels
 )
@@ -46,31 +48,36 @@ dataloader = DataLoader(
     dataset, batch_size=len(dataset), shuffle=False, num_workers=1, drop_last=False
 )
 
-data, ldts = next(iter(dataloader)) # [4338, 4, 20], [4338, 3]
-labels = ldts[:, 0]
-data = data[:, :, :16]
-# batch_size = 100
-# labels = ldts[:batch_size, 0]
-# data = torch.nn.functional.pad(data[:batch_size], (0, 512 - 20), mode='constant', value=0)
+data, ldts = next(iter(dataloader))  # [4338, 4, 20], [4338, 3]
+batch_size = 4338
+labels = ldts[:batch_size, 0]
+data = data[:batch_size]
+data = torch.nn.functional.pad(data, (0, 32 - 20), mode="constant", value=0)
+mask = torch.ones((data.shape[0], data.shape[2]), device=device)
+mask[:, 20:] = 0
+# data = torch.nn.functional.pad(data, (0, 512 - 20), mode='constant', value=0)
 with torch.no_grad():
-    output = model(data.to(device))
-embeddings = output.embeddings.cpu().numpy() # [4338, 1024]
+    # output = model(data.to(device))
+    output = model(x_enc=data.to(device), input_mask=mask)
+embeddings = output.embeddings.cpu().numpy()  # [4338, 1024]
 
 reducer = TSNE(n_components=2, random_state=42)
 reduced = reducer.fit_transform(embeddings)
 
 true_labels = [bu.ind2name[i] for i in bu.target_labels]
 unique_classes = np.unique(labels)
-bounds = np.concatenate((unique_classes-0.5, [unique_classes[-1]+0.5]))
-norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
+norm = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
 
 plt.figure()
-scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm)
+scatter = plt.scatter(
+    reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm
+)
 cbar = plt.colorbar(scatter, label="Label")
 cbar.set_ticks(unique_classes)
 cbar.set_ticklabels(true_labels)
 print("Done")
-"""
+# """
 
 
 # # MiniBatchKMeans
