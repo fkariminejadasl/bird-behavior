@@ -16,7 +16,30 @@ from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
 
-# """
+
+def get_data():
+    all_measurements, label_ids = bd.load_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
+    )
+    all_measurements, label_ids = bd.get_specific_labesl(
+        all_measurements, label_ids, bu.target_labels
+    )
+    dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=True)
+    dataloader = DataLoader(
+        dataset, batch_size=len(dataset), shuffle=False, num_workers=1, drop_last=False
+    )
+
+    data, ldts = next(iter(dataloader))  # [4338, 4, 20], [4338, 3]
+    batch_size = 4338
+    labels = ldts[:batch_size, 0]
+    data = data[:batch_size]
+    data = torch.nn.functional.pad(data, (0, 32 - 20), mode="constant", value=0)
+    mask = torch.ones((data.shape[0], data.shape[2]), device=device)
+    mask[:, 20:] = 0
+    return data, mask, labels
+
+
+"""
 model = MOMENTPipeline.from_pretrained(
     "AutonLab/MOMENT-1-base",
     model_kwargs={"task_name": "embedding"},
@@ -37,25 +60,7 @@ model.eval()
 device = "cuda"
 model = model.to(device)
 
-all_measurements, label_ids = bd.load_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
-)
-all_measurements, label_ids = bd.get_specific_labesl(
-    all_measurements, label_ids, bu.target_labels
-)
-dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=True)
-dataloader = DataLoader(
-    dataset, batch_size=len(dataset), shuffle=False, num_workers=1, drop_last=False
-)
-
-data, ldts = next(iter(dataloader))  # [4338, 4, 20], [4338, 3]
-batch_size = 4338
-labels = ldts[:batch_size, 0]
-data = data[:batch_size]
-data = torch.nn.functional.pad(data, (0, 32 - 20), mode="constant", value=0)
-mask = torch.ones((data.shape[0], data.shape[2]), device=device)
-mask[:, 20:] = 0
-# data = torch.nn.functional.pad(data, (0, 512 - 20), mode='constant', value=0)
+data, mask, labels = get_data()
 with torch.no_grad():
     # output = model(data.to(device))
     output = model(x_enc=data.to(device), input_mask=mask)
@@ -77,7 +82,7 @@ cbar = plt.colorbar(scatter, label="Label")
 cbar.set_ticks(unique_classes)
 cbar.set_ticklabels(true_labels)
 print("Done")
-# """
+"""
 
 
 # # MiniBatchKMeans
@@ -115,66 +120,8 @@ print("Done")
 # cm = contingency_matrix(labels, preds)
 # bu.plot_confusion_matrix(cm)
 
-"""
-x = torch.randn(1, 4, 16)  # [batch_size, n_channels, seq_len]
-output = model(x_enc=x)
-logits = output.logits
-predicted_labels = logits.argmax(dim=1)  # [batch_size, ]
-
-
-def get_embedding(model, dataloader):
-    embeddings, labels = [], []
-    with torch.no_grad():
-        for batch_x, batch_masks, batch_labels in tqdm(
-            dataloader, total=len(dataloader)
-        ):
-            batch_x = batch_x.to("cuda").float()
-            batch_masks = batch_masks.to("cuda")
-
-            output = model(
-                x_enc=batch_x, input_mask=batch_masks
-            )  # [batch_size x d_model (=1024)]
-            embedding = output.embeddings
-            embeddings.append(embedding.detach().cpu().numpy())
-            labels.append(batch_labels)
-
-    embeddings, labels = np.concatenate(embeddings), np.concatenate(labels)
-    return embeddings, labels
-
-train_dataset = ClassificationDataset(data_split="train")
-test_dataset = ClassificationDataset(data_split="test")
-train_dataloader = DataLoader(
-    train_dataset, batch_size=64, shuffle=True, drop_last=False
-)
-test_dataloader = DataLoader(
-    test_dataset, batch_size=64, shuffle=False, drop_last=False
-)
-
-model.to("cuda").float()
-train_embeddings, train_labels = get_embedding(model, train_dataloader)
-test_embeddings, test_labels = get_embedding(model, test_dataloader)
-
-
-# Define a data loader
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-
-for data, labels in train_dataloader:
-    # forward [batch_size, n_channels, forecast_horizon]
-    output = model(x_enc=data)
-
-    # backward
-    loss = criterion(output.logits, labels)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    print(f"loss: {loss.item():.3f}")
-"""
-
 import numpy as np
 import torch
-from momentfm.models.statistical_classifiers import fit_svm
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -203,6 +150,21 @@ def get_embeddings(model, device, reduction, dataloader: DataLoader):
     return embeddings, labels
 
 
+def get_dataloader():
+    all_measurements, label_ids = bd.load_csv(
+        "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
+    )
+    all_measurements, label_ids = bd.get_specific_labesl(
+        all_measurements, label_ids, bu.target_labels
+    )
+    dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=True)
+    dataloader = DataLoader(
+        dataset, batch_size=len(dataset), shuffle=False, num_workers=1, drop_last=False
+    )
+
+    return dataloader
+
+
 def train_epoch(
     model, device, train_dataloader, criterion, optimizer, scheduler, reduction="mean"
 ):
@@ -213,15 +175,20 @@ def train_epoch(
     model.train()
     losses = []
 
-    # for batch_x, batch_labels in train_dataloader:
-    for _ in train_dataloader:
+    for batch_x, batch_labels in train_dataloader:
         optimizer.zero_grad()
-        # batch_x = batch_x.to(device).float()
-        # batch_labels = batch_labels.to(device)
-        batch_x = torch.rand(
-            (16, 1, 512), device=device, dtype=torch.float32
-        )  # [batch_size, n_channels, seq_len]
-        batch_labels = torch.randint(0, 5, (16,), device=device, dtype=torch.long)
+
+        batch_x, batch_labels = batch_x.to(device), batch_labels[:, 0].to(device)
+        batch_x = torch.nn.functional.pad(
+            batch_x, (0, 32 - 20), mode="constant", value=0
+        )
+        mask = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
+        mask[:, 20:] = 0
+        # for _ in train_dataloader:
+        # batch_x = torch.rand(
+        #     (16, 1, 512), device=device, dtype=torch.float32
+        # )  # [batch_size, n_channels, seq_len]
+        # batch_labels = torch.randint(0, 5, (16,), device=device, dtype=torch.long)
 
         # note that since MOMENT encoder is based on T5, it might experiences numerical unstable issue with float16
         with torch.autocast(
@@ -233,7 +200,8 @@ def train_epoch(
                 else torch.float32
             ),
         ):
-            output = model(x_enc=batch_x, reduction=reduction)
+            # output = model(x_enc=batch_x, reduction=reduction)
+            output = model(x_enc=batch_x, input_mask=mask, reduction=reduction)
             loss = criterion(output.logits, batch_labels)
         loss.backward()
 
@@ -265,20 +233,19 @@ def evaluate_epoch(dataloader, model, criterion, device, phase="val", reduction=
     return avg_loss, accuracy
 
 
-# train_dataset = ClassificationDataset(data_split='train')
-# test_dataset = ClassificationDataset(data_split='test')
 # train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 # test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
-train_loader = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+train_loader = get_dataloader()  # [1]
 
+# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/ptbxl_classification.ipynb
 model = MOMENTPipeline.from_pretrained(
     "AutonLab/MOMENT-1-large",
     model_kwargs={
         "task_name": "classification",
-        "n_channels": 1,  # 12, # number of input channels
-        "num_class": 5,
-        "freeze_encoder": True,  # Freeze the patch embedding layer
-        "freeze_embedder": True,  # Freeze the transformer encoder
+        "n_channels": 4,  # 12, # number of input channels
+        "num_class": 9,
+        "freeze_encoder": True,  # Freeze the transformer encoder
+        "freeze_embedder": True,  # Freeze the patch embedding layer
         "freeze_head": False,  # The linear forecasting head must be trained
         ## NOTE: Disable gradient checkpointing to supress the warning when linear probing the model as MOMENT encoder is frozen
         "enable_gradient_checkpointing": False,
