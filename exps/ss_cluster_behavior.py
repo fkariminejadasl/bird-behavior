@@ -475,11 +475,10 @@ def main(cfg):
     discover_labels = cfg.discover_labels
     labels_to_use = ut_labels = cfg.labels_to_use
     labels_trained = cfg.labels_trained
-    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     if discover_labels is None:
-        discover_labels = sorted(set(all_labels) - set(cfg.lt_labels))
+        discover_labels = sorted(set(cfg.all_labels) - set(cfg.lt_labels))
     if labels_to_use is None:
-        labels_to_use = ut_labels = all_labels.copy()
+        labels_to_use = ut_labels = cfg.all_labels.copy()
     if labels_trained is None:
         labels_trained = lt_labels.copy()  # lt_labels.copy() ut_labels.copy()
 
@@ -621,8 +620,7 @@ def main(cfg):
     )
     save_hungarian(cm, method_name, hungarian_file)
 
-    def save_scores(save_path, cm, discover_labels, name):
-        all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    def save_scores(save_path, cm, discover_labels, name, all_labels):
         org2new = {l: i for i, l in enumerate(all_labels)}
         rows, cols = linear_sum_assignment(cm.max() - cm)
         acc = 0
@@ -647,7 +645,7 @@ def main(cfg):
         + "_dsl"
         + "".join(map(str, discover_labels))
     )
-    save_scores(save_path, cm, discover_labels, name)
+    save_scores(save_path, cm, discover_labels, name, cfg.all_labels)
 
     # classification
     # ==============
@@ -657,16 +655,6 @@ def main(cfg):
 
     preds = mapper_trained.decode(preds).cpu().numpy()
     cm = contingency_matrix(labels, preds)
-
-    if cm.shape[0] != cm.shape[1]:
-        print(sum(cm[[0, 2, 4, 5, 6, 8]].diagonal()), l_feats.shape[0])
-    else:
-        print(sum(cm.diagonal()), l_feats.shape[0])
-
-    false_neg = cm.sum(axis=1) - cm.max(axis=1)
-    # fmt: off
-    print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-    # fmt: on
 
     reducer = TSNE(n_components=2, random_state=cfg.seed)
     reduced = reducer.fit_transform(feats)
@@ -747,15 +735,16 @@ def get_config():
 
 
 if __name__ == "__main__":
-    exclude = [1, 3, 8]
-    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = "con1"
-    cfg.lt_labels = sorted(set(all_labels) - set(exclude))
+    exclude = [2]  # [1, 3, 8]
+    cfg.all_labels = [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    exp = "181"
+    cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
-    cfg.model.name = "smallemb"
+    cfg.model.name = "small"  # "smallemb"
     cfg.model.channel_first = True
-    cfg.labels_trained = all_labels.copy()  # cfg.lt_labels.copy()
+    cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
     cfg.out_channel = len(cfg.labels_trained)
+    cfg.n_clusters = len(cfg.all_labels)
     cfg.layer_name = "avgpool"  # avgpool, fc
     print(f"Experiment {exp}: Excluding label {exclude}")
     main(cfg)

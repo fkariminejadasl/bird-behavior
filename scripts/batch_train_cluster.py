@@ -10,12 +10,13 @@ sys.path.append(str(exp_path))
 import ss_cluster_behavior as cluster_module
 import train as train_module
 
-all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 
 # cfg = train_module.get_config()
 
 # # Exclude one label at a time: exp135-143
-# for i, exclude in enumerate(all_labels):
+# pairs = list(itertools.combinations(all_labels, 1))
+# for i, exclude in enumerate(pairs):
 #     cfg.exp = 135 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - {exclude})
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
@@ -35,12 +36,29 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
 #     train_module.main(cfg)
 
+# all_labels = [0, 2, 4, 5, 6]
 
-cfg = cluster_module.get_config()
+# cfg = train_module.get_config()
+
+# # Exclude one label at a time: exp180-184
+# pairs = list(itertools.combinations(all_labels, 1))
+# for i, exclude in enumerate(pairs):
+#     cfg.no_epochs = 2000
+#     cfg.exp = 180 + i
+#     cfg.labels_to_use = sorted(set(all_labels) - {exclude})
+#     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+#     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
+#     train_module.main(cfg)
+
+# Clustering (GCD)
+# ================
+
+# cfg = cluster_module.get_config()
 
 # # Exclude one label at a time: exp135-143
 # all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-# for i, exclude in enumerate(all_labels):
+# pairs = list(itertools.combinations(all_labels, 1))
+# for i, exclude in enumerate(pairs):
 #     exp = 135 + i
 #     cfg.lt_labels = sorted(set(all_labels) - {exclude})
 #     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
@@ -50,18 +68,38 @@ cfg = cluster_module.get_config()
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     cluster_module.main(cfg)
 
-# Exclude two labels at a time: exp144-179
-# pairs = list(itertools.combinations(all_labels, 2))
-# fmt:off
-pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 8), (0, 9), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8), (1, 9), (2, 3), (2, 4), (2, 5), (2, 6), (2, 8), (2, 9), (3, 4), (3, 5), (3, 6), (3, 8), (3, 9), (4, 5), (4, 6), (4, 8), (4, 9), (5, 6), (5, 8), (5, 9), (6, 8), (6, 9), (8, 9)]
-# fmt:on
-for i, exclude in enumerate(pairs):  # [(0,1)]
-    exp = 144 + i
-    cfg.lt_labels = sorted(set(all_labels) - set(exclude))
+# # Exclude two labels at a time: exp144-179
+# # pairs = list(itertools.combinations(all_labels, 2))
+# # fmt:off
+# pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 8), (0, 9), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8), (1, 9), (2, 3), (2, 4), (2, 5), (2, 6), (2, 8), (2, 9), (3, 4), (3, 5), (3, 6), (3, 8), (3, 9), (4, 5), (4, 6), (4, 8), (4, 9), (5, 6), (5, 8), (5, 9), (6, 8), (6, 9), (8, 9)]
+# # fmt:on
+# for i, exclude in enumerate(pairs):  # [(0,1)]
+#     exp = 144 + i
+#     cfg.lt_labels = sorted(set(all_labels) - set(exclude))
+#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+#     cfg.model.name = "small"
+#     cfg.model.channel_first = True
+#     cfg.out_channel = len(cfg.lt_labels)
+#     print(f"Experiment {exp}: Excluding label {exclude}")
+#     cluster_module.main(cfg)
+
+all_labels = [0, 2, 4, 5, 6]
+
+cfg = cluster_module.get_config()
+
+# Exclude one label at a time: exp180-184
+pairs = list(itertools.combinations(all_labels, 1))
+for i, exclude in enumerate(pairs):
+    exp = 180 + i
+    cfg.all_labels = all_labels.copy()
+    cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
     cfg.model.name = "small"
     cfg.model.channel_first = True
-    cfg.out_channel = len(cfg.lt_labels)
+    cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
+    cfg.out_channel = len(cfg.labels_trained)
+    cfg.n_clusters = len(cfg.all_labels)
+    cfg.layer_name = "fc"  # avgpool, fc
     print(f"Experiment {exp}: Excluding label {exclude}")
     cluster_module.main(cfg)
 
@@ -76,6 +114,13 @@ for i, exclude in enumerate(pairs):
 pairs = list(itertools.combinations(all_labels, 2))
 for i, exclude in enumerate(pairs):
     exp = 144 + i
+    exp_exclude[exp] = exclude
+    print(f"Experiment {exp}: Excluding label {exclude}")
+
+all_labels = [0, 2, 4, 5, 6]
+pairs = list(itertools.combinations(all_labels, 1))
+for i, exclude in enumerate(pairs):
+    exp = 180 + i
     exp_exclude[exp] = exclude
     print(f"Experiment {exp}: Excluding label {exclude}")
 
