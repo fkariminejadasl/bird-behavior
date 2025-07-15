@@ -120,6 +120,7 @@ print("Done")
 # cm = contingency_matrix(labels, preds)
 # bu.plot_confusion_matrix(cm)
 
+'''
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -279,3 +280,72 @@ for i in tqdm(range(epoch)):
 
 # test_loss, test_accuracy = evaluate_epoch(test_loader, model, criterion, device, phase='test')
 # print(f'Test loss: {test_loss}, test accuracy: {test_accuracy}')
+'''
+
+# This code is adapted from these MOMENT tutorials:
+# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/anomaly_detection.ipynb
+# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/imputation.ipynb
+from momentfm.utils.masking import Masking
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+mask_generator = Masking(mask_ratio=0.25)
+
+model = MOMENTPipeline.from_pretrained(
+    "AutonLab/MOMENT-1-large",
+    model_kwargs={
+        "task_name": "reconstruction",
+        "freeze_encoder": False,  # Freeze the transformer encoder
+        "freeze_embedder": False,  # Freeze the patch embedding layer
+        "freeze_head": False,  # The linear forecasting head must be trained} # For imputation, we will load MOMENT in `reconstruction` mode
+    },
+)
+model.init()
+model.to(device)
+model.train()
+
+# Optimize Mean Squarred Error using your favourite optimizer
+criterion = torch.nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+
+mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
+
+train_dataloader = range(5)
+# for batch_x, batch_masks in tqdm(train_dataloader, total=len(train_dataloader)):
+for _ in tqdm(train_dataloader, total=len(train_dataloader)):
+    # [batch_size, n_channels, seq_len]
+    batch_x = torch.rand((16, 1, 512), device=device, dtype=torch.float32)
+    batch_labels = torch.randint(0, 5, (16,), device=device, dtype=torch.long)
+    batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
+
+    n_channels = batch_x.shape[1]
+
+    # Reshape to [batch_size * n_channels, 1, window_size]
+    batch_x = batch_x.reshape((-1, 1, 512))
+
+    batch_masks = batch_masks.to(device).long()
+    batch_masks = batch_masks.repeat_interleave(n_channels, axis=0)
+
+    # Randomly mask some patches of data
+    mask = (
+        mask_generator.generate_mask(x=batch_x, input_mask=batch_masks)
+        .to(device)
+        .long()
+    )
+
+    # Forward
+    output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+
+    # Compute loss
+    recon_loss = criterion(output.reconstruction, batch_x)
+    observed_mask = batch_masks * (1 - mask)
+    masked_loss = observed_mask * recon_loss
+
+    loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
+
+    print(f"loss: {loss.item()}")
+
+    # Backward
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
