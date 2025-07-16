@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.amp
+from accelerate import Accelerator
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
 from sklearn.cluster import DBSCAN, KMeans, MiniBatchKMeans
@@ -292,12 +294,13 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 mask_generator = Masking(mask_ratio=0.25)
 
 model = MOMENTPipeline.from_pretrained(
-    "AutonLab/MOMENT-1-large",
+    "AutonLab/MOMENT-1-small",
     model_kwargs={
         "task_name": "reconstruction",
         "freeze_encoder": False,  # Freeze the transformer encoder
         "freeze_embedder": False,  # Freeze the patch embedding layer
         "freeze_head": False,  # The linear forecasting head must be trained} # For imputation, we will load MOMENT in `reconstruction` mode
+        "enable_gradient_checkpointing": False,
     },
 )
 model.init()
@@ -308,20 +311,36 @@ model.train()
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
+from torch.utils.data import DataLoader, TensorDataset
+batch_size, n_channels, seq_len = 2, 1, 32
+inputs = torch.rand((batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32)
+masks = torch.ones((inputs.shape[0], inputs.shape[2]), device=device)
+dataset = TensorDataset(inputs, masks)
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+
+# Set up model ready for accelerate finetuning
+from accelerate.utils import DistributedDataParallelKwargs
+ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True) # or static_graph=True
+accelerator = Accelerator(kwargs_handlers=[ddp_kwargs], mixed_precision="bf16")
+
+# accelerator = Accelerator()
+device = accelerator.device
+model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
+
 mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
-train_dataloader = range(5)
-# for batch_x, batch_masks in tqdm(train_dataloader, total=len(train_dataloader)):
-for _ in tqdm(train_dataloader, total=len(train_dataloader)):
-    # [batch_size, n_channels, seq_len]
-    batch_x = torch.rand((16, 1, 512), device=device, dtype=torch.float32)
-    batch_labels = torch.randint(0, 5, (16,), device=device, dtype=torch.long)
-    batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
-
+# train_loader = range(5)
+# for _ in tqdm(train_loader, total=len(train_loader)):
+    # batch_x: [batch_size, n_channels, seq_len], labels: [batch_size], mask: [batch_size, seq_len]
+    # batch_x = torch.rand((batch_size, 1, seq_len), device=device, dtype=torch.float32)
+    # batch_labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
+    # batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
+for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
+    optimizer.zero_grad()
     n_channels = batch_x.shape[1]
 
-    # Reshape to [batch_size * n_channels, 1, window_size]
-    batch_x = batch_x.reshape((-1, 1, 512))
+    # Reshape to [batch_size * n_channels, 1, seq_len]
+    batch_x = batch_x.reshape((-1, 1, seq_len))
 
     batch_masks = batch_masks.to(device).long()
     batch_masks = batch_masks.repeat_interleave(n_channels, axis=0)
@@ -352,7 +371,7 @@ for _ in tqdm(train_dataloader, total=len(train_dataloader)):
 
     # fmt: off
     # Forward
-    with torch.autocast(device_type='cuda', dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8 else torch.float32):
+    with torch.amp.autocast(device_type='cuda', dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8 else torch.float32):
         output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
     # fmt: on
 
@@ -364,6 +383,6 @@ for _ in tqdm(train_dataloader, total=len(train_dataloader)):
     print(f"loss: {loss.item()}")
 
     # Backward
-    optimizer.zero_grad()
-    loss.backward()
+    accelerator.backward(loss)
+    # loss.backward()
     optimizer.step()
