@@ -333,16 +333,34 @@ for _ in tqdm(train_dataloader, total=len(train_dataloader)):
         .long()
     )
 
+    # from collections import OrderedDict
+    # seen: "OrderedDict[torch.nn.Module, bool]" = OrderedDict()
+
+    # def make_hook(name):
+    #     def hook(module, inp, out):
+    #         # Only log the *first* time this module runs
+    #         if not seen[name]:
+    #             seen[name] = True
+    #             if isinstance(out, torch.Tensor):
+    #                 print(f"[{name:30s}] output dtype = {out.dtype}")
+    #     return hook
+
+    # # Initialize seen flags and register hooks
+    # for name, module in model.named_modules():
+    #     seen[name] = False
+    #     module.register_forward_hook(make_hook(name))
+
+    # fmt: off
     # Forward
-    output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+    with torch.autocast(device_type='cuda', dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8 else torch.float32):
+        output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+    # fmt: on
 
     # Compute loss
     recon_loss = criterion(output.reconstruction, batch_x)
     observed_mask = batch_masks * (1 - mask)
     masked_loss = observed_mask * recon_loss
-
     loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
-
     print(f"loss: {loss.item()}")
 
     # Backward
