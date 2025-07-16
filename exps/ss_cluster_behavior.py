@@ -376,7 +376,7 @@ def test_gcd_old2new():
 
 
 # fmt: off
-def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False):
+def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False, centers=None):
     # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
     # cmap9 = ListedColormap(base[:len(true_labels)])
     
@@ -389,6 +389,9 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, l
     
     plt.figure()
     scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5, norm=norm)#, vmin=0, vmax=len(pred_labels)-1)
+    if centers is not None:
+        for i in range(len(centers)):
+            plt.scatter(centers[i][0], centers[i][1], s = 130, marker = "*", color='r')
     cbar = plt.colorbar(scatter, label="Label")
     cbar.set_ticks(unique_classes)
     plt.title("Predictions")
@@ -566,6 +569,7 @@ def main(cfg):
     kmeans.fit_mix(uf, lf, lt)
     # preds = kmeans.labels_.cpu().numpy()
     preds = kmeans.labels_
+    centers = kmeans.cluster_centers_
 
     # assert np.all(preds[:lt.shape[0]] == lt.cpu().numpy()) == True
     assert preds[:lt.shape[0]].equal(lt)
@@ -576,16 +580,16 @@ def main(cfg):
     ordered_labels = torch.concatenate((lt, ut))
     ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
     k_preds = u_mapper.decode(preds.cpu()).numpy()
-    # k_preds = preds.cpu().numpy() # for more than 9 clusters
 
     # fmt: off
     reducer = TSNE(n_components=2, random_state=cfg.seed)
-    reduced = reducer.fit_transform(ordered_feat.cpu().numpy())
+    # reduced = reducer.fit_transform(ordered_feat.cpu().numpy())
+    feats_and_centers = torch.cat((ordered_feat, centers), axis=0)
+    reduced_feats_and_centers = reducer.fit_transform(feats_and_centers.cpu().numpy())
+    reduced = reduced_feats_and_centers[:-centers.shape[0], :]
+    reduced_centers = reduced_feats_and_centers[-centers.shape[0]:, :]
 
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
-
-    false_neg = cm.sum(axis=1) - cm.max(axis=1)
-    print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
     # fmt: on
 
     save_path_results = save_path / (
@@ -617,6 +621,7 @@ def main(cfg):
         reduced,
         ordered_labels,
         k_preds,
+        centers=reduced_centers,
     )
     save_hungarian(cm, method_name, hungarian_file)
 
