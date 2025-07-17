@@ -2,8 +2,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.amp
+import torch.nn as nn
 from accelerate import Accelerator
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
@@ -312,15 +312,21 @@ criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 from torch.utils.data import DataLoader, TensorDataset
+
 batch_size, n_channels, seq_len = 2, 1, 32
-inputs = torch.rand((batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32)
+inputs = torch.rand(
+    (batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32
+)
 masks = torch.ones((inputs.shape[0], inputs.shape[2]), device=device)
 dataset = TensorDataset(inputs, masks)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
 # Set up model ready for accelerate finetuning
 from accelerate.utils import DistributedDataParallelKwargs
-ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True) # or static_graph=True
+
+ddp_kwargs = DistributedDataParallelKwargs(
+    find_unused_parameters=True
+)  # or static_graph=True
 accelerator = Accelerator(kwargs_handlers=[ddp_kwargs], mixed_precision="bf16")
 
 # accelerator = Accelerator()
@@ -331,10 +337,10 @@ mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
 # train_loader = range(5)
 # for _ in tqdm(train_loader, total=len(train_loader)):
-    # batch_x: [batch_size, n_channels, seq_len], labels: [batch_size], mask: [batch_size, seq_len]
-    # batch_x = torch.rand((batch_size, 1, seq_len), device=device, dtype=torch.float32)
-    # batch_labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
-    # batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
+# batch_x: [batch_size, n_channels, seq_len], labels: [batch_size], mask: [batch_size, seq_len]
+# batch_x = torch.rand((batch_size, 1, seq_len), device=device, dtype=torch.float32)
+# batch_labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
+# batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
 for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
     optimizer.zero_grad()
     n_channels = batch_x.shape[1]
@@ -369,11 +375,8 @@ for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
     #     seen[name] = False
     #     module.register_forward_hook(make_hook(name))
 
-    # fmt: off
     # Forward
-    with torch.amp.autocast(device_type='cuda', dtype=torch.bfloat16 if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8 else torch.float32):
-        output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
-    # fmt: on
+    output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
 
     # Compute loss
     recon_loss = criterion(output.reconstruction, batch_x)
