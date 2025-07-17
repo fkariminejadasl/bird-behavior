@@ -5,6 +5,8 @@ import torch
 import torch.amp
 import torch.nn as nn
 from accelerate import Accelerator
+from accelerate.state import DistributedType
+from accelerate.utils import DistributedDataParallelKwargs
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
 from sklearn.cluster import DBSCAN, KMeans, MiniBatchKMeans
@@ -322,14 +324,12 @@ dataset = TensorDataset(inputs, masks)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
 # Set up model ready for accelerate finetuning
-from accelerate.utils import DistributedDataParallelKwargs
-
-ddp_kwargs = DistributedDataParallelKwargs(
-    find_unused_parameters=True
-)  # or static_graph=True
-accelerator = Accelerator(kwargs_handlers=[ddp_kwargs], mixed_precision="bf16")
-
-# accelerator = Accelerator()
+accelerator = Accelerator()
+dist_type = accelerator.state.distributed_type
+if dist_type == DistributedType.MULTI_GPU:
+    print("Running on multiple GPUs!")
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 device = accelerator.device
 model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
 
