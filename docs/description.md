@@ -204,6 +204,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### Helper Scripts
 
+- `scripts/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
 
 #### Data 
@@ -219,3 +220,6 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 - `check_batches`: check that each batch with glen=20 meets certain conditions, such as consecutively increasing indices and unique values in columns 0, 1, 3, and 7 and having unique batches.
 - `exps/panda_csv_python_read_data_in_memory`: check performance of panda, csv and pure python on reading large data in the memory 
 
+## List of Functions
+
+- `data.py::create_balanced_data`: Creates a balanced dataset by sampling equal number of groups from each specified class.
