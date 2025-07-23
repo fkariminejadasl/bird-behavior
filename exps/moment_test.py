@@ -342,6 +342,7 @@ mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 # batch_labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
 # batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
 for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
+    # batch_x: [batch_size, n_channels, seq_len], batch_masks: [batch_size, seq_len]
     optimizer.zero_grad()
     n_channels = batch_x.shape[1]
 
