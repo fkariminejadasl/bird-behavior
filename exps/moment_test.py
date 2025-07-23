@@ -315,7 +315,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 from torch.utils.data import DataLoader, TensorDataset
 
-batch_size, n_channels, seq_len = 2, 1, 32
+batch_size, n_channels, seq_len = 2, 4, 32
 inputs = torch.rand(
     (batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32
 )
@@ -346,10 +346,10 @@ for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
     n_channels = batch_x.shape[1]
 
     # Reshape to [batch_size * n_channels, 1, seq_len]
-    batch_x = batch_x.reshape((-1, 1, seq_len))
+    # batch_x = batch_x.reshape((-1, 1, seq_len))
 
     batch_masks = batch_masks.to(device).long()
-    batch_masks = batch_masks.repeat_interleave(n_channels, axis=0)
+    # batch_masks = batch_masks.repeat_interleave(n_channels, axis=0)
 
     # Randomly mask some patches of data
     mask = (

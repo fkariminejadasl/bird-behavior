@@ -323,13 +323,67 @@ batch_size, n_channels, seq_len = 2, 4, 32
 # dataset = TensorDataset(inputs, masks)
 # train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
-from torch.utils.data import DataLoader, Dataset, random_split
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+from torch.utils.data import DataLoader, Dataset, random_split
+
 seed = 42
 np.random.seed(seed)
 torch.manual_seed(seed)
 generator = torch.Generator().manual_seed(seed)  # for random_split
+
+import torch
+import torch.nn.functional as F
+
+
+def bird_collate_fn(batch, seq_len=32):
+    """
+    batch: list of (data, label) tuples where
+      data is Tensor shaped (C, g_len)
+      label is Tensor shaped (…)
+    returns:
+      x_flat:    Tensor of shape (B*C, 1, seq_len)
+      mask_flat: Tensor of shape (B*C, seq_len)
+      y_batch:   Tensor of shape (B, …)
+    """
+    # unpack
+    has_label = len(batch[0]) == 2
+    if has_label:
+        xs, ys = zip(*batch)
+    else:
+        xs = batch
+
+    # Stack into (B, C, g_len)
+    x = torch.stack(xs, dim=0)  # (B, C, g_len)
+    B, C, g_len = x.shape
+
+    # stack into (B, C, g_len)
+    x = torch.stack(xs, dim=0)  # (B, C, g_len)
+
+    # pad last dim L→seq_len
+    if g_len < seq_len:
+        # pad: (left, right) on final (L) dim
+        x = F.pad(x, (0, seq_len - g_len), mode="constant", value=0)
+    # now x is (B, C, seq_len)
+
+    # flatten channels (B*C, 1, seq_len)
+    x_flat = x.reshape(B * C, 1, seq_len)
+
+    # build a single-channel 2D mask:
+    # 1 for real frames [0:g_len), 0 for padding [g_len:seq_len)
+    base_mask = x.new_ones(seq_len, dtype=torch.long)
+    base_mask[g_len:] = 0  # shape: (seq_len,)
+
+    # repeat for every (sample,channel) row -> (B*C, seq_len)
+    mask_flat = base_mask.unsqueeze(0).repeat(B * C, 1)
+
+    if has_label:
+        y = torch.stack(ys, dim=0)
+        return x_flat, mask_flat, y
+    return x_flat, mask_flat
+
+
 def read_csv_file(csv_file):
     gimus = []
     dis = []
@@ -342,6 +396,8 @@ def read_csv_file(csv_file):
     dis = np.concatenate(dis, axis=0)
     timestamps = np.array(timestamps)
     return gimus
+
+
 def read_csv_files(data_path):
     gimus = []
     dis = []
@@ -356,6 +412,8 @@ def read_csv_files(data_path):
     dis = np.concatenate(dis, axis=0)
     timestamps = np.array(timestamps)
     return gimus
+
+
 data_path = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
 g_len = 20
 seq_len = 32
@@ -371,10 +429,14 @@ train_size = int(0.9 * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
 batch_size = 1000
-train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
-batch_masks = torch.ones((batch_size, seq_len), device=device, dtype=torch.long)
-batch_masks[:, g_len:] = 0
-batch_masks = batch_masks.repeat_interleave(n_channels, axis=0)
+train_loader = DataLoader(
+    dataset,
+    batch_size=batch_size,
+    shuffle=True,
+    num_workers=0,
+    drop_last=False,
+    collate_fn=lambda b: bird_collate_fn(b, seq_len=32),
+)
 
 # Set up model ready for accelerate finetuning
 accelerator = Accelerator()
@@ -388,21 +450,10 @@ model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loa
 
 mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
-# train_loader = range(5)
-# for _ in tqdm(train_loader, total=len(train_loader)):
-# batch_x: [batch_size, n_channels, seq_len], labels: [batch_size], mask: [batch_size, seq_len]
-# batch_x = torch.rand((batch_size, 1, seq_len), device=device, dtype=torch.float32)
-# batch_labels = torch.randint(0, 5, (batch_size,), device=device, dtype=torch.long)
-# batch_masks = torch.ones((batch_x.shape[0], batch_x.shape[2]), device=device)
-# for batch_x, batch_masks in tqdm(train_loader, total=len(train_loader)):
-for batch_x in tqdm(train_loader, total=len(train_loader)):
+for batch_x, batch_masks in tqdm(train_loader):
     optimizer.zero_grad()
-    n_channels = batch_x.shape[1]
-
-    # Reshape to [batch_size * n_channels, 1, seq_len]
-    batch_x = torch.nn.functional.pad(batch_x, (0, seq_len - g_len), mode="constant", value=0)
-    batch_x = batch_x.reshape((-1, 1, seq_len))
-
+    batch_x = batch_x.to(device)  # [batch_size * n_channels, 1, seq_len]
+    batch_masks = batch_masks.to(device)  # [batch_size * n_channels, seq_len]
     # Randomly mask some patches of data
     mask = (
         mask_generator.generate_mask(x=batch_x, input_mask=batch_masks)
