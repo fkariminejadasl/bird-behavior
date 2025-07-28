@@ -25,6 +25,7 @@ from sklearn.metrics import (
     davies_bouldin_score,
     fowlkes_mallows_score,
     homogeneity_score,
+    silhouette_samples,
     silhouette_score,
     v_measure_score,
 )
@@ -429,6 +430,89 @@ def save_hungarian(cm, method_name, save_path):
         f.write(", ".join(map(str, cols)) + "\n\n")
 
 
+def save_scores(cm, discover_labels, all_labels, name=None, save_path=None):
+    """
+    Example: test_calculate_score
+    """
+    # if-else is not needed but if part make the code easier to understand.
+    org2new = {l: i for i, l in enumerate(all_labels)}
+    if len(discover_labels) == 1:
+        idx = org2new[discover_labels[0]]
+        sum = cm[idx].sum()
+        acc = cm[idx, idx]
+        acc /= sum if sum > 0 else 0  # avoid division by zero
+    else:
+        # Get indices in the cm corresponding to discover_labels
+        idxs = [org2new[i] for i in discover_labels]
+
+        # Slice the confusion matrix to only those rows/cols
+        slice_cm = cm[np.ix_(idxs, idxs)]
+
+        # Perform assignment on the smaller matrix
+        rs, cs = linear_sum_assignment(slice_cm.max() - slice_cm)
+
+        acc = 0
+        sum = 0
+        for r, c in zip(rs, cs):
+            orig_r = idxs[r]
+            orig_c = idxs[c]
+            sum += cm[orig_r].sum()
+            acc += cm[orig_r, orig_c]
+
+        acc /= sum if sum > 0 else 0  # avoid division by zero
+        """
+        # older version: take all the rows
+        org2new = {l: i for i, l in enumerate(all_labels)}
+        rows, cols = linear_sum_assignment(cm.max() - cm)
+        acc = 0
+        sum = 0
+        for discover_label in discover_labels:
+            idx = np.where(rows == org2new[discover_label])[0][0]
+            sum += cm[rows[idx]].sum()
+            acc += cm[rows[idx], cols[idx]]
+        acc /= sum
+        """
+
+    if save_path is not None:
+        score_file = save_path.parent / "scores.txt"
+        with open(score_file, "a") as f:
+            f.write(f"{name}:\n")
+            f.write(f"{acc:.3f}\n")
+    return acc
+
+
+def test_calculate_score():
+    # fmt: off
+    cm = np.array([
+       [   0,  159,    0,    0,    0,    0,    0,  484,    0],
+       [   0,   38,    0,    0,    0,    0,    0,    0,    0],
+       [ 410,    0,    4,   31,   34,    0,    1,   17,   40],
+       [   0,    0,    0,  176,    0,    0,    0,    0,    0],
+       [   0,    0,    0,    0,  729,    0,    0,    0,    0],
+       [   4,    0,    0,    0,    0, 1492,    0,    0,    6],
+       [   0,    0,    0,    0,    0,    1,  326,    0,   10],
+       [   0,    0,    0,    0,    0,    0,    0,  151,    0],
+       [   0,    0,   76,    0,    0,    0,    2,    0,  147]])
+    expected = 0.3474576271186441
+    discover_labels = [0, 2]
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    score = save_scores(cm, discover_labels, all_labels)
+    assert round(score, 2) == round(expected, 2)
+    cm = np.array([
+       [ 643,    0,    0,    0,    0],
+       [  10,  226,   64,  237,    0],
+       [   0,    5,  724,    0,    0],
+       [   0,   15,    0, 1486,    1],
+       [   0,    9,    0,    1,  327]])
+    
+    expected = 0.4208566108007449
+    discover_labels = [2]
+    all_labels = [0, 2, 4, 5, 6]
+    score = save_scores(cm, discover_labels, all_labels)
+    assert round(score, 2) == round(expected, 2)
+    # fmt: on
+
+
 """
 # Save Embeddings
 # ==============
@@ -625,22 +709,6 @@ def main(cfg):
     )
     save_hungarian(cm, method_name, hungarian_file)
 
-    def save_scores(save_path, cm, discover_labels, name, all_labels):
-        org2new = {l: i for i, l in enumerate(all_labels)}
-        rows, cols = linear_sum_assignment(cm.max() - cm)
-        acc = 0
-        sum = 0
-        for discover_label in discover_labels:
-            idx = np.where(rows == org2new[discover_label])[0][0]
-            sum += cm[rows[idx]].sum()
-            acc += cm[rows[idx], cols[idx]]
-        acc /= sum
-
-        score_file = save_path.parent / "scores.txt"
-        with open(score_file, "a") as f:
-            f.write(f"{name}:\n")
-            f.write(f"{acc:.3f}\n")
-
     exp = cfg.model_checkpoint.stem.split("_best")[0]
     name = (
         f"{exp}_tr"
@@ -650,7 +718,7 @@ def main(cfg):
         + "_dsl"
         + "".join(map(str, discover_labels))
     )
-    save_scores(save_path, cm, discover_labels, name, cfg.all_labels)
+    save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
 
     # classification
     # ==============
@@ -663,6 +731,22 @@ def main(cfg):
 
     reducer = TSNE(n_components=2, random_state=cfg.seed)
     reduced = reducer.fit_transform(feats)
+
+    # # new score to check which points are mixed (separability)
+    # import umap
+    # reducer = umap.UMAP(n_neighbors=15, min_dist=0.1)
+    # reduced = reducer.fit_transform(feats)
+    # per_point_scores = silhouette_samples(feats, labels, metric="euclidean")
+    # mean_score = silhouette_score(feats, labels, metric="euclidean")
+    # inds = np.where(labels==6)[0] # np.unique(labels)
+    # sinds = np.where(per_point_scores[inds]<0)[0]
+    # per_point_scores[inds[sinds]]
+    # new_score = (len(inds) - len(sinds))/len(inds)
+
+    # plt.figure()
+    # plt.plot(reduced[:,0], reduced[:,1], '.b')
+    # plt.plot(reduced[inds,0], reduced[inds,1], '*g')
+    # plt.plot(reduced[inds[sinds],0], reduced[inds[sinds],1], '*r')
 
     true_labels = [bu.ind2name[i] for i in ut_labels]
     pred_labels = [bu.ind2name[i] for i in labels_trained]
@@ -740,9 +824,9 @@ def get_config():
 
 
 if __name__ == "__main__":
-    exclude = [2]  # [1, 3, 8]
-    cfg.all_labels = [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = "181"
+    exclude = [0, 2]  # [1, 3, 8]
+    cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    exp = "145"
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
     cfg.model.name = "small"  # "smallemb"
