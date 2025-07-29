@@ -824,6 +824,7 @@ def get_config():
 
 
 if __name__ == "__main__":
+    # fmt: off
     exclude = [0, 2]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
     exp = "145"
@@ -837,6 +838,7 @@ if __name__ == "__main__":
     cfg.layer_name = "avgpool"  # avgpool, fc
     print(f"Experiment {exp}: Excluding label {exclude}")
     main(cfg)
+    # fmt: on
 
 """
 GCD (Generalized Category Discovery)

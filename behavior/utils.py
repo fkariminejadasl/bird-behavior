@@ -1,3 +1,5 @@
+import os
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Tuple
@@ -37,6 +39,33 @@ new_ind2name = {int(i): name for i, name in zip(new_label_inds, target_labels_na
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
 
 
+def set_seed(seed: int = 42):
+    """Ensure reproducibility."""
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # for multiple gpu
+    # torch.cuda.manual_seed(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    # generator = torch.Generator().manual_seed(seed)  # for random_split
+
+
+def get_gpu_memory():
+    # Total memory currently allocated by tensors
+    allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
+    # Total memory reserved by the caching allocator (may be more than allocated_memory)
+    reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
+    # Total memory available on the GPU
+    total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # in GB
+    print(f"Allocated memory: {allocated_memory:.2f} GB")
+    print(f"Reserved memory: {reserved_memory:.2f} GB")
+    print(f"Total GPU memory: {total_memory:.2f} GB")
+    # torch.cuda.empty_cache()
+
+
 def save_gimus_idts(save_file, gimus, idts):
     wfile = open(save_file, "w")
     for gimu, idt in zip(gimus, idts):
@@ -55,21 +84,6 @@ def compare_rows(row1, row2, subset):
     row1 = row1[subset].reset_index(drop=True)
     row2 = row2[subset].reset_index(drop=True)
     return row1.equals(row2)
-
-
-# matches = df.apply(lambda row: compare_rows(row, query_row), axis=1)
-# matches = dow[subset].eq(query[subset]).all(axis=1)
-# dow.index[matches]
-def set_seed(seed):
-    """Ensure reproducibility."""
-    # https://pytorch.org/docs/stable/notes/randomness.html
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # for multiple gpu
-    # generator = torch.Generator().manual_seed(seed)  # for random_split
-    # torch.cuda.manual_seed(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
 
 
 def plot_confusion_matrix(confusion_matrix, true_labels=None, pred_labels=None):

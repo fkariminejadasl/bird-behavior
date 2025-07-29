@@ -17,7 +17,7 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, new_label_inds, target_labels
+from behavior.utils import get_gpu_memory, n_classes, set_seed
 
 
 def read_csv_file(csv_file):
@@ -101,19 +101,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
 
 
-def get_gpu_memory():
-    # Total memory currently allocated by tensors
-    allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
-    # Total memory reserved by the caching allocator (may be more than allocated_memory)
-    reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
-    # Total memory available on the GPU
-    total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # in GB
-    print(f"Allocated memory: {allocated_memory:.2f} GB")
-    print(f"Reserved memory: {reserved_memory:.2f} GB")
-    print(f"Total GPU memory: {total_memory:.2f} GB")
-    # torch.cuda.empty_cache()
-
-
 @dataclass
 class PathConfig:
     save_path: Path
@@ -150,8 +137,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # nvidia-smi -i 0 # also show properties
 
 # Random seed
-np.random.seed(cfg.seed)
-torch.manual_seed(cfg.seed)
+set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data

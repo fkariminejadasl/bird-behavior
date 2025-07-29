@@ -1,79 +1,36 @@
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.amp
 import torch.nn as nn
+import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.state import DistributedType
 from accelerate.utils import DistributedDataParallelKwargs
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
-
-# This code is adapted from these MOMENT tutorials:
-# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/anomaly_detection.ipynb
-# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/imputation.ipynb
 from momentfm.utils.masking import Masking
 from sklearn.cluster import DBSCAN, KMeans, MiniBatchKMeans
 from sklearn.manifold import TSNE
 from sklearn.metrics.cluster import contingency_matrix
-from torch.utils.data import DataLoader
+from torch.utils import tensorboard
+from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
 from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
+from behavior.utils import get_gpu_memory, set_seed
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-mask_generator = Masking(mask_ratio=0.25)
-
-model = MOMENTPipeline.from_pretrained(
-    "AutonLab/MOMENT-1-small",
-    model_kwargs={
-        "task_name": "classification",
-        "n_channels": 4,
-        "num_class": 9,
-        "freeze_encoder": True,  # Freeze the transformer encoder
-        "freeze_embedder": True,  # Freeze the patch embedding layer
-        "freeze_head": False,  # The linear forecasting head must be trained
-        ## NOTE: Disable gradient checkpointing to supress the warning when linear probing the model as MOMENT encoder is frozen
-        "enable_gradient_checkpointing": False,
-        # Choose how embedding is obtained from the model: One of ['mean', 'concat']
-        # Multi-channel embeddings are obtained by either averaging or concatenating patch embeddings
-        # along the channel dimension. 'concat' results in embeddings of size (n_channels * d_model),
-        # while 'mean' results in embeddings of size (d_model)
-        "reduction": "mean",
-    },
-)
-model.init()
-model.to(device)
-model.train()
-
-
-from torch.utils.data import DataLoader, TensorDataset
-
-batch_size, n_channels, seq_len = 2, 4, 32
-# inputs = torch.rand(
-#     (batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32
-# )
-# masks = torch.ones((inputs.shape[0], inputs.shape[2]), device=device)
-# dataset = TensorDataset(inputs, masks)
-# train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
-from pathlib import Path
-
-import pandas as pd
-from torch.utils.data import DataLoader, Dataset, random_split
-
-seed = 42
-np.random.seed(seed)
-torch.manual_seed(seed)
-generator = torch.Generator().manual_seed(seed)  # for random_split
-
-import torch
-import torch.nn.functional as F
+# import wandb
+# wandb.init(project="bird-moment-pt", config=cfg_dict)
 
 
 def bird_collate_fn(batch, seq_len=32):
@@ -125,29 +82,156 @@ def bird_collate_fn(batch, seq_len=32):
     return x_flat, mask_flat
 
 
+def write_info_in_tensorboard(writer, epoch, loss, accuracy, stage):
+    loss_scalar_dict = dict()
+    acc_scalar_dict = dict()
+    loss_scalar_dict[stage] = loss
+    acc_scalar_dict[stage] = accuracy
+    writer.add_scalars("loss", loss_scalar_dict, epoch)
+    writer.add_scalars("accuracy", acc_scalar_dict, epoch)
+
+
+def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
+    stage = "train"
+
+    model.train()
+    running_loss = 0
+    for i, (batch_x, batch_masks, batch_labels) in tqdm(
+        enumerate(loader), total=len(loader)
+    ):
+        optimizer.zero_grad()
+        batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
+        batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+
+        # Forward and compute loss
+        output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
+        loss = criterion(output.logits, batch_labels)
+        print(f"loss: {loss.item():.4f}")
+
+        # Backward
+        accelerator.backward(loss)
+        # loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+        running_loss += loss.item()
+
+    total_loss = running_loss / (i + 1)
+
+    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    write_info_in_tensorboard(writer, epoch, total_loss, total_loss, stage)
+
+
+@torch.no_grad()
+def evaluate(loader, model, device, epoch, no_epochs, writer):
+    stage = "valid"
+
+    model.eval()
+    running_loss = 0
+    for i, (batch_x, batch_masks, batch_labels) in tqdm(
+        enumerate(loader), total=len(loader)
+    ):
+        batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
+        batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+
+        # Forward and compute loss
+        output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
+        loss = criterion(output.logits, batch_labels)
+        print(f"loss: {loss.item():.4f}")
+
+        running_loss += loss.item()
+
+    total_loss = running_loss / (i + 1)
+    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    write_info_in_tensorboard(writer, epoch, total_loss, total_loss, stage)
+    return total_loss
+
+
+batch_size, n_channels, seq_len = 1000, 4, 32
+g_len = 20
+reduction = "mean"  # 'mean' or 'concat'
+
+cfg = {
+    "seed": 42,
+    "exp": "mft_1",
+    "data_path": Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    "save_path": Path("/home/fatemeh/Downloads/bird/result"),
+    "checkpoint_path": Path("/home/fatemeh/Downloads/bird/result/mpt_1_best.pth"),
+    "no_epochs": 1,
+    "init_lr": 1e-6,
+    "max_lr": 1e-4,
+    "PEFT": False,
+    "save_every": 2,
+}
+cfg = SimpleNamespace(**cfg)
+
+set_seed(cfg.seed)
+generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+model = MOMENTPipeline.from_pretrained(
+    "AutonLab/MOMENT-1-small",
+    model_kwargs={
+        "task_name": "classification",
+        "n_channels": 4,
+        "num_class": 9,
+        "freeze_encoder": True,  # Freeze the transformer encoder
+        "freeze_embedder": True,  # Freeze the patch embedding layer
+        "freeze_head": False,  # The linear forecasting head must be trained
+        ## NOTE: Disable gradient checkpointing to supress the warning when linear probing the model as MOMENT encoder is frozen
+        "enable_gradient_checkpointing": False,
+        # Choose how embedding is obtained from the model: One of ['mean', 'concat']
+        # Multi-channel embeddings are obtained by either averaging or concatenating patch embeddings
+        # along the channel dimension. 'concat' results in embeddings of size (n_channels * d_model),
+        # while 'mean' results in embeddings of size (d_model)
+        "reduction": "mean",
+    },
+)
+model.init()
+model.to(device)
+
+# Load model
+pmodel = torch.load(cfg.checkpoint_path, map_location=device, weights_only=True)[
+    "model"
+]
+state_dict = model.state_dict()
+for name, p in pmodel.items():
+    if "head" not in name:
+        state_dict[name].data.copy_(p.data)
+del pmodel, name, p, state_dict
+torch.cuda.empty_cache()
+print("model is loaded")
+
+
 train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv",
+    cfg.data_path,
     0.9,
     1,
     [0, 1, 2, 3, 4, 5, 6, 8, 9],
     channel_first=True,
 )
-g_len = 20
-seq_len = 32
-in_channel = 4
-reduction = "mean"  # 'mean' or 'concat'
-# Calculate the sizes for training and validation datasets
-batch_size = 1000
 train_loader = DataLoader(
     train_dataset,
     batch_size=batch_size,
     shuffle=True,
     num_workers=0,
     drop_last=False,
-    collate_fn=lambda b: bird_collate_fn(b, seq_len=32),
+    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
 )
 
-# Set up model ready for accelerate finetuning
+
+# Optimize Mean Squarred Error using your favourite optimizer
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=cfg.init_lr)
+scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    optimizer, max_lr=cfg.max_lr, total_steps=cfg.no_epochs * len(train_loader)
+)
+print(
+    f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+)
+
+# Set up model ready for accelerate training
 accelerator = Accelerator()
 dist_type = accelerator.state.distributed_type
 if dist_type == DistributedType.MULTI_GPU:
@@ -155,47 +239,59 @@ if dist_type == DistributedType.MULTI_GPU:
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 device = accelerator.device
-# Optimize Mean Squarred Error using your favourite optimizer
-epoch = 5
-criterion = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.AdamW(model.head.parameters(), lr=1e-4)
-scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer, max_lr=1e-3, total_steps=epoch * len(train_loader)
+model, optimizer, train_loader, scheduler = accelerator.prepare(
+    model, optimizer, train_loader, scheduler
 )
-model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
-
-mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
 
-for batch_x, batch_masks, batch_labels in tqdm(train_loader):
-    optimizer.zero_grad()
-    batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
-    batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+# NB. Chage in the peft code to make the below code works.
+# In lib/python3.x/site-packages/peft/tuners/tuners_utils.py, model_config.get("tie_word_embeddings") to model_config.t5_config["tie_word_embeddings"]
+if cfg.PEFT:
+    from peft import LoraConfig, get_peft_model
 
-    # from collections import OrderedDict
-    # seen: "OrderedDict[torch.nn.Module, bool]" = OrderedDict()
+    lora_config = LoraConfig(
+        r=64,
+        lora_alpha=32,
+        target_modules=["q", "v"],
+        lora_dropout=0.05,
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
-    # def make_hook(name):
-    #     def hook(module, inp, out):
-    #         # Only log the *first* time this module runs
-    #         if not seen[name]:
-    #             seen[name] = True
-    #             if isinstance(out, torch.Tensor):
-    #                 print(f"[{name:30s}] output dtype = {out.dtype}")
-    #     return hook
+best_loss = best_loss = float("inf")
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm(range(1, cfg.no_epochs + 1)):
+        start_time = datetime.now()
+        print(f"start time: {start_time}")
+        get_gpu_memory()
+        train_one_epoch(
+            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+        )
+        loss = evaluate(train_loader, model, device, epoch, cfg.no_epochs, writer)
+        get_gpu_memory()
+        end_time = datetime.now()
+        print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
-    # # Initialize seen flags and register hooks
-    # for name, module in model.named_modules():
-    #     seen[name] = False
-    #     module.register_forward_hook(make_hook(name))
+        lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
+        lr_sched = scheduler.get_last_lr()[0]
+        writer.add_scalar("lr/optim", lr_optim, epoch)
+        writer.add_scalar("lr/sched", lr_sched, epoch)
+        print(
+            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+        )
 
-    # Forward and compute loss
-    output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
-    loss = criterion(output.logits, batch_labels)
+        # to save it with pytorch. Otherwise it gets "module" in start of weight names
+        unwrapped_model = accelerator.unwrap_model(model)
+        if epoch % cfg.save_every == 0:
+            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+            # save best model
+        if loss < best_loss:
+            best_loss = loss
+            # 1-based save for epoch
+            bm.save_model(
+                cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
+            )
+            print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
 
-    print(f"loss: {loss.item()}")
-
-    # Backward
-    accelerator.backward(loss)
-    # loss.backward()
-    optimizer.step()
+# # 1-based save for epoch
+bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)

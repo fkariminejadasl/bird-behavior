@@ -1,75 +1,41 @@
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.amp
 import torch.nn as nn
+import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.state import DistributedType
 from accelerate.utils import DistributedDataParallelKwargs
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
+from momentfm.utils.masking import Masking
 from sklearn.cluster import DBSCAN, KMeans, MiniBatchKMeans
 from sklearn.manifold import TSNE
 from sklearn.metrics.cluster import contingency_matrix
-from torch.utils.data import DataLoader
+from torch.utils import tensorboard
+from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
 from tqdm import tqdm
 
 from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
+from behavior.utils import get_gpu_memory, set_seed
+
+# import wandb
+# wandb.init(project="bird-moment-pt", config=cfg_dict)
 
 
 # This code is adapted from these MOMENT tutorials:
 # https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/anomaly_detection.ipynb
 # https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/imputation.ipynb
-from momentfm.utils.masking import Masking
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-mask_generator = Masking(mask_ratio=0.25)
-
-model = MOMENTPipeline.from_pretrained(
-    "AutonLab/MOMENT-1-small",
-    model_kwargs={
-        "task_name": "reconstruction",
-        "freeze_encoder": False,  # Freeze the transformer encoder
-        "freeze_embedder": False,  # Freeze the patch embedding layer
-        "freeze_head": False,  # The linear forecasting head must be trained} # For imputation, we will load MOMENT in `reconstruction` mode
-        "enable_gradient_checkpointing": False,
-    },
-)
-model.init()
-model.to(device)
-model.train()
-
-# Optimize Mean Squarred Error using your favourite optimizer
-criterion = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-
-from torch.utils.data import DataLoader, TensorDataset
-
-batch_size, n_channels, seq_len = 2, 4, 32
-# inputs = torch.rand(
-#     (batch_size * 5, n_channels, seq_len), device=device, dtype=torch.float32
-# )
-# masks = torch.ones((inputs.shape[0], inputs.shape[2]), device=device)
-# dataset = TensorDataset(inputs, masks)
-# train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-
-from pathlib import Path
-
-import pandas as pd
-from torch.utils.data import DataLoader, Dataset, random_split
-
-seed = 42
-np.random.seed(seed)
-torch.manual_seed(seed)
-generator = torch.Generator().manual_seed(seed)  # for random_split
-
-import torch
-import torch.nn.functional as F
 
 
 def bird_collate_fn(batch, seq_len=32):
@@ -151,13 +117,124 @@ def read_csv_files(data_path):
     return gimus
 
 
-data_path = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
+def write_info_in_tensorboard(writer, epoch, loss, stage):
+    loss_scalar_dict = dict()
+    loss_scalar_dict[stage] = loss
+    writer.add_scalars("loss", loss_scalar_dict, epoch)
+
+
+def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
+    stage = "train"
+
+    model.train()
+    running_loss = 0
+    for i, (batch_x, batch_masks) in tqdm(enumerate(loader), total=len(loader)):
+        optimizer.zero_grad()
+        batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
+        batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+        # Randomly mask some patches of data
+        mask = (
+            mask_generator.generate_mask(x=batch_x, input_mask=batch_masks)
+            .to(device)
+            .long()
+        )
+
+        # Forward
+        output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+
+        # Compute loss
+        recon_loss = criterion(output.reconstruction, batch_x)
+        observed_mask = batch_masks * (1 - mask)
+        masked_loss = observed_mask * recon_loss
+        loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
+        print(f"loss: {loss.item():.4f}")
+
+        # Backward
+        accelerator.backward(loss)
+        # loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+        running_loss += loss.item()
+
+    total_loss = running_loss / (i + 1)
+
+    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    write_info_in_tensorboard(writer, epoch, total_loss, stage)
+
+
+@torch.no_grad()
+def evaluate(loader, model, device, epoch, no_epochs, writer):
+    stage = "valid"
+
+    model.eval()
+    running_loss = 0
+    for i, (batch_x, batch_masks) in tqdm(enumerate(loader), total=len(loader)):
+        batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
+        batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+        # Randomly mask some patches of data
+        mask = (
+            mask_generator.generate_mask(x=batch_x, input_mask=batch_masks)
+            .to(device)
+            .long()
+        )
+
+        # Forward
+        output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+
+        # Compute loss
+        recon_loss = criterion(output.reconstruction, batch_x)
+        observed_mask = batch_masks * (1 - mask)
+        masked_loss = observed_mask * recon_loss
+        loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
+        print(f"loss: {loss.item():.4f}")
+
+        running_loss += loss.item()
+
+    total_loss = running_loss / (i + 1)
+    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    write_info_in_tensorboard(writer, epoch, total_loss, stage)
+    return total_loss
+
+
+batch_size, n_channels, seq_len = 1000, 4, 32
 g_len = 20
-seq_len = 32
-in_channel = 4
-gimus = read_csv_files(data_path)
+
+cfg = {
+    "seed": 42,
+    "exp": "mpt_1",
+    "save_path": Path("/home/fatemeh/Downloads/bird/result"),
+    "data_path": Path("/home/fatemeh/Downloads/bird/data/ssl_mini"),
+    "no_epochs": 1,
+    "init_lr": 1e-6,
+    "max_lr": 1e-4,
+    "PEFT": False,
+    "save_every": 2,
+}
+cfg = SimpleNamespace(**cfg)
+
+set_seed(cfg.seed)
+generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+model = MOMENTPipeline.from_pretrained(
+    "AutonLab/MOMENT-1-small",
+    model_kwargs={
+        "task_name": "reconstruction",
+        "freeze_encoder": False,  # Freeze the transformer encoder
+        "freeze_embedder": False,  # Freeze the patch embedding layer
+        "freeze_head": False,  # The linear forecasting head must be trained} # For imputation, we will load MOMENT in `reconstruction` mode
+        "enable_gradient_checkpointing": False,
+    },
+)
+model.init()
+model.to(device)
+
+
+gimus = read_csv_files(cfg.data_path)
 print(gimus.shape)
-gimus = gimus.reshape(-1, g_len, in_channel)
+gimus = gimus.reshape(-1, g_len, n_channels)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
 dataset = bd.BirdDataset(gimus, channel_first=True)
@@ -165,17 +242,30 @@ dataset = bd.BirdDataset(gimus, channel_first=True)
 train_size = int(0.9 * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
-batch_size = 1000
 train_loader = DataLoader(
     dataset,
     batch_size=batch_size,
     shuffle=True,
     num_workers=0,
     drop_last=False,
-    collate_fn=lambda b: bird_collate_fn(b, seq_len=32),
+    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
 )
 
-# Set up model ready for accelerate finetuning
+# Optimize Mean Squarred Error using your favourite optimizer
+criterion = torch.nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=cfg.init_lr)
+scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    optimizer, max_lr=cfg.max_lr, total_steps=cfg.no_epochs * len(train_loader)
+)
+
+# scheduler = torch.optim.lr_scheduler.StepLR(
+#     optimizer, step_size=cfg.step_size, gamma=0.1
+# )
+print(
+    f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+)
+
+# Set up model ready for accelerate training
 accelerator = Accelerator()
 dist_type = accelerator.state.distributed_type
 if dist_type == DistributedType.MULTI_GPU:
@@ -183,49 +273,69 @@ if dist_type == DistributedType.MULTI_GPU:
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 device = accelerator.device
-model, optimizer, train_loader = accelerator.prepare(model, optimizer, train_loader)
+model, optimizer, train_loader, scheduler = accelerator.prepare(
+    model, optimizer, train_loader, scheduler
+)
 
 mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
-for batch_x, batch_masks in tqdm(train_loader):
-    optimizer.zero_grad()
-    batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
-    batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
-    # Randomly mask some patches of data
-    mask = (
-        mask_generator.generate_mask(x=batch_x, input_mask=batch_masks)
-        .to(device)
-        .long()
+
+# NB. Chage in the peft code to make the below code works.
+# In lib/python3.x/site-packages/peft/tuners/tuners_utils.py, model_config.get("tie_word_embeddings") to model_config.t5_config["tie_word_embeddings"]
+if cfg.PEFT:
+    from peft import LoraConfig, get_peft_model
+
+    lora_config = LoraConfig(
+        r=64,
+        lora_alpha=32,
+        target_modules=["q", "v"],
+        lora_dropout=0.05,
     )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
-    # from collections import OrderedDict
-    # seen: "OrderedDict[torch.nn.Module, bool]" = OrderedDict()
+best_loss = best_loss = float("inf")
+with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+    for epoch in tqdm(range(1, cfg.no_epochs + 1)):
+        start_time = datetime.now()
+        print(f"start time: {start_time}")
+        get_gpu_memory()
+        train_one_epoch(
+            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+        )
+        loss = evaluate(train_loader, model, device, epoch, cfg.no_epochs, writer)
+        get_gpu_memory()
+        end_time = datetime.now()
+        print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
-    # def make_hook(name):
-    #     def hook(module, inp, out):
-    #         # Only log the *first* time this module runs
-    #         if not seen[name]:
-    #             seen[name] = True
-    #             if isinstance(out, torch.Tensor):
-    #                 print(f"[{name:30s}] output dtype = {out.dtype}")
-    #     return hook
+        lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
+        lr_sched = scheduler.get_last_lr()[0]
+        writer.add_scalar("lr/optim", lr_optim, epoch)
+        writer.add_scalar("lr/sched", lr_sched, epoch)
+        print(
+            f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
+        )
 
-    # # Initialize seen flags and register hooks
-    # for name, module in model.named_modules():
-    #     seen[name] = False
-    #     module.register_forward_hook(make_hook(name))
+        # to save it with pytorch. Otherwise it gets "module" in start of weight names
+        unwrapped_model = accelerator.unwrap_model(model)
+        if epoch % cfg.save_every == 0:
+            bm.save_model(
+                cfg.save_path, cfg.exp, epoch, unwrapped_model, optimizer, scheduler
+            )
+            # save best model
+        if loss < best_loss:
+            best_loss = loss
+            # 1-based save for epoch
+            bm.save_model(
+                cfg.save_path,
+                cfg.exp,
+                epoch,
+                unwrapped_model,
+                optimizer,
+                scheduler,
+                best=True,
+            )
+            print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
 
-    # Forward
-    output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
-
-    # Compute loss
-    recon_loss = criterion(output.reconstruction, batch_x)
-    observed_mask = batch_masks * (1 - mask)
-    masked_loss = observed_mask * recon_loss
-    loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
-    print(f"loss: {loss.item()}")
-
-    # Backward
-    accelerator.backward(loss)
-    # loss.backward()
-    optimizer.step()
+# # 1-based save for epoch
+bm.save_model(cfg.save_path, cfg.exp, epoch, unwrapped_model, optimizer, scheduler)
