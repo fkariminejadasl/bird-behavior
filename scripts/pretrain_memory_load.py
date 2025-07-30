@@ -203,7 +203,7 @@ print(
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 
-best_loss = best_loss = float("inf")
+best_loss = float("inf")
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()

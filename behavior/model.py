@@ -541,12 +541,13 @@ def _print_per_batch(
     return start_time
 
 
-def _print_final(
-    epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
+def print_epoch_summary(
+    epoch, total_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
 ):
     print(
-        f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}, accuracy: {total_accuracy:.2f}, \
-        no. correct: {running_corrects}, length data:{data_len}"
+        f"{stage}: epoch {epoch}/{total_epochs}, "
+        f"loss {total_loss:.4f}, accuracy {total_accuracy:.2f} "
+        f"({running_corrects}/{data_len} correct)"
     )
 
 
@@ -609,7 +610,7 @@ def train_one_epoch(
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    _print_final(
+    print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
@@ -643,7 +644,7 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    _print_final(
+    print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)

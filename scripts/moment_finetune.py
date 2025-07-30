@@ -93,9 +93,11 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
 
     model.train()
     running_loss = 0
-    for i, (batch_x, batch_masks, batch_labels) in tqdm(
-        enumerate(loader), total=len(loader)
-    ):
+    running_corrects = 0
+    # Fixed: data_len is computed incrementally per batch instead of len(loader.dataset)
+    # since drop_last=True can make the total length incorrect
+    data_len = 0
+    for i, (batch_x, batch_masks, batch_labels) in enumerate(loader):
         optimizer.zero_grad()
         batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
         batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
@@ -103,7 +105,10 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
         # Forward and compute loss
         output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
         loss = criterion(output.logits, batch_labels)
-        print(f"loss: {loss.item():.4f}")
+        corrects = (torch.argmax(output.logits, 1) == batch_labels).sum().item()
+        print(
+            f"loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
+        )
         # bu.check_types(model)
 
         # Backward
@@ -113,10 +118,14 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
         scheduler.step()
 
         running_loss += loss.item()
+        running_corrects += corrects
+        data_len += batch_x.shape[0]
 
     total_loss = running_loss / (i + 1)
-
-    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    total_accuracy = running_corrects / data_len * 100
+    bm.print_epoch_summary(
+        epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
+    )
     write_info_in_tensorboard(writer, epoch, total_loss, total_loss, stage)
 
 
@@ -126,9 +135,11 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
 
     model.eval()
     running_loss = 0
-    for i, (batch_x, batch_masks, batch_labels) in tqdm(
-        enumerate(loader), total=len(loader)
-    ):
+    running_corrects = 0
+    # Fixed: data_len is computed incrementally per batch instead of len(loader.dataset)
+    # since drop_last=True can make the total length incorrect
+    data_len = 0
+    for i, (batch_x, batch_masks, batch_labels) in enumerate(loader):
         batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
         batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
         batch_labels = batch_labels.to(device)
@@ -136,14 +147,22 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
         # Forward and compute loss
         output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
         loss = criterion(output.logits, batch_labels)
-        print(f"loss: {loss.item():.4f}")
+        corrects = (torch.argmax(output.logits, 1) == batch_labels).sum().item()
+        print(
+            f"loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
+        )
 
         running_loss += loss.item()
+        running_corrects += corrects
+        data_len += batch_x.shape[0]
 
     total_loss = running_loss / (i + 1)
-    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
-    write_info_in_tensorboard(writer, epoch, total_loss, total_loss, stage)
-    return total_loss
+    total_accuracy = running_corrects / data_len * 100
+    bm.print_epoch_summary(
+        epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
+    )
+    write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
+    return total_accuracy
 
 
 batch_size, n_channels, seq_len = 1000, 4, 32
@@ -153,9 +172,15 @@ reduction = "mean"  # 'mean' or 'concat'
 cfg = {
     "seed": 42,
     "exp": "mft_1",
-    "data_path": Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
     "save_path": Path("/home/fatemeh/Downloads/bird/result"),
     "checkpoint_path": Path("/home/fatemeh/Downloads/bird/result/mpt_1_best.pth"),
+    # Data
+    "data_file": Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    "valid_file": None,
+    "test_file": None,
+    "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
+    "n_classes": 9,
+    # Training
     "no_epochs": 1,
     "init_lr": 1e-6,
     "max_lr": 1e-4,
@@ -205,7 +230,7 @@ print("model is loaded")
 
 
 train_dataset, val_dataset = bd.prepare_train_valid_dataset(
-    cfg.data_path,
+    cfg.data_file,
     0.9,
     1,
     [0, 1, 2, 3, 4, 5, 6, 8, 9],
@@ -271,16 +296,16 @@ if cfg.PEFT:
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-best_loss = best_loss = float("inf")
+best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
-        print(f"start time: {start_time}")
+        print(f"start time: {start_time}:.f")
         get_gpu_memory()
         train_one_epoch(
             train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
         )
-        loss = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
+        accuracy = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -297,14 +322,14 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         unwrapped_model = accelerator.unwrap_model(model)
         if epoch % cfg.save_every == 0:
             bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
-            # save best model
-        if loss < best_loss:
-            best_loss = loss
+        # save best model
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
             # 1-based save for epoch
             bm.save_model(
                 cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
             )
-            print(f"best model loss: {best_loss:.2f} at epoch: {epoch}")
+            print(f"best model accuracy: {best_accuracy:.2f} at epoch: {epoch}")
 
 # # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)

@@ -338,7 +338,7 @@ def train_one_epoch(
     total_loss, total_accuracy = bm._calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    bm._print_final(
+    bm.print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     bm.write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
@@ -364,7 +364,7 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
     total_loss, total_accuracy = bm._calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    bm._print_final(
+    bm.print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     bm.write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)

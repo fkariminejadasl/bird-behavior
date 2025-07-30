@@ -298,7 +298,7 @@ if cfg.PEFT:
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-best_loss = best_loss = float("inf")
+best_loss = float("inf")
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
