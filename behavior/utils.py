@@ -66,6 +66,18 @@ def get_gpu_memory():
     # torch.cuda.empty_cache()
 
 
+def check_types(model):
+    def make_hook(name):
+        def hook(module, inp, out):
+            if isinstance(out, torch.Tensor):
+                print(f"[{name:30s}] output dtype = {out.dtype}")
+
+        return hook
+
+    for name, module in model.named_modules():
+        module.register_forward_hook(make_hook(name))
+
+
 def save_gimus_idts(save_file, gimus, idts):
     wfile = open(save_file, "w")
     for gimu, idt in zip(gimus, idts):

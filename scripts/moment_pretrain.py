@@ -59,9 +59,6 @@ def bird_collate_fn(batch, seq_len=32):
     x = torch.stack(xs, dim=0)  # (B, C, g_len)
     B, C, g_len = x.shape
 
-    # stack into (B, C, g_len)
-    x = torch.stack(xs, dim=0)  # (B, C, g_len)
-
     # pad last dim L→seq_len
     if g_len < seq_len:
         # pad: (left, right) on final (L) dim
@@ -141,6 +138,7 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
 
         # Forward
         output = model(x_enc=batch_x, input_mask=batch_masks, mask=mask)
+        # bu.check_types(model)
 
         # Compute loss
         recon_loss = criterion(output.reconstruction, batch_x)
@@ -210,6 +208,7 @@ cfg = {
     "max_lr": 1e-4,
     "PEFT": False,
     "save_every": 2,
+    "num_workers": 0,
 }
 cfg = SimpleNamespace(**cfg)
 
@@ -233,23 +232,32 @@ model.to(device)
 
 
 gimus = read_csv_files(cfg.data_path)
-print(gimus.shape)
 gimus = gimus.reshape(-1, g_len, n_channels)
 gimus = np.ascontiguousarray(gimus)
-print(gimus.shape)
 dataset = bd.BirdDataset(gimus, channel_first=True)
 # Calculate the sizes for training and validation datasets
 train_size = int(0.9 * len(dataset))
 val_size = len(dataset) - train_size
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
+train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 train_loader = DataLoader(
-    dataset,
-    batch_size=batch_size,
+    train_dataset,
+    batch_size=min(batch_size, len(train_dataset)),
     shuffle=True,
-    num_workers=0,
+    num_workers=cfg.num_workers,
     drop_last=False,
     collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    # pin_memory=True,  # fast but more memory
 )
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=min(batch_size, len(val_dataset)),
+    shuffle=False,
+    num_workers=cfg.num_workers,
+    drop_last=False,
+    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    # pin_memory=True,  # fast but more memory
+)
+print(f"All: {gimus.shape}, Train: {len(train_dataset)}, valid: {len(val_dataset)}")
 
 # Optimize Mean Squarred Error using your favourite optimizer
 criterion = torch.nn.MSELoss()
@@ -257,10 +265,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=cfg.init_lr)
 scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer, max_lr=cfg.max_lr, total_steps=cfg.no_epochs * len(train_loader)
 )
-
-# scheduler = torch.optim.lr_scheduler.StepLR(
-#     optimizer, step_size=cfg.step_size, gamma=0.1
-# )
 print(
     f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
 )
@@ -303,7 +307,7 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         train_one_epoch(
             train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
         )
-        loss = evaluate(train_loader, model, device, epoch, cfg.no_epochs, writer)
+        loss = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")

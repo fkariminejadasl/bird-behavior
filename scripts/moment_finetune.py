@@ -54,9 +54,6 @@ def bird_collate_fn(batch, seq_len=32):
     x = torch.stack(xs, dim=0)  # (B, C, g_len)
     B, C, g_len = x.shape
 
-    # stack into (B, C, g_len)
-    x = torch.stack(xs, dim=0)  # (B, C, g_len)
-
     # pad last dim L→seq_len
     if g_len < seq_len:
         # pad: (left, right) on final (L) dim
@@ -107,6 +104,7 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
         output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
         loss = criterion(output.logits, batch_labels)
         print(f"loss: {loss.item():.4f}")
+        # bu.check_types(model)
 
         # Backward
         accelerator.backward(loss)
@@ -133,6 +131,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     ):
         batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
         batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+        batch_labels = batch_labels.to(device)
 
         # Forward and compute loss
         output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
@@ -162,6 +161,7 @@ cfg = {
     "max_lr": 1e-4,
     "PEFT": False,
     "save_every": 2,
+    "num_workers": 0,
 }
 cfg = SimpleNamespace(**cfg)
 
@@ -204,7 +204,7 @@ torch.cuda.empty_cache()
 print("model is loaded")
 
 
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+train_dataset, val_dataset = bd.prepare_train_valid_dataset(
     cfg.data_path,
     0.9,
     1,
@@ -213,12 +213,24 @@ train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
 )
 train_loader = DataLoader(
     train_dataset,
-    batch_size=batch_size,
+    batch_size=min(batch_size, len(train_dataset)),
     shuffle=True,
-    num_workers=0,
+    num_workers=cfg.num_workers,
     drop_last=False,
     collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    # pin_memory=True,  # fast but more memory
 )
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=min(batch_size, len(val_dataset)),
+    shuffle=False,
+    num_workers=cfg.num_workers,
+    drop_last=False,
+    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    # pin_memory=True,  # fast but more memory
+)
+len_data = len(train_dataset) + len(val_dataset)
+print(f"All: {len_data}, Train: {len(train_dataset)}, valid: {len(val_dataset)}")
 
 
 # Optimize Mean Squarred Error using your favourite optimizer
@@ -234,10 +246,11 @@ print(
 # Set up model ready for accelerate training
 accelerator = Accelerator()
 dist_type = accelerator.state.distributed_type
-if dist_type == DistributedType.MULTI_GPU:
-    print("Running on multiple GPUs!")
-    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
-    accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
+# # finetuning code seems don't have issue with unused parameters. If I use it I get warning for performance.
+# if dist_type == DistributedType.MULTI_GPU:
+#     print("Running on multiple GPUs!")
+#     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+#     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 device = accelerator.device
 model, optimizer, train_loader, scheduler = accelerator.prepare(
     model, optimizer, train_loader, scheduler
@@ -267,7 +280,7 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         train_one_epoch(
             train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
         )
-        loss = evaluate(train_loader, model, device, epoch, cfg.no_epochs, writer)
+        loss = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
         get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
