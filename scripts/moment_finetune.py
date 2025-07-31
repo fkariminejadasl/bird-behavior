@@ -162,8 +162,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_accuracy
 
 
-bu.print_enviroment_info()
-
 cfg = {
     # Result
     "seed": 42,
@@ -190,8 +188,14 @@ cfg = {
     "save_every": 2,
     "num_workers": 0,
     "WANDB": False,
+    # System
+    "n_cpus": None,
 }
 cfg = SimpleNamespace(**cfg)
+
+if cfg.n_cpus is not None:
+    torch.set_num_threads(cfg.n_cpus)
+    torch.set_num_interop_threads(cfg.n_cpus)
 
 batch_size, n_channels, seq_len = cfg.batch_size, cfg.n_channels, cfg.seq_len
 g_len = cfg.g_len
@@ -201,6 +205,8 @@ if cfg.WANDB:
     import wandb
 
     wandb.init(project="bird-moment-pt", config=cfg)
+
+bu.print_enviroment_info()
 
 set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split

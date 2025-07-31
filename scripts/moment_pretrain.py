@@ -199,15 +199,15 @@ def evaluate(loader, model, device, epoch, n_epochs, writer):
     return total_loss
 
 
-bu.print_enviroment_info()
-
 cfg = {
     # Result
     "seed": 42,
     "exp": "mpt_1",
     "save_path": Path("/home/fatemeh/Downloads/bird/result"),
+    # "save_path": Path("/home/fkarimi/exps/bird"),
     # Data
     "data_path": Path("/home/fatemeh/Downloads/bird/data/ssl_mini"),
+    # "data_path": Path("/home/fkarimi/data/bird/ssl_mini"), # #ssl/final/gull
     # Model
     "batch_size": 1000,
     "n_channels": 4,
@@ -221,8 +221,14 @@ cfg = {
     "save_every": None,
     "num_workers": 0,
     "WANDB": False,
+    # System
+    "n_cpus": None,
 }
 cfg = SimpleNamespace(**cfg)
+
+if cfg.n_cpus is not None:
+    torch.set_num_threads(cfg.n_cpus)
+    torch.set_num_interop_threads(cfg.n_cpus)
 
 batch_size, n_channels, seq_len = cfg.batch_size, cfg.n_channels, cfg.seq_len
 g_len = cfg.g_len
@@ -233,6 +239,8 @@ if cfg.WANDB:
     import wandb
 
     wandb.init(project="bird-moment-pt", config=cfg)
+
+bu.print_enviroment_info()
 
 set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split

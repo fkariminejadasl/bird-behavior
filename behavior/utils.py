@@ -54,8 +54,10 @@ def set_seed(seed: int = 42):
 
 
 def print_enviroment_info():
-    print(torch.__version__)
-    print(torch.cuda.get_device_properties())
+    print("Torch version:", torch.__version__)
+    print("GPU Device Properties:", torch.cuda.get_device_properties())
+    print("Threads:", torch.get_num_threads())
+    print("Inter-op threads:", torch.get_num_interop_threads())
 
 
 def get_gpu_memory():

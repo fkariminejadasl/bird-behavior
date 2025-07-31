@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=moment-test
-#SBATCH --gres=gpu:2              # request 2 GPUs
+#SBATCH --job-name=moment-pretrain
+#SBATCH --gres=gpu:2              # request 2 GPUs. Use `sinfo -O gres` to specify exact type:. eg. --gres=gpu:l4:2
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1       # one task per node; accelerate will spawn 2 procs
 #SBATCH --cpus-per-task=32
 #SBATCH --time=00:05:00
-#SBATCH --output=/home/%u/exps/bird/logs/moment_test_%j.log
+#SBATCH --output=/home/%u/exps/bird/logs/moment_pretrain_%j.log
 
 # module use /cvmfs/software.eessi.io/init/modules
 # module load EESSI/2023.06
@@ -33,5 +33,5 @@ nvidia-smi -q | awk -F': ' '/CUDA Version/ {print $2}'
 
 # You *don’t* need to set CUDA_VISIBLE_DEVICES by hand
 # Slurm will hand you GPUs and Accelerate will use both.
-ACCELERATE_LOG_LEVEL=info accelerate launch --config_file configs/ds.yaml exps/moment_test.py
+ACCELERATE_LOG_LEVEL=info accelerate launch --config_file configs/ds.yaml scripts/moment_pretrain.py
 # CUDA_VISIBLE_DEVICES=0,1 accelerate launch --config_file configs/ds.yaml exps/moment_test.py
