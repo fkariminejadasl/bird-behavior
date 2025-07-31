@@ -53,6 +53,11 @@ def set_seed(seed: int = 42):
     # generator = torch.Generator().manual_seed(seed)  # for random_split
 
 
+def print_enviroment_info():
+    print(torch.__version__)
+    print(torch.cuda.get_device_properties())
+
+
 def get_gpu_memory():
     # Total memory currently allocated by tensors
     allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB

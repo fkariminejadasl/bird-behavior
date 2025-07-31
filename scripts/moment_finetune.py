@@ -29,9 +29,6 @@ from behavior import model1d as bm1
 from behavior import utils as bu
 from behavior.utils import get_gpu_memory, set_seed
 
-# import wandb
-# wandb.init(project="bird-moment-pt", config=cfg_dict)
-
 
 def bird_collate_fn(batch, seq_len=32):
     """
@@ -165,11 +162,10 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_accuracy
 
 
-batch_size, n_channels, seq_len = 1000, 4, 32
-g_len = 20
-reduction = "mean"  # 'mean' or 'concat'
+bu.print_enviroment_info()
 
 cfg = {
+    # Result
     "seed": 42,
     "exp": "mft_1",
     "save_path": Path("/home/fatemeh/Downloads/bird/result"),
@@ -179,7 +175,13 @@ cfg = {
     "valid_file": None,
     "test_file": None,
     "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
+    # Model
+    "batch_size": 1000,
+    "n_channels": 4,
+    "seq_len": 32,
+    "g_len": 20,
     "n_classes": 9,
+    "reduction": "mean",  # 'mean' or 'concat'
     # Training
     "no_epochs": 1,
     "init_lr": 1e-6,
@@ -187,8 +189,18 @@ cfg = {
     "PEFT": False,
     "save_every": 2,
     "num_workers": 0,
+    "WANDB": False,
 }
 cfg = SimpleNamespace(**cfg)
+
+batch_size, n_channels, seq_len = cfg.batch_size, cfg.n_channels, cfg.seq_len
+g_len = cfg.g_len
+reduction = cfg.reduction
+
+if cfg.WANDB:
+    import wandb
+
+    wandb.init(project="bird-moment-pt", config=cfg)
 
 set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
@@ -299,7 +311,7 @@ if cfg.PEFT:
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm(range(1, cfg.no_epochs + 1)):
-        start_time = datetime.now()
+        start_time = datetime.now().replace(microsecond=0)
         print(f"start time: {start_time}:.f")
         get_gpu_memory()
         train_one_epoch(
@@ -307,7 +319,7 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         )
         accuracy = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
         get_gpu_memory()
-        end_time = datetime.now()
+        end_time = datetime.now().replace(microsecond=0)
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
         lr_optim = round(optimizer.param_groups[-1]["lr"], 6)

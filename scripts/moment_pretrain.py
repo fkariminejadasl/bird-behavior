@@ -30,12 +30,16 @@ from behavior import utils as bu
 from behavior.utils import get_gpu_memory, set_seed
 
 # import wandb
-# wandb.init(project="bird-moment-pt", config=cfg_dict)
 
+"""
+This code is adapted from these MOMENT tutorials:
+https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/anomaly_detection.ipynb
+https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/imputation.ipynb
 
-# This code is adapted from these MOMENT tutorials:
-# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/anomaly_detection.ipynb
-# https://github.com/moment-timeseries-foundation-model/moment/blob/main/tutorials/imputation.ipynb
+small: trainable params:   917,504 || all params:  36,259,016 || trainable%: 2.5304
+base:  trainable params: 2,359,296 || all params: 112,000,904 || trainable%: 2.1065
+large: trainable params: 6,291,456 || all params: 347,539,976 || trainable%: 1.8103
+"""
 
 
 def bird_collate_fn(batch, seq_len=32):
@@ -120,7 +124,7 @@ def write_info_in_tensorboard(writer, epoch, loss, stage):
     writer.add_scalars("loss", loss_scalar_dict, epoch)
 
 
-def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
+def train_one_epoch(loader, model, device, epoch, n_epochs, writer, optimizer):
     stage = "train"
 
     model.train()
@@ -157,12 +161,12 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
 
     total_loss = running_loss / (i + 1)
 
-    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    print(f"{stage}: epoch/total: {epoch}/{n_epochs}, total loss: {total_loss:.4f}")
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
 
 
 @torch.no_grad()
-def evaluate(loader, model, device, epoch, no_epochs, writer):
+def evaluate(loader, model, device, epoch, n_epochs, writer):
     stage = "valid"
 
     model.eval()
@@ -190,27 +194,45 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
         running_loss += loss.item()
 
     total_loss = running_loss / (i + 1)
-    print(f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}")
+    print(f"{stage}: epoch/total: {epoch}/{n_epochs}, total loss: {total_loss:.4f}")
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
     return total_loss
 
 
-batch_size, n_channels, seq_len = 1000, 4, 32
-g_len = 20
+bu.print_enviroment_info()
 
 cfg = {
+    # Result
     "seed": 42,
     "exp": "mpt_1",
     "save_path": Path("/home/fatemeh/Downloads/bird/result"),
+    # Data
     "data_path": Path("/home/fatemeh/Downloads/bird/data/ssl_mini"),
-    "no_epochs": 1,
+    # Model
+    "batch_size": 1000,
+    "n_channels": 4,
+    "seq_len": 32,
+    "g_len": 20,
+    # Training
+    "n_epochs": 10,
     "init_lr": 1e-6,
     "max_lr": 1e-4,
     "PEFT": False,
-    "save_every": 2,
+    "save_every": None,
     "num_workers": 0,
+    "WANDB": False,
 }
 cfg = SimpleNamespace(**cfg)
+
+batch_size, n_channels, seq_len = cfg.batch_size, cfg.n_channels, cfg.seq_len
+g_len = cfg.g_len
+if cfg.save_every is None:
+    cfg.save_every = cfg.n_epochs
+
+if cfg.WANDB:
+    import wandb
+
+    wandb.init(project="bird-moment-pt", config=cfg)
 
 set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
@@ -233,6 +255,12 @@ model.to(device)
 
 gimus = read_csv_files(cfg.data_path)
 gimus = gimus.reshape(-1, g_len, n_channels)
+"""
+# test: small data
+import gc
+gimus = gimus[:2]
+gc.collect()
+"""
 gimus = np.ascontiguousarray(gimus)
 dataset = bd.BirdDataset(gimus, channel_first=True)
 # Calculate the sizes for training and validation datasets
@@ -263,7 +291,7 @@ print(f"All: {gimus.shape}, Train: {len(train_dataset)}, valid: {len(val_dataset
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=cfg.init_lr)
 scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer, max_lr=cfg.max_lr, total_steps=cfg.no_epochs * len(train_loader)
+    optimizer, max_lr=cfg.max_lr, total_steps=cfg.n_epochs * len(train_loader)
 )
 print(
     f"optim: {optimizer.param_groups[-1]['lr']:.6f}, sched: {scheduler.get_last_lr()[0]:.6f}"
@@ -285,6 +313,9 @@ mask_generator = Masking(mask_ratio=0.3)  # Mask 30% of patches randomly
 
 
 # NB. Chage in the peft code to make the below code works.
+# This is only when running `python script_name.py` not with `accelerate launch`.
+# In accelerate launch, model get `module` namespace due to accelerate,
+# e.g. model.module.encoder.final_layer_norm.weight[:10] instead of model.encoder.final_layer_norm.weight[:10]
 # In lib/python3.x/site-packages/peft/tuners/tuners_utils.py, model_config.get("tie_word_embeddings") to model_config.t5_config["tie_word_embeddings"]
 if cfg.PEFT:
     from peft import LoraConfig, get_peft_model
@@ -300,16 +331,16 @@ if cfg.PEFT:
 
 best_loss = float("inf")
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
-    for epoch in tqdm(range(1, cfg.no_epochs + 1)):
-        start_time = datetime.now()
+    for epoch in tqdm(range(1, cfg.n_epochs + 1)):
+        start_time = datetime.now().replace(microsecond=0)
         print(f"start time: {start_time}")
         get_gpu_memory()
         train_one_epoch(
-            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+            train_loader, model, device, epoch, cfg.n_epochs, writer, optimizer
         )
-        loss = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
+        loss = evaluate(val_loader, model, device, epoch, cfg.n_epochs, writer)
         get_gpu_memory()
-        end_time = datetime.now()
+        end_time = datetime.now().replace(microsecond=0)
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
 
         lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
@@ -321,7 +352,12 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         )
 
         # to save it with pytorch. Otherwise it gets "module" in start of weight names
-        unwrapped_model = accelerator.unwrap_model(model)
+        if cfg.PEFT:
+            unwrapped_model = model.base_model.module  # accelerator.unwrap_model(model)
+        else:
+            unwrapped_model = model.module
+        # print(list(dict(model.named_parameters()).keys())[-1])
+        # print(list(dict(unwrapped_model.named_parameters()).keys())[-1])
         if epoch % cfg.save_every == 0:
             bm.save_model(
                 cfg.save_path, cfg.exp, epoch, unwrapped_model, optimizer, scheduler
