@@ -149,7 +149,7 @@ def train_one_epoch(loader, model, device, epoch, n_epochs, writer, optimizer):
         observed_mask = batch_masks * (1 - mask)
         masked_loss = observed_mask * recon_loss
         loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
-        print(f"loss: {loss.item():.4f}")
+        print(f"{datetime.now().replace(microsecond=0)}: loss: {loss.item():.4f}")
 
         # Backward
         accelerator.backward(loss)
@@ -189,7 +189,7 @@ def evaluate(loader, model, device, epoch, n_epochs, writer):
         observed_mask = batch_masks * (1 - mask)
         masked_loss = observed_mask * recon_loss
         loss = masked_loss.nansum() / (observed_mask.nansum() + 1e-7)
-        print(f"loss: {loss.item():.4f}")
+        print(f"{datetime.now().replace(microsecond=0)}: loss: {loss.item():.4f}")
 
         running_loss += loss.item()
 
