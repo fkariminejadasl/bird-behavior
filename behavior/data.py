@@ -902,12 +902,11 @@ def load_csv(csv_file, g_len=20):
                 .timestamp()
             )
             label = int(items[3])
-            index = int(items[2])
             ig = [float(i) for i in items[4:]]
             igs.append(ig)
-            ldts.append([label, device_id, timestamp, index])
+            ldts.append([label, device_id, timestamp])
     igs = np.array(igs).astype(np.float64).reshape(-1, g_len, 4)
-    ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 4)
+    ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 3)[:, 0, :]
     return igs, ldts
 
 
@@ -920,7 +919,7 @@ def shuffle_data(gimus, idts):
 
 
 def reindex_ids(ldts):
-    unique_ids = sorted(set(ldts[:, 0, 0]))  # sorted added in commit: 11a07d5
+    unique_ids = sorted(set(ldts[:, 0]))  # sorted added in commit: 11a07d5
     new_ldts = ldts.copy()
     for i, unique_id in enumerate(unique_ids):
         new_ldts[ldts[:, 0] == unique_id, 0] = i
