@@ -379,75 +379,6 @@ def load_all_data_from_json(json_file):
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
 
 
-def shuffle_data(gimus, idts):
-    inds = np.arange(gimus.shape[0])
-    np.random.shuffle(inds)
-    gimus = gimus[inds]
-    idts = idts[inds]
-    return gimus.astype(np.float64), idts.astype(np.int64)
-
-
-def load_csv_pandas(data_file, labels_to_use, glen=20):
-    """
-    e.g. labels_to_use = [0, 4, 5, 6]
-    
-    replace:
-    igs, ldts = bd.load_csv(data_file)
-    igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
-    """
-    # 
-    df = pd.read_csv(data_file, header=None)
-    df = df[df[3].isin(labels_to_use)].reset_index(drop=True)
-    present = sorted(df[3].unique())
-    df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
-    df["ts"] = (
-        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).view("int64")
-        // 1_000_000_000
-    ).astype("int64")
-    igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
-    ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
-    return igs, ldts[:, 0, :]
-
-
-def reindex_ids(ldts):
-    unique_ids = sorted(set(ldts[:, 0, 0]))
-    new_ldts = ldts.copy()
-    for i, unique_id in enumerate(unique_ids):
-        new_ldts[ldts[:, 0] == unique_id, 0] = i
-    return new_ldts
-
-
-def get_specific_labesl(all_measurements, ldts, labels_to_use):
-    """
-    e.g. labels_to_use=[0, 2, 4, 5]
-    """
-    agps_imus = np.empty(shape=(0, 20, 4))
-    new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
-    for i in labels_to_use:
-        agps_imus = np.concatenate(
-            (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
-        )
-        new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
-
-    inds = np.arange(new_ldts.shape[0])
-    np.random.shuffle(inds)
-    agps_imus = agps_imus[inds]
-    new_ldts = new_ldts[inds]
-    new_ldts = reindex_ids(new_ldts)
-    return agps_imus, new_ldts
-
-
-def combine_specific_labesl(ldts, target_labels):
-    """
-    e.g. target_labels=[0, 2, 4, 5]
-    """
-    new_id = target_labels[0]
-    new_ldts = ldts.copy()
-    for i in target_labels:
-        new_ldts[ldts[:, 0] == i] = new_id
-    return new_ldts
-
-
 def query_database_improved(database_url, sql_query, retries=5, delay=5):
     """
     Execute a SQL query and return the results with retry logic.
@@ -903,6 +834,52 @@ def append_to_csv(save_file, gimus, idts):
             rfile.write(item)
 
 
+def save_specific_labels(data_file, save_file, keep_labels):
+    """
+    Keeping only specified classes
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+
+    Replace: get_specific_labesl and similar but not completely to load_csv_pandas
+    """
+
+    df = pd.read_csv(data_file, header=None)
+    df = pd.concat([df[df[3] == i] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    # for i, j in enumerate(keep_labels):
+    #     df.loc[df[3] == j, 3] = i
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+def load_csv_pandas(data_file, labels_to_use, glen=20):
+    """
+    data_file: e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+    e.g. labels_to_use = [0, 4, 5, 6]
+
+    Replace:
+    igs, ldts = bd.load_csv(data_file)
+    igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
+    """
+
+    df = pd.read_csv(data_file, header=None)
+    df = df[df[3].isin(labels_to_use)].reset_index(drop=True)
+    present = sorted(df[3].unique())
+    df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
+    df["ts"] = (
+        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).view("int64")
+        // 1_000_000_000
+    ).astype("int64")
+    igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
+    ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
+    return igs, ldts[:, 0, :]
+
+
 def load_csv(csv_file, g_len=20):
     """
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
@@ -932,6 +909,53 @@ def load_csv(csv_file, g_len=20):
     igs = np.array(igs).astype(np.float64).reshape(-1, g_len, 4)
     ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 4)
     return igs, ldts
+
+
+def shuffle_data(gimus, idts):
+    inds = np.arange(gimus.shape[0])
+    np.random.shuffle(inds)
+    gimus = gimus[inds]
+    idts = idts[inds]
+    return gimus.astype(np.float64), idts.astype(np.int64)
+
+
+def reindex_ids(ldts):
+    unique_ids = sorted(set(ldts[:, 0, 0]))  # sorted added in commit: 11a07d5
+    new_ldts = ldts.copy()
+    for i, unique_id in enumerate(unique_ids):
+        new_ldts[ldts[:, 0] == unique_id, 0] = i
+    return new_ldts
+
+
+def get_specific_labesl(all_measurements, ldts, labels_to_use):
+    """
+    e.g. labels_to_use=[0, 2, 4, 5]
+    """
+    agps_imus = np.empty(shape=(0, 20, 4))
+    new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
+    for i in labels_to_use:
+        agps_imus = np.concatenate(
+            (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
+        )
+        new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
+
+    inds = np.arange(new_ldts.shape[0])
+    np.random.shuffle(inds)
+    agps_imus = agps_imus[inds]
+    new_ldts = new_ldts[inds]
+    new_ldts = reindex_ids(new_ldts)
+    return agps_imus, new_ldts
+
+
+def combine_specific_labesl(ldts, target_labels):
+    """
+    e.g. target_labels=[0, 2, 4, 5]
+    """
+    new_id = target_labels[0]
+    new_ldts = ldts.copy()
+    for i in target_labels:
+        new_ldts[ldts[:, 0] == i] = new_id
+    return new_ldts
 
 
 def load_filter_shuffle(data_file, labels_to_use):
@@ -1080,27 +1104,6 @@ def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
     sel_df = pd.concat(sel_df).reset_index(drop=True)
     return sel_df
     # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-
-
-# TODO replace get_specific_labesl
-def save_specific_labels(data_file, save_file, keep_labels):
-    """
-    Keeping only specified classes
-
-    data_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
-    save_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
-    keep_labels : list of int
-        List of class labels to retain in the dataset.
-        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
-    """
-    df = pd.read_csv(data_file, header=None)
-    df = pd.concat([df[df[3] == i] for i in keep_labels])
-    df = df.reset_index(drop=True)
-    # for i, j in enumerate(keep_labels):
-    #     df.loc[df[3] == j, 3] = i
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
 # TODO to check and remove
