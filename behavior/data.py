@@ -387,8 +387,30 @@ def shuffle_data(gimus, idts):
     return gimus.astype(np.float64), idts.astype(np.int64)
 
 
+def load_csv_pandas(data_file, labels_to_use, glen=20):
+    """
+    e.g. labels_to_use = [0, 4, 5, 6]
+    
+    replace:
+    igs, ldts = bd.load_csv(data_file)
+    igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
+    """
+    # 
+    df = pd.read_csv(data_file, header=None)
+    df = df[df[3].isin(labels_to_use)].reset_index(drop=True)
+    present = sorted(df[3].unique())
+    df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
+    df["ts"] = (
+        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).view("int64")
+        // 1_000_000_000
+    ).astype("int64")
+    igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
+    ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
+    return igs, ldts[:, 0, :]
+
+
 def reindex_ids(ldts):
-    unique_ids = set(ldts[:, 0])
+    unique_ids = sorted(set(ldts[:, 0, 0]))
     new_ldts = ldts.copy()
     for i, unique_id in enumerate(unique_ids):
         new_ldts[ldts[:, 0] == unique_id, 0] = i
@@ -903,11 +925,12 @@ def load_csv(csv_file, g_len=20):
                 .timestamp()
             )
             label = int(items[3])
+            index = int(items[2])
             ig = [float(i) for i in items[4:]]
             igs.append(ig)
-            ldts.append([label, device_id, timestamp])
+            ldts.append([label, device_id, timestamp, index])
     igs = np.array(igs).astype(np.float64).reshape(-1, g_len, 4)
-    ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 3)[:, 0, :]
+    ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 4)
     return igs, ldts
 
 

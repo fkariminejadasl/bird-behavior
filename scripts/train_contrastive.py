@@ -589,18 +589,19 @@ def main(cfg):
         )
         label_names = [bu.ind2name[i] for i in cfg.labels_to_use]
         data, ldts = next(iter(loader))
-        bu.helper_results(
-            data,
-            ldts,
-            model,
-            criterion,
-            device,
+        probs, preds, labels, loss, accuracy = bu.evaluate(
+            data, ldts, model, criterion, device
+        )
+        bu.save_confusion_matrix_other_stats(
+            probs,
+            preds,
+            labels,
+            loss,
+            accuracy,
             fail_path,
             label_names,
             len(cfg.labels_to_use),
             stage=stage,
-            SAVE_FAILED=False,
-            # criterion2=sup_con
         )
 
 

@@ -264,17 +264,19 @@ def main(cfg):
         )
         label_names = [bu.ind2name[i] for i in cfg.labels_to_use]
         data, ldts = next(iter(loader))
-        bu.helper_results(
-            data,
-            ldts,
-            model,
-            criterion,
-            device,
+        probs, preds, labels, loss, accuracy = bu.evaluate(
+            data, ldts, model, criterion, device
+        )
+        bu.save_confusion_matrix_other_stats(
+            probs,
+            preds,
+            labels,
+            loss,
+            accuracy,
             fail_path,
             label_names,
             len(cfg.labels_to_use),
             stage=stage,
-            SAVE_FAILED=False,
         )
 
 
@@ -284,11 +286,11 @@ def get_config():
 
 if __name__ == "__main__":
     cfg.no_epochs = 2000
-    exclude = {}  # {1, 8}
-    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    cfg.labels_to_use = [0, 2, 4, 5]  # sorted(set(all_labels) - set(exclude))
+    exclude = {2}  # {1, 8}
+    all_labels = [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-    cfg.exp = "tmp"
+    cfg.exp = "181"
     main(cfg)
 
 

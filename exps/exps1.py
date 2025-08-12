@@ -10,31 +10,27 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, target_labels, target_labels_names
-
-# import wandb
-# wandb.init(project="uncategorized")
 
 seed = 32984
 train_per = 0.9
 data_per = 1
-exp = 45  # sys.argv[1]
-save_name = f"{exp}"
-width = 30
+exp = 181
+labels_to_use = [0, 4, 5, 6]
+in_channel, width, n_classes = 4, 30, len(labels_to_use)
 save_path = Path("/home/fatemeh/Downloads/bird/result/")
-data_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
-)
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+
+save_name = f"{exp}"
 fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
+label_names = [bu.ind2name[i] for i in labels_to_use]
 
 bu.set_seed(seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 criterion = torch.nn.CrossEntropyLoss()
 
-in_channel = 4  # next(iter(train_loader))[0].shape[1]
 model = bm.BirdModel(in_channel, width, n_classes).to(device)
 # model = bm1.TransformerEncoderMAE(
 #     img_size=20,
@@ -50,60 +46,17 @@ model = bm.BirdModel(in_channel, width, n_classes).to(device)
 bm.load_model(save_path / f"{exp}_best.pth", model, device)
 model.eval()
 
-"""
-train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-    data_file, train_per, data_per, target_labels
-)
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=len(train_dataset),
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=len(eval_dataset),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-
-data, ldts = next(iter(train_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    target_labels_names,
-    n_classes,
-    stage="train",
-    SAVE_FAILED=False,
-)
-
-data, ldts = next(iter(eval_loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
-    fail_path,
-    target_labels_names,
-    n_classes,
-    stage="valid",
-    SAVE_FAILED=False,
-)
-"""
-
 print(device)
 print(sum([p.numel() for p in model.parameters()]))
 
-csv_igs, csv_ldts = bd.load_csv(data_file)
-csv_igs, csv_ldts = bd.get_specific_labesl(csv_igs, csv_ldts, target_labels)
-dataset = bd.BirdDataset(csv_igs, csv_ldts)
+igs, ldts = bd.load_csv_pandas(data_file, labels_to_use, glen=20)
+
+# igs, ldts = bd.load_csv(data_file)
+# igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
+
+dataset = bd.BirdDataset(igs, ldts[:, 0, :])
+
+# dataset = bd.BirdDataset(igs, ldts)
 loader = DataLoader(
     dataset,
     batch_size=len(dataset),
@@ -112,17 +65,17 @@ loader = DataLoader(
     drop_last=False,
 )
 data, ldts = next(iter(loader))
-bu.helper_results(
-    data,
-    ldts,
-    model,
-    criterion,
-    device,
+probs, preds, labels, loss, accuracy = bu.evaluate(data, ldts, model, criterion, device)
+bu.save_confusion_matrix_other_stats(
+    probs,
+    preds,
+    labels,
+    loss,
+    accuracy,
     fail_path,
-    target_labels_names,
+    label_names,
     n_classes,
     stage="all",
-    SAVE_FAILED=False,
 )
 
 # bad classes: Other, Exflap (less data), Pecking (noisy), Manuver/Mix

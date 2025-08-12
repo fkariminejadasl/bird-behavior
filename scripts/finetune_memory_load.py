@@ -310,15 +310,17 @@ for stage, dataset in datasets.items():
         drop_last=False,
     )
     data, ldts = next(iter(loader))
-    bu.helper_results(
-        data,
-        ldts,
-        model,
-        criterion,
-        device,
+    probs, preds, labels, loss, accuracy = bu.evaluate(
+        data, ldts, model, criterion, device
+    )
+    bu.save_confusion_matrix_other_stats(
+        probs,
+        preds,
+        labels,
+        loss,
+        accuracy,
         fail_path,
         bu.target_labels_names,
         n_classes,
         stage=stage,
-        SAVE_FAILED=False,
     )

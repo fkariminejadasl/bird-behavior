@@ -571,6 +571,89 @@ def precision_recall(
     return precision, recall, f_score
 
 
+def evaluate(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+):
+    model.eval()
+    with torch.no_grad():
+        labels = ldts[:, 0]
+        labels = labels.to(device)  # N
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        if len(outputs) == 2:  # for models with embeddings
+            embs, outputs = outputs
+            embs = embs.unsqueeze(1)  # N x 1 x C
+            embs = torch.nn.functional.normalize(embs, dim=-1)
+            # loss = criterion(outputs, labels) + criterion2(embs, labels)
+            losses = dict()
+            loss = 0
+            for key, crit in criterion.items():
+                if key == "cls":
+                    losses[key] = crit(outputs, labels)  # 1
+                if key == "sup_con":
+                    losses[key] = crit(embs, labels)  # 1]
+            for key, val in losses.items():
+                loss += val
+        else:
+            loss = criterion(outputs, labels)  # 1
+        prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+        pred = torch.argmax(outputs.data, 1)  # N
+        corrects = (pred == labels).sum().item()
+        accuracy = corrects / len(labels) * 100
+
+    labels = labels.cpu().numpy()
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+    return prob, pred, labels, loss, accuracy
+
+
+def save_confusion_matrix_other_stats(
+    prob,
+    pred,
+    labels,
+    loss,
+    accuracy,
+    fail_path: Path,
+    target_labels_names,
+    n_classes,
+    stage="valid",
+):
+    # confusion matrix
+    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels_names)))
+    # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
+    plot_confusion_matrix(confmat, target_labels_names)
+    plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
+
+    metrics_df = per_class_statistics(confmat, target_labels_names)
+    metrics_df.to_csv(fail_path / f"per_class_metrics_{stage}.csv", index=False)
+    metrics_df = per_class_statistics_balanced(confmat, target_labels_names)
+    metrics_df.to_csv(
+        fail_path / f"per_class_metrics_balanced_{stage}.csv", index=False
+    )
+
+    # if one of the classes is empty
+    inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
+    if len(inds) != 0:
+        labels = np.concatenate((labels, inds))
+        prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
+
+    if n_classes == 2:
+        ap = average_precision_score(labels, np.argmax(prob, axis=1))
+    else:
+        ap = average_precision_score(labels, prob)
+    app_loss_acc = (
+        f"{stage}: AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}\n"
+    )
+    with open(fail_path / "app_loss_acc.txt", "a") as f:
+        f.write(app_loss_acc)
+    print(app_loss_acc)
+    print(confmat)
+
+
 def helper_results(
     data,
     ldts,
@@ -584,6 +667,7 @@ def helper_results(
     SAVE_FAILED=False,
     # criterion2=None,
 ):
+    model.eval()
     with torch.no_grad():
         labels = ldts[:, 0]
         labels = labels.to(device)  # N
