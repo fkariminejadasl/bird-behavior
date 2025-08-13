@@ -8,11 +8,12 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.amp
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.state import DistributedType
-from accelerate.utils import DistributedDataParallelKwargs
+from accelerate.utils import DataLoaderConfiguration, DistributedDataParallelKwargs
 from momentfm import MOMENTPipeline
 from momentfm.data.classification_dataset import ClassificationDataset
 from momentfm.utils.masking import Masking
@@ -85,26 +86,43 @@ def write_info_in_tensorboard(writer, epoch, loss, accuracy, stage):
     writer.add_scalars("accuracy", acc_scalar_dict, epoch)
 
 
-def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
+def train_one_epoch(
+    loader, model, device, epoch, no_epochs, writer, optimizer, accelerator
+):
+    print(f"======> cuda:{torch.cuda.current_device()}")
+    print(
+        f"rank={accelerator.process_index}, local_rank={accelerator.local_process_index}, device={accelerator.device}"
+    )
     stage = "train"
 
     model.train()
-    running_loss = 0
-    running_corrects = 0
+
+    # NEW: accumulators for global accuracy (and optional global loss)
+    local_correct_sum = torch.tensor(0, device=device)  # NEW
+    local_total_sum = torch.tensor(0, device=device)  # NEW
+    local_loss_sum = torch.tensor(0.0, device=device)  # NEW (optional: for global loss)
+
     # Fixed: data_len is computed incrementally per batch instead of len(loader.dataset)
     # since drop_last=True can make the total length incorrect
-    data_len = 0
     for i, (batch_x, batch_masks, batch_labels) in enumerate(loader):
         optimizer.zero_grad()
         batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
         batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+        batch_labels = batch_labels.to(device)
 
         # Forward and compute loss
+        # NEW: accumulate tensor totals for a single end-of-epoch all-reduce
         output = model(x_enc=batch_x, input_mask=batch_masks, reduction=reduction)
         loss = criterion(output.logits, batch_labels)
-        corrects = (torch.argmax(output.logits, 1) == batch_labels).sum().item()
+        preds_local = torch.argmax(output.logits, 1)
+        corrects_local = (preds_local == batch_labels).sum()
+        corrects = corrects_local.item()
+        n = torch.tensor(batch_labels.numel(), device=device)
+        local_correct_sum += corrects_local
+        local_total_sum += n
+        local_loss_sum += loss.detach() * n
         print(
-            f"loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
+            f"[rank {accelerator.process_index}]  loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
         )
         # bu.check_types(model)
 
@@ -114,20 +132,36 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
         optimizer.step()
         scheduler.step()
 
-        running_loss += loss.item()
-        running_corrects += corrects
-        data_len += batch_x.shape[0]
+    # NEW: all-reduce once per epoch to get true global totals across GPUs
+    global_correct = accelerator.reduce(local_correct_sum, reduction="sum")
+    global_total = accelerator.reduce(local_total_sum, reduction="sum")
 
-    total_loss = running_loss / (i + 1)
-    total_accuracy = running_corrects / data_len * 100
-    bm.print_epoch_summary(
-        epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
-    )
-    write_info_in_tensorboard(writer, epoch, total_loss, total_loss, stage)
+    # NEW (optional): globally correct, batch-size–weighted loss
+    global_loss_sum = accelerator.reduce(local_loss_sum, reduction="sum")
+
+    # Compute final metrics (available on all ranks; only log/print on main)
+    total_accuracy = (global_correct / global_total).item() * 100
+    total_loss = (global_loss_sum / global_total).item()
+
+    if accelerator.is_main_process:  # NEW
+        bm.print_epoch_summary(
+            epoch,
+            no_epochs,
+            int(global_total.item()),
+            int(global_correct.item()),
+            total_loss,
+            total_accuracy,
+            stage,
+        )
+        write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
 
 
 @torch.no_grad()
-def evaluate(loader, model, device, epoch, no_epochs, writer):
+def evaluate(loader, model, device, epoch, no_epochs, writer, accelerator):
+    print(f"======> cuda:{torch.cuda.current_device()}")
+    print(
+        f"rank={accelerator.process_index}, local_rank={accelerator.local_process_index}, device={accelerator.device}"
+    )
     stage = "valid"
 
     model.eval()
@@ -146,7 +180,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
         loss = criterion(output.logits, batch_labels)
         corrects = (torch.argmax(output.logits, 1) == batch_labels).sum().item()
         print(
-            f"loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
+            f"[rank {accelerator.process_index}]  loss: {loss.item():.4f}, corrects: {corrects}, data length: {batch_x.shape[0]}"
         )
 
         running_loss += loss.item()
@@ -181,7 +215,7 @@ cfg = {
     "n_classes": 9,
     "reduction": "mean",  # 'mean' or 'concat'
     # Training
-    "no_epochs": 1,
+    "no_epochs": 10,
     "init_lr": 1e-6,
     "max_lr": 1e-4,
     "PEFT": False,
@@ -287,7 +321,10 @@ print(
 )
 
 # Set up model ready for accelerate training
-accelerator = Accelerator()
+dl_cfg = DataLoaderConfiguration(
+    even_batches=False,  # disables sample-duplication/padding
+)
+accelerator = Accelerator(dataloader_config=dl_cfg)  # Accelerator()
 dist_type = accelerator.state.distributed_type
 # # finetuning code seems don't have issue with unused parameters. If I use it I get warning for performance.
 # if dist_type == DistributedType.MULTI_GPU:
@@ -295,8 +332,8 @@ dist_type = accelerator.state.distributed_type
 #     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
 #     accelerator = Accelerator(kwargs_handlers=[ddp_kwargs])
 device = accelerator.device
-model, optimizer, train_loader, scheduler = accelerator.prepare(
-    model, optimizer, train_loader, scheduler
+model, optimizer, scheduler, train_loader = accelerator.prepare(
+    model, optimizer, scheduler, train_loader
 )
 
 
@@ -321,9 +358,18 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         print(f"start time: {start_time}:.f")
         get_gpu_memory()
         train_one_epoch(
-            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+            train_loader,
+            model,
+            device,
+            epoch,
+            cfg.no_epochs,
+            writer,
+            optimizer,
+            accelerator,
         )
-        accuracy = evaluate(val_loader, model, device, epoch, cfg.no_epochs, writer)
+        accuracy = evaluate(
+            val_loader, model, device, epoch, cfg.no_epochs, writer, accelerator
+        )
         get_gpu_memory()
         end_time = datetime.now().replace(microsecond=0)
         print(f"end time: {end_time}, elapse time: {end_time-start_time}")
@@ -351,3 +397,6 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
 # # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+
+print(f"===> num process: {accelerator.num_processes}")
+dist.destroy_process_group()
