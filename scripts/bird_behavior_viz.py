@@ -150,10 +150,11 @@ def infer_update_classes(df, glen, labels_to_use, checkpoint_file, n_classes):
     mapper = Mapper({l: i for i, l in enumerate(labels_to_use)})
     preds = mapper.decode(preds)
 
-    # Change dataframe
-    df.iloc[:, 3] = preds[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
+    # Change dataframe: append columns at the end
+    last_col = int(df.columns[-1])
+    df[last_col + 1] = preds[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
     max_probs = np.max(probs, axis=1)
-    df[8] = max_probs[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
+    df[last_col + 2] = max_probs[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
 
     return df
 
@@ -163,14 +164,20 @@ def fetch_merge_gps(df, database_url):
     Fetch GPS data and merge with IMU data
     -> df is mutated
     """
+
     start_time = df.iloc[0, 1]
     end_time = df.iloc[-1, 1]
     device_id = df.iloc[0, 0]
     # gps_data = fetch_gps_data(database_url, 298, '2010-06-07 09:43:05', '2010-06-07 09:53:17')
     gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
     gps_data = pd.DataFrame(gps_data)
+
+    # Change dataframe: append columns at the end
+    last_col = int(df.columns[-1])
     df = df.merge(gps_data, on=[0, 1], how="inner")
-    df = df.rename(columns={"2_x": 2, "3_x": 3, "2_y": 9, "3_y": 10})
+    df = df.rename(
+        columns={"2_x": 2, "3_x": 3, "2_y": last_col + 1, "3_y": last_col + 2}
+    )
 
     return df
 
@@ -222,10 +229,10 @@ dt = (298, "2010-06-07 09:43:05")
 unique_dt = df.groupby(by=[0, 1])
 dataframe = unique_dt.get_group(dt)
 fig = bu.plot_labeled_data(dataframe, dataframe, bu.ind2name)
-plt.title(f"{dt[0]},{dt[1]},{dataframe.iloc[0,7]:.2f}")
+plt.title(f"{dt[0]},{dt[1]},{dataframe.iloc[0,8]:.2f}")
 
 # Visualize map
-lat, lon = df.iloc[0, [9, 10]]  # 52.00947, 4.34438
+lat, lon = df.iloc[0, [10, 11]]  # 52.00947, 4.34438
 map_image = bmap.get_centered_map_image(lat, lon, zoom=15)
 map_image.show()
 
