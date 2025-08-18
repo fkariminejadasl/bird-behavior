@@ -54,7 +54,7 @@ igs, ldts = bd.load_csv_pandas(data_file, labels_to_use, glen=20)
 # igs, ldts = bd.load_csv(data_file)
 # igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
 
-dataset = bd.BirdDataset(igs, ldts[:, 0, :])
+dataset = bd.BirdDataset(igs, ldts)
 
 # dataset = bd.BirdDataset(igs, ldts)
 loader = DataLoader(

@@ -571,6 +571,20 @@ def precision_recall(
     return precision, recall, f_score
 
 
+def inference(data, model, device):
+    model.to(device)
+    model.eval()
+    with torch.no_grad():
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        prob = torch.nn.functional.softmax(outputs, dim=-1)  # N x C
+        pred = torch.argmax(outputs.data, 1)  # N
+
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+    return prob, pred
+
+
 def evaluate(
     data,
     ldts,

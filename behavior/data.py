@@ -241,8 +241,8 @@ import torch
 class BirdDataset(Dataset):
     def __init__(
         self,
-        all_measurements: np.ndarray,
-        ldts: np.ndarray = None,
+        all_measurements: np.ndarray,  # NxLxC
+        ldts: np.ndarray = None,  # Nx3
         transform=None,
         channel_first=True,
     ):

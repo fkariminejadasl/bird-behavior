@@ -205,6 +205,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 #### Helper Scripts
 
 - `scripts/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
+- `scripts/get_data.py`: Script to get unlabeled data. See the description above.
 - `exps/birdvis_query.py`: Generate query file to directly import in the birdvis tool.
 
 #### Data 
@@ -223,3 +224,4 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 ## List of Functions
 
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling equal number of groups from each specified class.
+- `map.py`: Visualize map from latitude longitude
