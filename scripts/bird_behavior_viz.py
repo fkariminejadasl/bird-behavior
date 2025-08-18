@@ -165,11 +165,14 @@ def fetch_merge_gps(df, database_url):
     -> df is mutated
     """
 
-    start_time = df.iloc[0, 1]
-    end_time = df.iloc[-1, 1]
-    device_id = df.iloc[0, 0]
-    # gps_data = fetch_gps_data(database_url, 298, '2010-06-07 09:43:05', '2010-06-07 09:53:17')
-    gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
+    groups = df.groupby([0])
+    gps_data = []
+    for k, group in groups:
+        start_time = group.iloc[0, 1]
+        end_time = group.iloc[-1, 1]
+        device_id = group.iloc[0, 0]
+        per_group = fetch_gps_data(database_url, device_id, start_time, end_time)
+        gps_data.extend(per_group)
     gps_data = pd.DataFrame(gps_data)
 
     # Change dataframe: append columns at the end
@@ -200,8 +203,6 @@ cfg = dict(
     in_channe=4,
     width=30,
     n_classes=None,
-    data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/final/gull"),
-    save_path=Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull"),
     checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/result"),
     database_url=None,
 )
@@ -213,11 +214,21 @@ cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
 """
-data_paths = sorted(list(cfg.data_path.glob("*")), key=lambda x:int(x.stem))
+# On unlabeled data
+data_path = Path("/home/fatemeh/Downloads/bird/data/ssl/final/gull")
+save_path = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull")
+data_paths = sorted(list(data_path.glob("*")), key=lambda x: int(x.stem))
 for data_file in data_paths:
     device_id = int(data_file.stem)
-    save_file = cfg.save_path/f"{device_id}.csv"
+    save_file = save_path / f"{device_id}.csv"
     prepare_imu_gps_class_data(data_file, save_file, cfg)
+
+# On the ground truth data
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+save_file = Path(
+    "/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv"
+)
+prepare_imu_gps_class_data(data_file, save_file, cfg)
 """
 
 
