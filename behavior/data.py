@@ -476,6 +476,7 @@ def fetch_calibration_data(database_url, device_id):
 def fetch_gps_data(database_url, device_id, start_time, end_time):
     """
     Fetch GPS data from the database.
+    `date_time, speed_2d, latitude, longitude, altitude, temperature
     """
     sql_query = f"""
     SELECT *

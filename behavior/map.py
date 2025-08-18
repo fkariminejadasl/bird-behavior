@@ -2,7 +2,7 @@ import math
 from io import BytesIO
 
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw
 
 TILE_SIZE = 256  # Size of a tile in pixels
 
@@ -102,6 +102,14 @@ def get_centered_map_image(lat, lon, zoom=15, width=640, height=480):
     cropped_image = stitched_image.crop(
         (offset_x, offset_y, offset_x + width, offset_y + height)
     )
+
+    # Draw a cross at the exact center of the cropped image
+    draw = ImageDraw.Draw(cropped_image)
+    cx, cy = width // 2, height // 2
+    half_len = 10  # half the length of each arm of the cross in pixels
+    line_width = 3
+    draw.line([(cx - half_len, cy), (cx + half_len, cy)], fill="red", width=line_width)
+    draw.line([(cx, cy - half_len), (cx, cy + half_len)], fill="red", width=line_width)
 
     return cropped_image
 
