@@ -253,6 +253,8 @@ def plot_labeled_data(df, ind2name, glen=20):
     text = f"{df.iloc[0,0]}, {df.iloc[0,1]},gps:{df.iloc[0,7]:.2f}"
     plt.title(f"{text}", fontsize=10)  # GPS info
     fig.tight_layout()
+    # # ig.subplotpars.left, fig.subplotpars.right, fig.subplotpars.bottom, fig.subplotpars.top
+    # fig.subplots_adjust(left=.038,right=.97,bottom=.09,top=.95)
     return fig
 
 
@@ -315,10 +317,9 @@ for i in [1536, 179]:
     dataframe = groups.get_group(dt)
     fig = plot_labeled_data(dataframe, bu.ind2name)
 
-
-# # Visualize map
-# lat, lon = df.iloc[0, [10, 11]]  # 52.00947, 4.34438
-# map_image = bmap.get_centered_map_image(lat, lon, zoom=15)
-# map_image.show()
+    # Visualize map
+    lat, lon = dataframe.iloc[0, [10, 11]]  # 52.00947, 4.34438
+    map_image = bmap.get_centered_map_image(lat, lon, zoom=15)
+    map_image.show()
 
 print("done")
