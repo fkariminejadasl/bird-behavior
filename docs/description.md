@@ -181,8 +181,13 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 ## List of scripts
 
+#### App
+
+- `app/bird_behavior_viz_app.py`: visualize IMU with behavior and the location in the map
+
 #### Visualization
 
+- `scripts/bird_behavior_viz.py`: generate data (IMU, behavior classes by inference, GPS by downloading from database) and visualize IMU with behavior and location in the downloaded map. The visualization part is also in `app/bird_behavior_viz_app.py` with interactive mode.
 - `exps/save_plots_gt.py`: save IMU plots for ground truth data based on device id and starting times.
 - `exps/save_plots.py`: save IMU plots for each label, run inference for the predictions. 
 - `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: generates IMU plots for structured data (divisible by glen=20) such as shift.csv. 
