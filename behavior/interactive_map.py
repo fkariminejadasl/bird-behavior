@@ -16,7 +16,8 @@ ind2name = {
 }
 
 # --- load your CSV ---
-gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv")
+# gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv")
+gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 df = pd.read_csv(gimu_beh_file, header=None)
 
 # group by [0, 1] like your code
@@ -189,19 +190,24 @@ def make_figure(idx: int, zoom: int = 15):
 
     return fig, (lat, lon), key
 
-# --- Dash app with buttons + global arrow keys ---
+# Listen for global key presses (Left/Right/Space)
 key_events = [{"event": "keydown", "props": ["key"]}]
 
 app = Dash(__name__)
 app.layout = html.Div([
-    EventListener(id="keys", events=key_events),  # global ←/→ listener
-    dcc.Store(id="idx", data=0),
+    EventListener(id="keys", events=key_events),     # global key listener
+    dcc.Store(id="idx", data=0),                     # current group index
+    dcc.Store(id="playing", data=False),             # play/pause state
 
     html.Div([
         html.Button("⬅ Prev", id="prev", n_clicks=0, style={"marginRight": "8px"}),
+        html.Button("▶ Play", id="play", n_clicks=0, style={"marginRight": "8px"}),
         html.Button("Next ➡", id="next", n_clicks=0),
         html.Span(id="label", style={"marginLeft": "12px"}),
     ], style={"marginBottom": "8px"}),
+
+    # interval drives auto-advance while playing
+    dcc.Interval(id="ticker", interval=500, disabled=True),  # 800 ms; tweak to taste
 
     dcc.Graph(id="fig", figure=make_figure(0)[0], config={"scrollZoom": True}),
 ])
@@ -210,28 +216,54 @@ app.layout = html.Div([
     Output("idx", "data"),
     Output("fig", "figure"),
     Output("label", "children"),
+    Output("playing", "data"),
+    Output("play", "children"),
+    Output("ticker", "disabled"),
     Input("prev", "n_clicks"),
     Input("next", "n_clicks"),
+    Input("play", "n_clicks"),
+    Input("ticker", "n_intervals"),
     Input("keys", "n_events"),
     State("keys", "event"),
     State("idx", "data"),
+    State("playing", "data"),
+    prevent_initial_call=False,
 )
-def step(prev_clicks, next_clicks, _n_events, key_event, idx):
+def step(prev_clicks, next_clicks, play_clicks, _tick, _n_events, key_event, idx, playing):
+    N = len(GROUP_KEYS)
     trig = ctx.triggered_id
+
+    # 1) button clicks
     if trig == "prev":
-        idx = (idx - 1) % len(GROUP_KEYS)
+        idx = (idx - 1) % N
     elif trig == "next":
-        idx = (idx + 1) % len(GROUP_KEYS)
-    elif trig == "keys" and key_event and isinstance(key_event, dict):
+        idx = (idx + 1) % N
+    elif trig == "play":
+        playing = not playing
+
+    # 2) keyboard
+    elif trig == "keys" and isinstance(key_event, dict):
         k = key_event.get("key")
         if k == "ArrowLeft":
-            idx = (idx - 1) % len(GROUP_KEYS)
+            idx = (idx - 1) % N
         elif k == "ArrowRight":
-            idx = (idx + 1) % len(GROUP_KEYS)
+            idx = (idx + 1) % N
+        elif k in (" ", "Space", "Spacebar"):  # toggle play/pause with space
+            playing = not playing
 
+    # 3) timer tick (auto advance when playing)
+    elif trig == "ticker" and playing:
+        idx = (idx + 1) % N
+
+    # Build updated figure + label
     fig, (lat, lon), key = make_figure(idx)
-    label = f"Group {idx+1}/{len(GROUP_KEYS)} — key={key} — lat={lat:.5f}, lon={lon:.5f}"
-    return idx, fig, label
+    label = f"Group {idx+1}/{N} — key={key} — lat={lat:.5f}, lon={lon:.5f}"
+
+    # UI state
+    play_text = "⏸ Pause" if playing else "▶ Play"
+    ticker_disabled = not playing
+
+    return idx, fig, label, playing, play_text, ticker_disabled
 
 if __name__ == "__main__":
-    app.run(debug=True)  # Dash ≥ 2.14
+    app.run(debug=True)   # Dash ≥ 2.14
