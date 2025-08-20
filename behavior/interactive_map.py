@@ -25,6 +25,7 @@ df = pd.read_csv(gimu_beh_file, header=None)
 # group by [0, 1] like your code
 groups = df.groupby(by=[0, 1], sort=True)
 GROUP_KEYS = list(groups.groups.keys())
+N = len(GROUP_KEYS)
 
 # derive a (lat, lon) per group from columns [10, 11]
 def latlon_for_group(key):
@@ -206,32 +207,30 @@ app.layout = html.Div([
         html.Button("▶ Play", id="play", n_clicks=0, style={"marginRight": "8px"}),
         html.Button("Next ➡", id="next", n_clicks=0),
         dcc.Input(
-            id="jump", type="number", min=1, max=len(GROUP_KEYS), step=1,
-            value=1, debounce=True, placeholder="idx",
+            id="jump", type="number",
+            min=0, max=N-1, step=1,
+            value=0,                   # <- start at 0
+            debounce=True, placeholder=f"0..{N-1}",
             style={"width": "90px", "marginLeft": "12px"}
         ),
-        html.Span(f"/ {len(GROUP_KEYS)}", style={"marginLeft": "6px"}),
+        html.Span(f"/ {N-1}", style={"marginLeft": "6px"}),
         html.Span(id="label", style={"marginLeft": "12px"}),
     ], style={"marginBottom": "8px"}),
 
     # interval drives auto-advance while playing
-    dcc.Interval(id="ticker", interval=500, disabled=True),  # 800 ms; tweak to taste
+    dcc.Interval(id="ticker", interval=500, disabled=True),  # 500 ms; tweak to taste
 
     dcc.Graph(id="fig", figure=make_figure(0)[0], config={"scrollZoom": True}),
 ])
 
+
 def _normalize_jump(val, idx, N):
-    """Accept 1-based or 0-based; clamp into range if needed."""
     try:
         v = int(val)
     except (TypeError, ValueError):
         return idx
-    if 1 <= v <= N:      # 1-based
-        return v - 1
-    if 0 <= v < N:       # 0-based
-        return v
-    # clamp out-of-range
-    return max(0, min(N - 1, v - 1 if v >= 1 else v))
+    # clamp to 0..N-1
+    return max(0, min(N - 1, v))
 
 
 @app.callback(
@@ -240,7 +239,7 @@ def _normalize_jump(val, idx, N):
     prevent_initial_call=True,
 )
 def sync_jump(idx):
-    return (idx % len(GROUP_KEYS)) + 1
+    return int(idx)  # <- zero-based display
 
 
 @app.callback(
@@ -302,7 +301,7 @@ def step(prev_clicks, next_clicks, play_clicks, _tick, _n_events, jump_val,
         idx = _normalize_jump(jump_val, idx, N)
 
     fig, (lat, lon), key = make_figure(idx)
-    label = f"Group {idx+1}/{N} — key={key} — lat={lat:.5f}, lon={lon:.5f}"
+    label = f"idx={idx} (0..{N-1}) — key={key} — lat,lon={lat:.6f},{lon:.6f}"
     play_text = "⏸ Pause" if playing else "▶ Play"
     ticker_disabled = not playing
 
