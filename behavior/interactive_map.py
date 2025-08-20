@@ -4,16 +4,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from dash import Dash, dcc, html, Input, Output, State, ctx
+from dash import Dash, dcc, html, Input, Output, State, ctx, no_update
 from dash_extensions import EventListener
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # --- labels (your mapping) ---
+# fmt: off
 ind2name = {
     0: "Flap", 1: "ExFlap", 2: "Soar", 3: "Boat", 4: "Float",
     5: "SitStand", 6: "TerLoco", 7: "Other", 8: "Manouvre", 9: "Pecking",
 }
+# fmt: on
 
 # --- load your CSV ---
 # gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv")
@@ -203,6 +205,12 @@ app.layout = html.Div([
         html.Button("⬅ Prev", id="prev", n_clicks=0, style={"marginRight": "8px"}),
         html.Button("▶ Play", id="play", n_clicks=0, style={"marginRight": "8px"}),
         html.Button("Next ➡", id="next", n_clicks=0),
+        dcc.Input(
+            id="jump", type="number", min=1, max=len(GROUP_KEYS), step=1,
+            value=1, debounce=True, placeholder="idx",
+            style={"width": "90px", "marginLeft": "12px"}
+        ),
+        html.Span(f"/ {len(GROUP_KEYS)}", style={"marginLeft": "6px"}),
         html.Span(id="label", style={"marginLeft": "12px"}),
     ], style={"marginBottom": "8px"}),
 
@@ -211,6 +219,29 @@ app.layout = html.Div([
 
     dcc.Graph(id="fig", figure=make_figure(0)[0], config={"scrollZoom": True}),
 ])
+
+def _normalize_jump(val, idx, N):
+    """Accept 1-based or 0-based; clamp into range if needed."""
+    try:
+        v = int(val)
+    except (TypeError, ValueError):
+        return idx
+    if 1 <= v <= N:      # 1-based
+        return v - 1
+    if 0 <= v < N:       # 0-based
+        return v
+    # clamp out-of-range
+    return max(0, min(N - 1, v - 1 if v >= 1 else v))
+
+
+@app.callback(
+    Output("jump", "value", allow_duplicate=True),
+    Input("idx", "data"),
+    prevent_initial_call=True,
+)
+def sync_jump(idx):
+    return (idx % len(GROUP_KEYS)) + 1
+
 
 @app.callback(
     Output("idx", "data"),
@@ -224,46 +255,59 @@ app.layout = html.Div([
     Input("play", "n_clicks"),
     Input("ticker", "n_intervals"),
     Input("keys", "n_events"),
+    Input("jump", "value"),
     State("keys", "event"),
     State("idx", "data"),
     State("playing", "data"),
-    prevent_initial_call=False,
 )
-def step(prev_clicks, next_clicks, play_clicks, _tick, _n_events, key_event, idx, playing):
+def step(prev_clicks, next_clicks, play_clicks, _tick, _n_events, jump_val,
+         key_event, idx, playing):
     N = len(GROUP_KEYS)
     trig = ctx.triggered_id
 
-    # 1) button clicks
     if trig == "prev":
         idx = (idx - 1) % N
+
     elif trig == "next":
         idx = (idx + 1) % N
+
     elif trig == "play":
         playing = not playing
 
-    # 2) keyboard
     elif trig == "keys" and isinstance(key_event, dict):
         k = key_event.get("key")
         if k == "ArrowLeft":
             idx = (idx - 1) % N
         elif k == "ArrowRight":
             idx = (idx + 1) % N
-        elif k in (" ", "Space", "Spacebar"):  # toggle play/pause with space
+        elif k in (" ", "Space", "Spacebar"):
             playing = not playing
+        elif k in ("Enter", "NumpadEnter"):
+            # Treat Enter like a manual jump to whatever is in the box
+            idx = _normalize_jump(jump_val, idx, N)
+        else:
+            # Any other key (digits, etc.) → do nothing so typing isn't interrupted
+            return (no_update, no_update, no_update,
+                    no_update, no_update, no_update)
 
-    # 3) timer tick (auto advance when playing)
-    elif trig == "ticker" and playing:
-        idx = (idx + 1) % N
+    elif trig == "ticker":
+        if playing:
+            idx = (idx + 1) % N
+        else:
+            return (no_update, no_update, no_update,
+                    no_update, no_update, no_update)
 
-    # Build updated figure + label
+    elif trig == "jump":
+        # fires on Enter/blur because debounce=True
+        idx = _normalize_jump(jump_val, idx, N)
+
     fig, (lat, lon), key = make_figure(idx)
     label = f"Group {idx+1}/{N} — key={key} — lat={lat:.5f}, lon={lon:.5f}"
-
-    # UI state
     play_text = "⏸ Pause" if playing else "▶ Play"
     ticker_disabled = not playing
 
     return idx, fig, label, playing, play_text, ticker_disabled
+
 
 if __name__ == "__main__":
     app.run(debug=True)   # Dash ≥ 2.14
