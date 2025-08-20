@@ -21,26 +21,11 @@ ind2name = {
 # gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv")
 gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 df = pd.read_csv(gimu_beh_file, header=None)
+df = df.sort_values([0, 1, 2]).reset_index(drop=True)
 
-# group by [0, 1]
 groups = df.groupby(by=[0, 1], sort=True)
 GROUP_KEYS = list(groups.groups.keys())
 N = len(GROUP_KEYS)
-
-# --- precompute sorted groups once (faster playback) ---
-PRE = {}
-for key in GROUP_KEYS:
-    PRE[key] = groups.get_group(key).sort_values([0, 1, 2]).reset_index(drop=True)
-
-
-# derive a (lat, lon) per group from columns [10, 11]
-def latlon_for_group(key):
-    g = PRE[key]
-    lat, lon = g.iloc[0, [10, 11]]
-    return float(lat), float(lon)
-
-
-COORDS = [latlon_for_group(k) for k in GROUP_KEYS]
 
 
 # --- plotly version of your labeled IMU plot (right subplot), fast + fixed colors ---
@@ -185,8 +170,8 @@ def add_labeled_traces_and_decorations(fig: go.Figure, g: pd.DataFrame, glen: in
 # --- make the full 1×2 figure for a given group index ---
 def make_figure(idx: int, zoom: int = 15):
     key = GROUP_KEYS[idx % N]
-    g = PRE[key]
-    lat, lon = COORDS[idx % N]
+    g = groups.get_group(key)
+    lat, lon = g.iloc[0, [10, 11]]
 
     fig = make_subplots(
         rows=1,
@@ -237,7 +222,7 @@ def make_figure(idx: int, zoom: int = 15):
         font=dict(size=12, color="black"),
     )
 
-    return fig, (lat, lon), key
+    return fig, (lat, lon), key, g.index[0]
 
 
 # Listen for global key presses (Left/Right/Space/Enter)
@@ -360,8 +345,8 @@ def step(
     elif trig == "jump":
         idx = _normalize_jump(jump_val, idx, N)
 
-    fig, (lat, lon), key = make_figure(idx)
-    label = f"idx={idx} (0..{N-1}) — key={key} — lat,lon={lat:.6f},{lon:.6f}"
+    fig, (lat, lon), key, global_idx = make_figure(idx)
+    label = f"idx={idx} (0..{N-1}), global idx={global_idx} — key={key} — lat,lon={lat:.6f},{lon:.6f}"
     play_text = "⏸ Pause" if playing else "▶ Play"
     ticker_disabled = not playing
 
