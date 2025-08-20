@@ -183,7 +183,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### App
 
-- `app/bird_behavior_viz_app.py`: visualize IMU with behavior and the location in the map
+- `app/bird_behavior_viz_app.py`: visualize IMU with behavior and the location in the map. The data for this app comes from `scripts/bird_behavior_viz.py`.
 
 #### Visualization
 
