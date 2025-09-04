@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 from matplotlib.figure import Figure
 
 from behavior import utils as bu
@@ -141,3 +142,24 @@ def test_files_equal(file_path1, file_path2):
 
     assert df1.equals(df2)
     assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5, 6, 7])
+
+
+def test_full_coverage_without_drops():
+    labels = torch.tensor([0] * 5 + [1] * 7)
+    a_idx, b_idx = bu.stratified_split(labels, split_ratios=[0.9, 0.1], seed=0)
+    covered = torch.cat([a_idx, b_idx])
+    # Expect coverage to equal all indices
+    assert covered.numel() == labels.numel()
+    assert torch.equal(torch.sort(covered).values, torch.arange(labels.numel()))
+
+
+def test_stratified_split():
+    # class sizes not multiples of ratios: remainder will be dropped by current logic
+    labels = torch.tensor([0] * 5 + [1] * 7 + [2] * 11)
+    ratios = [0.9, 0.1]
+    a_idx, b_idx = bu.stratified_split(labels, split_ratios=ratios, seed=0)
+
+    # fmt: off
+    assert labels[a_idx].equal(torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2]))
+    assert labels[b_idx].equal(torch.tensor([0, 1, 2, 2]))
+    # fmt: on

@@ -62,7 +62,7 @@ def read_csv_files(data_path):
 
 @dataclass
 class PathConfig:
-    save_path: Path
+    save_path: Path | None
     data_file: Path
     model_checkpoint: Path
 
@@ -553,9 +553,13 @@ def main(cfg):
     # ==============
     channel_first = cfg.model.channel_first
 
-    save_path = (
-        cfg.model_checkpoint.parent / cfg.model_checkpoint.stem.split("_best")[0]
-    )
+    if cfg.save_path is None:
+        save_path = cfg.model_checkpoint.parent
+    else:
+        save_path = cfg.save_path
+
+    save_path = save_path / cfg.model_checkpoint.stem.split("_best")[0]
+
     save_path.mkdir(parents=True, exist_ok=True)
 
     lt_labels = cfg.lt_labels
@@ -603,7 +607,7 @@ def main(cfg):
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
     save_file = save_path / f"test_{cfg.layer_name}.npz"
-    if not save_file.exists():
+    if True:  # not save_file.exists():
         test_loader = setup_testing_dataloader(
             cfg.test_data_file, labels_to_use, channel_first
         )
@@ -635,14 +639,24 @@ def main(cfg):
 
     tensor_dl = torch.tensor(discover_labels, device=device)
     mask = torch.isin(l_targets, tensor_dl)
+    
+    known_f = l_feats[~mask]
+    known_t = l_targets[~mask]
+    splits = bu.stratified_split(known_t, split_ratios=[0.5, 0.5], seed=cfg.seed)
+    idx1, idx2 = splits[0], splits[1]
+    uf2 = known_f[idx1]
+    ut2 = known_t[idx1]
+    lf = known_f[idx2]
+    lt = known_t[idx2]
+
     uf1 = l_feats[mask]
     ut1 = l_targets[mask]
-    uf2 = l_feats[~mask][2000:]
-    ut2 = l_targets[~mask][2000:]
+    # uf2 = l_feats[~mask][2000:]
+    # ut2 = l_targets[~mask][2000:]
     ut = torch.cat((ut1, ut2))
     uf = torch.cat((uf1, uf2))  # uf = torch.cat((uf1, uf2, u_feats))
-    lf = l_feats[~mask][:2000]
-    lt = l_targets[~mask][:2000]
+    # lf = l_feats[~mask][:2000]
+    # lt = l_targets[~mask][:2000]
 
     ut = u_mapper.encode(ut)
     lt = l_mapper.encode(lt)
@@ -717,8 +731,9 @@ def main(cfg):
         + "".join(map(str, lt_labels))
         + "_dsl"
         + "".join(map(str, discover_labels))
+        + f"_{cfg.layer_name}"
     )
-    save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
+    ac = save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
 
     # classification
     # ==============
@@ -817,6 +832,8 @@ def main(cfg):
     save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
     save_hungarian(cm, method_name, hungarian_file)
     print("Done")
+    
+    return ac
 
 
 def get_config():
@@ -825,9 +842,9 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [0, 2]  # [1, 3, 8]
+    exclude = [3]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = "145"
+    exp = "138"
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
     cfg.model.name = "small"  # "smallemb"
@@ -835,9 +852,9 @@ if __name__ == "__main__":
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
     cfg.out_channel = len(cfg.labels_trained)
     cfg.n_clusters = len(cfg.all_labels)
-    cfg.layer_name = "avgpool"  # avgpool, fc
+    cfg.layer_name = "fc"  # avgpool, fc
     print(f"Experiment {exp}: Excluding label {exclude}")
-    main(cfg)
+    acc = main(cfg)
     # fmt: on
 
 """

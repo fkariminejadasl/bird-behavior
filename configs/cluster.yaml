@@ -14,7 +14,7 @@
 # TEST
 # ===========
 # Paths
-save_path: /home/fatemeh/Downloads/bird/result/125 # f_mem1_1 # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
+save_path:  # /home/fatemeh/Downloads/bird/result/125 # f_mem1_1 # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final/gull  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #final/proc2/s_correct.csv, test.csv, final/s_data_shift/s_data_unbalanced.csv, orig/s_data_orig.csv, s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv

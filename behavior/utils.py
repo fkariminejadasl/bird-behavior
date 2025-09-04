@@ -1045,3 +1045,45 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
     # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
     # if len(found) != 0:
     #     print("Found", found)
+
+
+def stratified_split(labels, split_ratios=[0.9, 0.1], seed=None, shuffle=True):
+    """
+    Stratified split of index positions according to class labels.
+    similar: sklearn StratifiedKFold
+
+    Args:
+        labels: 1D tensor of integer class ids (device is preserved).
+        split_ratios: iterable of fold proportions (e.g., (0.9, 0.1)).
+                Assumed to sum to ~1.0. Length = number of folds.
+        seed:   optional seed for deterministic shuffling.
+        shuffle: shuffle indices within each class before splitting.
+
+    Returns:
+        List[torch.Tensor]: one index tensor per ratio, covering all samples exactly once.
+    """
+
+    device = labels.device
+    classes = torch.unique(labels)
+    g = torch.Generator(device=device)
+    if seed is not None:
+        g.manual_seed(seed)
+
+    n_splits = len(split_ratios)
+    folds = [[] for _ in range(n_splits)]
+    for c in classes:
+        idx = torch.nonzero(labels == c, as_tuple=False).squeeze(1)
+        if shuffle:
+            idx = idx[torch.randperm(idx.numel(), generator=g, device=device)]
+
+        n = idx.numel()
+        n_elements = [int(i * n) for i in split_ratios]
+        ends = list(np.cumsum(n_elements))
+        # assign remainder to last so nothing is dropped.
+        ends[-1] += n - ends[-1]
+        starts = [0] + ends[:-1]
+        for i, (s, e) in enumerate(zip(starts, ends)):
+            folds[i].append(idx[s:e])
+
+    folds = [torch.cat(f) for f in folds]
+    return folds
