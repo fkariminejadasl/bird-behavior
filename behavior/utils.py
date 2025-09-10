@@ -1050,7 +1050,7 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
 def stratified_split(labels, split_ratios=[0.9, 0.1], seed=None, shuffle=True):
     """
     Stratified split of index positions according to class labels.
-    similar: sklearn StratifiedKFold
+    similar: sklearn StratifiedKFold, StratifiedShuffleSplit
 
     Args:
         labels: 1D tensor of integer class ids (device is preserved).

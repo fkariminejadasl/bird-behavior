@@ -607,7 +607,7 @@ def main(cfg):
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
     save_file = save_path / f"test_{cfg.layer_name}.npz"
-    if True:  # not save_file.exists():
+    if not save_file.exists():
         test_loader = setup_testing_dataloader(
             cfg.test_data_file, labels_to_use, channel_first
         )
@@ -639,7 +639,7 @@ def main(cfg):
 
     tensor_dl = torch.tensor(discover_labels, device=device)
     mask = torch.isin(l_targets, tensor_dl)
-    
+
     known_f = l_feats[~mask]
     known_t = l_targets[~mask]
     splits = bu.stratified_split(known_t, split_ratios=[0.5, 0.5], seed=cfg.seed)
@@ -733,7 +733,7 @@ def main(cfg):
         + "".join(map(str, discover_labels))
         + f"_{cfg.layer_name}"
     )
-    ac = save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
+    accuracy = save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
 
     # classification
     # ==============
@@ -747,16 +747,18 @@ def main(cfg):
     reducer = TSNE(n_components=2, random_state=cfg.seed)
     reduced = reducer.fit_transform(feats)
 
-    # # new score to check which points are mixed (separability)
+    # new score to check which points are mixed (separability)
     # import umap
     # reducer = umap.UMAP(n_neighbors=15, min_dist=0.1)
     # reduced = reducer.fit_transform(feats)
-    # per_point_scores = silhouette_samples(feats, labels, metric="euclidean")
-    # mean_score = silhouette_score(feats, labels, metric="euclidean")
-    # inds = np.where(labels==6)[0] # np.unique(labels)
-    # sinds = np.where(per_point_scores[inds]<0)[0]
-    # per_point_scores[inds[sinds]]
-    # new_score = (len(inds) - len(sinds))/len(inds)
+    per_point_scores = silhouette_samples(feats, labels, metric="euclidean")
+    mean_score = silhouette_score(feats, labels, metric="euclidean")
+    inds = np.where(labels == discover_labels[0])[0]  # np.unique(labels)
+    sinds = np.where(per_point_scores[inds] < 0)[0]
+    per_point_scores[inds[sinds]]
+    density_separability_score = (len(inds) - len(sinds)) / len(inds)  # higher better
+    cluster_silhouette_score = np.mean(per_point_scores[inds])  # higher better
+    cluster_size = len(inds)
 
     # plt.figure()
     # plt.plot(reduced[:,0], reduced[:,1], '.b')
@@ -823,17 +825,26 @@ def main(cfg):
     false_neg = cm.sum(axis=1) - cm.max(axis=1)
     # fmt: off
     print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
-    # fm: on
+    # fmt: on
 
     true_labels = range(len(mapper.new2old))
     pred_labels = range(len(mapper.new2old))
     method_name = "kmn"
-    name = f"{method_name}_gvn_ds{cfg.n_clusters}" 
-    save_cm_embeddings(save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds)
+    name = f"{method_name}_gvn_ds{cfg.n_clusters}"
+    save_cm_embeddings(
+        save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds
+    )
     save_hungarian(cm, method_name, hungarian_file)
     print("Done")
-    
-    return ac
+
+    plt.close("all")
+    scores = (
+        round(accuracy, 3),
+        round(density_separability_score, 3),
+        round(cluster_silhouette_score, 3),
+        cluster_size,
+    )
+    return scores
 
 
 def get_config():
@@ -842,11 +853,11 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [3]  # [1, 3, 8]
+    exclude = [6]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = "138"
+    exp = 141
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
-    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.model.name = "small"  # "smallemb"
     cfg.model.channel_first = True
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
