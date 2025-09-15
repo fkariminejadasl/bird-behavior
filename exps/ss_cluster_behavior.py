@@ -243,7 +243,15 @@ def load_labeled_embeddings(save_file):
 
 
 def load_unlabeled_embeddings(save_path):
-    n = len(list(save_path.glob("*.npz"))) - 1
+    # n = len(list(save_path.glob(f"[0-9]*_{cfg.layer_name}.npz")))
+    n = len(
+        [
+            p
+            for p in save_path.glob(f"*_{cfg.layer_name}.npz")
+            if p.stem.split("_")[0].isdigit()
+        ]
+    )
+
     # Load train embeddings
     u_feats = []
     for i in range(n):
@@ -583,9 +591,11 @@ def main(cfg):
 
     if cfg.model.name == "smallemb":
         model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
+        bm.load_model(cfg.model_checkpoint, model, device)
 
     if cfg.model.name == "small":
         model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+        bm.load_model(cfg.model_checkpoint, model, device)
 
     if cfg.model.name == "mae":
         model = bm1.TransformerEncoderMAE(
@@ -599,7 +609,16 @@ def main(cfg):
             drop=cfg.drop,
             layer_norm_eps=cfg.layer_norm_eps,
         )
-    bm.load_model(cfg.model_checkpoint, model, device)
+        pmodel = torch.load(
+            "/home/fatemeh/Downloads/bird/snellius/p20_2_best.pth", weights_only=True
+        )["model"]
+        state_dict = model.state_dict()
+        for name, p in pmodel.items():
+            if (
+                "decoder" not in name and "mask" not in name
+            ):  # and name!="norm.weight" and name!="norm.bias":
+                state_dict[name].data.copy_(p.data)
+        # bm.load_model(cfg.model_checkpoint, model, device)
     model.to(device)
     model.eval()
     torch.cuda.empty_cache()
@@ -853,17 +872,18 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [6]  # [1, 3, 8]
+    exclude = [4]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = 141
+    exp = 139
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
-    cfg.model.name = "small"  # "smallemb"
-    cfg.model.channel_first = True
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
     cfg.out_channel = len(cfg.labels_trained)
     cfg.n_clusters = len(cfg.all_labels)
-    cfg.layer_name = "fc"  # avgpool, fc
+    cfg.model.name = "small"  # "smallemb", "mae"
+    cfg.model.channel_first = True # False
+    cfg.layer_name = "fc"  # avgpool, fc, norm
+    cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
     print(f"Experiment {exp}: Excluding label {exclude}")
     acc = main(cfg)
     # fmt: on
