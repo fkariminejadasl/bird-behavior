@@ -625,6 +625,7 @@ def main(cfg):
     print("model is loaded")
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
+    # Prepare test embeddings
     save_file = save_path / f"test_{cfg.layer_name}.npz"
     if not save_file.exists():
         test_loader = setup_testing_dataloader(
@@ -632,19 +633,18 @@ def main(cfg):
         )
         save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
         print("test data is finished")
-
     # Load test embeddings
     feats, labels, output = load_labeled_embeddings(save_file)
     labels = mapper.decode(torch.tensor(labels)).numpy()
 
-    """
-    train_loader = setup_training_dataloader(cfg, 8192, channel_first)
-    save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
-    print("train data is finished")
-    """
-    # # Load train embeddings
-    # u_feats_np = load_unlabeled_embeddings(save_path) # (n=0)
-    # u_feats = torch.tensor(u_feats_np, device="cuda")
+    # Prepare train embeddings
+    if cfg.use_unlabel:
+        train_loader = setup_training_dataloader(cfg, 8192, channel_first)
+        save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
+        print("train data is finished")
+        # Load train embeddings
+        u_feats_np = load_unlabeled_embeddings(save_path)
+        u_feats = torch.tensor(u_feats_np, device="cuda")
 
     # GCD
     # ==============
@@ -673,7 +673,10 @@ def main(cfg):
     # uf2 = l_feats[~mask][2000:]
     # ut2 = l_targets[~mask][2000:]
     ut = torch.cat((ut1, ut2))
-    uf = torch.cat((uf1, uf2))  # uf = torch.cat((uf1, uf2, u_feats))
+    if cfg.use_unlabel:
+        uf = torch.cat((uf1, uf2, u_feats))
+    else:
+        uf = torch.cat((uf1, uf2))
     # lf = l_feats[~mask][:2000]
     # lt = l_targets[~mask][:2000]
 
@@ -692,7 +695,6 @@ def main(cfg):
     assert preds[:lt.shape[0]].equal(lt)
     print(uf.shape[0], lf.shape[0], l_feats.shape[0])
 
-    # ordered_feat = torch.concatenate((lf, uf1, uf2), axis=0)
     ordered_feat = torch.concatenate((lf, uf), axis=0)
     ordered_labels = torch.concatenate((lt, ut))
     ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
@@ -723,6 +725,8 @@ def main(cfg):
         + "_dsl"
         + "".join(map(str, discover_labels))
     )
+    if cfg.use_unlabel:
+        name += "_unlabel"
 
     # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
     # cmap9 = ListedColormap(base[:len(true_labels)])
@@ -735,9 +739,9 @@ def main(cfg):
         cm,
         true_labels,
         pred_labels,
-        reduced,
+        reduced[: ordered_labels.shape[0]],
         ordered_labels,
-        k_preds,
+        k_preds[: ordered_labels.shape[0]],
         centers=reduced_centers,
     )
     save_hungarian(cm, method_name, hungarian_file)
@@ -884,6 +888,8 @@ if __name__ == "__main__":
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
     cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
+    cfg.use_unlabel = False
+    cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
     print(f"Experiment {exp}: Excluding label {exclude}")
     acc = main(cfg)
     # fmt: on
