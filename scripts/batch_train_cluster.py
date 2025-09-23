@@ -80,7 +80,9 @@ import train as train_module
 # for i, exclude in enumerate(pairs):
 #     exp = 135 + i
 #     cfg.lt_labels = sorted(set(all_labels) - set(exclude))
-#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
+#     cfg.model_checkpoint = Path(
+#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
 #     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
@@ -88,6 +90,8 @@ import train as train_module
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.use_unlabel = True
+#     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)
 #     accs[exp] = acc
@@ -118,7 +122,9 @@ import train as train_module
 #     exp = 180 + i
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
-#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
+#     cfg.model_checkpoint = Path(
+#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
 #     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
@@ -126,6 +132,7 @@ import train as train_module
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.use_unlabel = False
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)
 #     accs[exp] = acc
@@ -142,7 +149,9 @@ import train as train_module
 #     exp = 185 + i
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
-#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
+#     cfg.model_checkpoint = Path(
+#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
 #     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
@@ -150,6 +159,7 @@ import train as train_module
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.use_unlabel = False
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)
 #     accs[exp] = acc

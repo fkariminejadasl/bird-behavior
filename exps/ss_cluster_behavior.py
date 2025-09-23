@@ -521,6 +521,71 @@ def test_calculate_score():
     # fmt: on
 
 
+def calculate_separability_scores(feats, labels, discover_labels):
+    """Calculate separability scores for discovered class.
+    For both scores higher is better.
+
+    Args:
+        feats: Feature matrix of shape (n_samples, n_features)
+        labels: Ground truth labels
+        discover_labels: List of labels to discover
+
+    Returns:
+        density_separability_score: Proportion of points with positive silhouette score
+        cluster_silhouette_score: Mean silhouette score for discovered class
+        cluster_size: Number of points in discovered class
+    """
+    # mean_score = silhouette_score(feats, labels, metric="euclidean")
+    per_point_scores = silhouette_samples(feats, labels, metric="euclidean")
+    inds = np.where(labels == discover_labels[0])[0]
+    sinds = np.where(per_point_scores[inds] < 0)[0]
+
+    density_separability_score = (len(inds) - len(sinds)) / len(inds)
+    cluster_silhouette_score = np.mean(per_point_scores[inds])
+    cluster_size = len(inds)
+
+    # print(per_point_scores[inds[sinds]])
+    # plt.figure()
+    # plt.plot(reduced[:,0], reduced[:,1], '.b')
+    # plt.plot(reduced[inds,0], reduced[inds,1], '*g')
+    # plt.plot(reduced[inds[sinds],0], reduced[inds[sinds],1], '*r')
+
+    return density_separability_score, cluster_silhouette_score, cluster_size
+
+
+def calculate_kde_divergence(reduced, labels, discover_labels):
+    """Calculate minimum KDE divergence between discovered class and other classes.
+
+    Args:
+        reduced: reduced feature matrix
+        labels: ground truth labels
+        discover_labels: list of labels to discover
+
+    Returns:
+        Minimum KDE divergence score across all class pairs
+    """
+    min_divergence = float("inf")
+    X1 = reduced[labels == discover_labels[0]]
+
+    for i in set(np.unique(labels)) - set(discover_labels):
+        X2 = reduced[labels == i]
+
+        # Normalize points
+        scaler = StandardScaler().fit(np.vstack([X1, X2]))
+        Xp = scaler.transform(X1)
+        Xq = scaler.transform(X2)
+
+        # Calculate bandwidths
+        hp = bu.select_bandwidth(Xp)
+        hq = bu.select_bandwidth(Xq)
+
+        # Calculate KDE divergence
+        divergence = bu.kde_js_divergence_mc(Xp, Xq, hp, hq)
+        min_divergence = min(min_divergence, divergence)
+
+    return min_divergence
+
+
 """
 # Save Embeddings
 # ==============
@@ -627,7 +692,7 @@ def main(cfg):
 
     # Prepare test embeddings
     save_file = save_path / f"test_{cfg.layer_name}.npz"
-    if not save_file.exists():
+    if True:  # not save_file.exists():
         test_loader = setup_testing_dataloader(
             cfg.test_data_file, labels_to_use, channel_first
         )
@@ -774,19 +839,17 @@ def main(cfg):
     # import umap
     # reducer = umap.UMAP(n_neighbors=15, min_dist=0.1)
     # reduced = reducer.fit_transform(feats)
-    per_point_scores = silhouette_samples(feats, labels, metric="euclidean")
-    mean_score = silhouette_score(feats, labels, metric="euclidean")
-    inds = np.where(labels == discover_labels[0])[0]  # np.unique(labels)
-    sinds = np.where(per_point_scores[inds] < 0)[0]
-    per_point_scores[inds[sinds]]
-    density_separability_score = (len(inds) - len(sinds)) / len(inds)  # higher better
-    cluster_silhouette_score = np.mean(per_point_scores[inds])  # higher better
-    cluster_size = len(inds)
 
-    # plt.figure()
-    # plt.plot(reduced[:,0], reduced[:,1], '.b')
-    # plt.plot(reduced[inds,0], reduced[inds,1], '*g')
-    # plt.plot(reduced[inds[sinds],0], reduced[inds[sinds],1], '*r')
+    density_separability_score, cluster_silhouette_score, cluster_size = (
+        calculate_separability_scores(feats, labels, discover_labels)
+    )
+    density_separability_score2, cluster_silhouette_score2, cluster_size = (
+        calculate_separability_scores(reduced, labels, discover_labels)
+    )
+
+    # Calculate minimum divergence
+    min_kde_divergence = calculate_kde_divergence(reduced, labels, discover_labels)
+    print("Minimum KDE divergence:", min_kde_divergence)
 
     true_labels = [bu.ind2name[i] for i in ut_labels]
     pred_labels = [bu.ind2name[i] for i in labels_trained]
@@ -863,6 +926,9 @@ def main(cfg):
     plt.close("all")
     scores = (
         round(accuracy, 3),
+        round(min_kde_divergence, 3),
+        round(density_separability_score2, 3),
+        round(cluster_silhouette_score2, 3),
         round(density_separability_score, 3),
         round(cluster_silhouette_score, 3),
         cluster_size,
@@ -876,9 +942,9 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [4]  # [1, 3, 8]
+    exclude = [0]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = 139
+    exp = 135
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
@@ -888,7 +954,7 @@ if __name__ == "__main__":
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
     cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
-    cfg.use_unlabel = False
+    cfg.use_unlabel = True
     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
     print(f"Experiment {exp}: Excluding label {exclude}")
     acc = main(cfg)
