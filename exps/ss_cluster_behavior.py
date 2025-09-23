@@ -764,6 +764,34 @@ def main(cfg):
     ordered_labels = torch.concatenate((lt, ut))
     ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
     k_preds = u_mapper.decode(preds.cpu()).numpy()
+    
+    cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
+
+    print("all data\n", cm)
+
+    if cfg.use_unlabel:
+        kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
+        uf = torch.cat((uf1, uf2))
+        kmeans.fit_mix(uf, lf, lt)
+        preds = kmeans.labels_
+        k_preds = u_mapper.decode(preds.cpu()).numpy() # (N, )
+        print("sup \n", contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]]))
+
+        from scipy.stats import mode
+        k_preds_all = []
+        for i in range(15):
+            kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
+            uf = torch.cat((uf1, uf2, u_feats[1000 * i:1000 * (i+1)]))
+            kmeans.fit_mix(uf, lf, lt)
+            preds = kmeans.labels_
+            k_preds = u_mapper.decode(preds.cpu()).numpy() # (N, )
+            k_preds_all.append(k_preds[:ordered_labels.shape[0]])
+            print(contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]]))
+            print(i, uf.shape, lf.shape, lt.shape)
+            
+        k_preds_all = np.array(k_preds_all) # (k, N)
+        k_preds = mode(k_preds_all, axis=0, keepdims=False)[0] # (N, )
+        print("mode\n", contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]]))
 
     # fmt: off
     reducer = TSNE(n_components=2, random_state=cfg.seed)
@@ -772,8 +800,6 @@ def main(cfg):
     reduced_feats_and_centers = reducer.fit_transform(feats_and_centers.cpu().numpy())
     reduced = reduced_feats_and_centers[:-centers.shape[0], :]
     reduced_centers = reduced_feats_and_centers[-centers.shape[0]:, :]
-
-    cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
     # fmt: on
 
     save_path_results = save_path / (
