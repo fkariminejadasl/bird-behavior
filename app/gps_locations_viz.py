@@ -9,13 +9,26 @@ pio.renderers.default = "browser"  # open in default browser
 
 
 def plot_coords(lat_lon, style="open-street-map", height=600):
-    lats, lons = zip(*lat_lon)
-    df = pd.DataFrame({"lat": lats, "lon": lons})
+    lats = [p[0] for p in lat_lon]
+    lons = [p[1] for p in lat_lon]
+    vals = [p[2] for p in lat_lon]  # df[8] values
+    df = pd.DataFrame({"lat": lats, "lon": lons, "val": vals})
 
     fig = go.Figure(
         [
             go.Scattermap(lat=df.lat, lon=df.lon, mode="lines", name="Path"),
-            go.Scattermap(lat=df.lat, lon=df.lon, mode="markers", name="Points"),
+            go.Scattermap(
+                lat=df.lat,
+                lon=df.lon,
+                mode="markers",
+                name="Points",
+                marker=dict(
+                    color=df.val,  # color by df[8]
+                    colorscale="Turbo",  # any Plotly colorscale works
+                    showscale=True,
+                    colorbar=dict(title="df[8]"),
+                ),
+            ),
         ]
     )
 
@@ -41,7 +54,7 @@ def plot_coords(lat_lon, style="open-street-map", height=600):
 gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 df = pd.read_csv(gimu_beh_file, header=None)
 df = df.sort_values([0, 1, 2]).reset_index(drop=True)
-lat_longs = df.iloc[::20, -2:].values
-coords = [(i[0], i[1]) for i in lat_longs]
+lat_lon_val = df.iloc[::20, [-2, -1, 8]].values
+coords = [(r[0], r[1], r[2]) for r in lat_lon_val]
 fig = plot_coords(coords)
 fig.show()
