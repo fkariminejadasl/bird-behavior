@@ -14,23 +14,42 @@ def plot_coords(lat_lon, style="open-street-map", height=600):
     vals = [p[2] for p in lat_lon]  # df[8] values
     df = pd.DataFrame({"lat": lats, "lon": lons, "val": vals})
 
-    fig = go.Figure(
-        [
-            go.Scattermap(lat=df.lat, lon=df.lon, mode="lines", name="Path"),
+    # # colors from tab20 except from 8 and 9 get the values of 7 and 8
+    # import matplotlib.colors as mcolors
+    # import matplotlib.pyplot as plt
+    # tab20 = plt.get_cmap("tab20")
+    # ind2color = {i: mcolors.to_hex(tab20(i)) for i in range(10)}
+    # fmt: off
+    ind2color = {
+        0: '#1f77b4', 1: '#aec7e8', 2: '#ff7f0e', 3: '#ffbb78', 4: '#2ca02c',
+        5: '#98df8a', 6: '#d62728', 8: '#ff9896', 9: '#9467bd'
+    }
+    ind2name = {0:"Flap",1:"ExFlap",2:"Soar",3:"Boat",4:"Float",5:"SitStand",6:"TerLoco",8:"Manouvre",9:"Pecking"}
+    # fmt: on
+
+    traces = [
+        go.Scattermap(  # keep the path as a single (subtle) line
+            lat=df.lat,
+            lon=df.lon,
+            mode="lines",
+            name="Path",
+            line=dict(width=1, color="rgba(0,0,0,0.35)"),
+            hoverinfo="skip",
+        )
+    ]
+    for k in sorted(ind2name.keys()):
+        m = df.val == k
+        traces.append(
             go.Scattermap(
-                lat=df.lat,
-                lon=df.lon,
+                lat=df.lat[m],
+                lon=df.lon[m],
                 mode="markers",
-                name="Points",
-                marker=dict(
-                    color=df.val,  # color by df[8]
-                    colorscale="Turbo",  # any Plotly colorscale works
-                    showscale=True,
-                    colorbar=dict(title="df[8]"),
-                ),
-            ),
-        ]
-    )
+                name=ind2name[k],
+                marker=dict(size=6, color=ind2color[k]),
+            )
+        )
+
+    fig = go.Figure(traces)
 
     west, east = float(df.lon.min()), float(df.lon.max())
     south, north = float(df.lat.min()), float(df.lat.max())
