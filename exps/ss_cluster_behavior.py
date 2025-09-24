@@ -385,9 +385,7 @@ def test_gcd_old2new():
 
 
 # fmt: off
-def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, labels, preds, rd_method="tsne", PLOT_LABELS=False, centers=None):
-    # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
-    # cmap9 = ListedColormap(base[:len(true_labels)])
+def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, preds, rd_method="tsne", centers=None):
     
     bu.plot_confusion_matrix(cm, true_labels=true_labels, pred_labels=pred_labels)
     plt.savefig(save_path / f"{name}_cm.png", bbox_inches="tight")
@@ -397,7 +395,7 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, l
     norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
     
     plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5, norm=norm)#, vmin=0, vmax=len(pred_labels)-1)
+    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5, norm=norm)
     if centers is not None:
         for i in range(len(centers)):
             plt.scatter(centers[i][0], centers[i][1], s = 130, marker = "*", color='r')
@@ -405,23 +403,42 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, l
     cbar.set_ticks(unique_classes)
     plt.title("Predictions")
     plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
-
-    if PLOT_LABELS:
-        unique_classes = np.unique(labels)
-        bounds = np.concatenate((unique_classes-0.5, [unique_classes[-1]+0.5]))
-        norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
-
-        plt.figure()
-        scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm)#, vmin=0, vmax=len(true_labels)-1)
-        cbar = plt.colorbar(scatter, label="Label")
-        # cbar = plt.colorbar(scatter, ticks=unique_classes, label="Label")
-        # place ticks at integer positions 0…n-1: place ticks before relabel them
-        cbar.set_ticks(unique_classes)
-        cbar.set_ticklabels(true_labels)
-        plt.title("Labeled Data")
-        plt.savefig(save_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
     # plt.show(block=True)
 # fmt: on
+
+
+def plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels):
+    # true_labels = [bu.ind2name[i] for i in [0,1,2,3,4,5,6,8,9]]
+    unique_classes = np.unique(labels)
+    bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
+    norm = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+
+    plt.figure()
+    title = "Labeled Embeddings"
+    if u_reduced.size != 0:
+        title = "Labeled and Unlabeled Embeddings"
+        plt.plot(
+            u_reduced[:, 0], u_reduced[:, 1], "*", color="gray", alpha=0.1, zorder=2
+        )
+    scatter = plt.scatter(
+        reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm, zorder=0
+    )
+    cbar = plt.colorbar(scatter, label="Label")
+    # cbar = plt.colorbar(scatter, ticks=unique_classes, label="Label")
+    # place ticks at integer positions 0…n-1: place ticks before relabel them
+    cbar.set_ticks(unique_classes)
+    cbar.set_ticklabels(true_labels)
+    plt.title(title)
+    # plt.savefig(save_path_results / f"cls_tsne_label_unlabel.png", bbox_inches="tight")
+
+
+def tsne_label_unlabel_embs(feats, u_feats):
+    all_feats = np.concatenate((feats, u_feats), axis=0)
+    reducer = TSNE(n_components=2, random_state=cfg.seed)
+    all_reduced = reducer.fit_transform(all_feats)
+    reduced = all_reduced[: feats.shape[0]]
+    u_reduced = all_reduced[feats.shape[0] :]
+    return reduced, u_reduced
 
 
 def save_hungarian(cm, method_name, save_path):
@@ -654,6 +671,14 @@ def main(cfg):
     mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
     mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
+    name = f"{cfg.layer_name}"
+    if cfg.use_unlabel:
+        name += "_unlabel"
+    save_path_results = save_path / (
+        name + "_tr" + "".join([str(i) for i in labels_trained])
+    )
+    save_path_results.mkdir(parents=True, exist_ok=True)
+
     if cfg.model.name == "smallemb":
         model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
         bm.load_model(cfg.model_checkpoint, model, device)
@@ -691,8 +716,8 @@ def main(cfg):
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
     # Prepare test embeddings
-    save_file = save_path / f"test_{cfg.layer_name}.npz"
-    if True:  # not save_file.exists():
+    save_file = save_path_results / f"test_{cfg.layer_name}.npz"
+    if not save_file.exists():
         test_loader = setup_testing_dataloader(
             cfg.test_data_file, labels_to_use, channel_first
         )
@@ -703,23 +728,23 @@ def main(cfg):
     labels = mapper.decode(torch.tensor(labels)).numpy()
 
     # Prepare train embeddings
+    C = feats.shape[1]
+    u_feats_np = np.empty((0, C), dtype=np.float32)
+    u_reduced = np.empty((0, 2), dtype=np.float32)
     if cfg.use_unlabel:
         train_loader = setup_training_dataloader(cfg, 8192, channel_first)
-        save_unlabeled_embeddings(save_path, train_loader, model, layer_to_hook, device)
+        save_unlabeled_embeddings(
+            save_path_results, train_loader, model, layer_to_hook, device
+        )
         print("train data is finished")
         # Load train embeddings
-        u_feats_np = load_unlabeled_embeddings(save_path)
+        u_feats_np = load_unlabeled_embeddings(save_path_results)
         u_feats = torch.tensor(u_feats_np, device="cuda")
 
     # GCD
     # ==============
     l_feats = torch.tensor(feats, device="cuda")
     l_targets = torch.tensor(labels, device="cuda")
-
-    # tensor_utl = torch.tensor(ut_labels, device=device)
-    # mask = torch.isin(l_targets, tensor_utl)
-    # l_feats = l_feats[mask]
-    # l_targets = l_targets[mask]
 
     tensor_dl = torch.tensor(discover_labels, device=device)
     mask = torch.isin(l_targets, tensor_dl)
@@ -735,15 +760,11 @@ def main(cfg):
 
     uf1 = l_feats[mask]
     ut1 = l_targets[mask]
-    # uf2 = l_feats[~mask][2000:]
-    # ut2 = l_targets[~mask][2000:]
     ut = torch.cat((ut1, ut2))
     if cfg.use_unlabel:
         uf = torch.cat((uf1, uf2, u_feats))
     else:
         uf = torch.cat((uf1, uf2))
-    # lf = l_feats[~mask][:2000]
-    # lt = l_targets[~mask][:2000]
 
     ut = u_mapper.encode(ut)
     lt = l_mapper.encode(lt)
@@ -791,7 +812,8 @@ def main(cfg):
             
         k_preds_all = np.array(k_preds_all) # (k, N)
         k_preds = mode(k_preds_all, axis=0, keepdims=False)[0] # (N, )
-        print("mode\n", contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]]))
+        cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
+        print("mode\n", cm)
 
     # fmt: off
     reducer = TSNE(n_components=2, random_state=cfg.seed)
@@ -802,10 +824,6 @@ def main(cfg):
     reduced_centers = reduced_feats_and_centers[-centers.shape[0]:, :]
     # fmt: on
 
-    save_path_results = save_path / (
-        f"{cfg.layer_name}_tr" + "".join([str(i) for i in labels_trained])
-    )
-    save_path_results.mkdir(parents=True, exist_ok=True)
     hungarian_file = save_path_results / "hungarian.txt"
     true_labels = [bu.ind2name[i] for i in labels_to_use]
     pred_labels = range(len(u_old2new))
@@ -819,11 +837,6 @@ def main(cfg):
     if cfg.use_unlabel:
         name += "_unlabel"
 
-    # base = plt.get_cmap("tab20").colors # "tab10", "tab20b", "tab20c"
-    # cmap9 = ListedColormap(base[:len(true_labels)])
-    # scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=k_preds, cmap=cmap9, s=5, vmin=0, vmax=len(pred_labels)-1)
-    # cbar = plt.colorbar(scatter, label="Label")
-    # cbar.set_ticklabels(true_labels)
     save_cm_embeddings(
         save_path_results,
         name,
@@ -831,7 +844,6 @@ def main(cfg):
         true_labels,
         pred_labels,
         reduced[: ordered_labels.shape[0]],
-        ordered_labels,
         k_preds[: ordered_labels.shape[0]],
         centers=reduced_centers,
     )
@@ -858,8 +870,7 @@ def main(cfg):
     preds = mapper_trained.decode(preds).cpu().numpy()
     cm = contingency_matrix(labels, preds)
 
-    reducer = TSNE(n_components=2, random_state=cfg.seed)
-    reduced = reducer.fit_transform(feats)
+    reduced, u_reduced = tsne_label_unlabel_embs(feats, u_feats_np)
 
     # new score to check which points are mixed (separability)
     # import umap
@@ -880,6 +891,12 @@ def main(cfg):
     true_labels = [bu.ind2name[i] for i in ut_labels]
     pred_labels = [bu.ind2name[i] for i in labels_trained]
     name = "cls"
+    rd_method = "tsne"
+    plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels)
+    plt.savefig(
+        save_path_results / f"{name}_{rd_method}_label.png", bbox_inches="tight"
+    )
+
     save_cm_embeddings(
         save_path_results,
         name,
@@ -887,9 +904,7 @@ def main(cfg):
         true_labels,
         pred_labels,
         reduced,
-        labels,
         preds,
-        PLOT_LABELS=True,
     )
     save_hungarian(cm, name, hungarian_file)
     """
@@ -944,7 +959,7 @@ def main(cfg):
     method_name = "kmn"
     name = f"{method_name}_gvn_ds{cfg.n_clusters}"
     save_cm_embeddings(
-        save_path_results, name, cm, true_labels, pred_labels, reduced, labels, k_preds
+        save_path_results, name, cm, true_labels, pred_labels, reduced, k_preds
     )
     save_hungarian(cm, method_name, hungarian_file)
     print("Done")
@@ -959,6 +974,7 @@ def main(cfg):
         round(cluster_silhouette_score, 3),
         cluster_size,
     )
+    print("scores:", scores)
     return scores
 
 
