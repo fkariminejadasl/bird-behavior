@@ -386,17 +386,26 @@ def query_database_improved(database_url, sql_query, retries=5, delay=5):
     This was due to this error message:
     Error processing device 298, date 2010-06-30 10:27:01: canceling statement due to conflict with recovery
     DETAIL:  User query might have needed to see row versions that must be removed.
+
+    options: Passes PostgreSQL session parameters at connection time.
+    - statement_timeout=60000  Cancels any SQL statement that runs longer than 60 seconds.
+    - lock_timeout=5000  Cancels queries waiting more than 5 seconds to acquire a lock.
+    - idle_in_transaction_session_timeout=60000  Terminates a session left idle inside a transaction for more than 60 seconds.
     """
     for attempt in range(retries):
         try:
-            connection = psycopg2.connect(database_url)
+            # Add Postgres timeouts (so a single slow query can’t hang a worker)
+            connection = psycopg2.connect(
+                database_url,
+                options="-c statement_timeout=60000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000",
+            )
             cursor = connection.cursor()
             cursor.execute(sql_query)
             result = cursor.fetchall()
             cursor.close()
             connection.close()
             return result
-        except psycopg2.OperationalError as e:
+        except (psycopg2.OperationalError, psycopg2.errors.QueryCanceled) as e:
             if "canceling statement due to conflict with recovery" in str(e):
                 if attempt < retries - 1:
                     print(
@@ -447,9 +456,19 @@ def query_database(database_url, sql_query):
     order by date_time, index
 
     >>> results = query_database(database_url, sql_query)
+
+    options: Passes PostgreSQL session parameters at connection time.
+    - statement_timeout=60000  Cancels any SQL statement that runs longer than 60 seconds.
+    - lock_timeout=5000  Cancels queries waiting more than 5 seconds to acquire a lock.
+    - idle_in_transaction_session_timeout=60000  Terminates a session left idle inside a transaction for more than 60 seconds.
+    """
     '''
     # connection = psycopg2.connect(dbname=database_name, user=username, password=password, host=host, port=port)
-    connection = psycopg2.connect(database_url)
+    # Add Postgres timeouts (so a single slow query can’t hang a worker)
+    connection = psycopg2.connect(
+        database_url,
+        options="-c statement_timeout=60000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000",
+    )
     cursor = connection.cursor()
     cursor.execute(sql_query)
     result = cursor.fetchall()

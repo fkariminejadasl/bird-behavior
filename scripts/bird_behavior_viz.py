@@ -270,11 +270,10 @@ cfg = dict(
     database_url=None,
 )
 
-cfg = SimpleNamespace(**cfg)
+cfg = OmegaConf.create(**cfg)
 cfg.n_classes = len(cfg.labels_to_use)
 cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
-
 
 """
 # On unlabeled data
