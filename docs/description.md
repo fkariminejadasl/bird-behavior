@@ -4,7 +4,7 @@
 
 #### 20-length data (Gull only, more data)
 
-The dataset includes 237 devices from 201 gulls.  
+The dataset includes 237 devices from 201 gulls. I took 263 minutes to download the IMU and GPS data. GPS dates are downloaded quickly. 35 GB data over 1000 files.
 
 For example, device ID 6210 contains 1,562,699 GPS dates and 1,510,999 IMU and GPS data, each stored in sequences of length 20. This device has the largest total number of GPS dates.
 
