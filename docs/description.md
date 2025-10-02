@@ -4,7 +4,16 @@
 
 #### 20-length data (Gull only, more data)
 
-The dataset includes 237 devices from 201 gulls. I took 263 minutes to download the IMU and GPS data. GPS dates are downloaded quickly. 35 GB data over 1000 files.
+The dataset includes `237` devices from `201` gulls. It took `263` minutes to download the IMU and GPS data. GPS dates are downloaded quickly. `35GB` data over 1075 files contains `24,590,435` data point each with 20 items in total `491,808,700` items. 
+
+```python
+class_counts = 
+'0: 3,896,949', '1: 297,034', '2: 2,845,657', '3: 268,561', '4: 1,863,161', '5: 11,622,311', '6: 1,361,568', '8: 758,359', '9: 1,676,835'
+class_counts_percentage = 
+{1: 0.01, 3: 0.01, 8: 0.03, 6: 0.06, 9: 0.07, 4: 0.08, 2: 0.12, 0: 0.16, 5: 0.47}
+ind2name = 
+{0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
+```
 
 For example, device ID 6210 contains 1,562,699 GPS dates and 1,510,999 IMU and GPS data, each stored in sequences of length 20. This device has the largest total number of GPS dates.
 

@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, random_split
 from behavior import data as bd
 from behavior import map as bmap
 from behavior import model as bm
-from behavior import model1d as bm1
+from behavior import model_utils as bmu
 from behavior import utils as bu
 
 seed = 32984
@@ -77,21 +77,6 @@ def test_confmat():
 # test_confmat()
 
 
-class Mapper:
-    def __init__(self, old2new: dict):
-        # old is a list like [0,2,4,5,6,9], new is [0, ..., 5]
-        self.old2new = old2new
-        self.new2old = {n: o for o, n in old2new.items()}
-
-    def encode(self, orig):
-        """Map original labels → 0…K-1 space"""
-        return np.array([self.old2new[int(i)] for i in orig])
-
-    def decode(self, chang):
-        """Map 0…K-1 predictions back → original labels"""
-        return np.array([self.new2old[int(i)] for i in chang])
-
-
 def fetch_gps_data(database_url, device_id, start_time, end_time):
     """
     Fetch GPS data from the database.
@@ -118,45 +103,6 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
         for result in results
         if result[-4] is not None  # speed_2d
     ]
-
-
-def infer_update_classes(df, glen, labels_to_use, checkpoint_file, n_classes):
-    """
-    Inference and update classes
-    -> df is mutated
-    """
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    # Model
-    model = bm.BirdModel(4, 30, n_classes).to(device)
-    bm.load_model(checkpoint_file, model, device)
-    model.eval()
-
-    # Data
-    igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
-    dataset = bd.BirdDataset(igs)
-    loader = DataLoader(
-        dataset,
-        batch_size=len(dataset),
-        shuffle=False,
-        num_workers=1,
-        drop_last=False,
-    )
-    data = next(iter(loader))
-
-    # Predictions
-    probs, preds = bu.inference(data, model, device)
-    mapper = Mapper({l: i for i, l in enumerate(labels_to_use)})
-    preds = mapper.decode(preds)
-
-    # Change dataframe: append columns at the end
-    last_col = int(df.columns[-1])
-    df[last_col + 1] = preds[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
-    max_probs = np.max(probs, axis=1)
-    df[last_col + 2] = max_probs[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
-
-    return df
 
 
 def fetch_merge_gps(df, database_url):
@@ -188,7 +134,7 @@ def fetch_merge_gps(df, database_url):
 def prepare_imu_gps_class_data(data_file, save_file, cfg):
     df = pd.read_csv(data_file, header=None)
     df = df.sort_values([0, 1, 2])
-    df = infer_update_classes(
+    df = bmu.infer_update_classes(
         df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
     )
     df = fetch_merge_gps(df, cfg.database_url)
@@ -270,7 +216,7 @@ cfg = dict(
     database_url=None,
 )
 
-cfg = OmegaConf.create(**cfg)
+cfg = OmegaConf.create(cfg)
 cfg.n_classes = len(cfg.labels_to_use)
 cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
