@@ -1,12 +1,12 @@
 # pip install dash plotly pandas
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, dcc, html  # ensure html is imported
 
 # ---------- Load full data ----------
 gimu_beh_file = Path(
@@ -46,8 +46,9 @@ ind2name = {
 class_keys = sorted(ind2name.keys())
 
 # ---------- Time slider bounds ----------
-t_min = int(df_all[1].min().timestamp())
-t_max = int(df_all[1].max().timestamp())
+# derive min/max directly as UTC timestamps
+t_min = int(df_all[1].min().replace(tzinfo=timezone.utc).timestamp())
+t_max = int(df_all[1].max().replace(tzinfo=timezone.utc).timestamp())
 
 
 # ---------- Figure helper ----------
@@ -92,17 +93,54 @@ def make_figure(dff: pd.DataFrame, style="open-street-map", height=650) -> go.Fi
 # ---------- Dash app ----------
 app = Dash(__name__)
 
+# Hide the slider's numeric handle tooltip bubble
+app.index_string = """<!DOCTYPE html>
+<html>
+  <head>
+    {%metas%}
+    <title>{%title%}</title>
+    {%favicon%}
+    {%css%}
+    <style>.rc-slider-tooltip{display:none !important;}</style>
+  </head>
+  <body>
+    {%app_entry%}
+    <footer>
+      {%config%}
+      {%scripts%}
+      {%renderer%}
+    </footer>
+  </body>
+</html>"""
+
+# --- compact slider labels (strings only; no HTML) ---
+LABEL_MODE = "day"  # or "month"
+
 
 def mk_marks(ts: pd.Series, max_marks=12):
-    ts = ts.sort_values()
-    if len(ts) <= max_marks:
-        points = ts
+    ts_full = ts.sort_values().dt.floor("S").drop_duplicates()
+
+    if LABEL_MODE == "month":
+        ts_norm = ts_full.dt.to_period("M").dt.start_time.drop_duplicates()
+        fmt = "%Y-%m"
     else:
-        step = max(1, len(ts) // max_marks)
-        points = ts.iloc[::step]
-        if points.iloc[-1] != ts.iloc[-1]:
-            points = pd.concat([points, ts.iloc[[-1]]])
-    return {int(t.timestamp()): t.strftime("%Y-%m-%d\n%H:%M") for t in points}
+        ts_norm = ts_full.dt.normalize().drop_duplicates()
+        fmt = "%Y-%m-%d"
+
+    if len(ts_norm) > max_marks:
+        step = max(1, len(ts_norm) // (max_marks - 1))
+        ts_norm = ts_norm[::step]
+
+    endpoints = pd.Series([ts_full.iloc[0], ts_full.iloc[-1]])
+    ts_marks = (
+        pd.concat([pd.Series(ts_norm), endpoints]).drop_duplicates().sort_values()
+    )
+
+    # convert to seconds since epoch in UTC
+    return {
+        int(t.replace(tzinfo=timezone.utc).timestamp()): t.strftime(fmt)
+        for t in ts_marks
+    }
 
 
 app.layout = html.Div(
@@ -114,7 +152,7 @@ app.layout = html.Div(
             id="time-slider",
             min=t_min,
             max=t_max,
-            step=None,
+            step=1,
             allowCross=False,
             value=[t_min, t_max],
             marks=mk_marks(df_all[1]),
@@ -132,11 +170,14 @@ app.layout = html.Div(
 )
 def update_map(selected_range):
     start_s, end_s = selected_range
-    start, end = datetime.fromtimestamp(start_s), datetime.fromtimestamp(end_s)
-    mask = (df[1] >= start) & (df[1] <= end)  # df[1] is timestamp column
+    start = datetime.fromtimestamp(start_s, tz=timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    end = datetime.fromtimestamp(end_s, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    mask = (df[1] >= start) & (df[1] <= end)
     dff = df.loc[mask].copy()
     fig = make_figure(dff)
-    txt = f"Showing: {start:%Y-%m-%d %H:%M:%S} → {end:%Y-%m-%d %H:%M:%S}  (rows: {len(dff)})"
+    txt = f"Showing: {start} → {end}  (rows: {len(dff)})"
     return fig, txt
 
 
