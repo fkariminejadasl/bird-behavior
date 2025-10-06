@@ -1,79 +1,144 @@
+# pip install dash plotly pandas
+
 import math
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.io as pio
+from dash import Dash, Input, Output, dcc, html
 
-pio.renderers.default = "browser"  # open in default browser
+# ---------- Load full data ----------
+gimu_beh_file = Path(
+    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
+)
+df_all = (
+    pd.read_csv(gimu_beh_file, header=None)
+    .sort_values([0, 1, 2])
+    .reset_index(drop=True)
+)
+df_all[1] = pd.to_datetime(df_all[1])  # timestamps
+df_all["lat"] = df_all[10]  # column 10 = latitude
+df_all["lon"] = df_all[11]  # column 11 = longitude
+df_all["val"] = df_all[8].astype(int)  # column 8 = behavior class
+
+# ---------- Initial map view (from ALL data; free pan/zoom) ----------
+west, east = float(df_all.lon.min()), float(df_all.lon.max())
+south, north = float(df_all.lat.min()), float(df_all.lat.max())
+center = {"lat": (south + north) / 2.0, "lon": (west + east) / 2.0}
+span = max(east - west, north - south, 1e-6)
+zoom = max(0, 8 - math.log2(span)) + 2
+
+# ---------- Plotting dataframe (optional downsample) ----------
+df = df_all.iloc[::20].reset_index(drop=True)
+
+# ---------- Class maps (curated) ----------
+# fmt: off
+ind2color = {
+    0:'#1f77b4', 1:'#aec7e8', 2:'#ff7f0e', 3:'#ffbb78', 4:'#2ca02c',
+    5:'#98df8a', 6:'#d62728', 8:'#ff9896', 9:'#9467bd'
+}
+ind2name = {
+    0: "Flap", 1: "ExFlap", 2: "Soar", 3: "Boat", 4: "Float",
+    5: "SitStand", 6: "TerLoco", 8: "Manouvre", 9: "Pecking"
+}
+# fmt: on
+class_keys = sorted(ind2name.keys())
+
+# ---------- Time slider bounds ----------
+t_min = int(df_all[1].min().timestamp())
+t_max = int(df_all[1].max().timestamp())
 
 
-def plot_coords(lat_lon, style="open-street-map", height=600):
-    lats = [p[0] for p in lat_lon]
-    lons = [p[1] for p in lat_lon]
-    vals = [p[2] for p in lat_lon]  # df[8] values
-    df = pd.DataFrame({"lat": lats, "lon": lons, "val": vals})
-
-    # # colors from tab20 except from 8 and 9 get the values of 7 and 8
-    # import matplotlib.colors as mcolors
-    # import matplotlib.pyplot as plt
-    # tab20 = plt.get_cmap("tab20")
-    # ind2color = {i: mcolors.to_hex(tab20(i)) for i in range(10)}
-    # fmt: off
-    ind2color = {
-        0: '#1f77b4', 1: '#aec7e8', 2: '#ff7f0e', 3: '#ffbb78', 4: '#2ca02c',
-        5: '#98df8a', 6: '#d62728', 8: '#ff9896', 9: '#9467bd'
-    }
-    ind2name = {0:"Flap",1:"ExFlap",2:"Soar",3:"Boat",4:"Float",5:"SitStand",6:"TerLoco",8:"Manouvre",9:"Pecking"}
-    # fmt: on
-
+# ---------- Figure helper ----------
+def make_figure(dff: pd.DataFrame, style="open-street-map", height=650) -> go.Figure:
     traces = [
-        go.Scattermap(  # keep the path as a single (subtle) line
-            lat=df.lat,
-            lon=df.lon,
+        go.Scattermap(
+            lat=dff["lat"],
+            lon=dff["lon"],
             mode="lines",
             name="Path",
             line=dict(width=1, color="rgba(0,0,0,0.35)"),
             hoverinfo="skip",
         )
     ]
-    for k in sorted(ind2name.keys()):
-        m = df.val == k
+    for k in class_keys:
+        sub = dff[dff["val"] == k]
+        lat_vals = sub["lat"] if len(sub) else [None]
+        lon_vals = sub["lon"] if len(sub) else [None]
         traces.append(
             go.Scattermap(
-                lat=df.lat[m],
-                lon=df.lon[m],
+                lat=lat_vals,
+                lon=lon_vals,
                 mode="markers",
                 name=ind2name[k],
                 marker=dict(size=6, color=ind2color[k]),
+                showlegend=True,
             )
         )
 
     fig = go.Figure(traces)
-
-    west, east = float(df.lon.min()), float(df.lon.max())
-    south, north = float(df.lat.min()), float(df.lat.max())
-    center = {"lat": (south + north) / 2, "lon": (west + east) / 2}
-
-    # Initial zoom heuristic from span (no clamping)
-    span = max(east - west, north - south, 1e-6)
-    zoom = max(0, 8 - math.log2(span)) + 2  # tweak "+2" if you want tighter/looser
-
     fig.update_layout(
         map=dict(style=style, center=center, zoom=zoom),
         height=height,
         margin=dict(t=0, r=0, b=0, l=0),
         hovermode="closest",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        uirevision="keep",  # keep user view on updates
     )
     return fig
 
 
-# Example
-# coords = [(37.7749, -122.4194), (34.0522, -118.2437), (36.1699, -115.1398), (40.7128, -74.0060)]
-gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
-df = pd.read_csv(gimu_beh_file, header=None)
-df = df.sort_values([0, 1, 2]).reset_index(drop=True)
-lat_lon_val = df.iloc[::20, [-2, -1, 8]].values
-coords = [(r[0], r[1], r[2]) for r in lat_lon_val]
-fig = plot_coords(coords)
-fig.show()
+# ---------- Dash app ----------
+app = Dash(__name__)
+
+
+def mk_marks(ts: pd.Series, max_marks=12):
+    ts = ts.sort_values()
+    if len(ts) <= max_marks:
+        points = ts
+    else:
+        step = max(1, len(ts) // max_marks)
+        points = ts.iloc[::step]
+        if points.iloc[-1] != ts.iloc[-1]:
+            points = pd.concat([points, ts.iloc[[-1]]])
+    return {int(t.timestamp()): t.strftime("%Y-%m-%d\n%H:%M") for t in points}
+
+
+app.layout = html.Div(
+    style={"padding": "12px", "fontFamily": "system-ui, sans-serif"},
+    children=[
+        dcc.Graph(id="map-graph", figure=make_figure(df)),
+        html.Div("Time window", style={"padding": "8px 4px 0 4px"}),
+        dcc.RangeSlider(
+            id="time-slider",
+            min=t_min,
+            max=t_max,
+            step=None,
+            allowCross=False,
+            value=[t_min, t_max],
+            marks=mk_marks(df_all[1]),
+            tooltip={"always_visible": False, "placement": "bottom"},
+        ),
+        html.Div(id="time-readout", style={"marginTop": "6px", "opacity": 0.7}),
+    ],
+)
+
+
+@app.callback(
+    Output("map-graph", "figure"),
+    Output("time-readout", "children"),
+    Input("time-slider", "value"),
+)
+def update_map(selected_range):
+    start_s, end_s = selected_range
+    start, end = datetime.fromtimestamp(start_s), datetime.fromtimestamp(end_s)
+    mask = (df[1] >= start) & (df[1] <= end)  # df[1] is timestamp column
+    dff = df.loc[mask].copy()
+    fig = make_figure(dff)
+    txt = f"Showing: {start:%Y-%m-%d %H:%M:%S} → {end:%Y-%m-%d %H:%M:%S}  (rows: {len(dff)})"
+    return fig, txt
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
