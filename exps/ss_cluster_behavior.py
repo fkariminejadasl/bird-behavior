@@ -11,7 +11,7 @@ import torch
 from matplotlib.colors import ListedColormap
 
 # import umap  # umap-learn
-from omegaconf import ListConfig, OmegaConf
+from omegaconf import OmegaConf
 from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
@@ -77,14 +77,6 @@ cfg_paths = OmegaConf.structured(
     )
 )
 cfg = OmegaConf.merge(cfg, cfg_paths)
-
-# Read hyperparameters from the config file
-n_clusters_list = (
-    cfg.n_clusters if isinstance(cfg.n_clusters, ListConfig) else [cfg.n_clusters]
-)
-batch_sizes_list = (
-    cfg.batch_size if isinstance(cfg.batch_size, ListConfig) else [cfg.batch_size]
-)
 
 # General loads
 bu.set_seed(cfg.seed)
@@ -792,7 +784,11 @@ def main(cfg):
     ordered_feat = torch.concatenate((lf, uf), axis=0)
     ordered_labels = torch.concatenate((lt, ut))
     ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
-    k_preds = u_mapper.decode(preds.cpu()).numpy()
+    # no mapping if more clusters than actual lables
+    if cfg.n_clusters == len(np.unique(labels)):
+        k_preds = u_mapper.decode(preds.cpu()).numpy()
+    else:
+        k_preds = preds.cpu().numpy()
     
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
     u_cm = contingency_matrix(ordered_labels[lt.shape[0]:], k_preds[lt.shape[0]:ordered_labels.shape[0]])
@@ -835,13 +831,14 @@ def main(cfg):
 
     hungarian_file = save_path_results / "hungarian.txt"
     true_labels = [bu.ind2name[i] for i in labels_to_use]
-    pred_labels = range(len(u_old2new))
+    pred_labels = range(len(cfg.n_clusters))
     method_name = "gcd"
     name = (
         f"{method_name}_gvn"
         + "".join(map(str, lt_labels))
         + "_dsl"
         + "".join(map(str, discover_labels))
+        + f"_clu{cfg.n_clusters}"
     )
     if cfg.use_unlabel:
         name += "_unlabel"
@@ -853,7 +850,7 @@ def main(cfg):
         true_labels,
         pred_labels,
         reduced[: ordered_labels.shape[0]],
-        k_preds[: ordered_labels.shape[0]],
+        preds[: ordered_labels.shape[0]].cpu(),
         centers=reduced_centers,
     )
 
@@ -1011,7 +1008,7 @@ if __name__ == "__main__":
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
     cfg.out_channel = len(cfg.labels_trained)
-    cfg.n_clusters = len(cfg.all_labels)
+    cfg.n_clusters = len(cfg.all_labels) # 10 #
     cfg.model.name = "small"  # "small", "smallemb", "mae"
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
