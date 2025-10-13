@@ -34,9 +34,14 @@ df = df_all.iloc[::20].reset_index(drop=True)
 
 # ---------- Class maps (curated) ----------
 # fmt: off
+# # colors from tab20
+# import matplotlib.colors as mcolors
+# import matplotlib.pyplot as plt
+# tab20 = plt.get_cmap("tab20")
+# ind2color = {i: mcolors.to_hex(tab20(i)) for i in range(10)}
 ind2color = {
     0:'#1f77b4', 1:'#aec7e8', 2:'#ff7f0e', 3:'#ffbb78', 4:'#2ca02c',
-    5:'#98df8a', 6:'#d62728', 8:'#ff9896', 9:'#9467bd'
+    5:'#98df8a', 6:'#d62728', 8: '#9467bd', 9: '#c5b0d5'
 }
 ind2name = {
     0: "Flap", 1: "ExFlap", 2: "Soar", 3: "Boat", 4: "Float",

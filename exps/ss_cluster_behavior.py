@@ -3,12 +3,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib as mpl
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from matplotlib.colors import ListedColormap
 
 # import umap  # umap-learn
 from omegaconf import OmegaConf
@@ -383,16 +382,25 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, p
     plt.savefig(save_path / f"{name}_cm.png", bbox_inches="tight")
 
     unique_classes = np.unique(preds)
-    bounds = np.concatenate((unique_classes-0.5, [unique_classes[-1]+0.5]))
-    norm   = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+    cmap = plt.get_cmap("tab20")
+    cmap_dict = {i: mcolors.to_hex(cmap(i)) for i in range(20)}
+    custom_cmap = mcolors.ListedColormap([cmap_dict[p] for p in unique_classes])
+
+    # Colormap issue: Matplotlib treats integer labels as continuous values from [vmin, vmax] to [0, 1]. 
+    # Missing label numbers (e.g., no class 7) cause colors labels 8 and 9 merge into color 8 unless you use a discrete BoundaryNorm.
+    # Build boundaries that separate integer classes cleanly, even with gaps
+    # e.g., for [0,1,2,3,4,5,6,8,9] => [-0.5, 0.5, 1.5, ..., 7.5, 8.5, 9.5]
+    bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
+    norm = mcolors.BoundaryNorm(bounds, ncolors=len(unique_classes))
     
-    plt.figure()
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap="tab20", s=5, norm=norm)
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap=custom_cmap, norm=norm, s=5)
     if centers is not None:
         for i in range(len(centers)):
             plt.scatter(centers[i][0], centers[i][1], s = 130, marker = "*", color='r')
-    cbar = plt.colorbar(scatter, label="Label")
-    cbar.set_ticks(unique_classes)
+    # Tkinter issue: The issue happens because the Tkinter plotting window’s toolbar crashes 
+    # when a new colorbar is added. Using fig.colorbar() instead of plt.colorbar() fixes it.
+    cbar = fig.colorbar(scatter, ax=ax, ticks=unique_classes, label="Label")
     plt.title("Predictions")
     plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
     # plt.show(block=True)
@@ -403,22 +411,28 @@ def plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels):
     # true_labels = [bu.ind2name[i] for i in [0,1,2,3,4,5,6,8,9]]
     unique_classes = np.unique(labels)
     bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
-    norm = mpl.colors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+    norm = mcolors.BoundaryNorm(bounds, ncolors=len(unique_classes))
+    cmap = plt.get_cmap("tab20")
+    cmap_dict = {i: mcolors.to_hex(cmap(i)) for i in range(20)}
+    custom_cmap = mcolors.ListedColormap([cmap_dict[p] for p in unique_classes])
 
-    plt.figure()
+    fig, ax = plt.subplots()
     title = "Labeled Embeddings"
     if u_reduced.size != 0:
         title = "Labeled and Unlabeled Embeddings"
-        plt.plot(
+        ax.plot(
             u_reduced[:, 0], u_reduced[:, 1], "*", color="gray", alpha=0.1, zorder=2
         )
     scatter = plt.scatter(
-        reduced[:, 0], reduced[:, 1], c=labels, cmap="tab20", s=5, norm=norm, zorder=0
+        reduced[:, 0],
+        reduced[:, 1],
+        c=labels,
+        cmap=custom_cmap,
+        s=5,
+        norm=norm,
+        zorder=0,
     )
-    cbar = plt.colorbar(scatter, label="Label")
-    # cbar = plt.colorbar(scatter, ticks=unique_classes, label="Label")
-    # place ticks at integer positions 0…n-1: place ticks before relabel them
-    cbar.set_ticks(unique_classes)
+    cbar = fig.colorbar(scatter, ax=ax, ticks=unique_classes, label="Label")
     cbar.set_ticklabels(true_labels)
     plt.title(title)
     # plt.savefig(save_path_results / f"cls_tsne_label_unlabel.png", bbox_inches="tight")
@@ -789,6 +803,11 @@ def main(cfg):
         k_preds = u_mapper.decode(preds.cpu()).numpy()
     else:
         k_preds = preds.cpu().numpy()
+        # # To preserve colors for tsne. It will be changing depends on discover class, so I comment it out.
+        # # ss_kmean, first uses the labeled data for clusters and then add the unknow clusters. 
+        # a = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 6, 9: 7, 0: 8, 10: 9}
+        # ma = Mapper(a)
+        # k_preds = ma.decode(preds.cpu()).numpy()
     
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
     u_cm = contingency_matrix(ordered_labels[lt.shape[0]:], k_preds[lt.shape[0]:ordered_labels.shape[0]])
@@ -831,7 +850,7 @@ def main(cfg):
 
     hungarian_file = save_path_results / "hungarian.txt"
     true_labels = [bu.ind2name[i] for i in labels_to_use]
-    pred_labels = range(len(cfg.n_clusters))
+    pred_labels = range(cfg.n_clusters)
     method_name = "gcd"
     name = (
         f"{method_name}_gvn"
@@ -850,7 +869,7 @@ def main(cfg):
         true_labels,
         pred_labels,
         reduced[: ordered_labels.shape[0]],
-        preds[: ordered_labels.shape[0]].cpu(),
+        k_preds[: ordered_labels.shape[0]],
         centers=reduced_centers,
     )
 
