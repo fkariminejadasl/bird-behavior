@@ -4,7 +4,7 @@
 
 #### 20-length data (Gull only, more data)
 
-The dataset includes `237` devices from `201` gulls. It took `263` minutes to download the IMU and GPS data. GPS dates are downloaded quickly. `35GB` data over 1075 files contains `24,590,435` data point each with 20 items in total `491,808,700` items. 
+The dataset includes `237` devices from `201` gulls. It took `263` minutes to download the IMU and GPS data. GPS dates are downloaded quickly. `35GB` data (`6.3 GB` zip in `15` min) over `1075` files contains `24,590,435` data point each with `20` items in total `491,808,700` items. 
 
 ```python
 class_counts = 
