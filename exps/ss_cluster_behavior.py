@@ -671,7 +671,7 @@ def main(cfg):
     mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
     mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
-    name = f"{cfg.layer_name}"
+    name = f"{cfg.model.name}_{cfg.layer_name}"
     if cfg.use_unlabel:
         name += "_unlabel"
     save_path_results = save_path / (
@@ -726,6 +726,8 @@ def main(cfg):
     # Load test embeddings
     feats, labels, output = load_labeled_embeddings(save_file)
     labels = mapper.decode(torch.tensor(labels)).numpy()
+    # Cleanup: Remove file
+    save_file.unlink()
 
     # Prepare train embeddings
     C = feats.shape[1]
@@ -740,6 +742,12 @@ def main(cfg):
         # Load train embeddings
         u_feats_np = load_unlabeled_embeddings(save_path_results)
         u_feats = torch.tensor(u_feats_np, device="cuda")
+        # Cleanup: Remove file
+        _ = [
+            p.unlink()
+            for p in save_path_results.glob(f"*_{cfg.layer_name}.npz")
+            if p.stem.split("_")[0].isdigit()
+        ]
 
     # GCD
     # ==============
@@ -787,6 +795,7 @@ def main(cfg):
     k_preds = u_mapper.decode(preds.cpu()).numpy()
     
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
+    u_cm = contingency_matrix(ordered_labels[lt.shape[0]:], k_preds[lt.shape[0]:ordered_labels.shape[0]])
 
     print("all data\n", cm)
 
@@ -845,6 +854,17 @@ def main(cfg):
         pred_labels,
         reduced[: ordered_labels.shape[0]],
         k_preds[: ordered_labels.shape[0]],
+        centers=reduced_centers,
+    )
+
+    save_cm_embeddings(
+        save_path_results,
+        "u_" + name,
+        u_cm,
+        true_labels,
+        pred_labels,
+        reduced[lt.shape[0] : ordered_labels.shape[0]],
+        k_preds[lt.shape[0] : ordered_labels.shape[0]],
         centers=reduced_centers,
     )
     save_hungarian(cm, method_name, hungarian_file)
@@ -992,11 +1012,11 @@ if __name__ == "__main__":
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
     cfg.out_channel = len(cfg.labels_trained)
     cfg.n_clusters = len(cfg.all_labels)
-    cfg.model.name = "small"  # "smallemb", "mae"
+    cfg.model.name = "small"  # "small", "smallemb", "mae"
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
     cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
-    cfg.use_unlabel = True
+    cfg.use_unlabel = False
     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
     print(f"Experiment {exp}: Excluding label {exclude}")
     acc = main(cfg)
