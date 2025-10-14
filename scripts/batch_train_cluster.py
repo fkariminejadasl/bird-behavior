@@ -89,8 +89,8 @@ import train as train_module
 #     cfg.out_channel = len(cfg.labels_trained)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
-#     cfg.use_unlabel = True
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_3")
+#     cfg.use_unlabel = False
 #     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)

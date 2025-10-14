@@ -887,6 +887,7 @@ def main(cfg):
 
     exp = cfg.model_checkpoint.stem.split("_best")[0]
     name = (
+        f"{cfg.model.name}_{cfg.layer_name}"
         f"{exp}_tr"
         + "".join(map(str, labels_trained))
         + f"_gvn"
