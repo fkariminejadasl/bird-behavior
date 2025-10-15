@@ -461,7 +461,7 @@ def save_hungarian(cm, method_name, save_path):
         f.write(", ".join(map(str, cols)) + "\n\n")
 
 
-def save_scores(cm, discover_labels, all_labels, name=None, save_path=None):
+def calculate_accuracy(cm, discover_labels, all_labels):
     """
     Example: test_calculate_score
     """
@@ -503,13 +503,21 @@ def save_scores(cm, discover_labels, all_labels, name=None, save_path=None):
             acc += cm[rows[idx], cols[idx]]
         acc /= sum
         """
+    return acc
 
+
+def save_scores(scores, name=None, save_path=None):
     if save_path is not None:
         score_file = save_path.parent / "scores.txt"
+        score_text = ", ".join(
+            [
+                f"{k}:{v}" if isinstance(v, int) else f"{k}:{v:.3f}"
+                for k, v in scores.items()
+            ]
+        )
+        record = f"{name}:\n{score_text}\n"
         with open(score_file, "a") as f:
-            f.write(f"{name}:\n")
-            f.write(f"{acc:.3f}\n")
-    return acc
+            f.write(record)
 
 
 def test_calculate_score():
@@ -527,7 +535,7 @@ def test_calculate_score():
     expected = 0.3474576271186441
     discover_labels = [0, 2]
     all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    score = save_scores(cm, discover_labels, all_labels)
+    score = calculate_accuracy(cm, discover_labels, all_labels)
     assert round(score, 2) == round(expected, 2)
     cm = np.array([
        [ 643,    0,    0,    0,    0],
@@ -539,7 +547,7 @@ def test_calculate_score():
     expected = 0.4208566108007449
     discover_labels = [2]
     all_labels = [0, 2, 4, 5, 6]
-    score = save_scores(cm, discover_labels, all_labels)
+    score = calculate_accuracy(cm, discover_labels, all_labels)
     assert round(score, 2) == round(expected, 2)
     # fmt: on
 
@@ -848,6 +856,8 @@ def main(cfg):
     reduced_centers = reduced_feats_and_centers[-centers.shape[0]:, :]
     # fmt: on
 
+    accuracy = calculate_accuracy(cm, discover_labels, cfg.all_labels)
+
     hungarian_file = save_path_results / "hungarian.txt"
     true_labels = [bu.ind2name[i] for i in labels_to_use]
     pred_labels = range(cfg.n_clusters)
@@ -898,19 +908,6 @@ def main(cfg):
 
     save_hungarian(cm, method_name, hungarian_file)
 
-    exp = cfg.model_checkpoint.stem.split("_best")[0]
-    name = (
-        f"{cfg.model.name}_{cfg.layer_name}"
-        f"{exp}_tr"
-        + "".join(map(str, labels_trained))
-        + f"_gvn"
-        + "".join(map(str, lt_labels))
-        + "_dsl"
-        + "".join(map(str, discover_labels))
-        + f"_{cfg.layer_name}"
-    )
-    accuracy = save_scores(cm, discover_labels, cfg.all_labels, name, save_path)
-
     # classification
     # ==============
 
@@ -937,6 +934,29 @@ def main(cfg):
     # Calculate minimum divergence
     min_kde_divergence = calculate_kde_divergence(reduced, labels, discover_labels)
     print("Minimum KDE divergence:", min_kde_divergence)
+
+    scores = {
+        "accuracy": round(accuracy, 3),
+        "min_kde_divergence": round(min_kde_divergence, 3),
+        "density_separability_score2": round(density_separability_score2, 3),
+        "cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
+        "density_separability_score": round(density_separability_score, 3),
+        "cluster_silhouette_score": round(cluster_silhouette_score, 3),
+        "cluster_size": cluster_size,
+    }
+    print("scores:", scores)
+    exp = cfg.model_checkpoint.stem.split("_best")[0]
+    name = (
+        f"{cfg.model.name}_{cfg.layer_name}"
+        f"{exp}_tr"
+        + "".join(map(str, labels_trained))
+        + f"_gvn"
+        + "".join(map(str, lt_labels))
+        + "_dsl"
+        + "".join(map(str, discover_labels))
+        + f"_{cfg.layer_name}"
+    )
+    save_scores(scores, name, save_path)
 
     true_labels = [bu.ind2name[i] for i in ut_labels]
     pred_labels = [bu.ind2name[i] for i in labels_trained]
@@ -1012,19 +1032,8 @@ def main(cfg):
         save_path_results, name, cm, true_labels, pred_labels, reduced, k_preds
     )
     save_hungarian(cm, method_name, hungarian_file)
-    print("Done")
 
     plt.close("all")
-    scores = (
-        round(accuracy, 3),
-        round(min_kde_divergence, 3),
-        round(density_separability_score2, 3),
-        round(cluster_silhouette_score2, 3),
-        round(density_separability_score, 3),
-        round(cluster_silhouette_score, 3),
-        cluster_size,
-    )
-    print("scores:", scores)
     return scores
 
 
