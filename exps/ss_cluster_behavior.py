@@ -862,6 +862,7 @@ def main(cfg):
     if cfg.use_unlabel:
         name += "_unlabel"
 
+    # Save for All = Labeled + Unlabeled
     save_cm_embeddings(
         save_path_results,
         name,
@@ -872,7 +873,7 @@ def main(cfg):
         k_preds[: ordered_labels.shape[0]],
         centers=reduced_centers,
     )
-
+    # Save for Unlabeled
     save_cm_embeddings(
         save_path_results,
         "u_" + name,
@@ -883,6 +884,18 @@ def main(cfg):
         k_preds[lt.shape[0] : ordered_labels.shape[0]],
         centers=reduced_centers,
     )
+    # Save for Labeled
+    save_cm_embeddings(
+        save_path_results,
+        "l_" + name,
+        u_cm,
+        true_labels,
+        pred_labels,
+        reduced[: lt.shape[0]],
+        k_preds[: lt.shape[0]],
+        centers=reduced_centers,
+    )
+
     save_hungarian(cm, method_name, hungarian_file)
 
     exp = cfg.model_checkpoint.stem.split("_best")[0]
