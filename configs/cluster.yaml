@@ -23,8 +23,8 @@ model_checkpoint: /home/fatemeh/Downloads/bird/result/134_best.pth #13_best.pth,
 all_labels: [0, 1, 2, 3, 4, 5, 6, 8, 9]
 lt_labels: [2, 3, 4, 6, 9]
 discover_labels: 
-labels_to_use: # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
-labels_trained: # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
+data_labels: # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
+trained_labels: # [0, 1, 2, 3, 4, 5, 6, 8, 9], [0, 2, 4, 5, 6, 9]
 # General
 seed: 1234
 num_workers: 1 # 15

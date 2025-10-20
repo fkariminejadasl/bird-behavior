@@ -12,6 +12,7 @@ import torch
 # import umap  # umap-learn
 from omegaconf import OmegaConf
 from scipy.optimize import linear_sum_assignment
+from scipy.stats import mode
 from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.datasets import make_blobs
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -109,14 +110,14 @@ def setup_training_dataloader(cfg, batch_size, channel_first):
     return loader
 
 
-def setup_testing_dataloader(test_data_file, labels_to_use, channel_first):
+def setup_testing_dataloader(test_data_file, data_labels, channel_first):
     # Load data
     # all_measurements, label_ids = bd.load_csv(test_data_file)
     # all_measurements, label_ids = bd.get_specific_labesl(
-    #     all_measurements, label_ids, labels_to_use
+    #     all_measurements, label_ids, data_labels
     # )
     df = pd.read_csv(test_data_file, header=None)
-    df = df[df[3].isin(labels_to_use)]
+    df = df[df[3].isin(data_labels)]
     all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
     label_ids = df[[3, 0, 0]].iloc[::20].values
     dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=channel_first)
@@ -416,7 +417,7 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, p
 # fmt: on
 
 
-def plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels):
+def plot_labeled_embeddings(reduced, u_reduced, labels, true_labels):
     # true_labels = [bu.ind2name[i] for i in [0,1,2,3,4,5,6,8,9]]
     unique_classes = np.unique(labels)
     bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
@@ -444,7 +445,7 @@ def plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels):
     cbar = fig.colorbar(scatter, ax=ax, ticks=unique_classes, label="Label")
     cbar.set_ticklabels(true_labels)
     plt.title(title)
-    # plt.savefig(save_path_results / f"cls_tsne_label_unlabel.png", bbox_inches="tight")
+    # plt.savefig(results_path / f"cls_tsne_label_unlabel.png", bbox_inches="tight")
 
 
 def tsne_label_unlabel_embs(feats, u_feats):
@@ -470,12 +471,12 @@ def save_hungarian(cm, method_name, save_path):
         f.write(", ".join(map(str, cols)) + "\n\n")
 
 
-def calculate_accuracy(cm, discover_labels, all_labels):
+def calculate_accuracy(cm, discover_labels, data_labels):
     """
-    Example: test_calculate_score
+    org2new: mapping original label to new labels
     """
     # if-else is not needed but if part make the code easier to understand.
-    org2new = {l: i for i, l in enumerate(all_labels)}
+    org2new = {l: i for i, l in enumerate(data_labels)}
     if len(discover_labels) == 1:
         idx = org2new[discover_labels[0]]
         sum = cm[idx].sum()
@@ -664,15 +665,15 @@ print("model is loaded")
 # GCD
 # ==============
 def gcd(
-    feats,
+    feats: np.ndarray,
     u_feats: np.ndarray,
-    labels,
-    discover_labels,
-    labels_to_use,
-    lt_labels,
+    labels: np.ndarray,
+    data_labels: list,
+    discover_labels: list,
+    lt_labels: list,
     u_mapper,
     l_mapper,
-    save_path_results,
+    results_path,
 ):
     l_feats = torch.tensor(feats, device="cuda")
     l_targets = torch.tensor(labels, device="cuda")
@@ -716,16 +717,17 @@ def gcd(
     ordered_feat = torch.concatenate((lf, uf), axis=0)
     ordered_labels = torch.concatenate((lt, ut))
     ordered_labels = u_mapper.decode(ordered_labels.cpu()).numpy()
+    k_preds = u_mapper.decode(preds.cpu()).numpy()
     # no mapping if more clusters than actual lables
-    if cfg.n_clusters == len(np.unique(labels)):
-        k_preds = u_mapper.decode(preds.cpu()).numpy()
-    else:
-        k_preds = preds.cpu().numpy()
-        # # To preserve colors for tsne. It will be changing depends on discover class, so I comment it out.
-        # # ss_kmean, first uses the labeled data for clusters and then add the unknow clusters. 
-        # a = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 6, 9: 7, 0: 8, 10: 9}
-        # ma = Mapper(a)
-        # k_preds = ma.decode(preds.cpu()).numpy()
+    # if cfg.n_clusters == len(np.unique(labels)):
+    #     k_preds = u_mapper.decode(preds.cpu()).numpy()
+    # else:
+    #     k_preds = preds.cpu().numpy()
+    #     # # To preserve colors for tsne. It will be changing depends on discover class, so I comment it out.
+    #     # # ss_kmean, first uses the labeled data for clusters and then add the unknow clusters. 
+    #     # a = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 8: 6, 9: 7, 0: 8, 10: 9}
+    #     # ma = Mapper(a)
+    #     # k_preds = ma.decode(preds.cpu()).numpy()
     
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
     u_cm = contingency_matrix(ordered_labels[lt.shape[0]:], k_preds[lt.shape[0]:ordered_labels.shape[0]])
@@ -740,7 +742,6 @@ def gcd(
         k_preds = u_mapper.decode(preds.cpu()).numpy() # (N, )
         print("sup \n", contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]]))
 
-        from scipy.stats import mode
         k_preds_all = []
         for i in range(15):
             kmeans = K_Means(k=cfg.n_clusters, tolerance=1e-4, max_iterations=100, n_init=3, random_state=10, pairwise_batch_size=8192)
@@ -766,9 +767,33 @@ def gcd(
     reduced_centers = reduced_feats_and_centers[-centers.shape[0]:, :]
     # fmt: on
 
-    accuracy = calculate_accuracy(cm, discover_labels, cfg.all_labels)
+    # Calcuate Scores
+    accuracy = 0
+    if discover_labels[0] in data_labels:
+        accuracy = calculate_accuracy(cm, discover_labels, data_labels)
 
-    true_labels = [bu.ind2name[i] for i in labels_to_use]
+    density_separability_score, cluster_silhouette_score, cluster_size = (
+        calculate_separability_scores(feats, k_preds, discover_labels)
+    )
+    density_separability_score2, cluster_silhouette_score2, cluster_size = (
+        calculate_separability_scores(reduced, k_preds, discover_labels)
+    )
+
+    # Calculate minimum divergence
+    min_kde_divergence = calculate_kde_divergence(reduced, k_preds, discover_labels)
+    print("Minimum KDE divergence:", min_kde_divergence)
+
+    scores = {
+        "accuracy": round(accuracy, 3),
+        "gcd_min_kde_divergence": round(min_kde_divergence, 3),
+        "gcd_density_separability_score2": round(density_separability_score2, 3),
+        "gcd_cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
+        "gcd_density_separability_score": round(density_separability_score, 3),
+        "gcd_cluster_silhouette_score": round(cluster_silhouette_score, 3),
+        "gcd_cluster_size": cluster_size,
+    }
+
+    true_labels = [bu.ind2name[i] for i in data_labels]
     pred_labels = range(cfg.n_clusters)
     method_name = "gcd"
     name = (
@@ -783,7 +808,7 @@ def gcd(
 
     # Save for All = Labeled + Unlabeled
     save_cm_embeddings(
-        save_path_results,
+        results_path,
         name,
         cm,
         true_labels,
@@ -794,7 +819,7 @@ def gcd(
     )
     # Save for Unlabeled
     save_cm_embeddings(
-        save_path_results,
+        results_path,
         "u_" + name,
         u_cm,
         true_labels,
@@ -805,7 +830,7 @@ def gcd(
     )
     # Save for Labeled
     save_cm_embeddings(
-        save_path_results,
+        results_path,
         "l_" + name,
         u_cm,
         true_labels,
@@ -815,10 +840,9 @@ def gcd(
         centers=reduced_centers,
     )
 
-    hungarian_file = save_path_results / "hungarian.txt"
+    hungarian_file = results_path / "hungarian.txt"
     save_hungarian(cm, method_name, hungarian_file)
 
-    scores = {"accuracy": round(accuracy, 3)}
     return scores
 
 
@@ -830,16 +854,16 @@ def classification_and_clustering(
     labels,
     output,
     discover_labels,
-    labels_trained,
-    ut_labels,
-    mapper_trained,
-    mapper,
-    save_path_results,
+    data_labels,
+    trained_labels,
+    trained_mapper,
+    data_mapper,
+    results_path,
 ):
     preds = torch.argmax(torch.tensor(output), dim=1)
     probs = torch.softmax(torch.tensor(output), dim=1)
 
-    preds = mapper_trained.decode(preds).cpu().numpy()
+    preds = trained_mapper.decode(preds).cpu().numpy()
     cm = contingency_matrix(labels, preds)
 
     reduced, u_reduced = tsne_label_unlabel_embs(feats, u_feats)
@@ -849,37 +873,38 @@ def classification_and_clustering(
     # reducer = umap.UMAP(n_neighbors=15, min_dist=0.1)
     # reduced = reducer.fit_transform(feats)
 
-    density_separability_score, cluster_silhouette_score, cluster_size = (
-        calculate_separability_scores(feats, labels, discover_labels)
-    )
-    density_separability_score2, cluster_silhouette_score2, cluster_size = (
-        calculate_separability_scores(reduced, labels, discover_labels)
-    )
+    if discover_labels in np.unique(labels):
+        density_separability_score, cluster_silhouette_score, cluster_size = (
+            calculate_separability_scores(feats, labels, discover_labels)
+        )
+        density_separability_score2, cluster_silhouette_score2, cluster_size = (
+            calculate_separability_scores(reduced, labels, discover_labels)
+        )
 
-    # Calculate minimum divergence
-    min_kde_divergence = calculate_kde_divergence(reduced, labels, discover_labels)
-    print("Minimum KDE divergence:", min_kde_divergence)
+        # Calculate minimum divergence
+        min_kde_divergence = calculate_kde_divergence(reduced, labels, discover_labels)
+        print("Minimum KDE divergence:", min_kde_divergence)
 
-    scores = {
-        "min_kde_divergence": round(min_kde_divergence, 3),
-        "density_separability_score2": round(density_separability_score2, 3),
-        "cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
-        "density_separability_score": round(density_separability_score, 3),
-        "cluster_silhouette_score": round(cluster_silhouette_score, 3),
-        "cluster_size": cluster_size,
-    }
+        scores = {
+            "min_kde_divergence": round(min_kde_divergence, 3),
+            "density_separability_score2": round(density_separability_score2, 3),
+            "cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
+            "density_separability_score": round(density_separability_score, 3),
+            "cluster_silhouette_score": round(cluster_silhouette_score, 3),
+            "cluster_size": cluster_size,
+        }
+    else:
+        scores = dict()
 
-    true_labels = [bu.ind2name[i] for i in ut_labels]
-    pred_labels = [bu.ind2name[i] for i in labels_trained]
+    true_labels = [bu.ind2name[i] for i in data_labels]
+    pred_labels = [bu.ind2name[i] for i in trained_labels]
     name = "cls"
     rd_method = "tsne"
-    plot_label_unlabel_embs(reduced, u_reduced, labels, true_labels)
-    plt.savefig(
-        save_path_results / f"{name}_{rd_method}_label.png", bbox_inches="tight"
-    )
+    plot_labeled_embeddings(reduced, u_reduced, labels, true_labels)
+    plt.savefig(results_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
 
     save_cm_embeddings(
-        save_path_results,
+        results_path,
         name,
         cm,
         true_labels,
@@ -888,7 +913,7 @@ def classification_and_clustering(
         preds,
     )
 
-    hungarian_file = save_path_results / "hungarian.txt"
+    hungarian_file = results_path / "hungarian.txt"
     save_hungarian(cm, name, hungarian_file)
 
     """
@@ -938,12 +963,12 @@ def classification_and_clustering(
     print(sum(false_neg), cm.sum() - sum(false_neg), cm.sum(), (cm.sum() - sum(false_neg)) / cm.sum())
     # fmt: on
 
-    true_labels = range(len(mapper.new2old))
-    pred_labels = range(len(mapper.new2old))
+    true_labels = range(len(data_mapper.new2old))
+    pred_labels = range(len(data_mapper.new2old))
     method_name = "kmn"
     name = f"{method_name}_gvn_ds{cfg.n_clusters}"
     save_cm_embeddings(
-        save_path_results, name, cm, true_labels, pred_labels, reduced, k_preds
+        results_path, name, cm, true_labels, pred_labels, reduced, k_preds
     )
     save_hungarian(cm, method_name, hungarian_file)
 
@@ -960,37 +985,36 @@ def main(cfg):
         save_path = cfg.model_checkpoint.parent
     else:
         save_path = cfg.save_path
-
     save_path = save_path / cfg.model_checkpoint.stem.split("_best")[0]
-
     save_path.mkdir(parents=True, exist_ok=True)
 
-    lt_labels = cfg.lt_labels
     discover_labels = cfg.discover_labels
-    labels_to_use = ut_labels = cfg.labels_to_use
-    labels_trained = cfg.labels_trained
-    if discover_labels is None:
-        discover_labels = sorted(set(cfg.all_labels) - set(cfg.lt_labels))
-    if labels_to_use is None:
-        labels_to_use = ut_labels = cfg.all_labels.copy()
-    if labels_trained is None:
-        labels_trained = lt_labels.copy()  # lt_labels.copy() ut_labels.copy()
-
-    # assert sorted(discover_labels + lt_labels) == labels_to_use
+    assert discover_labels is not None
+    data_labels = cfg.data_labels
+    trained_labels = cfg.trained_labels
+    lt_labels = cfg.lt_labels
+    if data_labels is None:
+        data_labels = cfg.all_labels.copy()
+    if trained_labels is None:
+        trained_labels = lt_labels.copy()
 
     l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
     l_mapper = Mapper(l_old2new)
     u_mapper = Mapper(u_old2new)
-    mapper = Mapper({l: i for i, l in enumerate(labels_to_use)})
-    mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
+    data_mapper = Mapper({l: i for i, l in enumerate(data_labels)})
+    trained_mapper = Mapper({l: i for i, l in enumerate(trained_labels)})
 
     name = f"{cfg.model.name}_{cfg.layer_name}"
     if cfg.use_unlabel:
         name += "_unlabel"
-    save_path_results = save_path / (
-        name + "_tr" + "".join([str(i) for i in labels_trained])
+    results_path = save_path / (
+        name
+        + "_tr"
+        + "".join([str(i) for i in trained_labels])
+        + "_dsl"
+        + "".join(map(str, discover_labels))
     )
-    save_path_results.mkdir(parents=True, exist_ok=True)
+    results_path.mkdir(parents=True, exist_ok=True)
 
     if cfg.model.name == "smallemb":
         model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
@@ -1029,10 +1053,10 @@ def main(cfg):
     layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
 
     # Prepare test embeddings
-    save_file = save_path_results / f"test_{cfg.layer_name}.npz"
+    save_file = results_path / f"test_{cfg.layer_name}.npz"
     if not save_file.exists():
         test_loader = setup_testing_dataloader(
-            cfg.test_data_file, labels_to_use, channel_first
+            cfg.test_data_file, data_labels, channel_first
         )
         save_labeled_embeddings(save_file, test_loader, model, layer_to_hook, device)
         print("test data is finished")
@@ -1047,15 +1071,15 @@ def main(cfg):
     if cfg.use_unlabel:
         train_loader = setup_training_dataloader(cfg, 8192, channel_first)
         save_unlabeled_embeddings(
-            save_path_results, train_loader, model, layer_to_hook, device
+            results_path, train_loader, model, layer_to_hook, device
         )
         print("train data is finished")
         # Load train embeddings
-        u_feats = load_unlabeled_embeddings(save_path_results)
+        u_feats = load_unlabeled_embeddings(results_path)
         # Cleanup: Remove file
         _ = [
             p.unlink()
-            for p in save_path_results.glob(f"*_{cfg.layer_name}.npz")
+            for p in results_path.glob(f"*_{cfg.layer_name}.npz")
             if p.stem.split("_")[0].isdigit()
         ]
 
@@ -1063,12 +1087,12 @@ def main(cfg):
         feats,
         u_feats,
         labels,
+        data_labels,
         discover_labels,
-        labels_to_use,
         lt_labels,
         u_mapper,
         l_mapper,
-        save_path_results,
+        results_path,
     )
     scs = classification_and_clustering(
         feats,
@@ -1076,11 +1100,11 @@ def main(cfg):
         labels,
         output,
         discover_labels,
-        labels_trained,
-        ut_labels,
-        mapper_trained,
-        mapper,
-        save_path_results,
+        data_labels,
+        trained_labels,
+        trained_mapper,
+        data_mapper,
+        results_path,
     )
     scores.update(scs)
 
@@ -1089,7 +1113,7 @@ def main(cfg):
     name = (
         f"{cfg.model.name}_{cfg.layer_name}"
         f"{exp}_tr"
-        + "".join(map(str, labels_trained))
+        + "".join(map(str, trained_labels))
         + f"_gvn"
         + "".join(map(str, lt_labels))
         + "_dsl"
@@ -1107,21 +1131,26 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [2]  # [1, 3, 8]
-    cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
     exp = 137
-    cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
-    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
-    cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
-    cfg.out_channel = len(cfg.labels_trained)
+    cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    # cfg.discover_labels = [10] # [2]  # [1, 3, 8]
+    # cfg.data_labels = [0, 1, 3, 4, 5, 6, 8, 9]  # sorted(set(cfg.all_labels) - set(cfg.discover_labels)) # cfg.all_labels.copy()
+    # cfg.trained_labels = cfg.data_labels.copy() # sorted(set(cfg.all_labels) - set(cfg.discover_labels))
+    cfg.discover_labels = [2] # [2]  # [1, 3, 8]
+    cfg.data_labels = cfg.all_labels.copy() #sorted(set(cfg.all_labels) - set(cfg.discover_labels)) # cfg.all_labels.copy()
+    cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels))
+
+    cfg.lt_labels = cfg.trained_labels.copy()
     cfg.n_clusters = len(cfg.all_labels) # 10 #
+    cfg.out_channel = len(cfg.trained_labels)
+    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.model.name = "small"  # "small", "smallemb", "mae"
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
     cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
     cfg.use_unlabel = False
     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
-    print(f"Experiment {exp}: Excluding label {exclude}")
+    print(f"Experiment {exp}: Discover label {cfg.discover_labels}")
     acc = main(cfg)
     # fmt: on
 

@@ -79,14 +79,15 @@ import train as train_module
 # accs = dict()
 # for i, exclude in enumerate(pairs):
 #     exp = 135 + i
+#     cfg.discover_labels = list(exclude)
 #     cfg.lt_labels = sorted(set(all_labels) - set(exclude))
 #     cfg.model_checkpoint = Path(
 #         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
 #     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
-#     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
-#     cfg.out_channel = len(cfg.labels_trained)
+#     cfg.trained_labels = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
+#     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_3")
@@ -120,6 +121,7 @@ import train as train_module
 # accs = dict()
 # for i, exclude in enumerate(pairs):
 #     exp = 180 + i
+#     cfg.discover_labels = list(exclude)
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
 #     cfg.model_checkpoint = Path(
@@ -127,8 +129,8 @@ import train as train_module
 #     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
-#     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
-#     cfg.out_channel = len(cfg.labels_trained)
+#     cfg.trained_labels = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
+#     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
@@ -147,6 +149,7 @@ import train as train_module
 # accs = dict()
 # for i, exclude in enumerate(pairs):
 #     exp = 185 + i
+#     cfg.discover_labels = list(exclude)
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
 #     cfg.model_checkpoint = Path(
@@ -154,8 +157,8 @@ import train as train_module
 #     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
-#     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
-#     cfg.out_channel = len(cfg.labels_trained)
+#     cfg.trained_labels = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
+#     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
