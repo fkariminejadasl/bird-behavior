@@ -117,8 +117,6 @@ def setup_testing_dataloader(test_data_file, labels_to_use, channel_first):
     # )
     df = pd.read_csv(test_data_file, header=None)
     df = df[df[3].isin(labels_to_use)]
-    mapping = {l: i for i, l in enumerate(labels_to_use)}
-    df[3] = df[3].map(mapping)
     all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
     label_ids = df[[3, 0, 0]].iloc[::20].values
     dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=channel_first)
@@ -983,7 +981,7 @@ def main(cfg):
     l_old2new, u_old2new = gcd_old2new(lt_labels, discover_labels)
     l_mapper = Mapper(l_old2new)
     u_mapper = Mapper(u_old2new)
-    mapper = Mapper({l: i for i, l in enumerate(ut_labels)})
+    mapper = Mapper({l: i for i, l in enumerate(labels_to_use)})
     mapper_trained = Mapper({l: i for i, l in enumerate(labels_trained)})
 
     name = f"{cfg.model.name}_{cfg.layer_name}"
@@ -1040,7 +1038,6 @@ def main(cfg):
         print("test data is finished")
     # Load test embeddings
     feats, labels, output = load_labeled_embeddings(save_file)
-    labels = mapper.decode(torch.tensor(labels)).numpy()
     # Cleanup: Remove file
     save_file.unlink()
 
@@ -1110,9 +1107,9 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exclude = [0]  # [1, 3, 8]
+    exclude = [2]  # [1, 3, 8]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    exp = 135
+    exp = 137
     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.labels_trained = cfg.lt_labels.copy()  # cfg.all_labels, cfg.lt_labels
