@@ -731,6 +731,7 @@ def gcd(
     
     cm = contingency_matrix(ordered_labels, k_preds[:ordered_labels.shape[0]])
     u_cm = contingency_matrix(ordered_labels[lt.shape[0]:], k_preds[lt.shape[0]:ordered_labels.shape[0]])
+    l_cm = contingency_matrix(ordered_labels[: lt.shape[0]], k_preds[: lt.shape[0]])
 
     print("all data\n", cm)
 
@@ -793,8 +794,8 @@ def gcd(
         "gcd_cluster_size": cluster_size,
     }
 
-    true_labels = [bu.ind2name[i] for i in data_labels]
-    pred_labels = range(cfg.n_clusters)
+    true_labels = [bu.ind2name[i] for i in np.unique(ordered_labels)]
+    pred_labels = [i for i in np.unique(k_preds)]
     method_name = "gcd"
     name = (
         f"{method_name}_gvn"
@@ -807,6 +808,7 @@ def gcd(
         name += "_unlabel"
 
     # Save for All = Labeled + Unlabeled
+    pred_labels = [i for i in np.unique(k_preds)]
     save_cm_embeddings(
         results_path,
         name,
@@ -829,15 +831,17 @@ def gcd(
         centers=reduced_centers,
     )
     # Save for Labeled
+    true_labels = [bu.ind2name[i] for i in np.unique(ordered_labels[: lt.shape[0]])]
+    pred_labels = [i for i in np.unique(k_preds[: lt.shape[0]])]
     save_cm_embeddings(
         results_path,
         "l_" + name,
-        u_cm,
+        l_cm,
         true_labels,
         pred_labels,
         reduced[: lt.shape[0]],
         k_preds[: lt.shape[0]],
-        centers=reduced_centers,
+        centers=None,
     )
 
     hungarian_file = results_path / "hungarian.txt"
@@ -1132,16 +1136,24 @@ def get_config():
 if __name__ == "__main__":
     # fmt: off
     exp = 137
+    # e.g. exclude_labels_from_data, discover_labels = ([], [2]), ([2], [10])
+    exclude_labels_from_data = []
+    cfg.discover_labels = [2]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    # cfg.discover_labels = [10] # [2]  # [1, 3, 8]
-    # cfg.data_labels = [0, 1, 3, 4, 5, 6, 8, 9]  # sorted(set(cfg.all_labels) - set(cfg.discover_labels)) # cfg.all_labels.copy()
-    # cfg.trained_labels = cfg.data_labels.copy() # sorted(set(cfg.all_labels) - set(cfg.discover_labels))
+    """
+    cfg.discover_labels = [10] # [2]  # [1, 3, 8]
+    cfg.data_labels = [0, 1, 3, 4, 5, 6, 8, 9]
+    cfg.trained_labels = cfg.data_labels.copy()
     cfg.discover_labels = [2] # [2]  # [1, 3, 8]
-    cfg.data_labels = cfg.all_labels.copy() #sorted(set(cfg.all_labels) - set(cfg.discover_labels)) # cfg.all_labels.copy()
+    cfg.data_labels = cfg.all_labels.copy()
     cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels))
+    """
+    
+    cfg.data_labels = sorted(set(cfg.all_labels)-set(exclude_labels_from_data))
+    cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels) - set(exclude_labels_from_data))
 
     cfg.lt_labels = cfg.trained_labels.copy()
-    cfg.n_clusters = len(cfg.all_labels) # 10 #
+    cfg.n_clusters = len(cfg.all_labels) # 10
     cfg.out_channel = len(cfg.trained_labels)
     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
     cfg.model.name = "small"  # "small", "smallemb", "mae"
