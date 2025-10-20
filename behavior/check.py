@@ -7,6 +7,47 @@ from tqdm import tqdm
 
 from behavior import model_utils as bmu
 
+# Read CSV with numeric headers
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/ssl/5390_7.csv", header=None)
+df.to_parquet("/home/fatemeh/Downloads/bird/data/ssl/5390_7.parquet", index=False)
+dfp = pd.read_parquet("/home/fatemeh/Downloads/bird/data/ssl/5390_7.parquet")
+dfp.columns = dfp.columns.astype(
+    int
+)  # columns by default Index(['0', '1', '2', '3', ...], dtype='object')
+
+# Group every 20 rows together
+df["group"] = df.index // 20
+
+# Flatten each group of 20 rows into a single wide row
+flat = (
+    df.groupby([0, 1, 3, "group"])
+    .apply(lambda g: g[[2, 4, 5, 6, 7]].to_numpy().flatten())
+    .reset_index(name="flat")
+)
+
+# Expand the flattened arrays into columns
+wide = pd.DataFrame(flat["flat"].to_list())
+wide.columns = [f"v{i}" for i in range(wide.shape[1])]
+wide.insert(0, 3, flat[3])  # category
+wide.insert(0, 1, flat[1])  # date_time
+wide.insert(0, 0, flat[0])  # device_id
+wide.columns = range(wide.shape[1])
+int_cols = list(range(3, wide.shape[1], 5))  # 3, 8, 13, ...
+wide[int_cols] = wide[int_cols].astype("int16")
+wide.iloc[:, 3::5] = wide.iloc[:, 3::5].astype("int32")
+
+
+# Save as Parquet
+wide.to_csv(
+    "/home/fatemeh/Downloads/bird/data/ssl/5390_7_row.csv",
+    index=False,
+    header=False,
+    float_format="%.8f",
+)
+wide.to_parquet("/home/fatemeh/Downloads/bird/data/ssl/5390_7_row.parquet", index=False)
+
+# TODO: This part should be in the analyses or debugging part
+"""
 # Get the number of lines per device shard
 cfg = dict(
     main_path=Path("/home/fatemeh/Downloads/bird/data/ssl/tmp"),
@@ -76,7 +117,7 @@ with open(save_file, "w") as out_f:
 
 all_classes_counts = sum((Counter(d) for d in device_class_counts.values()), Counter())
 print(f"{all_classes_counts}")
-
+"""
 
 """
 {0: 1132, 1: 52, 2: 403, 3: 36, 4: 565, 5: 6654, 6: 240, 8: 54, 9: 162}  unlabel
