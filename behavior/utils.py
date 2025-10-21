@@ -1097,7 +1097,7 @@ def select_bandwidth(X, cv_splits=5):
     # h0 *= (4/(d + 2.0))** (1/(d + 4.0)) # Silverman
     grid = h0 * np.logspace(-0.5, 0.5, 25)
     # grid = np.logspace(-2, 1, 40)
-    cv = KFold(n_splits=cv_splits, shuffle=True, random_state=0)
+    cv = KFold(n_splits=min(cv_splits, n), shuffle=True, random_state=0)
     search = GridSearchCV(
         KernelDensity(kernel="gaussian"), {"bandwidth": grid}, cv=cv, n_jobs=1
     )
