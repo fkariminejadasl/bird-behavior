@@ -79,11 +79,10 @@ import train as train_module
 # accs = dict()
 # for i, exclude in enumerate(pairs):
 #     exp = 135 + i
-#     cfg.discover_labels = list(exclude) # [10]
 
 #     # e.g. exclude_labels_from_data, discover_labels = ([], [2]), ([2], [10])
-#     exclude_labels_from_data = []
-#     cfg.discover_labels = list(exclude)
+#     exclude_labels_from_data = list(exclude) # [], list(exclude)
+#     cfg.discover_labels = [10] # list(exclude), [10]
 #     cfg.data_labels = sorted(set(cfg.all_labels)-set(exclude_labels_from_data))
 #     cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels) - set(exclude_labels_from_data))
 
@@ -99,7 +98,7 @@ import train as train_module
 #     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_3")
 #     cfg.use_unlabel = False
 #     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
-#     print(f"Experiment {exp}: Discover label {cfg.discover_labels}")
+#     print(f"Experiment {exp}: Discover label {cfg.discover_labels}, Exclude label from data {exclude_labels_from_data}")
 #     acc = cluster_module.main(cfg)
 #     accs[exp] = acc
 # print(accs)
