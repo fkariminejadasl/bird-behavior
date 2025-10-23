@@ -1105,14 +1105,35 @@ def select_bandwidth(X, cv_splits=5):
     return float(search.best_params_["bandwidth"])
 
 
-def kde_js_divergence_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
+def kde_js_divergence_mc(Xp, Xq, bandwidth=None, n_samples=50_000, seed=0):
     """
-    Monte Carlo JS divergence using Gaussian KDEs.
+    Monte Carlo estimate of JS divergence using Gaussian KDEs.
     n_samples is the TOTAL number of samples (split ~half from each KDE).
 
     Other metrics: KL divergence, JS divergence, Bhattacharyya coefficient/distance, Earth mover's distance
     JS divergence and Bhattacharyya coefficient are bounded.
+
+    Parameters
+    ----------
+    Xp, Xq : array-like
+        Samples from distributions P and Q.
+    bandwidth : float, str, or tuple(float|str, float|str), optional
+        Bandwidth(s) for KDEs.
+        - If None: uses 'silverman'.
+        - If single value float or {"scott", "silverman"}: used for both P and Q.
+        - If tuple: interpreted as (bandwidth_P, bandwidth_Q).
+    n_samples : int, optional
+        Number of Monte Carlo samples.
+    seed : int, optional
+        Random seed for reproducibility.
     """
+
+    if bandwidth is None:
+        hp = hq = "silverman"
+    elif isinstance(bandwidth, (tuple, list)):
+        hp, hq = bandwidth
+    else:
+        hp = hq = bandwidth
 
     kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
     kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)

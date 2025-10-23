@@ -21,10 +21,11 @@ Bounds:
 - js  [0,ln2] 0 iff P=Q (not overlap), ln2 iff P,Q disjoint
 - bc  [0,1] 1 iff P=Q (not overlap), 0 iff P,Q disjoint
 - bd  [0,inf] 0 iff P=Q (not overlap), inf iff P,Q disjoint
-- jac [0,1] 0 iff P=Q (not overlap), 0 iff P,Q disjoint
-- ovl [0,1] 0 iff P=Q (and overlap), 0 iff P,Q disjoint
+- jac [0,1] 1 iff P=Q (not overlap), 0 iff P,Q disjoint
+- ovl [0,1] 1 iff P=Q (and overlap), 0 iff P,Q disjoint
 
 """
+
 
 def mean_and_cov(X, eps=1e-6):
     mu = X.mean(axis=0)

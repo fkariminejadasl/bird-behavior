@@ -594,34 +594,55 @@ def calculate_separability_scores(feats, labels, discover_labels):
     return density_separability_score, cluster_silhouette_score, cluster_size
 
 
-def calculate_kde_divergence(reduced, labels, discover_labels):
-    """Calculate minimum KDE divergence between discovered class and other classes.
+def calculate_min_js_divergence(
+    query_feats, keys_feats, keys_labels, bandwidth="silverman"
+):
+    """Calculate the minimum KDE-based JS divergence between the query class and each class in keys.
 
-    Args:
-        reduced: reduced feature matrix
-        labels: ground truth labels
-        discover_labels: list of labels to discover
+    Parameters
+    ----------
+    query_feats : np.ndarray
+        Feature vectors for the query class.
+    keys_feats : np.ndarray
+        Feature vectors for the key classes.
+    keys_labels : np.ndarray
+        Labels for the key classes.
+    bandwidth : float | str | tuple[float|str, float|str], optional
+        Bandwidth(s) to use:
+          - float: same numeric bandwidth for both P and Q
+          - "silverman" or "scott": same rule-of-thumb for both
+          - (hq, hk): separate values/rules for query and key
+          - "auto": use a bandwidth selector to pick hq/hk per class
 
-    Returns:
-        Minimum KDE divergence score across all class pairs
+    Returns
+    -------
+    float
+        Minimum JS divergence score across all class pairs.
     """
     min_divergence = float("inf")
-    X1 = reduced[labels == discover_labels[0]]
+    Xq_raw = query_feats
 
-    for i in set(np.unique(labels)) - set(discover_labels):
-        X2 = reduced[labels == i]
+    key_labels = np.unique(keys_labels)
+    for i in key_labels:
+        Xk_raw = keys_feats[keys_labels == i]
 
-        # Normalize points
-        scaler = StandardScaler().fit(np.vstack([X1, X2]))
-        Xp = scaler.transform(X1)
-        Xq = scaler.transform(X2)
+        Xq, Xk = Xq_raw, Xk_raw
+        if bandwidth == "auto":
+            # Normalize points
+            scaler = StandardScaler().fit(np.vstack([Xq_raw, Xk_raw]))
+            Xq = scaler.transform(Xq_raw)
+            Xk = scaler.transform(Xk_raw)
 
-        # Calculate bandwidths
-        hp = bu.select_bandwidth(Xp)
-        hq = bu.select_bandwidth(Xq)
+            # Calculate bandwidths
+            hq = bu.select_bandwidth(Xq)
+            hk = bu.select_bandwidth(Xk)
+        elif isinstance(bandwidth, (tuple, list)):
+            hq, hk = bandwidth
+        else:
+            hq = hk = bandwidth  # float or {"silverman","scott"}
 
         # Calculate KDE divergence
-        divergence = bu.kde_js_divergence_mc(Xp, Xq, hp, hq)
+        divergence = bu.kde_js_divergence_mc(Xq, Xk, (hq, hk))
         min_divergence = min(min_divergence, divergence)
 
     return min_divergence
@@ -769,24 +790,32 @@ def gcd(
     # fmt: on
 
     # Calcuate Scores
+    # Compare discover label with labeled data:
+    # so the embeddings and predictions are concatenated (dl_{})
+    # data: labeled + unlabeled(discover+old)
+    mask = k_preds == discover_labels[0]
+    dl_feats = np.concatenate((feats[: lt.shape[0]], feats[mask]), axis=0)
+    dl_reduced = np.concatenate((reduced[: lt.shape[0]], reduced[mask]), axis=0)
+    dl_preds = np.concatenate((k_preds[: lt.shape[0]], k_preds[mask]), axis=0)
+
     accuracy = 0
     if discover_labels[0] in data_labels:
         accuracy = calculate_accuracy(cm, discover_labels, data_labels)
 
     density_separability_score, cluster_silhouette_score, cluster_size = (
-        calculate_separability_scores(feats, k_preds, discover_labels)
+        calculate_separability_scores(dl_feats, dl_preds, discover_labels)
     )
     density_separability_score2, cluster_silhouette_score2, cluster_size = (
-        calculate_separability_scores(reduced, k_preds, discover_labels)
+        calculate_separability_scores(dl_reduced, dl_preds, discover_labels)
     )
-
-    # Calculate minimum divergence
-    min_kde_divergence = calculate_kde_divergence(reduced, k_preds, discover_labels)
-    print("Minimum KDE divergence:", min_kde_divergence)
+    min_js_divergence = calculate_min_js_divergence(
+        reduced[mask], reduced[: lt.shape[0]], k_preds[: lt.shape[0]]
+    )
+    print("Minimum JS divergence:", min_js_divergence)
 
     scores = {
         "accuracy": round(accuracy, 3),
-        "gcd_min_kde_divergence": round(min_kde_divergence, 3),
+        "gcd_min_js_divergence": round(min_js_divergence, 3),
         "gcd_density_separability_score2": round(density_separability_score2, 3),
         "gcd_cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
         "gcd_density_separability_score": round(density_separability_score, 3),
@@ -885,12 +914,14 @@ def classification_and_clustering(
             calculate_separability_scores(reduced, labels, discover_labels)
         )
 
-        # Calculate minimum divergence
-        min_kde_divergence = calculate_kde_divergence(reduced, labels, discover_labels)
-        print("Minimum KDE divergence:", min_kde_divergence)
+        mask = labels == discover_labels[0]
+        min_js_divergence = calculate_min_js_divergence(
+            reduced[mask], reduced[~mask], labels[~mask]
+        )
+        print("Minimum JS divergence:", min_js_divergence)
 
         scores = {
-            "min_kde_divergence": round(min_kde_divergence, 3),
+            "min_js_divergence": round(min_js_divergence, 3),
             "density_separability_score2": round(density_separability_score2, 3),
             "cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
             "density_separability_score": round(density_separability_score, 3),
@@ -1087,6 +1118,7 @@ def main(cfg):
             if p.stem.split("_")[0].isdigit()
         ]
 
+    scores = dict()
     scores = gcd(
         feats,
         u_feats,
@@ -1170,8 +1202,8 @@ if __name__ == "__main__":
 GCD (Generalized Category Discovery)
 I have: 
 Model:
-- supervised small model 9 classes
-- Pretraining and finetuning on 6 classes
+- supervised small model
+- Mae Pretraining | Contrastive-non Contrastive and finetuning
 - foundation model time-series: chronos, moment, moirai
 Data:
 - unlabeled
@@ -1180,5 +1212,4 @@ Data:
 Clustering:
 - KMean
 - semisup KMean
-FT on 6 classes with balanced data with KMean and semsup KMean is working.
 """
