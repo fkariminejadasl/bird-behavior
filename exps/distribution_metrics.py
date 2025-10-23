@@ -1,14 +1,7 @@
-# Comparing Two Distributions — Corrected & Annotated
-# --------------------------------------------------
-# This file consolidates your original script with the requested fixes:
-#   1) Remove incorrect t-SNE "sim_*" KL part; rely on proper P/Q.
-#   2) Use bandwidths (h1, h2) with (X1, X2) and (hp, hq) with (Xp, Xq).
-#   3) Avoid implicit matrix inverse in Gaussian quadratic forms (use solve once).
-#   4) Add clear, annotated printouts (units, interpretations).
-
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.linalg import slogdet, solve
+from scipy.stats import chi2
 from sklearn.datasets import make_blobs
 from sklearn.manifold import TSNE, trustworthiness
 from sklearn.metrics import pairwise_distances
@@ -16,10 +9,22 @@ from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.neighbors import KernelDensity, NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-# -------------------------
-# Helper: Gaussian measures
-# -------------------------
+"""
+Bounded metrics
+js:  Jensen-Shannon Divergence
+bc:  Bhattacharyya Coefficient
+bc:  Bhattacharyya Distance
+jac: Jaccard Index or IOU
+ovl: Overlap coefficient / Szymkiewicz-Simpson
 
+Bounds:
+- js  [0,ln2] 0 iff P=Q (not overlap), ln2 iff P,Q disjoint
+- bc  [0,1] 1 iff P=Q (not overlap), 0 iff P,Q disjoint
+- bd  [0,inf] 0 iff P=Q (not overlap), inf iff P,Q disjoint
+- jac [0,1] 0 iff P=Q (not overlap), 0 iff P,Q disjoint
+- ovl [0,1] 0 iff P=Q (and overlap), 0 iff P,Q disjoint
+
+"""
 
 def mean_and_cov(X, eps=1e-6):
     mu = X.mean(axis=0)
@@ -52,7 +57,7 @@ def kl_gaussians(mu0, S0, mu1, S1):
     return 0.5 * ((logdet1 - logdet0) - k + trace_term + q)
 
 
-def bhattacharyya_gaussians(mu0, S0, mu1, S1):
+def bhattacharyya_distance_gaussians(mu0, S0, mu1, S1):
     """Bhattacharyya distance between two multivariate Gaussians."""
     Sm = 0.5 * (S0 + S1)
 
@@ -69,6 +74,70 @@ def bhattacharyya_gaussians(mu0, S0, mu1, S1):
     term1 = 0.125 * q
     term2 = 0.5 * (logdet_m - 0.5 * (logdet_0 + logdet_1))
     return term1 + term2
+
+
+def bhattacharyya_coefficient_from_distance(distance):
+    # Bhattacharyya coefficient [0,1] (1 = identical, 0 = disjoint)
+    return np.exp(-distance)
+
+
+def _in_ellipse(points, mu, S, alpha):
+    d = mu.shape[0]
+    thresh = chi2.ppf(alpha, df=d)
+    L = np.linalg.cholesky(S)
+    Xm = points - mu
+    v = np.linalg.solve(L, Xm.T)
+    v = np.linalg.solve(L.T, v)
+    maha2 = np.sum(v**2, axis=0)
+    return maha2 <= thresh
+
+
+def sample_box(mu0, S0, mu1, S1, pad=3.5):
+    std0 = np.sqrt(np.diag(S0))
+    std1 = np.sqrt(np.diag(S1))
+    lo = np.minimum(mu0 - pad * std0, mu1 - pad * std1)
+    hi = np.maximum(mu0 + pad * std0, mu1 + pad * std1)
+    return lo, hi
+
+
+def jaccard_alpha(mu0, S0, mu1, S1, alpha=0.95, n_grid=120000, pad=3.5, seed=0):
+    lo, hi = sample_box(mu0, S0, mu1, S1, pad)
+    rng = np.random.default_rng(seed)
+    P = rng.uniform(lo, hi, size=(n_grid, 2))
+    m0 = _in_ellipse(P, mu0, S0, alpha)
+    m1 = _in_ellipse(P, mu1, S1, alpha)
+    inter = np.count_nonzero(m0 & m1)
+    union = np.count_nonzero(m0 | m1)
+    return 0.0 if union == 0 else inter / union
+
+
+def overlap_coeff_alpha(mu0, S0, mu1, S1, alpha=0.95, n_grid=120000, pad=3.5, seed=0):
+    """Szymkiewicz-Simpson overlap coefficient on α–level sets."""
+    lo, hi = sample_box(mu0, S0, mu1, S1, pad)
+    rng = np.random.default_rng(seed)
+    P = rng.uniform(lo, hi, size=(n_grid, 2))
+    m0 = _in_ellipse(P, mu0, S0, alpha)
+    m1 = _in_ellipse(P, mu1, S1, alpha)
+    inter = np.count_nonzero(m0 & m1)
+    a0 = np.count_nonzero(m0)
+    a1 = np.count_nonzero(m1)
+    denom = min(a0, a1)
+    return 0.0 if denom == 0 else inter / denom
+
+
+def containment_alpha(mu0, S0, mu1, S1, alpha=0.95, n_grid=120000, pad=3.5, seed=0):
+    """Directed containment (A→B, B→A) on α–level sets."""
+    lo, hi = sample_box(mu0, S0, mu1, S1, pad)
+    rng = np.random.default_rng(seed)
+    P = rng.uniform(lo, hi, size=(n_grid, 2))
+    m0 = _in_ellipse(P, mu0, S0, alpha)
+    m1 = _in_ellipse(P, mu1, S1, alpha)
+    inter = np.count_nonzero(m0 & m1)
+    a0 = np.count_nonzero(m0)
+    a1 = np.count_nonzero(m1)
+    C01 = 0.0 if a0 == 0 else inter / a0  # fraction of A inside B
+    C10 = 0.0 if a1 == 0 else inter / a1  # fraction of B inside A
+    return C01, C10
 
 
 # -------------------------------
@@ -122,7 +191,7 @@ def kde_kl_divergence(Xp, Xq, hp, hq, grid_bins=200, margin=3.0):
     return float(dkl)
 
 
-def kde_kl_divergence_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
+def kde_kl_divergence_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
     kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
     kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
     Z = kde_p.sample(n_samples, random_state=seed)  # X ~ P
@@ -131,7 +200,16 @@ def kde_kl_divergence_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
     return float(np.mean(lp - lq))
 
 
-def kde_js_divergence_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
+def kde_kl_divergence_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
+    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xp)
+    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
+    Z = kde_p.sample(n_samples, random_state=seed)  # X ~ P
+    lp = kde_p.score_samples(Z)
+    lq = kde_q.score_samples(Z)
+    return float(np.mean(lp - lq))
+
+
+def kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
     kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
     kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
 
@@ -153,10 +231,88 @@ def kde_js_divergence_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
     return float(0.5 * (kl_p_m + kl_q_m))
 
 
-def kde_overlap_coefficient_mc(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
+def kde_js_divergence_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
+    """
+    Monte Carlo JS divergence using Gaussian KDEs.
+    n_samples is the TOTAL number of samples (split ~half from each KDE).
+
+    Other metrics: KL divergence, JS divergence, Bhattacharyya coefficient/distance, Earth mover's distance
+    JS divergence and Bhattacharyya coefficient are bounded.
+    """
+
+    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(
+        Xp
+    )  # scott/silverman
+    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
+
+    # Split total sample budget between P and Q
+    n_p = n_samples // 2
+    n_q = n_samples - n_p
+
+    # Samples from P
+    Zp = kde_p.sample(n_p, random_state=seed)
+    lp_p = kde_p.score_samples(Zp)  # log p(z) for z~P
+    lq_p = kde_q.score_samples(Zp)  # log q(z) for z~P
+    logm_p = np.logaddexp(lp_p, lq_p) - np.log(2.0)  # log((p+q)/2)
+
+    # Samples from Q
+    Zq = kde_q.sample(n_q, random_state=seed)
+    lq_q = kde_q.score_samples(Zq)  # log q(z) for z~Q
+    lp_q = kde_p.score_samples(Zq)  # log p(z) for z~Q
+    logm_q = np.logaddexp(lp_q, lq_q) - np.log(2.0)
+
+    # JS = 0.5 * KL(P||M) + 0.5 * KL(Q||M)
+    kl_p_m = np.mean(lp_p - logm_p)
+    kl_q_m = np.mean(lq_q - logm_q)
+    js = 0.5 * (kl_p_m + kl_q_m)
+
+    return float(js)
+
+
+def kde_js_divergence(reduced, labels, l1, l2):
+    import behavior.utils as bu
+
+    X1 = reduced[labels == l1]
+    X2 = reduced[labels == l2]
+
+    # Normalize points
+    scaler = StandardScaler().fit(np.vstack([X1, X2]))
+    Xp = scaler.transform(X1)
+    Xq = scaler.transform(X2)
+
+    # Calculate bandwidths
+    hp = bu.select_bandwidth(Xp)
+    hq = bu.select_bandwidth(Xq)
+
+    # Calculate KDE divergence
+    divergence = kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
+    return divergence
+
+
+def kde_overlap_coefficient_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
     """Returns (overlap, tv) where overlap = ∫ min(p,q) dx ∈ [0,1] and tv is total variation."""
     kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
     kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
+
+    n_p = n_samples // 2
+    n_q = n_samples - n_p
+
+    Zp = kde_p.sample(n_p, random_state=seed)
+    Zq = kde_q.sample(n_q, random_state=seed)
+    Z = np.vstack([Zp, Zq])
+
+    lp = kde_p.score_samples(Z)
+    lq = kde_q.score_samples(Z)
+
+    tv = 0.5 * np.mean(np.abs(np.tanh(0.5 * (lp - lq))))
+    overlap = 1.0 - tv
+    return float(overlap), float(tv)
+
+
+def kde_overlap_coefficient_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
+    """Returns (overlap, tv) where overlap = ∫ min(p,q) dx ∈ [0,1] and tv is total variation."""
+    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xp)
+    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
 
     n_p = n_samples // 2
     n_q = n_samples - n_p
@@ -325,6 +481,43 @@ def kl_divergence(P, Q):
 if __name__ == "__main__":
     seed = 42
 
+    # disjoin
+    X, y = make_blobs(
+        n_samples=50,
+        centers=[(1.1, 1.1), (10.2, 10.2)],
+        cluster_std=[1.1, 1.2],
+        random_state=seed,
+    )
+    # complete overlap
+    X, y = make_blobs(
+        n_samples=50,
+        centers=[(1.1, 1.1), (1.2, 1.2)],
+        cluster_std=[1.1, 5.6],
+        random_state=seed,
+    )
+    mask0 = y == 0
+    mask1 = y == 1
+    plt.figure()
+    # plt.scatter(X[:, 0], X[:, 1], s=18, c=y)
+    plt.plot(X[mask0, 0], X[mask0, 1], "r*")
+    plt.plot(X[mask1, 0], X[mask1, 1], "g*")
+    plt.show()
+
+    X1 = X[y == 0]
+    X2 = X[y == 1]
+    mu1, S1 = mean_and_cov(X1)
+    mu2, S2 = mean_and_cov(X2)
+    bhatt = bhattacharyya_coefficient_from_distance(
+        bhattacharyya_distance_gaussians(mu1, S1, mu2, S2)
+    )
+    jac = jaccard_alpha(mu1, S1, mu2, S2, alpha=0.95)
+    ovl = overlap_coeff_alpha(mu1, S1, mu2, S2, alpha=0.95)
+    ca = containment_alpha(mu1, S1, mu2, S2, alpha=0.95)
+    js = kde_js_divergence(X, y, 0, 1)
+    js_test = kde_js_divergence_mc(X1, X2)
+    ov1, ov2 = kde_overlap_coefficient_mc(X1, X2)
+    print("done")
+
     # --- Small t-SNE sanity check ---
     X_hd, _ = make_blobs(
         n_samples=50, centers=[(1.2,) * 5], cluster_std=[1.1], random_state=seed
@@ -381,21 +574,21 @@ if __name__ == "__main__":
     mu2, S2 = mean_and_cov(X2)
     kl_12 = kl_gaussians(mu1, S1, mu2, S2)
     kl_21 = kl_gaussians(mu2, S2, mu1, S1)
-    bhatt = bhattacharyya_gaussians(mu1, S1, mu2, S2)
+    bhatt = bhattacharyya_distance_gaussians(mu1, S1, mu2, S2)
 
     # --- KDE nonparametrics (UNSCALED) ---
     js_mc = kde_js_divergence_mc(X1, X2, h1, h2)
-    overlap, tv = kde_overlap_coefficient_mc(X1, X2, h1, h2)
-    kl12_mc = kde_kl_divergence_mc(X1, X2, h1, h2)
-    kl21_mc = kde_kl_divergence_mc(X2, X1, h2, h1)
+    overlap, tv = kde_overlap_coefficient_mc_with_bandwidth(X1, X2, h1, h2)
+    kl12_mc = kde_kl_divergence_mc_with_bandwidth(X1, X2, h1, h2)
+    kl21_mc = kde_kl_divergence_mc_with_bandwidth(X2, X1, h2, h1)
     kl12_grid = kde_kl_divergence(X1, X2, h1, h2)
     kl21_grid = kde_kl_divergence(X2, X1, h2, h1)
 
     # --- KDE nonparametrics (SCALED) ---
-    js_mc_scaled = kde_js_divergence_mc(Xp, Xq, hp, hq)
-    overlap_s, tv_s = kde_overlap_coefficient_mc(Xp, Xq, hp, hq)
-    kl12_mc_s = kde_kl_divergence_mc(Xp, Xq, hp, hq)
-    kl21_mc_s = kde_kl_divergence_mc(Xq, Xp, hq, hp)
+    js_mc_scaled = kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
+    overlap_s, tv_s = kde_overlap_coefficient_mc_with_bandwidth(Xp, Xq, hp, hq)
+    kl12_mc_s = kde_kl_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
+    kl21_mc_s = kde_kl_divergence_mc_with_bandwidth(Xq, Xp, hq, hp)
     kl12_grid_s = kde_kl_divergence(Xp, Xq, hp, hq)
     kl21_grid_s = kde_kl_divergence(Xq, Xp, hq, hp)
 
