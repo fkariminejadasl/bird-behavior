@@ -83,13 +83,24 @@ def bhattacharyya_coefficient_from_distance(distance):
 
 
 def _in_ellipse(points, mu, S, alpha):
+    """
+    Stable and efficient way to calculate Mahalanobis distance using Cholesky.
+
+    Returns a boolean mask indicating which points lie inside the α-level ellipse
+    (confidence region) of a d-dimensional Gaussian N(mu, S).
+
+    Mathematically, the α-level set is
+        E = { x : (x - mu)^T S^{-1} (x - mu) <= χ²_{d,α} },
+    where χ²_{d,α} is the α quantile (percent point function) of the chi-square
+    distribution with d degrees of freedom.
+    """
     d = mu.shape[0]
-    thresh = chi2.ppf(alpha, df=d)
+    thresh = chi2.ppf(alpha, df=d) # inv cdf
     L = np.linalg.cholesky(S)
     Xm = points - mu
     v = np.linalg.solve(L, Xm.T)
     v = np.linalg.solve(L.T, v)
-    maha2 = np.sum(v**2, axis=0)
+    maha2 = np.sum(v**2, axis=0) # Cholesky-based Mahalanobis distance 
     return maha2 <= thresh
 
 
@@ -158,8 +169,12 @@ def select_bandwidth(X, cv_splits=5):
     return float(search.best_params_["bandwidth"])
 
 
-def kde_kl_divergence(Xp, Xq, hp, hq, grid_bins=200, margin=3.0):
+def kde_kl_divergence(Xp, Xq, bandwidth="silverman", grid_bins=200, margin=3.0):
     """Non-parametric estimate of D_KL(P||Q) using KDE on a finite grid (2D)."""
+    if isinstance(bandwidth, (tuple, list)):
+        hp, hq = bandwidth
+    else:
+        hp = hq = bandwidth  # float or {"silverman","scott"}
     X = np.vstack([Xp, Xq])
     mins = X.min(axis=0) - margin
     maxs = X.max(axis=0) + margin
@@ -181,55 +196,26 @@ def kde_kl_divergence(Xp, Xq, hp, hq, grid_bins=200, margin=3.0):
     dy = (maxs[1] - mins[1]) / (grid_bins - 1)
     cell_area = dx * dy
 
-    p = p / (p.sum() * cell_area)
-    q = q / (q.sum() * cell_area)
-
     eps = 1e-12
     p = np.clip(p, eps, None)
     q = np.clip(q, eps, None)
 
-    dkl = np.sum(p * (np.log(p) - np.log(q))) * cell_area
-    return float(dkl)
-
-
-def kde_kl_divergence_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
-    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
-    Z = kde_p.sample(n_samples, random_state=seed)  # X ~ P
-    lp = kde_p.score_samples(Z)
-    lq = kde_q.score_samples(Z)
-    return float(np.mean(lp - lq))
+    kl = np.sum(p * (np.log(p) - np.log(q))) * cell_area
+    return float(kl)
 
 
 def kde_kl_divergence_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
-    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
+    if isinstance(bandwidth, (tuple, list)):
+        hp, hq = bandwidth
+    else:
+        hp = hq = bandwidth  # float or {"silverman","scott"}
+
+    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
+    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
     Z = kde_p.sample(n_samples, random_state=seed)  # X ~ P
     lp = kde_p.score_samples(Z)
     lq = kde_q.score_samples(Z)
     return float(np.mean(lp - lq))
-
-
-def kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
-    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
-
-    n_p = n_samples // 2
-    n_q = n_samples - n_p
-
-    Zp = kde_p.sample(n_p, random_state=seed)
-    lp_p = kde_p.score_samples(Zp)
-    lq_p = kde_q.score_samples(Zp)
-    logm_p = np.logaddexp(lp_p, lq_p) - np.log(2.0)
-
-    Zq = kde_q.sample(n_q, random_state=seed)
-    lq_q = kde_q.score_samples(Zq)
-    lp_q = kde_p.score_samples(Zq)
-    logm_q = np.logaddexp(lp_q, lq_q) - np.log(2.0)
-
-    kl_p_m = np.mean(lp_p - logm_p)
-    kl_q_m = np.mean(lq_q - logm_q)
-    return float(0.5 * (kl_p_m + kl_q_m))
 
 
 def kde_js_divergence_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
@@ -240,11 +226,13 @@ def kde_js_divergence_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0
     Other metrics: KL divergence, JS divergence, Bhattacharyya coefficient/distance, Earth mover's distance
     JS divergence and Bhattacharyya coefficient are bounded.
     """
+    if isinstance(bandwidth, (tuple, list)):
+        hp, hq = bandwidth
+    else:
+        hp = hq = bandwidth  # float or {"silverman","scott"}
 
-    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(
-        Xp
-    )  # scott/silverman
-    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
+    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
+    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
 
     # Split total sample budget between P and Q
     n_p = n_samples // 2
@@ -286,34 +274,18 @@ def kde_js_divergence(reduced, labels, l1, l2):
     hq = bu.select_bandwidth(Xq)
 
     # Calculate KDE divergence
-    divergence = kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
+    divergence = kde_js_divergence_mc(Xp, Xq, (hp, hq))
     return divergence
-
-
-def kde_overlap_coefficient_mc_with_bandwidth(Xp, Xq, hp, hq, n_samples=50_000, seed=0):
-    """Returns (overlap, tv) where overlap = ∫ min(p,q) dx ∈ [0,1] and tv is total variation."""
-    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
-
-    n_p = n_samples // 2
-    n_q = n_samples - n_p
-
-    Zp = kde_p.sample(n_p, random_state=seed)
-    Zq = kde_q.sample(n_q, random_state=seed)
-    Z = np.vstack([Zp, Zq])
-
-    lp = kde_p.score_samples(Z)
-    lq = kde_q.score_samples(Z)
-
-    tv = 0.5 * np.mean(np.abs(np.tanh(0.5 * (lp - lq))))
-    overlap = 1.0 - tv
-    return float(overlap), float(tv)
 
 
 def kde_overlap_coefficient_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, seed=0):
     """Returns (overlap, tv) where overlap = ∫ min(p,q) dx ∈ [0,1] and tv is total variation."""
-    kde_p = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=bandwidth, kernel="gaussian").fit(Xq)
+    if isinstance(bandwidth, (tuple, list)):
+        hp, hq = bandwidth
+    else:
+        hp = hq = bandwidth  # float or {"silverman","scott"}
+    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
+    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
 
     n_p = n_samples // 2
     n_q = n_samples - n_p
@@ -333,8 +305,6 @@ def kde_overlap_coefficient_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, 
 # -----------------------------------
 # kNN-based KL, JS; MMD and Energy U
 # -----------------------------------
-
-
 def _kth_nn_dists(A, B, k=1, exclude_self=False, metric="euclidean"):
     extra = 1 if exclude_self else 0
     neigh = NearestNeighbors(n_neighbors=k + extra, metric=metric).fit(B)
@@ -419,8 +389,6 @@ def energy_distance_u(X, Y):
 # -------------------------
 # t-SNE helpers (correct P/Q)
 # -------------------------
-
-
 def build_P(X, perplexity=30.0, tol=1e-5, max_iter=50):
     n = X.shape[0]
     D2 = pairwise_distances(X, squared=True)
@@ -517,6 +485,7 @@ if __name__ == "__main__":
     js = kde_js_divergence(X, y, 0, 1)
     js_test = kde_js_divergence_mc(X1, X2)
     ov1, ov2 = kde_overlap_coefficient_mc(X1, X2)
+    kde = kde_kl_divergence(X1, X2)
     print("done")
 
     # --- Small t-SNE sanity check ---
@@ -578,20 +547,20 @@ if __name__ == "__main__":
     bhatt = bhattacharyya_distance_gaussians(mu1, S1, mu2, S2)
 
     # --- KDE nonparametrics (UNSCALED) ---
-    js_mc = kde_js_divergence_mc(X1, X2, h1, h2)
-    overlap, tv = kde_overlap_coefficient_mc_with_bandwidth(X1, X2, h1, h2)
-    kl12_mc = kde_kl_divergence_mc_with_bandwidth(X1, X2, h1, h2)
-    kl21_mc = kde_kl_divergence_mc_with_bandwidth(X2, X1, h2, h1)
-    kl12_grid = kde_kl_divergence(X1, X2, h1, h2)
-    kl21_grid = kde_kl_divergence(X2, X1, h2, h1)
+    js_mc = kde_js_divergence_mc(X1, X2, (h1, h2))
+    overlap, tv = kde_overlap_coefficient_mc(X1, X2, (h1, h2))
+    kl12_mc = kde_kl_divergence_mc(X1, X2, (h1, h2))
+    kl21_mc = kde_kl_divergence_mc(X2, X1, (h1, h2))
+    kl12_grid = kde_kl_divergence(X1, X2, (h1, h2))
+    kl21_grid = kde_kl_divergence(X2, X1, (h1, h2))
 
     # --- KDE nonparametrics (SCALED) ---
-    js_mc_scaled = kde_js_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
-    overlap_s, tv_s = kde_overlap_coefficient_mc_with_bandwidth(Xp, Xq, hp, hq)
-    kl12_mc_s = kde_kl_divergence_mc_with_bandwidth(Xp, Xq, hp, hq)
-    kl21_mc_s = kde_kl_divergence_mc_with_bandwidth(Xq, Xp, hq, hp)
-    kl12_grid_s = kde_kl_divergence(Xp, Xq, hp, hq)
-    kl21_grid_s = kde_kl_divergence(Xq, Xp, hq, hp)
+    js_mc_scaled = kde_js_divergence_mc(Xp, Xq, (h1, h2))
+    overlap_s, tv_s = kde_overlap_coefficient_mc(Xp, Xq, (h1, h2))
+    kl12_mc_s = kde_kl_divergence_mc(Xp, Xq, (h1, h2))
+    kl21_mc_s = kde_kl_divergence_mc(Xq, Xp, (h1, h2))
+    kl12_grid_s = kde_kl_divergence(Xp, Xq, (h1, h2))
+    kl21_grid_s = kde_kl_divergence(Xq, Xp, (h1, h2))
 
     # --- kNN, MMD, Energy ---
     js_knn_ = js_knn(X1, X2, k=3)
