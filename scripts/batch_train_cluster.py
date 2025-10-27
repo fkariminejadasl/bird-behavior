@@ -12,18 +12,21 @@ sys.path.append(str(exp_path))
 import ss_cluster_behavior as cluster_module
 import train as train_module
 
-# all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+seed = 1234
+all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 
 # cfg = train_module.get_config()
 
 # # Exclude one label at a time: exp135-143
 # pairs = list(itertools.combinations(all_labels, 1))
 # for i, exclude in enumerate(pairs):
-#     cfg.no_epochs = 4000
+#     cfg.seed = seed # same seed as clustering to get the same data split for train and valid
+#     cfg.train_per = 0.5
+#     cfg.no_epochs = 2000
 #     cfg.exp = 135 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_same_half_data")
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
 #     train_module.main(cfg)
 
@@ -74,6 +77,7 @@ import train as train_module
 
 # # Exclude one label at a time: exp135-143
 # cfg = cluster_module.get_config()
+# cfg.seed = seed
 # cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # pairs = list(itertools.combinations(cfg.all_labels, 1))
 # accs = dict()

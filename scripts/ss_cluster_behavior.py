@@ -1169,8 +1169,8 @@ if __name__ == "__main__":
     # fmt: off
     exp = 137
     # e.g. exclude_labels_from_data, discover_labels = ([], [2]), ([2], [10])
-    exclude_labels_from_data = []
-    cfg.discover_labels = [2]
+    exclude_labels_from_data = [2]
+    cfg.discover_labels = [10]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
     """
     cfg.discover_labels = [10] # [2]  # [1, 3, 8]
