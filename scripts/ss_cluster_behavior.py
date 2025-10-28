@@ -37,6 +37,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from tqdm import tqdm
 
 from behavior import data as bd
+from behavior import metrics as bmet
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
@@ -594,60 +595,6 @@ def calculate_separability_scores(feats, labels, discover_labels):
     return density_separability_score, cluster_silhouette_score, cluster_size
 
 
-def calculate_min_js_divergence(
-    query_feats, keys_feats, keys_labels, bandwidth="silverman"
-):
-    """Calculate the minimum KDE-based JS divergence between the query class and each class in keys.
-
-    Parameters
-    ----------
-    query_feats : np.ndarray
-        Feature vectors for the query class.
-    keys_feats : np.ndarray
-        Feature vectors for the key classes.
-    keys_labels : np.ndarray
-        Labels for the key classes.
-    bandwidth : float | str | tuple[float|str, float|str], optional
-        Bandwidth(s) to use:
-          - float: same numeric bandwidth for both P and Q
-          - "silverman" or "scott": same rule-of-thumb for both
-          - (hq, hk): separate values/rules for query and key
-          - "auto": use a bandwidth selector to pick hq/hk per class
-
-    Returns
-    -------
-    float
-        Minimum JS divergence score across all class pairs.
-    """
-    min_divergence = float("inf")
-    Xq_raw = query_feats
-
-    key_labels = np.unique(keys_labels)
-    for i in key_labels:
-        Xk_raw = keys_feats[keys_labels == i]
-
-        Xq, Xk = Xq_raw, Xk_raw
-        if bandwidth == "auto":
-            # Normalize points
-            scaler = StandardScaler().fit(np.vstack([Xq_raw, Xk_raw]))
-            Xq = scaler.transform(Xq_raw)
-            Xk = scaler.transform(Xk_raw)
-
-            # Calculate bandwidths
-            hq = bu.select_bandwidth(Xq)
-            hk = bu.select_bandwidth(Xk)
-        elif isinstance(bandwidth, (tuple, list)):
-            hq, hk = bandwidth
-        else:
-            hq = hk = bandwidth  # float or {"silverman","scott"}
-
-        # Calculate KDE divergence
-        divergence = bu.kde_js_divergence_mc(Xq, Xk, (hq, hk))
-        min_divergence = min(min_divergence, divergence)
-
-    return min_divergence
-
-
 """
 # Save Embeddings
 # ==============
@@ -808,13 +755,25 @@ def gcd(
     density_separability_score2, cluster_silhouette_score2, cluster_size = (
         calculate_separability_scores(dl_reduced, dl_preds, discover_labels)
     )
-    min_js_divergence = calculate_min_js_divergence(
+    min_js_divergence = bmet.min_js_divergence_clusters(
+        reduced[mask], reduced[: lt.shape[0]], k_preds[: lt.shape[0]]
+    )
+    max_ovl_hdr = bmet.max_ovl_kde_hdr(
         reduced[mask], reduced[: lt.shape[0]], k_preds[: lt.shape[0]]
     )
     print("Minimum JS divergence:", min_js_divergence)
+    max_ovl_guassian = bmet.max_ovl_gaussian_clusters(
+        reduced[mask], reduced[: lt.shape[0]], k_preds[: lt.shape[0]]
+    )
+    max_ovl_convex_hull = bmet.max_ovl_convex_hull_clusters(
+        reduced[mask], reduced[: lt.shape[0]], k_preds[: lt.shape[0]]
+    )
 
     scores = {
         "accuracy": round(accuracy, 3),
+        "max_ovl_hdr": round(max_ovl_hdr, 3),
+        "max_ovl_guassian": round(max_ovl_guassian, 3),
+        "max_ovl_convex_hull": round(max_ovl_convex_hull, 3),
         "gcd_min_js_divergence": round(min_js_divergence, 3),
         "gcd_density_separability_score2": round(density_separability_score2, 3),
         "gcd_cluster_silhouette_score2": round(cluster_silhouette_score2, 3),
@@ -915,7 +874,7 @@ def classification_and_clustering(
         )
 
         mask = labels == discover_labels[0]
-        min_js_divergence = calculate_min_js_divergence(
+        min_js_divergence = bmet.min_js_divergence_clusters(
             reduced[mask], reduced[~mask], labels[~mask]
         )
         print("Minimum JS divergence:", min_js_divergence)
@@ -1168,18 +1127,10 @@ def get_config():
 if __name__ == "__main__":
     # fmt: off
     exp = 137
-    # e.g. exclude_labels_from_data, discover_labels = ([], [2]), ([2], [10])
-    exclude_labels_from_data = [2]
-    cfg.discover_labels = [10]
+    # e.g. (exclude_labels_from_data, discover_labels) = ([], [2]), ([2], [10])
+    exclude_labels_from_data = []
+    cfg.discover_labels = [2]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    """
-    cfg.discover_labels = [10] # [2]  # [1, 3, 8]
-    cfg.data_labels = [0, 1, 3, 4, 5, 6, 8, 9]
-    cfg.trained_labels = cfg.data_labels.copy()
-    cfg.discover_labels = [2] # [2]  # [1, 3, 8]
-    cfg.data_labels = cfg.all_labels.copy()
-    cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels))
-    """
     
     cfg.data_labels = sorted(set(cfg.all_labels)-set(exclude_labels_from_data))
     cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels) - set(exclude_labels_from_data))

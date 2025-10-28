@@ -94,12 +94,12 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.model_checkpoint = Path(
-#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#         f"/home/fatemeh/Downloads/bird/result/1discover_same_half_data/{exp}_best.pth"
 #     )
 #     cfg.model.name = "small"  # "small", "smallemb", "mae"
 #     cfg.model.channel_first = True # False
 #     cfg.layer_name = "fc"  # avgpool, fc
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_3")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_same_half_data")
 #     cfg.use_unlabel = False
 #     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
 #     print(f"Experiment {exp}: Discover label {cfg.discover_labels}, Exclude label from data {exclude_labels_from_data}")

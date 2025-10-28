@@ -10,8 +10,6 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import average_precision_score, confusion_matrix
-from sklearn.model_selection import GridSearchCV, KFold
-from sklearn.neighbors import KernelDensity
 
 gps_scale = 22.3012351755624
 
@@ -1089,89 +1087,3 @@ def stratified_split(labels, split_ratios=[0.9, 0.1], seed=None, shuffle=True):
 
     folds = [torch.cat(f) for f in folds]
     return folds
-
-
-def select_bandwidth(X, cv_splits=5):
-    n, d = X.shape
-    h0 = n ** (-1.0 / (d + 4.0))  # Scott
-    # h0 *= (4/(d + 2.0))** (1/(d + 4.0)) # Silverman
-    grid = h0 * np.logspace(-0.5, 0.5, 25)
-    # grid = np.logspace(-2, 1, 40)
-    cv = KFold(n_splits=min(cv_splits, n), shuffle=True, random_state=0)
-    search = GridSearchCV(
-        KernelDensity(kernel="gaussian"), {"bandwidth": grid}, cv=cv, n_jobs=1
-    )
-    search.fit(X)
-    return float(search.best_params_["bandwidth"])
-
-
-def kde_js_divergence_mc(Xp, Xq, bandwidth=None, n_samples=50_000, seed=0):
-    """
-    Monte Carlo estimate of JS divergence using Gaussian KDEs.
-    n_samples is the TOTAL number of samples (split ~half from each KDE).
-
-    Other metrics: KL divergence, JS divergence, Bhattacharyya coefficient/distance, Earth mover's distance
-    JS divergence and Bhattacharyya coefficient are bounded.
-
-    Parameters
-    ----------
-    Xp, Xq : array-like
-        Samples from distributions P and Q.
-    bandwidth : float, str, or tuple(float|str, float|str), optional
-        Bandwidth(s) for KDEs.
-        - If None: uses 'silverman'.
-        - If single value float or {"scott", "silverman"}: used for both P and Q.
-        - If tuple: interpreted as (bandwidth_P, bandwidth_Q).
-    n_samples : int, optional
-        Number of Monte Carlo samples.
-    seed : int, optional
-        Random seed for reproducibility.
-    """
-
-    if bandwidth is None:
-        hp = hq = "silverman"
-    elif isinstance(bandwidth, (tuple, list)):
-        hp, hq = bandwidth
-    else:
-        hp = hq = bandwidth
-
-    kde_p = KernelDensity(bandwidth=hp, kernel="gaussian").fit(Xp)
-    kde_q = KernelDensity(bandwidth=hq, kernel="gaussian").fit(Xq)
-
-    # Split total sample budget between P and Q
-    n_p = n_samples // 2
-    n_q = n_samples - n_p
-
-    # Samples from P
-    Zp = kde_p.sample(n_p, random_state=seed)
-    lp_p = kde_p.score_samples(Zp)  # log p(z) for z~P
-    lq_p = kde_q.score_samples(Zp)  # log q(z) for z~P
-    logm_p = np.logaddexp(lp_p, lq_p) - np.log(2.0)  # log((p+q)/2)
-
-    # Samples from Q
-    Zq = kde_q.sample(n_q, random_state=seed)
-    lq_q = kde_q.score_samples(Zq)  # log q(z) for z~Q
-    lp_q = kde_p.score_samples(Zq)  # log p(z) for z~Q
-    logm_q = np.logaddexp(lp_q, lq_q) - np.log(2.0)
-
-    # JS = 0.5 * KL(P||M) + 0.5 * KL(Q||M)
-    kl_p_m = np.mean(lp_p - logm_p)
-    kl_q_m = np.mean(lq_q - logm_q)
-    js = 0.5 * (kl_p_m + kl_q_m)
-
-    return float(js)
-
-
-def js_overlap_label(js):
-    LN2 = np.log(2.0)
-    x = js / LN2  # normalize to [0,1]
-    if x < 0.2:
-        return "very large overlap"
-    elif x < 0.5:
-        return "large overlap"
-    elif x < 0.8:
-        return "small overlap"
-    elif x < 0.97:
-        return "very small overlap"
-    else:
-        return "essentially no overlap"
