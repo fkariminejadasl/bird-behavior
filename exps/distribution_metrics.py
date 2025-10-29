@@ -297,7 +297,7 @@ def kde_overlap_coefficient_mc(Xp, Xq, bandwidth="silverman", n_samples=50_000, 
     lp = kde_p.score_samples(Z)
     lq = kde_q.score_samples(Z)
 
-    tv = 0.5 * np.mean(np.abs(np.tanh(0.5 * (lp - lq))))
+    tv = np.mean(np.abs(np.tanh(0.5 * (lp - lq))))
     overlap = 1.0 - tv
     return float(overlap), float(tv)
 
