@@ -4,7 +4,7 @@
 
 #### 20-length data (Gull only, more data)
 
-The dataset includes `237` devices from `201` gulls. It took `263` minutes to download the IMU and GPS data. GPS dates are downloaded quickly. `35GB` data (`6.3 GB` zip in `15` min) over `1075` files contains `24,590,435` data point each with `20` items in total `491,808,700` items. 
+The dataset includes `237` devices from `201` gulls, from which 15 devices doesn't have either IMU or calbration data, so in total `186` devices. It took `263` minutes to download the IMU and GPS data. GPS dates are downloaded quickly. `35GB` data (`6.3 GB` zip in `15` min) over `1075` files contains `24,590,435` data point each with `20` items in total `491,808,700` items. 
 
 ```python
 class_counts = 
@@ -23,9 +23,9 @@ The code to generate the data is located in `scripts/get_data_gull_20.py`.
 
 <details>
 <summary>[Device: number of GPS dates. Click to expand]</summary>
-no_imu = [45, 50, 51, 52, 53, 54, 130, 132, 135, 297, 317, 325, 326, 327, 329, 344, 373, 533, 534, 537, 540, 541, 754, 757, 781]
+no_imu = [45, 50, 51, 52, 53, 54, 130, 132, 135, 297, 326, 329]
 
-nan_calibration = [121, 133, 134]
+nan_calibration = [121, 133, 134] also for [45, 50, 51, 52, 53, 54, 121, 130, 132, 133, 134, 135]
 
 twice_in_ee_track_session_limited = [6009, 7001, 7021]
 

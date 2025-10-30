@@ -71,15 +71,15 @@ def write_only_gimu_float32_norm_gps(csv_file, parquet_file):
     # Normalize GPS speed by gps_scale
     gps_scale = 22.3012351755624
     df[7] = df[7] / gps_scale
-    # Group every 20 rows together
-    df["group"] = df.index // 20
 
-    flat = (
-        df.groupby([0, 1, 3, "group"])
-        .apply(lambda g: g[[4, 5, 6, 7]].to_numpy().flatten())
-        .reset_index(name="flat")
-    )
-    list_arr = pa.array(flat["flat"].to_list(), type=pa.list_(pa.float32()))
+    # Extract only gimu columns
+    gimus = df[[4, 5, 6, 7]].to_numpy(dtype=np.float32)
+    # Reshape into (num_chunks, 20 * 4)
+    n_full_chunks = gimus.shape[0] // 20
+    gimus_flat = gimus.reshape(n_full_chunks, 20 * 4)
+
+    # Convert to Arrow array of float32 lists
+    list_arr = pa.array(gimus_flat.tolist(), type=pa.list_(pa.float32()))
     table = pa.Table.from_arrays([list_arr], names=["gimu"])
     # df.to_parquet generates larger file compare to pq.write_table
     pq.write_table(table, parquet_file)
@@ -107,15 +107,15 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
         # Normalize GPS speed by gps_scale
         gps_scale = 22.3012351755624
         df[7] = df[7] / gps_scale
-        # Group every 20 rows together
-        df["group"] = df.index // 20
 
-        flat = (
-            df.groupby([0, 1, 3, "group"])
-            .apply(lambda g: g[[4, 5, 6, 7]].to_numpy().flatten())
-            .reset_index(name="flat")
-        )
-        new_arr = pa.array(flat["flat"].to_list(), type=pa.list_(pa.float32()))
+        # Extract only gimu columns
+        gimus = df[[4, 5, 6, 7]].to_numpy(dtype=np.float32)
+        # Reshape into (num_chunks, 20 * 4)
+        n_full_chunks = gimus.shape[0] // 20
+        gimus_flat = gimus.reshape(n_full_chunks, 20 * 4)
+
+        # Convert to Arrow array of float32 lists
+        new_arr = pa.array(gimus_flat.tolist(), type=pa.list_(pa.float32()))
         arr = pa.concat_arrays((arr, new_arr))
         print(len(new_arr))
         count += len(new_arr)
@@ -125,10 +125,41 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     pq.write_table(table, parquet_file)
 
 
-# parquet_file = Path("/home/fatemeh/Downloads/bird/data/ssl/6210.parquet")
+if "__main__" == __name__:
+    parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
+    parquet_path.mkdir(parents=True, exist_ok=True)
+
+    csv_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20")
+    devices = np.unique([int(p.stem.split("_")[0]) for p in csv_path.glob("*.csv")])
+
+    for device in tqdm(devices):
+        csv_files = csv_path.glob(f"{device}*.csv")
+        csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+        parquet_file = parquet_path / f"{device}.parquet"
+        write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+
+"""
+parquet_file = Path("/home/fatemeh/Downloads/bird/data/ssl/6210.parquet")
 # csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/6210").glob("*.csv")
 # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
 # write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+
+df = pd.read_parquet(parquet_file)
+data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+print(data.shape)
+
+# I want to read multiple parquet files and combine them into one big numpy array
+combine_data = []
+parquet_files = Path("/home/fatemeh/Downloads/bird/data/ssl/").glob("*.parquet")
+for parquet_file in parquet_files:
+    df = pd.read_parquet(parquet_file)
+    data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+    print(parquet_file.stem, data.shape)
+    combine_data.append(data)
+combine_data = np.vstack(combine_data)
+print("combined data shape:", combine_data.shape)
+"""
+
 """
 I have:
 - file:  20K rows
