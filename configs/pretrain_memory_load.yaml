@@ -1,10 +1,10 @@
 # Paths
-data_path: /home/fkarimineja/data/bird/ssl/gull
-save_path: /home/fkarimineja/exp/bird/runs
-model_checkpoint: "" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
+data_path: /home/fkarimineja/data/bird/ssl20parquet #/home/fkarimineja/data/bird/ssl/gull
+save_path: /home/fkarimineja/exps/bird/runs
+model_checkpoint: "/home/fkarimineja/exps/bird/runs/p20_2_best.pth" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
 # General
 seed: 1234
-exp: "p20_2" # p_mem6
+exp: "p20_3" # p_mem6
 num_workers: 15  # 17, 15
 no_epochs: 1500 # 1500
 save_every: 500
@@ -37,14 +37,14 @@ layer_norm_eps: 1e-6
 # # Paths
 # # gimus: read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv"
 # # gimus: read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv"
-# data_path: /home/fatemeh/Downloads/bird/data/ssl/final/gull #"/home/fatemeh/Downloads/bird/data/ssl_mini" # "/home/fatemeh/Downloads/bird/data/ssl/final"
+# data_path: /home/fatemeh/Downloads/bird/data/ssl/parquetmini #/home/fatemeh/Downloads/bird/data/ssl/miniparquet.parquet #/home/fatemeh/Downloads/bird/data/ssl/mini # /home/fatemeh/Downloads/bird/data/ssl/final
 # save_path: "/home/fatemeh/Downloads/bird/result"
 # model_checkpoint: "" #"/home/fatemeh/Downloads/bird/result/p_mem7_best.pth" # "": when no checkpoint is used
 # # General
 # seed: 1234
-# exp: "p_mem8"
+# exp: "p_mem12"
 # num_workers: 15  # 17, 15
-# no_epochs: 2
+# no_epochs: 100
 # save_every: 200
 # # Data
 # train_per: 0.9
@@ -57,7 +57,7 @@ layer_norm_eps: 1e-6
 # min_lr: None
 # weight_decay: 1e-2  # default 1e-2
 # # Model
-# g_len: 60 # 20, 60
+# g_len: 20 # 20, 60
 # in_channel: 4
 # patch_size: 1
 # embed_dim: 16  # 256, 16

@@ -1,3 +1,4 @@
+import gc
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
@@ -138,12 +139,31 @@ set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
-gimus = read_csv_files(cfg.data_path)
+gimus = []
+parquet_files = cfg.data_path.glob("*.parquet")
+for parquet_file in parquet_files:
+    df = pd.read_parquet(parquet_file)
+    data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+    print(parquet_file.stem, data.shape)
+    gimus.append(data)
+gimus = np.vstack(gimus)
+
+# free memory
+del df, data
+gc.collect()
+# df = pd.read_parquet(cfg.data_path)
+# gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
 print(gimus.shape)
-gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
+# gimus = read_csv_files(cfg.data_path)
+# gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
 dataset = bd.BirdDataset(gimus, channel_first=False)
+
+# free memory
+del gimus
+gc.collect()
+
 # Calculate the sizes for training and validation datasets
 train_size = int(cfg.train_per * cfg.data_per * len(dataset))
 val_size = len(dataset) - train_size
