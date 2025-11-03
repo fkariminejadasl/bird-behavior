@@ -4,10 +4,10 @@ save_path: /home/fkarimineja/exps/bird/runs
 model_checkpoint: "/home/fkarimineja/exps/bird/runs/p20_2_best.pth" #"/gpfs/home4/fkarimineja/exp/bird/runs/p_mem5_500.pth" # "": when no checkpoint is used
 # General
 seed: 1234
-exp: "p20_3" # p_mem6
-num_workers: 15  # 17, 15
-no_epochs: 1500 # 1500
-save_every: 500
+exp: "p20_4" # p_mem6
+num_workers: 17  # 17, 15
+no_epochs: 150 # 1500
+save_every: 10
 # Data
 train_per: 0.9
 data_per: 1.0
@@ -42,7 +42,7 @@ layer_norm_eps: 1e-6
 # model_checkpoint: "" #"/home/fatemeh/Downloads/bird/result/p_mem7_best.pth" # "": when no checkpoint is used
 # # General
 # seed: 1234
-# exp: "p_mem12"
+# exp: "p_mem13"
 # num_workers: 15  # 17, 15
 # no_epochs: 100
 # save_every: 200

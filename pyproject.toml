@@ -28,6 +28,8 @@ dependencies = [
     "scikit-learn>=1.3",
     "pandas",
     "omegaconf",
+    "pyarrow",
+    "wandb",
 ]
 
 # pip install .[notebook]

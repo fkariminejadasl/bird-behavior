@@ -100,6 +100,50 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_loss
 
 
+class BirdDataset(Dataset):
+    def __init__(
+        self,
+        all_measurements: np.ndarray,  # NxLxC
+        ldts: np.ndarray = None,  # Nx3
+        transform=None,
+        channel_first=True,
+    ):
+        """
+        dtype: all_measurements np.float32
+        dtype: ldts np.int64 or None (if no labels are provided)
+        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
+        """
+        # data: NxLxC C=4
+        self.data = np.ascontiguousarray(all_measurements, dtype=np.float32)
+
+        self.has_label = ldts is not None  # Check if labels are provided
+        if self.has_label:
+            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64) # Nx3
+        
+        self.transform = transform
+        self.channel_first = channel_first  # Flag for channel arrangement
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, ind):
+        data = self.data[ind]  # LxC
+
+        data = torch.from_numpy(data)  # torch
+        if self.transform:
+            data = self.transform(data)
+
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose(1, 0)  # LxC -> CxL
+
+        if self.has_label:
+            ldt = torch.from_numpy(self.ldts[ind])  # 3 torch
+            # ldt = self.ldts[ind]  # 3 numpy
+            return data, ldt  # Return both data and label
+        else:
+            return data
+
 @dataclass
 class PathConfig:
     save_path: Path
@@ -158,7 +202,7 @@ print(gimus.shape)
 # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
 gimus = np.ascontiguousarray(gimus)
 print(gimus.shape)
-dataset = bd.BirdDataset(gimus, channel_first=False)
+dataset = BirdDataset(gimus, channel_first=False)
 
 # free memory
 del gimus
@@ -219,7 +263,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 len_train, len_eval = len(train_dataset), len(eval_dataset)
 print(
     f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+    , train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 
