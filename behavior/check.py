@@ -124,6 +124,30 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     # df.to_parquet generates larger file compare to pq.write_table
     pq.write_table(table, parquet_file)
 
+# max_vals = dict()
+# min_vals = dict()
+# parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
+# parquet_files = list(parquet_path.glob("*.parquet"))
+# for parquet_file in tqdm(parquet_files):
+#     df = pd.read_parquet(parquet_file)
+#     gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 4)))
+#     device = int(parquet_file.stem)
+#     min_vals[device] = gimus.min(axis=0)
+#     max_vals[device] = gimus.max(axis=0)
+# min_val = np.vstack(list(min_vals.values())).min(axis=0)
+# max_val = np.vstack(list(max_vals.values())).max(axis=0)
+# print(min_val)
+# print(max_val)
+# print("done")
+
+# parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini")
+# csv_files = list(Path("/home/fatemeh/Downloads/bird/data/ssl/csvmini").glob("*csv"))
+# # csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/6210").glob("*.csv")
+# # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+# for csv_file in csv_files:
+#     device = int(csv_file.stem)
+#     parquet_file = parquet_path / f"{device}.parquet"
+#     write_only_gimu_float32_norm_gps(csv_file, parquet_file)
 
 if "__main__" == __name__:
     parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
@@ -133,10 +157,14 @@ if "__main__" == __name__:
     devices = np.unique([int(p.stem.split("_")[0]) for p in csv_path.glob("*.csv")])
 
     for device in tqdm(devices):
-        csv_files = csv_path.glob(f"{device}*.csv")
+        csv_files = csv_path.glob(f"{device}_*.csv")
         csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
         parquet_file = parquet_path / f"{device}.parquet"
         write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+
+# TODO
+# - put them in a data processing script
+# - pretrain_memory make the parquet more clear
 
 """
 parquet_file = Path("/home/fatemeh/Downloads/bird/data/ssl/6210.parquet")

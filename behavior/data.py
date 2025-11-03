@@ -254,6 +254,9 @@ class BirdDataset(Dataset):
         self.data = all_measurements.copy()  # NxLxC C=4
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
+        # mean  = self.data.mean(axis=(0,1))                      # [C]
+        # std = np.maximum(self.data.std(axis=(0,1)), 1e-6)
+        # self.data = (self.data - mean[None, None, :]) / (std[None, None, :] + 1e-8)
         self.data = self.data.astype(np.float32)
 
         self.has_label = ldts is not None  # Check if labels are provided

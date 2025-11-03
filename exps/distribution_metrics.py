@@ -419,7 +419,6 @@ def overlap_coeff_kde_hdr(
         Pass "silverman" / "scott" (new sklearn behavior) or a float.
         Tuple/list applies different bandwidths to P and Q.
     """
-    # bandwidth handling per your snippet
     if isinstance(bandwidth, (tuple, list)):
         hp, hq = bandwidth
     else:
