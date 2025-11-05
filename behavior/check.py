@@ -1,10 +1,13 @@
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import seaborn as sns
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
@@ -124,6 +127,7 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     # df.to_parquet generates larger file compare to pq.write_table
     pq.write_table(table, parquet_file)
 
+
 # max_vals = dict()
 # min_vals = dict()
 # parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
@@ -140,6 +144,85 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
 # print(max_val)
 # print("done")
 
+
+# Plot histograms and scatter plots and save min/max stats
+max_vals = dict()
+min_vals = dict()
+gps_scale = 22.3012351755624
+save_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20")
+save_path.mkdir(parents=True, exist_ok=True)
+parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
+parquet_files = list(parquet_path.glob("*.parquet"))
+parquet_files = sorted(parquet_files, key=lambda x: int(x.stem))
+for parquet_file in tqdm(parquet_files):
+    df = pd.read_parquet(parquet_file)
+    gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 4)))
+    gimus[:, 3] *= gps_scale
+    device = int(parquet_file.stem)
+    min_vals[device] = gimus.min(axis=0)
+    max_vals[device] = gimus.max(axis=0)
+
+    # Save figure
+    fig, axs = plt.subplots(1, 4)
+    for i in range(4):
+        axs[i].hist(gimus[:, i])
+    plt.savefig(save_path / f"{device}.png")
+    plt.close(fig)
+
+    fig, axs = plt.subplots(1, 2)
+    sns.scatterplot(x=gimus[:, 0], y=gimus[:, 3], ax=axs[0])
+    axs[0].set_xlabel("imu_x")
+    axs[0].set_ylabel("gps_speed")
+    axs[0].set_title("imu_x vs gps_speed")
+    sns.scatterplot(x=gimus[:, 1], y=gimus[:, 2], ax=axs[1])
+    axs[1].set_xlabel("imu_y")
+    axs[1].set_ylabel("imu_z")
+    axs[1].set_title("imu_y vs imu_z")
+    plt.tight_layout()
+    plt.savefig(save_path / f"{device}_scatter.png")
+    plt.close(fig)
+    # # Extreme slow and get all memory
+    # df = pd.DataFrame(gimus)
+    # plt.figure()
+    # sns.kdeplot(data=df, x=3)
+    # sns.rugplot(data=df, x=3)
+    # plt.savefig(save_path/f"{device}_gps.png")
+    # plt.close(fig)
+    # sns.scatterplot(data=df, x=0, y=3)
+    # sns.rugplot(data=df, x=0, y=3)
+    # plt.savefig(save_path/f"{device}_imu_gps.png")
+    # plt.close(fig)
+    # plt.figure()
+    # sns.scatterplot(data=df, x=1, y=2)
+    # sns.rugplot(data=df, x=1, y=2)
+    # plt.savefig(save_path/f"{device}_imu_y_z.png")
+    # plt.close(fig)
+    """
+    p99 = np.percentile(gimus, q=99, axis=0)
+    gimus[np.any(gimus>p99, axis=1)].shape
+    """
+min_val = np.vstack(list(min_vals.values())).min(axis=0)
+max_val = np.vstack(list(max_vals.values())).max(axis=0)
+print(min_val)
+print(max_val)
+
+
+# Save stats
+def write_stats(save_path, max_vals, max_val):
+    with open(save_path / "stats.txt", "a") as wfile:
+        wfile.write("device, imu_x, imu_y, imu_z, gps_speed\n")
+        for k, v in max_vals.items():
+            wfile.write(f"{k:4d}, {v[0]:.2f}, {v[1]:.2f}, {v[2]:.2f}, {v[3]:.2f}\n")
+        wfile.write(
+            f"{0:4d}, {max_val[0]:.2f}, {max_val[1]:.2f}, {max_val[2]:.2f}, {max_val[3]:.2f}\n"
+        )
+
+
+write_stats(save_path, max_vals, max_val)
+write_stats(save_path, min_vals, min_val)
+
+print("done")
+
 # parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini")
 # csv_files = list(Path("/home/fatemeh/Downloads/bird/data/ssl/csvmini").glob("*csv"))
 # # csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/6210").glob("*.csv")
@@ -149,22 +232,23 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
 #     parquet_file = parquet_path / f"{device}.parquet"
 #     write_only_gimu_float32_norm_gps(csv_file, parquet_file)
 
-if "__main__" == __name__:
-    parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
-    parquet_path.mkdir(parents=True, exist_ok=True)
+# if "__main__" == __name__:
+#     parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
+#     parquet_path.mkdir(parents=True, exist_ok=True)
 
-    csv_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20")
-    devices = np.unique([int(p.stem.split("_")[0]) for p in csv_path.glob("*.csv")])
+#     csv_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20")
+#     devices = np.unique([int(p.stem.split("_")[0]) for p in csv_path.glob("*.csv")])
 
-    for device in tqdm(devices):
-        csv_files = csv_path.glob(f"{device}_*.csv")
-        csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-        parquet_file = parquet_path / f"{device}.parquet"
-        write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+#     for device in tqdm(devices):
+#         csv_files = csv_path.glob(f"{device}_*.csv")
+#         csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+#         parquet_file = parquet_path / f"{device}.parquet"
+#         write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
 
 # TODO
 # - put them in a data processing script
 # - pretrain_memory make the parquet more clear
+
 
 """
 parquet_file = Path("/home/fatemeh/Downloads/bird/data/ssl/6210.parquet")
