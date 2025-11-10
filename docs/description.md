@@ -246,8 +246,9 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 * `scripts/train.py`: Training script for supervised bird classification.
 * `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
-* `exps/ss_cluster_behavior.py`: Semi-supervised clustering script.
-* `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `exps/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
+* `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
+* `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
+* `scripts/gcd_pipeline.py`: gcd pipeline
 
 **Older scripts**: 
 
