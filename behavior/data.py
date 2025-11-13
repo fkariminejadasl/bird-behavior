@@ -483,6 +483,12 @@ def query_database(database_url, sql_query):
 def fetch_calibration_data(database_url, device_id):
     """
     Fetch calibration IMU values from the database.
+
+    Returns
+    -------
+    list[float]
+        Calibration values: [x_o, x_s, y_o, y_s, z_o, z_s].
+        example: [124.8, 1275.7, 25.6, 1335.7, -14.1, 1331.9]
     """
     sql_query = f"""
     SELECT *
@@ -499,6 +505,12 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
     """
     Fetch GPS data from the database.
     `date_time, speed_2d, latitude, longitude, altitude, temperature
+
+    Returns
+    -------
+    list[list]
+        Each list contains [timestamp (int), speed_2d, latitude, longitude, altitude, temperature].
+        example: [[1277920912, 0.053851636230134343, 53.0082892, 4.7180608, 5, None], ...]
     """
     sql_query = f"""
     SELECT *
@@ -527,6 +539,12 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
 def fetch_imu_data(database_url, device_id, start_time, end_time):
     """
     Fetch IMU data from the database.
+
+    Returns
+    -------
+    list[tuple]
+        Each tuple contains IMU data for a specific timestamp and index.
+        example: [(311, datetime.datetime(2010, 6, 30, 18, 1, 52), 0, 35, 92, 1317), ...]
     """
     sql_query = f"""
     SELECT *
@@ -682,6 +700,47 @@ def format_sensor_data(groups, device_id):
     return np.array(igs), np.array(idts, dtype=np.int64), llat
 
 
+def calibrate_imu_data(imu_data, calibration_values):
+    """
+    Calibrate IMU data using the provided calibration values.
+
+    Parameters
+    ----------
+    imu_data : list[tuple]
+        Raw IMU data. e.g. (311, datetime.datetime(2010, 6, 30, 18, 1, 52), 0, 35, 92, 1317)
+    calibration_values : list[float]
+        Calibration values for the IMU data. e.g. [124.8, 1275.7, 25.6, 1335.7, -14.1, 1331.9]
+
+    Returns
+    -------
+    list[list]
+        Calibrated IMU data.
+        e.g. [[0, 1277920912, -0.07039273, 0.04971176, 0.99939935], ...]
+    """
+    # indices are zero-based
+    indices = [result[2] for result in imu_data]
+    if indices[0] == 1:  #
+        indices = [ind - 1 for ind in indices]
+    timestamps = [
+        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
+    ]
+    imus = [
+        np.round(raw2meas(*result[-3:], *calibration_values), 8) for result in imu_data
+    ]
+    data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
+    return data
+
+
+def combine_sensor_data(calibrated_imu_data, gps_data, device_id, glen):
+    groups = identify_and_process_groups(calibrated_imu_data, glen)
+
+    matched_groups = match_gps_to_groups(groups, gps_data)
+    if len(matched_groups) == 0:
+        raise ValueError("No matching IMU and GPS data found")
+
+    return format_sensor_data(matched_groups, device_id)
+
+
 def get_data(database_url, device_id, start_time, end_time, glen=20):
     """
     Retrieve sensor data from a specified database within a given time range.
@@ -734,24 +793,9 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
     imu_data = fetch_imu_data(database_url, device_id, start_time, end_time)
 
-    # indices are zero-based
-    indices = [result[2] for result in imu_data]
-    if indices[0] == 1:  #
-        indices = [ind - 1 for ind in indices]
-    timestamps = [
-        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
-    ]
-    imus = [
-        np.round(raw2meas(*result[-3:], *calibration_values), 8) for result in imu_data
-    ]
-    data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
-    groups = identify_and_process_groups(data, glen)
+    cal_imu_data = calibrate_imu_data(imu_data, calibration_values)
 
-    matched_groups = match_gps_to_groups(groups, gps_data)
-    if len(matched_groups) == 0:
-        raise ValueError("No matching IMU and GPS data found")
-
-    return format_sensor_data(matched_groups, device_id)
+    return combine_sensor_data(cal_imu_data, gps_data, device_id, glen)
 
 
 def random_time_between(start_time_str, end_time_str, time_format="%Y-%m-%d %H:%M:%S"):
