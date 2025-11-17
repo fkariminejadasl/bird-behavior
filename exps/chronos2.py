@@ -177,6 +177,14 @@ def main(cfg):
     plot_embeddings(r_vecs, labels, true_labels)
     print("done")
 
+    # """Simple classifier on learned representations"""
+    # from sklearn.linear_model import LogisticRegression
+    # from sklearn.metrics import accuracy_score
+    # clf = LogisticRegression(max_iter=10)
+    # clf.fit(vecs, labels)
+    # preds = clf.predict(vecs)
+    # print("Train accuracy:", accuracy_score(labels, preds))
+
 
 cfg = dict(
     seed=12,
