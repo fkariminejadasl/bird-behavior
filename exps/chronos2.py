@@ -1,20 +1,25 @@
-import pandas as pd  # requires: pip install 'pandas[pyarrow]'
-from chronos import Chronos2Pipeline
-import torch
-import time
-from tqdm import tqdm
-import numpy as np
-from pathlib import Path
 import gc
-from omegaconf import OmegaConf
-from sklearn.manifold import TSNE
+import time
+from pathlib import Path
+
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd  # requires: pip install 'pandas[pyarrow]'
+import torch
+from chronos import Chronos2Pipeline
+from omegaconf import OmegaConf
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from tqdm import tqdm
+
 from behavior.utils import ind2name
+
 
 def get_activation(activation):
     def hook(model, input, output):
         activation.append(output.detach())
+
     return hook
 
 
@@ -25,8 +30,9 @@ def example_get_activations():
     model = pipeline.model
 
     activation = []
-    handle = model.encoder.final_layer_norm.register_forward_hook(get_activation(activation))
-
+    handle = model.encoder.final_layer_norm.register_forward_hook(
+        get_activation(activation)
+    )
 
     # Data
     x = torch.rand(4, 20, device="cuda")  # 20 time steps, 4 channels
@@ -55,84 +61,12 @@ def example_get_activations():
             quantile_levels=[0.5],
         )
 
-    with torch.no_grad():_ = model(x)
-    activation[0][:,0,0] # activation[1][:,0,0]
+    with torch.no_grad():
+        _ = model(x)
+    # activation[1][:,0,0]
+    activation[0][:, 0, 0]  # 4 x 4 x 768 (input_channels x n_tokkens x hidden_size)
     handle.remove()
 
-def prepare_data(data_file, data_labels):
-    df = pd.read_csv(data_file, header=None)
-    df = df[df[3].isin(data_labels)]
-    all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
-    label_ids = df[[3, 0, 0]].iloc[::20].values
-    print(all_measurements.shape)
-    del all_measurements, label_ids
-    gc.collect()
-    # feats = feats.mean(dim=(0, 1))  # 768
-    # # feats = feats.mean(dim=1).reshape(-1)
-
-
-def save_labeled_embeddings(save_file, loader, model, layer_to_hook, device):
-    """
-    save all embeddings and their labels.
-    Returns:
-      embeddings: torch.Tensor (size [total_labeled, embed_dim])
-    """
-    start_time = time.time()
-
-    activation = []
-
-    hook_handle = layer_to_hook.register_forward_hook(get_activation(activation))
-
-    with torch.no_grad():
-        for data, ldts in tqdm(loader):
-            data = data.to(device)
-            output = model(data)
-            if len(output) == 2:
-                output = output[1]
-            if activation:
-                feats = activation.pop() # 
-                feats = feats.mean(dim=(0, 1))  # 768
-                # feats = feats.mean(dim=1).reshape(-1)
-                if cfg.layer_name == "norm":
-                    feats = feats[:, 0, :]  # B x L x embed_dim -> B x embed_dim
-                else:
-                    feats = feats.flatten(1)  # B x embed_dim x 1 -> B x embed_dim
-                labels = ldts[:, 0].cpu().numpy()
-                feats = feats.detach().cpu().numpy()
-                ouput = output.detach().cpu().numpy()
-                # torch.save({"feats": feats, "labels": labels}, save_file) # "test*.npy"
-                np.savez(
-                    save_file,  # test*.npz
-                    **{"feats": feats, "labels": labels, "output": ouput},
-                )
-            del data, feats, labels
-            torch.cuda.empty_cache()
-
-    hook_handle.remove()
-
-    end_time = time.time()
-    print(f"Test embeddings are loaded in {end_time - start_time:.2f} seconds.")
-
-
-def load_labeled_embeddings(save_file):
-    """
-    Load test embeddings
-
-    Returns
-    -------
-    Tuple[np.ndarray, np.ndarray, np.ndarray]
-        A tuple containing:
-        - feats: Feature embeddings (N x D)
-        - labels: Labels (N)
-        - output: Additional model outputs
-    """
-    #
-    results = np.load(save_file)
-    feats = results["feats"]  # N x D
-    labels = results["labels"]  # N
-    output = results["output"]
-    print(feats.shape)
-    return feats, labels, output
 
 # example_get_activations()
 
@@ -162,63 +96,92 @@ def plot_embeddings(reduced, preds, true_labels):
     # plt.show(block=True)
 # fmt: on
 
+
 def main(cfg):
     if cfg.results_path.exists() is False:
         cfg.results_path.mkdir(parents=True, exist_ok=True)
     data_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
+
     # Load model
-    pipeline = Chronos2Pipeline.from_pretrained("amazon/chronos-2", device_map="cuda")
+    pipeline = Chronos2Pipeline.from_pretrained(
+        "amazon/chronos-2", device_map="cuda", torch_dtype=torch.float16
+    )
     model = pipeline.model
     activation = []
-    handle = model.encoder.final_layer_norm.register_forward_hook(get_activation(activation))
-    
+    handle = model.encoder.final_layer_norm.register_forward_hook(
+        get_activation(activation)
+    )
 
     # Data
     df = pd.read_csv(cfg.data_file, header=None)
     df = df[df[3].isin(data_labels)]
     gimus = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
-    gimus[:,:,:3] = np.clip(gimus[:,:,:3], -2.0, 2.0)
+    gimus[:, :, :3] = np.clip(gimus[:, :, :3], -2.0, 2.0)
 
-    vecs = []
-    for x in tqdm(gimus, total=gimus.shape[0]):
-        timestamps = pd.date_range("2000-01-01", periods=20, freq="h")
+    N, seq_len, n_channels = gimus.shape  # N=4338, seq_len=20, n_channels=4
 
-        context_df = pd.DataFrame(
-            {
-                "id": ["series_0"] * 20,
-                "timestamp": timestamps,
-                "ch0": x[:, 0],
-                "ch1": x[:, 1],
-                "ch2": x[:, 2],
-                "ch3": x[:, 3],
-            }
+    # Create ids and timestamps for all rows
+    ids = np.repeat(np.arange(N), seq_len)  # [N * 20]
+    timestamps = pd.date_range("2000-01-01", periods=seq_len, freq="h")
+    timestamps_all = np.tile(timestamps.values, N)  # [N * 20]
+
+    # Flatten gimus to [N*20, 4]
+    flat = gimus.reshape(-1, n_channels)
+
+    context_df = pd.DataFrame(
+        {
+            "id": ids,
+            "timestamp": timestamps_all,
+            "ch0": flat[:, 0],
+            "ch1": flat[:, 1],
+            "ch2": flat[:, 2],
+            "ch3": flat[:, 3],
+        }
+    )  # [N*20, 6]
+
+    with torch.no_grad():
+        _ = pipeline.predict_df(
+            context_df,
+            prediction_length=4,
+            id_column="id",
+            timestamp_column="timestamp",
+            target=["ch0", "ch1", "ch2", "ch3"],
+            quantile_levels=[0.5],
         )
 
-        # For multivariate targets, you pass multiple columns as target
-        with torch.no_grad():
-            _ = pipeline.predict_df(
-                context_df,
-                prediction_length=4,
-                id_column="id",
-                timestamp_column="timestamp",
-                target=["ch0", "ch1", "ch2", "ch3"],
-                quantile_levels=[0.5],
-            )
-
-        act = activation.pop() # (4 x 4 x 768)
-        vec = act.mean(dim=(0, 1))  # 768 # # feats = act.mean(dim=1).reshape(-1)
-        vecs.append(vec.cpu().numpy())
-                
+    # activation: list of tensors [N*4, 4, 768]. N mostly 256 and then last batch smaller 200 here.
+    acts = []
+    for act in activation:
+        acts.append(act)
+    acts = torch.concat(acts)
     handle.remove()
 
-    reducer = TSNE(n_components=2, random_state=cfg.seed)
-    r_vecs = reducer.fit_transform(vecs)
+    num_targets = 4
+    N_eff, T_tokens, d = acts.shape  # [N*4, 4, 768]
+    assert N_eff == N * num_targets
+
+    # fmt: off
+    acts = acts.view(N, num_targets, T_tokens, d)  # [N, 4, T_tokens, 768]
+    # vecs = acts.mean(dim=(1, 2)).cpu().to(torch.float32).numpy() # [N, 768]
+    vecs = acts.mean(dim=2).reshape(N, -1).cpu().to(torch.float32).numpy() # [N, 4*768=3072]
+    # fmt: on
+
+    pca = PCA(n_components=50, random_state=cfg.seed)
+    vecs_pca = pca.fit_transform(vecs)
+    tsne = TSNE(n_components=2, random_state=cfg.seed)
+    r_vecs = tsne.fit_transform(vecs_pca)
     labels = df[3].iloc[::20].values
+    true_labels = [ind2name[l] for l in data_labels]
 
-    plot_embeddings(r_vecs, labels, ind2name.values())
+    plot_embeddings(r_vecs, labels, true_labels)
+    print("done")
 
-cfg = dict(seed=12, results_path=Path(f"/home/fatemeh/Downloads/bird/results/chronos2"), data_file="/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+
+cfg = dict(
+    seed=12,
+    results_path=Path(f"/home/fatemeh/Downloads/bird/results/chronos2"),
+    data_file="/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv",
+)
 cfg = OmegaConf.create(cfg)
 main(cfg)
