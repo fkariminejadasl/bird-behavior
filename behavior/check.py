@@ -83,6 +83,9 @@ def write_only_gimu_float32_norm_gps(csv_file, parquet_file):
 
     # Convert to Arrow array of float32 lists
     list_arr = pa.array(gimus_flat.tolist(), type=pa.list_(pa.float32()))
+    # fixed size list array
+    # values = pa.array(gimus_flat.reshape(-1), type=pa.float32())
+    # list_arr = pa.FixedSizeListArray.from_arrays(values, list_size=gimus_flat.shape[1])
     table = pa.Table.from_arrays([list_arr], names=["gimu"])
     # df.to_parquet generates larger file compare to pq.write_table
     pq.write_table(table, parquet_file)
@@ -128,6 +131,7 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     pq.write_table(table, parquet_file)
 
 
+# # Find min/max values across all parquet files
 # max_vals = dict()
 # min_vals = dict()
 # parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
@@ -144,6 +148,15 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
 # print(max_val)
 # print("done")
 
+# Convert CSV files to Parquet file for a specific device
+parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu")
+csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu").glob(
+    "*.csv"
+)
+csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+device = int(csv_files[0].stem.split("_")[0])
+parquet_file = parquet_path / f"{device}.parquet"
+write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
 
 # Plot histograms and scatter plots and save min/max stats
 max_vals = dict()
@@ -171,6 +184,7 @@ for parquet_file in tqdm(parquet_files):
 
     fig, axs = plt.subplots(1, 2)
     sns.scatterplot(x=gimus[:, 0], y=gimus[:, 3], ax=axs[0])
+    # scatter = plt.scatter(gimus[:, 0], gimus[:, 3], alpha=0.7, edgecolors='w', linewidth=0.5)
     axs[0].set_xlabel("imu_x")
     axs[0].set_ylabel("gps_speed")
     axs[0].set_title("imu_x vs gps_speed")
@@ -181,26 +195,6 @@ for parquet_file in tqdm(parquet_files):
     plt.tight_layout()
     plt.savefig(save_path / f"{device}_scatter.png")
     plt.close(fig)
-    # # Extreme slow and get all memory
-    # df = pd.DataFrame(gimus)
-    # plt.figure()
-    # sns.kdeplot(data=df, x=3)
-    # sns.rugplot(data=df, x=3)
-    # plt.savefig(save_path/f"{device}_gps.png")
-    # plt.close(fig)
-    # sns.scatterplot(data=df, x=0, y=3)
-    # sns.rugplot(data=df, x=0, y=3)
-    # plt.savefig(save_path/f"{device}_imu_gps.png")
-    # plt.close(fig)
-    # plt.figure()
-    # sns.scatterplot(data=df, x=1, y=2)
-    # sns.rugplot(data=df, x=1, y=2)
-    # plt.savefig(save_path/f"{device}_imu_y_z.png")
-    # plt.close(fig)
-    """
-    p99 = np.percentile(gimus, q=99, axis=0)
-    gimus[np.any(gimus>p99, axis=1)].shape
-    """
 min_val = np.vstack(list(min_vals.values())).min(axis=0)
 max_val = np.vstack(list(max_vals.values())).max(axis=0)
 print(min_val)

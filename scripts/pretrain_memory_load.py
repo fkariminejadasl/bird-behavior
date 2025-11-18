@@ -118,8 +118,8 @@ class BirdDataset(Dataset):
 
         self.has_label = ldts is not None  # Check if labels are provided
         if self.has_label:
-            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64) # Nx3
-        
+            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64)  # Nx3
+
         self.transform = transform
         self.channel_first = channel_first  # Flag for channel arrangement
 
@@ -143,6 +143,7 @@ class BirdDataset(Dataset):
             return data, ldt  # Return both data and label
         else:
             return data
+
 
 @dataclass
 class PathConfig:

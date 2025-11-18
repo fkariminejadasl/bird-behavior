@@ -205,8 +205,8 @@ def _hdr_log_threshold(kde, alpha=0.95, n_samples=200000, seed=0):
 
 
 def overlap_coeff_kde_hdr(
-    XP, XQ, alpha=0.95, n_samples=200000, bandwidth="silverman", seed=0
-):
+    XP, XQ, alpha=0.95, n_samples=2000, bandwidth="silverman", seed=0
+):  # 200000
     """
     KDE-based containment overlap on alpha-HDRs (returns value in [0,1]).
     = 1 when one alpha-HDR is contained in the other; = 0 when HDRs are disjoint.
