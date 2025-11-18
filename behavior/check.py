@@ -101,6 +101,34 @@ def write_only_gimu_float32_norm_gps(csv_file, parquet_file):
     # c3 = b.iloc[0,0].reshape(-1,4)
 
 
+def curate_data(df: pd.DataFrame):
+    """
+    Curate the input dataframe by performing below preprocessing steps.
+    - GPS 2D speed smaller than 30 m/s
+    - Clip IMU x, y, z values between -2, 2
+    - Normalize GPS speed by gps_scale
+
+    Parameters:
+    ===========
+    df : pd.DataFrame
+        Input dataframe containing raw data.
+    Return:
+    =======
+    pd.DataFrame
+    """
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
+
+    # Normalize GPS speed by gps_scale
+    gps_scale = 22.3012351755624
+    df[7] = df[7] / gps_scale
+
+    return df
+
+
 def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     """
     save only gimu (4,5,6,7) in float32 and normalize gps speed
@@ -110,9 +138,8 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
     for csv_file in tqdm(csv_files):
         df = pd.read_csv(csv_file, header=None)
 
-        # Normalize GPS speed by gps_scale
-        gps_scale = 22.3012351755624
-        df[7] = df[7] / gps_scale
+        # Curate data
+        df = curate_data(df)
 
         # Extract only gimu columns
         gimus = df[[4, 5, 6, 7]].to_numpy(dtype=np.float32)
@@ -148,57 +175,58 @@ def write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file):
 # print(max_val)
 # print("done")
 
-# Convert CSV files to Parquet file for a specific device
-parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu")
-csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu").glob(
-    "*.csv"
-)
-csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-device = int(csv_files[0].stem.split("_")[0])
-parquet_file = parquet_path / f"{device}.parquet"
-write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+# # Convert CSV files to Parquet file for a specific device
+# parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu")
+# csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20/311_orig_imu").glob(
+#     "*.csv"
+# )
+# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
+# device = int(csv_files[0].stem.split("_")[0])
+# parquet_file = parquet_path / f"{device}.parquet"
+# write_only_gimu_float32_norm_gps_batch(csv_files, parquet_file)
+
 
 # Plot histograms and scatter plots and save min/max stats
-max_vals = dict()
-min_vals = dict()
-gps_scale = 22.3012351755624
-save_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20")
-save_path.mkdir(parents=True, exist_ok=True)
-parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
-parquet_files = list(parquet_path.glob("*.parquet"))
-parquet_files = sorted(parquet_files, key=lambda x: int(x.stem))
-for parquet_file in tqdm(parquet_files):
-    df = pd.read_parquet(parquet_file)
-    gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 4)))
-    gimus[:, 3] *= gps_scale
-    device = int(parquet_file.stem)
-    min_vals[device] = gimus.min(axis=0)
-    max_vals[device] = gimus.max(axis=0)
+def plot_hist_scatter_plots(save_path, parquet_path):
+    max_vals = dict()
+    min_vals = dict()
+    gps_scale = 22.3012351755624
+    save_path.mkdir(parents=True, exist_ok=True)
+    parquet_files = list(parquet_path.glob("*.parquet"))
+    parquet_files = sorted(parquet_files, key=lambda x: int(x.stem))
+    for parquet_file in tqdm(parquet_files):
+        df = pd.read_parquet(parquet_file)
+        gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 4)))
+        gimus[:, 3] *= gps_scale
+        device = int(parquet_file.stem)
+        min_vals[device] = gimus.min(axis=0)
+        max_vals[device] = gimus.max(axis=0)
 
-    # Save figure
-    fig, axs = plt.subplots(1, 4)
-    for i in range(4):
-        axs[i].hist(gimus[:, i])
-    plt.savefig(save_path / f"{device}.png")
-    plt.close(fig)
+        # Save figure
+        fig, axs = plt.subplots(1, 4)
+        for i in range(4):
+            axs[i].hist(gimus[:, i])
+        plt.savefig(save_path / f"{device}.png")
+        plt.close(fig)
 
-    fig, axs = plt.subplots(1, 2)
-    sns.scatterplot(x=gimus[:, 0], y=gimus[:, 3], ax=axs[0])
-    # scatter = plt.scatter(gimus[:, 0], gimus[:, 3], alpha=0.7, edgecolors='w', linewidth=0.5)
-    axs[0].set_xlabel("imu_x")
-    axs[0].set_ylabel("gps_speed")
-    axs[0].set_title("imu_x vs gps_speed")
-    sns.scatterplot(x=gimus[:, 1], y=gimus[:, 2], ax=axs[1])
-    axs[1].set_xlabel("imu_y")
-    axs[1].set_ylabel("imu_z")
-    axs[1].set_title("imu_y vs imu_z")
-    plt.tight_layout()
-    plt.savefig(save_path / f"{device}_scatter.png")
-    plt.close(fig)
-min_val = np.vstack(list(min_vals.values())).min(axis=0)
-max_val = np.vstack(list(max_vals.values())).max(axis=0)
-print(min_val)
-print(max_val)
+        fig, axs = plt.subplots(1, 2)
+        sns.scatterplot(x=gimus[:, 0], y=gimus[:, 3], ax=axs[0])
+        # scatter = plt.scatter(gimus[:, 0], gimus[:, 3], alpha=0.7, edgecolors='w', linewidth=0.5)
+        axs[0].set_xlabel("imu_x")
+        axs[0].set_ylabel("gps_speed")
+        axs[0].set_title("imu_x vs gps_speed")
+        sns.scatterplot(x=gimus[:, 1], y=gimus[:, 2], ax=axs[1])
+        axs[1].set_xlabel("imu_y")
+        axs[1].set_ylabel("imu_z")
+        axs[1].set_title("imu_y vs imu_z")
+        plt.tight_layout()
+        plt.savefig(save_path / f"{device}_scatter.png")
+        plt.close(fig)
+    min_val = np.vstack(list(min_vals.values())).min(axis=0)
+    max_val = np.vstack(list(max_vals.values())).max(axis=0)
+    print(min_val)
+    print(max_val)
+    return min_val, min_vals, max_val, max_vals
 
 
 # Save stats
@@ -212,11 +240,14 @@ def write_stats(save_path, max_vals, max_val):
         )
 
 
-write_stats(save_path, max_vals, max_val)
-write_stats(save_path, min_vals, min_val)
+# save_path = Path("/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20")
+# parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet")
+# min_val, min_vals, max_val, max_vals = plot_hist_scatter_plots(save_path, parquet_path)
+# write_stats(save_path, max_vals, max_val)
+# write_stats(save_path, min_vals, min_val)
 
-print("done")
 
+# # Convert CSV files to Parquet files (only gimu float32 and normalize gps speed)
 # parquet_path = Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini")
 # csv_files = list(Path("/home/fatemeh/Downloads/bird/data/ssl/csvmini").glob("*csv"))
 # # csv_files = Path("/home/fatemeh/Downloads/bird/data/ssl/6210").glob("*.csv")
