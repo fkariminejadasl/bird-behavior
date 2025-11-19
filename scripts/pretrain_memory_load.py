@@ -168,7 +168,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="bird-large-pt", config=cfg_dict)
+# wandb.init(project="bird-large-pt", config=cfg_dict)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
@@ -249,7 +249,14 @@ model = bm1.MaskedAutoencoderViT(
     layer_norm_eps=cfg.layer_norm_eps,
 ).to(device)
 if cfg.model_checkpoint != Path("."):
-    bm.load_model(cfg.model_checkpoint, model, device)
+    m = torch.load(cfg.model_checkpoint, map_location=device, weights_only=True)["model"]
+    state_dict = model.state_dict()
+    for name, p in m.items():
+        if ("pos_embed" not in name):
+            state_dict[name].data.copy_(p.data)
+        else:
+            min_len = min(p.shape[1], state_dict[name].shape[1])
+            state_dict[name].data.copy_(p.data[:, : min_len])
     print(f"{cfg.model_checkpoint} used")
 else:
     print("NO Check point is used")

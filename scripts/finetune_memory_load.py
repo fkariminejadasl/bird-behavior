@@ -194,11 +194,14 @@ pmodel = torch.load(cfg.model_checkpoint, weights_only=True)["model"]
 state_dict = model.state_dict()
 for name, p in pmodel.items():
     if (
-        "decoder" not in name and "mask" not in name
+        "decoder" not in name and "mask" not in name and "pos_embed" not in name
     ):  # and name!="norm.weight" and name!="norm.bias":
         state_dict[name].data.copy_(p.data)
         # freeze all layers except class head
         # dict(model.named_parameters())[name].requires_grad = False
+    if "pos_embed" in name and "decoder" not in name:
+        min_len = min(p.shape[1], state_dict[name].shape[1])
+        state_dict[name].data.copy_(p.data[:, : min_len])
 print(
     f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
 )
