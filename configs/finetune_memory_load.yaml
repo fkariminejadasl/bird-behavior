@@ -40,18 +40,18 @@ test_file: #/home/fatemeh/Downloads/bird/data/final/proc2/test.csv
 valid_file: #/home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
 data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #/home/fatemeh/Downloads/bird/data/final/proc2/train.csv, final/s_data_shift/s_data_balanced_0.csv, s_data_balanced.csv /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
 save_path: "/home/fatemeh/Downloads/bird/result/"
-model_checkpoint: /home/fatemeh/Downloads/bird/snellius/p_mem6_500.pth #/home/fatemeh/Downloads/bird/snellius/p20_2_best.pth #"/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
+model_checkpoint: /home/fatemeh/Downloads/bird/result/f_p20_4_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_2_best.pth #"/home/fatemeh/Downloads/bird/result/p_mem5_1.pth"
 # General
 seed: 1234
-exp: "f_mem2_2"
+exp: "f_p20_4_2"
 num_workers: 1  # 17, 15
-no_epochs: 200 #3000  # 500, 1
+no_epochs: 50 #3000  # 500, 1
 save_every: 1000
 # Data
 train_per: 0.9
 data_per: 1.0
 batch_size: 1024 #4000
-labels_to_use: [0, 2, 4, 5, 6, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9] [0, 2, 4, 5, 6, 9]
+labels_to_use: [0, 1, 2, 3, 4, 5, 6, 8, 9] #[0, 1, 2, 3, 4, 5, 6, 8, 9] [0, 2, 4, 5, 6, 9]
 # Training
 warmup_epochs: 1000
 step_size: 2000
@@ -61,7 +61,7 @@ weight_decay: 1e-2  # default 1e-2
 # Model
 g_len: 20  # 60, 20
 in_channel: 4
-out_channel: 6 # 6, 9
+out_channel: 9 # 6, 9
 embed_dim: 256  # 256, 16
 depth: 6  # 6, 1
 num_heads: 8

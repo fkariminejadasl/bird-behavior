@@ -149,13 +149,31 @@ if cfg.valid_file is not None:
         cfg.valid_file, cfg.labels_to_use, channel_first=False
     )
 else:
-    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-        cfg.data_file,
-        cfg.train_per,
-        cfg.data_per,
-        cfg.labels_to_use,
-        channel_first=False,
+    # train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+    #     cfg.data_file,
+    #     cfg.train_per,
+    #     cfg.data_per,
+    #     cfg.labels_to_use,
+    #     channel_first=False,
+    # )
+    # Stratified split: ensures each class is represented with the same ratio
+    # Note: This implementation is suboptimal—data flows through pandas (read),
+    # PyTorch (stratified split), and then back to NumPy (for dataset creation).
+    transforms = None
+    igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=20)
+    igs = torch.tensor(igs, device=device)
+    ldts = torch.tensor(ldts, device=device)
+    split_ratios = [cfg.train_per, 1 - cfg.train_per]
+    splits = bu.stratified_split(ldts[:, 0], split_ratios=split_ratios, seed=cfg.seed)
+    idx1, idx2 = splits[0], splits[1]
+    igs_train = igs[idx1].cpu().numpy()
+    igs_eval = igs[idx2].cpu().numpy()
+    ldts_train = ldts[idx1].cpu().numpy()
+    ldts_valid = ldts[idx2].cpu().numpy()
+    train_dataset = bd.BirdDataset(
+        igs_train, ldts_train, transforms, channel_first=False
     )
+    eval_dataset = bd.BirdDataset(igs_eval, ldts_valid, transforms, channel_first=False)
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
