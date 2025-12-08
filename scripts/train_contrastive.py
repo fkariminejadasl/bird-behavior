@@ -97,7 +97,6 @@ loader = torch.utils.data.DataLoader(
     trainset, batch_size=len(trainset), shuffle=False, num_workers=4, drop_last=False
 )
 a = next(iter(loader))
-
 model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
 bm.load_model(cfg.model_checkpoint, model, device)
 
