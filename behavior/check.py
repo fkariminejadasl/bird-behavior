@@ -297,20 +297,6 @@ combine_data = np.vstack(combine_data)
 print("combined data shape:", combine_data.shape)
 """
 
-"""
-I have:
-- file:  20K rows
-- files: 25M rows (1075 files)
-25M * 20*4 * 4 ~= 8 GB
-
-karpathy nanochat fineweb-edu-100b-shuffle data:
-- file:  53K rows, 100M file size
-- files: 97M rows, 171G file size  (1822 files)
-
-e.g 6210 contains 75 files each abot 20K rows combining gets 1510999 rows. If only take gimu float32 save as parquet, file size is 300M.
-1510999*80*4/(1024**2)=461M data.
-"""
-print("done")
 
 # TODO: This part should be in the analyses or debugging part
 """

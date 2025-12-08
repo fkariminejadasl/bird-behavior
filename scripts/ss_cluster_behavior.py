@@ -119,6 +119,10 @@ def setup_testing_dataloader(test_data_file, data_labels, channel_first):
     # )
     df = pd.read_csv(test_data_file, header=None)
     df = df[df[3].isin(data_labels)]
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
     all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
     label_ids = df[[3, 0, 0]].iloc[::20].values
     dataset = bd.BirdDataset(all_measurements, label_ids, channel_first=channel_first)
@@ -1036,9 +1040,13 @@ def main(cfg):
         state_dict = model.state_dict()
         for name, p in pmodel.items():
             if (
-                "decoder" not in name and "mask" not in name
+                "decoder" not in name and "mask" not in name and "pos_embed" not in name
             ):  # and name!="norm.weight" and name!="norm.bias":
                 state_dict[name].data.copy_(p.data)
+            # pos_embed handling
+            if "pos_embed" in name and "decoder" not in name:
+                min_len = min(p.shape[1], state_dict[name].shape[1])
+                state_dict[name].copy_(p[:, :min_len])
         # bm.load_model(cfg.model_checkpoint, model, device)
     model.to(device)
     model.eval()

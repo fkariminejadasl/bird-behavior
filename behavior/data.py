@@ -935,6 +935,10 @@ def load_csv_pandas(data_file, labels_to_use, glen=20):
     """
 
     df = pd.read_csv(data_file, header=None)
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
     df = df[df[3].isin(labels_to_use)].reset_index(drop=True)
     present = sorted(df[3].unique())
     df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
