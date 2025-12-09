@@ -100,51 +100,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_loss
 
 
-class BirdDataset(Dataset):
-    def __init__(
-        self,
-        all_measurements: np.ndarray,  # NxLxC
-        ldts: np.ndarray = None,  # Nx3
-        transform=None,
-        channel_first=True,
-    ):
-        """
-        dtype: all_measurements np.float32
-        dtype: ldts np.int64 or None (if no labels are provided)
-        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
-        """
-        # data: NxLxC C=4
-        self.data = np.ascontiguousarray(all_measurements, dtype=np.float32)
-
-        self.has_label = ldts is not None  # Check if labels are provided
-        if self.has_label:
-            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64)  # Nx3
-
-        self.transform = transform
-        self.channel_first = channel_first  # Flag for channel arrangement
-
-    def __len__(self):
-        return self.data.shape[0]
-
-    def __getitem__(self, ind):
-        data = self.data[ind]  # LxC
-
-        data = torch.from_numpy(data)  # torch
-        if self.transform:
-            data = self.transform(data)
-
-        # Rearrange channels if channel_first is True
-        if self.channel_first:
-            data = data.transpose(1, 0)  # LxC -> CxL
-
-        if self.has_label:
-            ldt = torch.from_numpy(self.ldts[ind])  # 3 torch
-            # ldt = self.ldts[ind]  # 3 numpy
-            return data, ldt  # Return both data and label
-        else:
-            return data
-
-
 @dataclass
 class PathConfig:
     save_path: Path
@@ -185,69 +140,9 @@ set_seed(cfg.seed)
 
 
 # Data
-def load_gimu_data(cfg):
-    gimus = []
-    parquet_files = cfg.data_path.glob("*.parquet")
-    for parquet_file in parquet_files:
-        df = pd.read_parquet(parquet_file)
-        data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
-        print(parquet_file.stem, data.shape)
-        gimus.append(data)
-    gimus = np.vstack(gimus)
-
-    # free memory
-    del df, data
-    gc.collect()
-    # df = pd.read_parquet(cfg.data_path)
-    # gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
-    print(gimus.shape)
-    # gimus = read_csv_files(cfg.data_path)
-    # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
-    gimus = np.ascontiguousarray(gimus)
-    print(gimus.shape)
-    return gimus
-
-
-gimus = load_gimu_data(cfg)
-dataset = BirdDataset(gimus, channel_first=False)
-
-# free memory
-del gimus
-gc.collect()
-
-# Calculate the sizes for training and validation datasets
-train_size = int(cfg.train_per * cfg.data_per * len(dataset))
-val_size = len(dataset) - train_size
-generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
-train_dataset, eval_dataset = random_split(
-    dataset, [train_size, val_size], generator=generator
-)
-
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=min(cfg.batch_size, len(train_dataset)),
-    shuffle=True,
-    num_workers=cfg.num_workers,
-    drop_last=False,
-    pin_memory=True,  # fast but more memory
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=min(cfg.batch_size, len(eval_dataset)),
-    shuffle=False,
-    num_workers=cfg.num_workers,
-    drop_last=False,
-    pin_memory=True,
-)
-
-len_data, len_train, len_eval = len(dataset), len(train_dataset), len(eval_dataset)
-
-print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
-print(
-    f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
-    train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
-)
+gimus = bd.load_gimu_data(cfg)
+dataset = bd.BirdDatasetNoNorm(gimus, channel_first=False)
+train_loader, eval_loader = bd.prepare_dataloaders(dataset, cfg)
 
 # Model
 model = bm1.MaskedAutoencoderViT(

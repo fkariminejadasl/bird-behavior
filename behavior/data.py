@@ -1,4 +1,7 @@
+import csv
+import gc
 import json
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -9,7 +12,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import psycopg2
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 
 """
 about data:
@@ -283,6 +286,51 @@ class BirdDataset(Dataset):
 
         if self.has_label:
             ldt = torch.from_numpy(self.ldts[ind]).long()  # 3 torch
+            # ldt = self.ldts[ind]  # 3 numpy
+            return data, ldt  # Return both data and label
+        else:
+            return data
+
+
+class BirdDatasetNoNorm(Dataset):
+    def __init__(
+        self,
+        all_measurements: np.ndarray,  # NxLxC
+        ldts: np.ndarray = None,  # Nx3
+        transform=None,
+        channel_first=True,
+    ):
+        """
+        dtype: all_measurements np.float32
+        dtype: ldts np.int64 or None (if no labels are provided)
+        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
+        """
+        # data: NxLxC C=4
+        self.data = np.ascontiguousarray(all_measurements, dtype=np.float32)
+
+        self.has_label = ldts is not None  # Check if labels are provided
+        if self.has_label:
+            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64)  # Nx3
+
+        self.transform = transform
+        self.channel_first = channel_first  # Flag for channel arrangement
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, ind):
+        data = self.data[ind]  # LxC
+
+        data = torch.from_numpy(data)  # torch
+        if self.transform:
+            data = self.transform(data)
+
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose(1, 0)  # LxC -> CxL
+
+        if self.has_label:
+            ldt = torch.from_numpy(self.ldts[ind])  # 3 torch
             # ldt = self.ldts[ind]  # 3 numpy
             return data, ldt  # Return both data and label
         else:
@@ -1074,20 +1122,6 @@ def prepare_train_valid_dataset(
     train_dataset = BirdDataset(train_imugs, train_ldts, transforms, channel_first)
     eval_dataset = BirdDataset(valid_imugs, valid_ldts, transforms, channel_first)
 
-    # train_size = int(train_per * len(dataset))
-    # val_size = len(dataset) - train_size
-    # train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
-
-    # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
-    # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-    # csv_files = [str(csv_file) for csv_file in csv_files]
-
-    # # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
-    # # dataset = bd.BirdDataset2(
-    # #     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
-    # # )
-    # dataset = bd.BirdDataset3(csv_files)
-
     print(
         len(train_ldts),
         len(valid_ldts),
@@ -1096,6 +1130,65 @@ def prepare_train_valid_dataset(
     )
 
     return train_dataset, eval_dataset
+
+
+def load_gimu_data(cfg):
+    gimus = []
+    parquet_files = cfg.data_path.glob("*.parquet")
+    for parquet_file in parquet_files:
+        df = pd.read_parquet(parquet_file)
+        data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+        print(parquet_file.stem, data.shape)
+        gimus.append(data)
+    gimus = np.vstack(gimus)
+
+    # free memory
+    del df, data
+    gc.collect()
+    # df = pd.read_parquet(cfg.data_path)
+    # gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+    print(gimus.shape)
+    # gimus = read_csv_files(cfg.data_path)
+    # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
+    gimus = np.ascontiguousarray(gimus)
+    print(gimus.shape)
+    return gimus
+
+
+def prepare_dataloaders(dataset, cfg):
+    # Calculate the sizes for training and validation datasets
+    train_size = int(cfg.train_per * cfg.data_per * len(dataset))
+    val_size = len(dataset) - train_size
+    generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+    train_dataset, eval_dataset = random_split(
+        dataset, [train_size, val_size], generator=generator
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=min(cfg.batch_size, len(train_dataset)),
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+        pin_memory=True,  # fast but more memory
+    )
+    eval_loader = DataLoader(
+        eval_dataset,
+        batch_size=min(cfg.batch_size, len(eval_dataset)),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+        pin_memory=True,
+    )
+
+    len_data, len_train, len_eval = len(dataset), len(train_dataset), len(eval_dataset)
+
+    print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
+    print(
+        f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
+        train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+    )
+    return train_loader, eval_loader
 
 
 def balance_data(data_file, save_file, keep_labels):
@@ -1207,269 +1300,3 @@ for data_file in files:
             count += 1
 print(count) # 78=1560/20
 """
-import csv
-import os
-
-
-def split_csv(input_file, output_dir, lines_per_file):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    with open(input_file, "r") as file:
-        count = 0
-        file_count = 1
-        output_file = open(os.path.join(output_dir, f"part_{file_count}.csv"), "w")
-
-        for line in file:
-            items = line.split(",")
-            label = int(items[3])
-            if label not in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                continue
-            if label in [8, 9]:
-                items[3] = str(label - 1)
-            line = ",".join(items[3:])  # only for label and data
-
-            if count < lines_per_file:
-                output_file.write(line)
-                count += 1
-                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                #     if label in [8, 9]:
-                #         items[3] = str(label-1)
-                #         line = ','.join(items)
-                # output_file.write(line)
-                # count += 1
-            else:
-                output_file.close()
-                count = 0
-                file_count += 1
-                output_file = open(
-                    os.path.join(output_dir, f"part_{file_count}.csv"), "w"
-                )
-                output_file.write(line)
-                count = 1
-                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                #     if label in [8, 9]:
-                #         items[3] = str(label-1)
-                #         line = ','.join(items)
-                # output_file.write(line)
-                # count = 1
-
-        output_file.close()
-
-
-def compute_group_counts(file_paths, group_size=20):
-    group_counts = {}
-    for file_path in file_paths:
-        with open(file_path, "r") as f:
-            reader = csv.reader(f)
-            row_count = sum(1 for row in reader)
-            group_count = row_count // group_size
-            group_counts[str(file_path)] = group_count
-    return group_counts
-
-
-# # split_csv('/home/fatemeh/Downloads/bird/test_data/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/test_data/split_20', 20)
-
-# # List of CSV file paths
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
-# group_counts = compute_group_counts(csv_files)
-
-# # Save group_counts to a file (or use directly)
-# import json
-# with open('/home/fatemeh/Downloads/bird/test_data/group_counts.json', 'w') as f:
-#     json.dump(group_counts, f)
-
-# for csv_file in csv_files:
-#     with open(csv_file,'r') as f:
-#         for line in f:
-#             if int(line.split(',')[3]) == 9:
-#                 print(csv_files, line)
-
-
-class BirdDataset2(Dataset):
-    def __init__(self, file_paths, group_counts_file, group_size=20, transform=None):
-        """
-        Args:
-            file_paths (list of str): List of paths to CSV files.
-            group_counts_file (str): Path to the JSON file containing group counts for each file.
-            group_size (int): Number of rows per group.
-            transform (callable, optional): Optional transform to be applied on a sample.
-        """
-        self.file_paths = file_paths
-        self.group_size = group_size
-        self.transform = transform
-
-        # Load precomputed group counts
-        with open(group_counts_file, "r") as f:
-            self.group_counts = json.load(f)
-
-        self.data_index = self._create_data_index()
-
-    def _create_data_index(self):
-        """Create an index of the data based on precomputed group counts."""
-        data_index = []
-        for file_path in self.file_paths:
-            group_count = self.group_counts[file_path]
-            for i in range(group_count):
-                data_index.append((file_path, i))
-        return data_index
-
-    def __len__(self):
-        return len(self.data_index)
-
-    def _load_csv(self, file_path):
-        igs = []
-        ldts = []
-        with open(file_path, "r") as file:
-            for row in file:
-                items = row.strip().split(",")
-                # device_id = int(items[0])
-                # timestamp = (
-                #     datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
-                #     .replace(tzinfo=timezone.utc)
-                #     .timestamp()
-                # )
-                label = int(items[3])
-                ig = [float(i) for i in items[4:]]
-                ig[-1] /= 22.3012351755624
-                igs.append(ig)
-                # ldts.append([label, device_id, timestamp])
-                ldts.append(label)
-        igs = np.array(igs).astype(np.float32)
-        ldts = np.array(ldts).astype(np.int64)
-        return igs, ldts
-
-    def __getitem__(self, idx):
-        file_path, group_idx = self.data_index[idx]
-        start_row = group_idx * self.group_size
-
-        measurements, ldts = self._load_csv(file_path)
-        data = measurements[start_row : start_row + self.group_size]
-        ldts = ldts[start_row : start_row + self.group_size][0]
-        data = data.transpose((1, 0))  # LxC -> CxL
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data, ldts
-
-
-class BirdDataset3(Dataset):
-    def __init__(self, file_paths, transform=None):
-        """
-        Args:
-            file_paths (list of str): List of paths to CSV files.
-            group_counts_file (str): Path to the JSON file containing group counts for each file.
-            group_size (int): Number of rows per group.
-            transform (callable, optional): Optional transform to be applied on a sample.
-        """
-        self.file_paths = file_paths
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.file_paths)
-
-    def _load_csv(self, file_path):
-        igs = []
-        ldts = []
-        with open(file_path, "r") as file:
-            for row in file:
-                items = row.strip().split(",")
-                label = int(items[0])  # 3
-                ig = [float(i) for i in items[1:]]  # 4
-                ig[-1] /= 22.3012351755624
-                igs.append(ig)
-                ldts.append(label)
-        igs = np.array(igs).astype(np.float32)
-        ldts = np.array(ldts).astype(np.int64)
-        return igs, ldts
-
-    def __getitem__(self, idx):
-        file_path = self.file_paths[idx]
-
-        data, ldts = self._load_csv(file_path)
-        ldts = np.int64(ldts[0])
-
-        data = data.transpose((1, 0))  # LxC -> CxL
-        data = np.ascontiguousarray(data)
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data, ldts
-
-
-# # Load in memory
-# igs, ltds = load_csv("/home/fatemeh/Downloads/bird/test_data/all_data.csv")
-# dataset = BirdDataset(igs, ltds)
-# dataset[0]
-
-# # each file has multiple data (here 30 with data size 20x4)
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data//split_600").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-# csv_files = [str(csv_file) for csv_file in csv_files]
-# dataset = BirdDataset2(
-#     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
-# )
-# dataset[0]
-
-# # one file per data (data size here 20x4)
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_20").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-# csv_files = [str(csv_file) for csv_file in csv_files]
-# dataset = BirdDataset3(csv_files)
-# dataset[0]
-
-"""
-import torch
-from torch.utils.data import DataLoader
-
-
-all_measurements, ldts = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
-all_measurements, ldts = get_specific_labesl(all_measurements, ldts, [0, 1, 2, 3, 4, 5, 6, 8, 9])
-train_dataset = BirdDataset(all_measurements, ldts)
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=2,
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-
-from torch.utils.data import random_split   
-csv_files = Path("/home/fatemeh/Downloads/bird/tmp3").glob("part*")
-csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
-csv_files = [str(csv_file) for csv_file in csv_files]
-
-# dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
-dataset = BirdDataset3(csv_files)
-d, l = dataset[0]
-d, l = dataset[1]
-
-# Calculate the sizes for training and validation datasets
-train_size = int(0.9 * len(dataset))
-val_size = len(dataset) - train_size
-
-# Use random_split to divide the dataset
-tr, val = random_split(dataset, [train_size, val_size])
-
-train_loader2 = DataLoader(
-    dataset,
-    batch_size=2,
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-
-for m, l in train_loader2:
-    print(m.shape)
-val_loader2 = DataLoader(
-    val,
-    batch_size=len(val),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-# """
