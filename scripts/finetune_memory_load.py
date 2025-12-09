@@ -195,59 +195,8 @@ eval_loader = DataLoader(
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 # in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm1.TransformerEncoderMAE(
-    img_size=cfg.g_len,
-    in_chans=cfg.in_channel,
-    out_chans=cfg.out_channel,
-    embed_dim=cfg.embed_dim,
-    depth=cfg.depth,
-    num_heads=cfg.num_heads,
-    mlp_ratio=cfg.mlp_ratio,
-    drop=cfg.drop,
-    layer_norm_eps=cfg.layer_norm_eps,
-).to(device)
 
-pmodel = torch.load(
-    cfg.model_checkpoint,
-    map_location=device,
-    weights_only=True,
-)["model"]
-
-state_dict = model.state_dict()
-
-with torch.no_grad():
-    for name, p in pmodel.items():
-        if name not in state_dict:
-            continue
-
-        # normal weights, skipping decoder, mask, pos_embed
-        if (
-            "decoder" not in name and "mask" not in name and "pos_embed" not in name
-        ):  # and name!="norm.weight" and name!="norm.bias":
-            state_dict[name].copy_(p)
-            # freeze all layers except class head
-            # dict(model.named_parameters())[name].requires_grad = False
-
-        # pos_embed handling
-        if "pos_embed" in name and "decoder" not in name:
-            min_len = min(p.shape[1], state_dict[name].shape[1])
-            state_dict[name].copy_(p[:, :min_len])
-
-# freeze all layers except class head
-for name, param in model.named_parameters():
-    if name.startswith("fc."):
-        param.requires_grad = True
-    else:
-        param.requires_grad = False
-
-print(
-    f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
-)
-
-# bm.load_model("/home/fatemeh/Downloads/bird/result/f_mem1_bal116_best.pth", model, device)
-del pmodel, name, p, state_dict
-torch.cuda.empty_cache()
-print("model is loaded")
+model = bm1.build_mae_vit_encoder_from_checkpoint(cfg.model_checkpoint, device, cfg)
 
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(

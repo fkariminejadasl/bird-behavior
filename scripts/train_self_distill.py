@@ -182,7 +182,7 @@ def write_info_in_tensorboard(writer, epoch, loss, stage):
 def caculate_loss(data, model, device):
     model = model.to(device)
     data = torch.cat(data, dim=0).to(device)  # NxLxC
-    data = data.view(-1, data.shape[2], data.shape[1])  # NxLxC
+    # data = data.view(-1, data.shape[2], data.shape[1])  # NxCxL
     proj = model(data)  # NxC
     contrastive_logits, contrastive_labels = info_nce_logits(features=proj)
     loss = torch.nn.CrossEntropyLoss()(contrastive_logits, contrastive_labels)
@@ -242,14 +242,31 @@ train_transform = ContrastiveLearningViewGenerator(
 
 cfg = dict(
     test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
-    model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
+    # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
+    model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
     save_path=Path("/home/fatemeh/Downloads/bird/result/"),
     exp="self_distill_test",
     labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
     channel_first=False,
+    # model parameters
+    # # small model
+    # in_channel=4,
+    # mid_channel=30,
+    # out_channel=9,
+    # vit model
+    g_len=20,  # 60, 20
     in_channel=4,
-    mid_channel=30,
-    out_channel=9,
+    out_channel=256,  # 6, 9
+    embed_dim=256,  # 256, 16
+    depth=6,  # 6, 1
+    num_heads=8,
+    decoder_embed_dim=256,  # 256, 16
+    decoder_depth=6,  # 6, 1
+    decoder_num_heads=8,
+    mlp_ratio=4,
+    drop=0.0,
+    layer_norm_eps=1e-6,
+    # training parameters
     seed=123,
     batch_size=4338,
     no_epochs=100,
@@ -279,8 +296,9 @@ loader = torch.utils.data.DataLoader(
     trainset, batch_size=len(trainset), shuffle=True, num_workers=1, drop_last=False
 )
 
-model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
-bm.load_model(cfg.model_checkpoint, model, device)
+# model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
+# bm.load_model(cfg.model_checkpoint, model, device)
+model = bm1.build_mae_vit_encoder_from_checkpoint(cfg.model_checkpoint, device, cfg)
 
 optimizer = torch.optim.AdamW(
     model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay

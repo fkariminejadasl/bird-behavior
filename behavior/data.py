@@ -943,9 +943,11 @@ def load_csv_pandas(data_file, labels_to_use, glen=20):
     present = sorted(df[3].unique())
     df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
     df["ts"] = (
-        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).view("int64")
-        // 1_000_000_000
-    ).astype("int64")
+        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).astype(
+            "int64"
+        )  # nanoseconds as int64
+        // 1_000_000_000  # convert to seconds
+    )
     igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
     ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
     return igs, ldts[:, 0, :]
