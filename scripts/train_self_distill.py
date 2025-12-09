@@ -194,7 +194,7 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
 
     model.train()
     running_loss = 0
-    for i, (data, _) in enumerate(loader):
+    for i, data in enumerate(loader):
         optimizer.zero_grad()
 
         loss = caculate_loss(data, model, device)
@@ -217,7 +217,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
 
     model.eval()
     running_loss = 0
-    for i, (data, _) in enumerate(loader):
+    for i, data in enumerate(loader):
         loss = caculate_loss(data, model, device)
 
         running_loss += loss.item()
@@ -228,7 +228,7 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     return total_loss
 
 
-train_transform = tvt2.RandomChoice(
+transform = tvt2.RandomChoice(
     [
         bau.RandomJitter(sigma=0.05),
         bau.RandomScaling(sigma=0.05),
@@ -236,12 +236,11 @@ train_transform = tvt2.RandomChoice(
         # bau.MagnitudeWarp(sigma=0.05, knot=4),
     ]
 )
-train_transform = ContrastiveLearningViewGenerator(
-    base_transform=train_transform, n_views=2
-)
+transform = ContrastiveLearningViewGenerator(base_transform=transform, n_views=2)
 
 cfg = dict(
     test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
     # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
     model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
     save_path=Path("/home/fatemeh/Downloads/bird/result/"),
@@ -266,14 +265,21 @@ cfg = dict(
     mlp_ratio=4,
     drop=0.0,
     layer_norm_eps=1e-6,
-    # training parameters
-    seed=123,
-    batch_size=4338,
+    # General
+    seed=1234,
+    num_workers=1,  # 17, 15
     no_epochs=100,
-    max_lr=1e-3,
-    weight_decay=1e-4,
-    step_size=20,
-    save_every=100,
+    save_every=200,
+    # Data
+    train_per=0.9,
+    data_per=1.0,
+    batch_size=4000,
+    # Training
+    warmup_epochs=1000,
+    step_size=2000,
+    max_lr=3e-4,  # 1e-3
+    min_lr=None,
+    weight_decay=1e-2,  # default 1e-2
 )
 cfg = OmegaConf.create(cfg)
 
@@ -281,23 +287,27 @@ bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Data
-df = pd.read_csv(cfg.test_data_file, header=None)
-df = df[df[3].isin(cfg.labels_to_use)]
-mapping = {l: i for i, l in enumerate(cfg.labels_to_use)}
-df[3] = df[3].map(mapping)
-all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
-label_ids = df[[3, 0, 0]].iloc[::20].values
-trainset = bd.BirdDataset(
-    all_measurements,
-    label_ids,
-    channel_first=cfg.channel_first,
-    transform=train_transform,
-)
-loader = torch.utils.data.DataLoader(
-    trainset, batch_size=len(trainset), shuffle=True, num_workers=1, drop_last=False
-)
-train_loader = deepcopy(loader)
-eval_loader = deepcopy(loader)
+gimus = bd.load_gimu_data(cfg)
+dataset = bd.BirdDatasetNoNorm(gimus, channel_first=False, transform=transform)
+train_loader, eval_loader = bd.prepare_dataloaders(dataset, cfg)
+
+# # dummy data loader
+# df = pd.read_csv(cfg.test_data_file, header=None)
+# df = df[df[3].isin(cfg.labels_to_use)]
+# mapping = {l: i for i, l in enumerate(cfg.labels_to_use)}
+# df[3] = df[3].map(mapping)
+# all_measurements = df[[4, 5, 6, 7]].values.reshape(-1, 20, 4)
+# label_ids = df[[3, 0, 0]].iloc[::20].values
+# trainset = bd.BirdDataset(
+#     all_measurements,
+#     channel_first=cfg.channel_first,
+#     transform=transform,
+# )
+# loader = torch.utils.data.DataLoader(
+#     trainset, batch_size=len(trainset), shuffle=True, num_workers=1, drop_last=False
+# )
+# train_loader = deepcopy(loader)
+# eval_loader = deepcopy(loader)
 
 # Model
 # model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)

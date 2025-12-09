@@ -123,7 +123,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-# wandb.init(project="bird-large-pt", config=cfg_dict)
+wandb.init(project="bird-large-pt", config=cfg_dict)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
