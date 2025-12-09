@@ -280,6 +280,7 @@ cfg = OmegaConf.create(cfg)
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+# Data
 df = pd.read_csv(cfg.test_data_file, header=None)
 df = df[df[3].isin(cfg.labels_to_use)]
 mapping = {l: i for i, l in enumerate(cfg.labels_to_use)}
@@ -295,7 +296,10 @@ trainset = bd.BirdDataset(
 loader = torch.utils.data.DataLoader(
     trainset, batch_size=len(trainset), shuffle=True, num_workers=1, drop_last=False
 )
+train_loader = deepcopy(loader)
+eval_loader = deepcopy(loader)
 
+# Model
 # model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
 # bm.load_model(cfg.model_checkpoint, model, device)
 model = bm1.build_mae_vit_encoder_from_checkpoint(cfg.model_checkpoint, device, cfg)
@@ -306,10 +310,6 @@ optimizer = torch.optim.AdamW(
 scheduler = torch.optim.lr_scheduler.StepLR(
     optimizer, step_size=cfg.step_size, gamma=0.1
 )
-
-train_loader = deepcopy(loader)
-eval_loader = deepcopy(loader)
-
 
 # Training loop
 best_loss = float("inf")

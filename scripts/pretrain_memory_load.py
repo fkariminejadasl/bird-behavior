@@ -168,7 +168,7 @@ cfg.min_lr = cfg.max_lr / 10
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 import wandb
 
-wandb.init(project="bird-large-pt", config=cfg_dict)
+# wandb.init(project="bird-large-pt", config=cfg_dict)
 
 cfg.save_path.mkdir(parents=True, exist_ok=True)
 
@@ -177,32 +177,38 @@ print(
     f"count: {torch.cuda.device_count()}, device type: {torch.cuda.get_device_name(0)}, property: {torch.cuda.get_device_properties(0)}"
 )
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"device: {device}")
 # nvidia-smi -i 0 # also show properties
 
 # Random seed
 set_seed(cfg.seed)
-generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+
 
 # Data
-gimus = []
-parquet_files = cfg.data_path.glob("*.parquet")
-for parquet_file in parquet_files:
-    df = pd.read_parquet(parquet_file)
-    data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
-    print(parquet_file.stem, data.shape)
-    gimus.append(data)
-gimus = np.vstack(gimus)
+def load_gimu_data(cfg):
+    gimus = []
+    parquet_files = cfg.data_path.glob("*.parquet")
+    for parquet_file in parquet_files:
+        df = pd.read_parquet(parquet_file)
+        data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+        print(parquet_file.stem, data.shape)
+        gimus.append(data)
+    gimus = np.vstack(gimus)
 
-# free memory
-del df, data
-gc.collect()
-# df = pd.read_parquet(cfg.data_path)
-# gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
-print(gimus.shape)
-# gimus = read_csv_files(cfg.data_path)
-# gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
-gimus = np.ascontiguousarray(gimus)
-print(gimus.shape)
+    # free memory
+    del df, data
+    gc.collect()
+    # df = pd.read_parquet(cfg.data_path)
+    # gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+    print(gimus.shape)
+    # gimus = read_csv_files(cfg.data_path)
+    # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
+    gimus = np.ascontiguousarray(gimus)
+    print(gimus.shape)
+    return gimus
+
+
+gimus = load_gimu_data(cfg)
 dataset = BirdDataset(gimus, channel_first=False)
 
 # free memory
@@ -212,9 +218,11 @@ gc.collect()
 # Calculate the sizes for training and validation datasets
 train_size = int(cfg.train_per * cfg.data_per * len(dataset))
 val_size = len(dataset) - train_size
-train_dataset, eval_dataset = random_split(dataset, [train_size, val_size])
+generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+train_dataset, eval_dataset = random_split(
+    dataset, [train_size, val_size], generator=generator
+)
 
-print(len(dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
     train_dataset,
@@ -233,8 +241,15 @@ eval_loader = DataLoader(
     pin_memory=True,
 )
 
+len_data, len_train, len_eval = len(dataset), len(train_dataset), len(eval_dataset)
+
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
-# in_channel = train_dataset[0][0].shape[0]  # 3 or 4
+print(
+    f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
+    train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+)
+
+# Model
 model = bm1.MaskedAutoencoderViT(
     img_size=cfg.g_len,
     in_chans=cfg.in_channel,
@@ -281,11 +296,6 @@ scheduler = torch.optim.lr_scheduler.StepLR(
     optimizer, step_size=cfg.step_size, gamma=0.1
 )
 
-len_train, len_eval = len(train_dataset), len(eval_dataset)
-print(
-    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    , train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
-)
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 
 best_loss = float("inf")
