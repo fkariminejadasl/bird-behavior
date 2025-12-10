@@ -268,7 +268,7 @@ cfg = dict(
     # General
     seed=1234,
     num_workers=1,  # 17, 15
-    no_epochs=100,
+    no_epochs=10,
     save_every=200,
     # Data
     train_per=0.9,
@@ -312,10 +312,14 @@ train_loader, eval_loader = bd.prepare_dataloaders(dataset, cfg)
 # Model
 # model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
 # bm.load_model(cfg.model_checkpoint, model, device)
-model = bm1.build_mae_vit_encoder_from_checkpoint(cfg.model_checkpoint, device, cfg)
+model = bm1.build_mae_vit_encoder_from_checkpoint(
+    cfg.model_checkpoint, device, cfg, freeze_backbone=True
+)
 
 optimizer = torch.optim.AdamW(
-    model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
+    (p for p in model.parameters() if p.requires_grad),
+    lr=cfg.max_lr,
+    weight_decay=cfg.weight_decay,
 )
 scheduler = torch.optim.lr_scheduler.StepLR(
     optimizer, step_size=cfg.step_size, gamma=0.1
