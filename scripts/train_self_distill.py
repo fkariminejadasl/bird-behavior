@@ -240,10 +240,13 @@ transform = ContrastiveLearningViewGenerator(base_transform=transform, n_views=2
 
 cfg = dict(
     test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
-    data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
+    # data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
     # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
-    model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
-    save_path=Path("/home/fatemeh/Downloads/bird/result/"),
+    # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
+    # save_path=Path("/home/fatemeh/Downloads/bird/result/"),
+    data_path=Path("/home/fkarimineja/data/bird/ssl20parquet"),
+    model_checkpoint=Path("/home/fkarimineja/exps/bird/runs/p20_4_best.pth"),
+    save_path=Path("/home/fkarimineja/exps/bird/runs"),
     exp="self_distill_test",
     labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
     channel_first=False,
@@ -267,13 +270,13 @@ cfg = dict(
     layer_norm_eps=1e-6,
     # General
     seed=1234,
-    num_workers=1,  # 17, 15
-    no_epochs=10,
+    num_workers=1,  # 17 (a_100), 15 (h_100)
+    no_epochs=1,
     save_every=200,
     # Data
     train_per=0.9,
     data_per=1.0,
-    batch_size=4000,
+    batch_size=8192, # 4000
     # Training
     warmup_epochs=1000,
     step_size=2000,
@@ -282,6 +285,7 @@ cfg = dict(
     weight_decay=1e-2,  # default 1e-2
 )
 cfg = OmegaConf.create(cfg)
+cfg.min_lr = cfg.max_lr / 10
 
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -313,7 +317,7 @@ train_loader, eval_loader = bd.prepare_dataloaders(dataset, cfg)
 # model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
 # bm.load_model(cfg.model_checkpoint, model, device)
 model = bm1.build_mae_vit_encoder_from_checkpoint(
-    cfg.model_checkpoint, device, cfg, freeze_backbone=True
+    cfg.model_checkpoint, device, cfg, freeze_backbone=False
 )
 
 optimizer = torch.optim.AdamW(
