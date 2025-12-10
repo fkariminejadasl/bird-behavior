@@ -74,7 +74,7 @@ def info_nce_logits(features, n_views=2, temperature=1.0, device="cuda"):
     b_ = 0.5 * int(features.size(0))
 
     labels = torch.cat([torch.arange(b_) for i in range(n_views)], dim=0)
-    labels = (labels.unsqueeze(0) == labels.unsqueeze(1)).float()
+    labels = labels.unsqueeze(0) == labels.unsqueeze(1)
     labels = labels.to(device)
 
     features = F.normalize(features, dim=1)
@@ -87,10 +87,10 @@ def info_nce_logits(features, n_views=2, temperature=1.0, device="cuda"):
     similarity_matrix = similarity_matrix[~mask].view(similarity_matrix.shape[0], -1)
 
     # select and combine multiple positives
-    positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
+    positives = similarity_matrix[labels].view(labels.shape[0], -1)
 
     # select only the negatives the negatives
-    negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
+    negatives = similarity_matrix[~labels].view(similarity_matrix.shape[0], -1)
 
     logits = torch.cat([positives, negatives], dim=1)
     labels = torch.zeros(logits.shape[0], dtype=torch.long).to(device)
@@ -239,9 +239,9 @@ transform = tvt2.RandomChoice(
 transform = ContrastiveLearningViewGenerator(base_transform=transform, n_views=2)
 
 cfg = dict(
-    test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    # # test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
     # data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
-    # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
+    # # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
     # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
     # save_path=Path("/home/fatemeh/Downloads/bird/result/"),
     data_path=Path("/home/fkarimineja/data/bird/ssl20parquet"),
@@ -276,7 +276,7 @@ cfg = dict(
     # Data
     train_per=0.9,
     data_per=1.0,
-    batch_size=8192, # 4000
+    batch_size=1024,  # 4000
     # Training
     warmup_epochs=1000,
     step_size=2000,
@@ -286,6 +286,12 @@ cfg = dict(
 )
 cfg = OmegaConf.create(cfg)
 cfg.min_lr = cfg.max_lr / 10
+
+# Convert the DictConfig to a standard dictionary
+cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+import wandb
+
+# wandb.init(project="bird-self-distill", config=cfg_dict)
 
 bu.set_seed(cfg.seed)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -334,7 +340,7 @@ best_loss = float("inf")
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
-        print(f"start time: {start_time}")
+        print(f"\nstart time: {start_time}")
         # get_gpu_memory()
         train_one_epoch(
             train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
@@ -342,7 +348,8 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer)
         # get_gpu_memory()
         end_time = datetime.now()
-        print(f"end time: {end_time}, elapse time: {end_time-start_time}")
+        print(f"end time: {end_time}")
+        print(f"elapse time: {end_time-start_time}")
 
         scheduler.step()
         lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
