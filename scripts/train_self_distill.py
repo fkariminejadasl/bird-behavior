@@ -189,7 +189,7 @@ def caculate_loss(data, model, device):
     return loss
 
 
-def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
+def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer, scaler, dtype=torch.float16):
     stage = "train"
 
     model.train()
@@ -197,10 +197,20 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
     for i, data in enumerate(loader):
         optimizer.zero_grad()
 
-        loss = caculate_loss(data, model, device)
+        if dtype == torch.float32:
+            loss = caculate_loss(data, model, device)
+        else:
+            with torch.autocast(device_type="cuda", dtype=dtype):
+                loss = caculate_loss(data, model, device)
 
-        loss.backward()
-        optimizer.step()
+        if scaler.is_enabled():
+            # backward with scaler
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
         running_loss += loss.item()
 
@@ -212,13 +222,17 @@ def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer):
 
 
 @torch.no_grad()
-def evaluate(loader, model, device, epoch, no_epochs, writer):
+def evaluate(loader, model, device, epoch, no_epochs, writer, dtype=torch.float16):
     stage = "valid"
 
     model.eval()
     running_loss = 0
     for i, data in enumerate(loader):
-        loss = caculate_loss(data, model, device)
+        if dtype == torch.float32:
+            loss = caculate_loss(data, model, device)
+        else:
+            with torch.autocast(device_type="cuda", dtype=dtype):
+                loss = caculate_loss(data, model, device)
 
         running_loss += loss.item()
 
@@ -337,15 +351,18 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 
 # Training loop
 best_loss = float("inf")
+dtype = torch.float16 # torch.float32, torch.float16, torch.bfloat16
+fp16 = True if dtype == torch.float16 else False
+scaler = torch.amp.GradScaler(enabled=fp16)
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
         start_time = datetime.now()
         print(f"\nstart time: {start_time}")
         # get_gpu_memory()
         train_one_epoch(
-            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer
+            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer, scaler, dtype
         )
-        loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer)
+        loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer, dtype)
         # get_gpu_memory()
         end_time = datetime.now()
         print(f"end time: {end_time}")

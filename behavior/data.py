@@ -1147,7 +1147,6 @@ def load_gimu_data(cfg):
     gc.collect()
     # df = pd.read_parquet(cfg.data_path)
     # gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
-    print(gimus.shape)
     # gimus = read_csv_files(cfg.data_path)
     # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
     gimus = np.ascontiguousarray(gimus)
