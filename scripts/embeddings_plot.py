@@ -11,38 +11,14 @@ import torch
 
 # import umap  # umap-learn
 from omegaconf import OmegaConf
-from scipy.optimize import linear_sum_assignment
-from scipy.stats import mode
-from sklearn.cluster import DBSCAN, MiniBatchKMeans
-from sklearn.datasets import make_blobs
-from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.manifold import TSNE
-from sklearn.metrics import (
-    adjusted_mutual_info_score,
-    adjusted_rand_score,
-    calinski_harabasz_score,
-    completeness_score,
-    davies_bouldin_score,
-    fowlkes_mallows_score,
-    homogeneity_score,
-    silhouette_samples,
-    silhouette_score,
-    v_measure_score,
-)
-from sklearn.metrics.cluster import contingency_matrix
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import StandardScaler
-from torch.utils import tensorboard
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from behavior import data as bd
-from behavior import metrics as bmet
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.ss_kmeans import K_Means
-from behavior.utils import n_classes, new_label_inds, target_labels
 
 
 def setup_testing_dataloader(test_data_file, data_labels, channel_first):
@@ -103,7 +79,7 @@ def compute_labeled_embeddings(loader, model, layer_to_hook, device):
                 output = output[1]
             if activation:
                 feats = activation.pop()
-                if cfg.layer_name == "norm":
+                if cfg.layer_name != "fc":
                     feats = feats[:, 0, :]  # B x L x embed_dim -> B x embed_dim
                 else:
                     feats = feats.flatten(1)  # B x embed_dim x 1 -> B x embed_dim
@@ -117,21 +93,6 @@ def compute_labeled_embeddings(loader, model, layer_to_hook, device):
     print(f"Embeddings are loaded in {end_time - start_time:.2f} seconds.")
     print(f"Embedding {feats.shape}, labels {labels.shape}, output {ouput.shape}")
     return feats, labels, ouput
-
-
-class Mapper:
-    def __init__(self, old2new: dict):
-        # old is a list like [0,2,4,5,6,9], new is [0, ..., 5]
-        self.old2new = old2new
-        self.new2old = {n: o for o, n in old2new.items()}
-
-    def encode(self, orig: torch.Tensor):
-        """Map original labels → 0…K-1 space"""
-        return torch.tensor([self.old2new[int(i)] for i in orig], device=orig.device)
-
-    def decode(self, chang):
-        """Map 0…K-1 predictions back → original labels"""
-        return torch.tensor([self.new2old[int(i)] for i in chang], device=chang.device)
 
 
 def plot_labeled_embeddings(reduced, labels, true_labels):

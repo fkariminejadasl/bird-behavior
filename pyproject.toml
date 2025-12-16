@@ -14,6 +14,8 @@ authors = [
 ]
 urls = { "Homepage" = "https://github.com/fkariminejadasl/bird-behavior.git" }
 
+# use `--upgrade-strategy eager` to update dependencies.
+# pip install -e ".[all]" --upgrade --upgrade-strategy eager
 # Dependencies are copied from requirements.txt 
 dependencies = [
     "einops",

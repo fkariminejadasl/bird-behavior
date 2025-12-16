@@ -189,7 +189,17 @@ def caculate_loss(data, model, device):
     return loss
 
 
-def train_one_epoch(loader, model, device, epoch, no_epochs, writer, optimizer, scaler, dtype=torch.float16):
+def train_one_epoch(
+    loader,
+    model,
+    device,
+    epoch,
+    no_epochs,
+    writer,
+    optimizer,
+    scaler,
+    dtype=torch.float16,
+):
     stage = "train"
 
     model.train()
@@ -351,7 +361,7 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 
 # Training loop
 best_loss = float("inf")
-dtype = torch.float16 # torch.float32, torch.float16, torch.bfloat16
+dtype = torch.float16  # torch.float32, torch.float16, torch.bfloat16
 fp16 = True if dtype == torch.float16 else False
 scaler = torch.amp.GradScaler(enabled=fp16)
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
@@ -360,7 +370,15 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
         print(f"\nstart time: {start_time}")
         # get_gpu_memory()
         train_one_epoch(
-            train_loader, model, device, epoch, cfg.no_epochs, writer, optimizer, scaler, dtype
+            train_loader,
+            model,
+            device,
+            epoch,
+            cfg.no_epochs,
+            writer,
+            optimizer,
+            scaler,
+            dtype,
         )
         loss = evaluate(eval_loader, model, device, epoch, cfg.no_epochs, writer, dtype)
         # get_gpu_memory()

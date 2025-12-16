@@ -234,6 +234,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### Visualization
 
+- `scripts/embeddings_plot.py`: Plot embeddings (currently TSNE) given data and model.
 - `scripts/bird_behavior_viz.py`: generate data (IMU, behavior classes by inference, GPS by downloading from database) and visualize IMU with behavior and location in the downloaded map. The visualization part is also in `app/bird_behavior_viz_app.py` with interactive mode.
 - `exps/save_plots_gt.py`: save IMU plots for ground truth data based on device id and starting times.
 - `exps/save_plots.py`: save IMU plots for each label, run inference for the predictions. 
@@ -249,6 +250,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 * `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 * `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 * `scripts/gcd_pipeline.py`: gcd pipeline
+* `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the infoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the infoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotation of IMU data.
 
 **Older scripts**: 
 
