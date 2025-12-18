@@ -1,10 +1,74 @@
 import itertools
+import math
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from PIL import Image, ImageOps
+from torchvision import transforms
+from torchvision.utils import make_grid, save_image
 
 from behavior import utils as bu
+
+
+def make_grid_custom(
+    paths,
+    save_path,
+    cols: int,
+    cell_size=(512, 512),  # (width, height) of each tile
+    padding: int = 0,
+    bg="white",
+):
+    paths = list(paths)
+    imgs = [Image.open(p).convert("RGB") for p in paths]
+
+    cw, ch = cell_size
+    tiles = []
+    for im in imgs:
+        im = ImageOps.contain(im, (cw, ch))  # keep aspect ratio
+        im = ImageOps.pad(im, (cw, ch), color=bg)  # pad to exact cell size
+        tiles.append(im)
+
+    rows = math.ceil(len(tiles) / cols)
+    grid_w = cols * cw + (cols - 1) * padding
+    grid_h = rows * ch + (rows - 1) * padding
+    canvas = Image.new("RGB", (grid_w, grid_h), bg)
+
+    for i, tile in enumerate(tiles):
+        r, c = divmod(i, cols)
+        x = c * (cw + padding)
+        y = r * (ch + padding)
+        canvas.paste(tile, (x, y))
+
+    canvas.save(save_path / "tsne_d0.png", dpi=(300, 300))
+    canvas.save(save_path / "tsne_d0.pdf")  # convenient for LaTeX includegraphics
+
+    return canvas
+
+
+def make_grid_torchvision(
+    paths, save_path, cols, cell_size=(512, 512), padding=0, bg="white"
+):
+    W, H = cell_size
+
+    def to_cell(im):
+        im = ImageOps.contain(im, (W, H))
+        im = ImageOps.pad(im, (W, H), color=bg)
+        return transforms.ToTensor()(im)
+
+    imgs = [to_cell(Image.open(p).convert("RGB")) for p in paths]
+    batch = torch.stack(imgs)
+    grid = make_grid(batch, nrow=cols, padding=padding, pad_value=1.0)
+    save_image(grid, save_path / "tsne_d0_tv.png")
+
+
+# Example: all PNGs in a folder, sorted by name
+fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
+save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
+paths = sorted(fig_path.glob("*.png"))
+make_grid_custom(paths, save_path, cols=2, cell_size=(512, 512), padding=0, bg="white")
+make_grid_torchvision(paths, save_path, cols=2, cell_size=(512, 512), padding=0)
 
 exp_exclude = dict()
 all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]

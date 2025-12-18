@@ -216,10 +216,10 @@ def get_config():
             channel_first=False,  # False
         ),
         layer_name="fc",  # (avgpool, fc) small, (fc, norm) vit
-        save_path=Path("/home/fatemeh/Downloads/bird/result/embeddings_plot"),
+        save_path=Path("/home/fatemeh/Downloads/bird/results/embeddings_plot"),
         test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
-        # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
-        # model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"),
+        # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
+        # model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
         model_checkpoint=Path(
             "/home/fatemeh/Downloads/bird/snellius/self_distill_1_best.pth"

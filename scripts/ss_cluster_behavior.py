@@ -390,6 +390,31 @@ def test_gcd_old2new():
     # fmt:on
 
 
+def fig_ax_cax(
+    figsize=(6.4, 4.8),  # in inches
+    cbar_width_in=0.20,  # in inches
+    pad_in=0.10,  # in inches, gap between plot and colorbar
+    left=0.07,
+    right=0.98,
+    bottom=0.07,
+    top=0.93,
+):
+    fig = plt.figure(figsize=figsize)
+
+    fig_w_in = figsize[0]
+    cbar_w = cbar_width_in / fig_w_in
+    pad_w = pad_in / fig_w_in
+
+    avail_w = right - left
+    ax_w = avail_w - cbar_w - pad_w
+    if ax_w <= 0:
+        raise ValueError("Colorbar width+pad too large for the chosen margins/figsize.")
+
+    ax = fig.add_axes([left, bottom, ax_w, top - bottom])
+    cax = fig.add_axes([left + ax_w + pad_w, bottom, cbar_w, top - bottom])
+    return fig, ax, cax
+
+
 # fmt: off
 def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, preds, rd_method="tsne", centers=None):
     
@@ -408,16 +433,17 @@ def save_cm_embeddings(save_path, name, cm, true_labels, pred_labels, reduced, p
     bounds = np.concatenate((unique_classes - 0.5, [unique_classes[-1] + 0.5]))
     norm = mcolors.BoundaryNorm(bounds, ncolors=len(unique_classes))
     
-    fig, ax = plt.subplots()
+    fig, ax, cax = fig_ax_cax(figsize=(6.4, 4.8), cbar_width_in=0.20, pad_in=0.10, right=0.90)
     scatter = ax.scatter(reduced[:, 0], reduced[:, 1], c=preds, cmap=custom_cmap, norm=norm, s=5)
     if centers is not None:
         for i in range(len(centers)):
             plt.scatter(centers[i][0], centers[i][1], s = 130, marker = "*", color='r')
     # Tkinter issue: The issue happens because the Tkinter plotting window’s toolbar crashes 
     # when a new colorbar is added. Using fig.colorbar() instead of plt.colorbar() fixes it.
-    cbar = fig.colorbar(scatter, ax=ax, ticks=unique_classes, label="Label")
-    plt.title("Predictions")
-    plt.savefig(save_path / f"{name}_{rd_method}.png", bbox_inches="tight")
+    cbar = fig.colorbar(scatter, cax=cax, ticks=unique_classes)
+    cbar.ax.tick_params(labelsize=9)
+    ax.set_title("Predictions")
+    fig.savefig(save_path / f"{name}_{rd_method}.png") #, dpi=300) #, bbox_inches="tight")
     # plt.show(block=True)
 # fmt: on
 
@@ -431,14 +457,16 @@ def plot_labeled_embeddings(reduced, u_reduced, labels, true_labels):
     cmap_dict = {i: mcolors.to_hex(cmap(i)) for i in range(20)}
     custom_cmap = mcolors.ListedColormap([cmap_dict[p] for p in unique_classes])
 
-    fig, ax = plt.subplots()
+    fig, ax, cax = fig_ax_cax(
+        figsize=(6.4, 4.8), cbar_width_in=0.20, pad_in=0.10, right=0.90
+    )
     title = "Labeled Embeddings"
     if u_reduced.size != 0:
         title = "Labeled and Unlabeled Embeddings"
         ax.plot(
             u_reduced[:, 0], u_reduced[:, 1], "*", color="gray", alpha=0.1, zorder=2
         )
-    scatter = plt.scatter(
+    scatter = ax.scatter(
         reduced[:, 0],
         reduced[:, 1],
         c=labels,
@@ -447,10 +475,11 @@ def plot_labeled_embeddings(reduced, u_reduced, labels, true_labels):
         norm=norm,
         zorder=0,
     )
-    cbar = fig.colorbar(scatter, ax=ax, ticks=unique_classes, label="Label")
+    cbar = fig.colorbar(scatter, cax=cax, ticks=unique_classes)
     cbar.set_ticklabels(true_labels)
-    plt.title(title)
-    # plt.savefig(results_path / f"cls_tsne_label_unlabel.png", bbox_inches="tight")
+    cbar.ax.tick_params(labelsize=9)
+    ax.set_title(title)
+    return fig
 
 
 def tsne_label_unlabel_embs(feats, u_feats):
@@ -898,8 +927,8 @@ def classification_and_clustering(
     pred_labels = [bu.ind2name[i] for i in trained_labels]
     name = "cls"
     rd_method = "tsne"
-    plot_labeled_embeddings(reduced, u_reduced, labels, true_labels)
-    plt.savefig(results_path / f"{name}_{rd_method}_label.png", bbox_inches="tight")
+    fig = plot_labeled_embeddings(reduced, u_reduced, labels, true_labels)
+    fig.savefig(results_path / f"{name}_{rd_method}_label.png")
 
     save_cm_embeddings(
         results_path,
@@ -1134,10 +1163,10 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    exp = 137
+    exp = 135
     # e.g. (exclude_labels_from_data, discover_labels) = ([], [2]), ([2], [10])
     exclude_labels_from_data = []
-    cfg.discover_labels = [2]
+    cfg.discover_labels = [0]
     cfg.all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9] # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
     
     cfg.data_labels = sorted(set(cfg.all_labels)-set(exclude_labels_from_data))
@@ -1146,11 +1175,11 @@ if __name__ == "__main__":
     cfg.lt_labels = cfg.trained_labels.copy()
     cfg.n_clusters = len(cfg.all_labels) # 10
     cfg.out_channel = len(cfg.trained_labels)
-    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
+    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth")
     cfg.model.name = "small"  # "small", "smallemb", "mae"
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
-    cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
+    cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/results/1discover_same_half_data2")
     cfg.use_unlabel = False
     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
     print(f"Experiment {exp}: Discover label {cfg.discover_labels}")
