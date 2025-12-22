@@ -6,7 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 from torchvision import transforms
 from torchvision.utils import make_grid, save_image
 
@@ -43,11 +43,14 @@ for m in pattern.finditer(text):
 
 def make_grid_custom(
     paths,
-    save_path,
     cols: int,
     cell_size=(512, 512),  # (width, height) of each tile
     padding: int = 0,
     bg="white",
+    draw_rect: bool = True,
+    pair_cols: int = 2,  # size of group in columns (1x2)
+    rect_color="black",
+    rect_width: int = 4,
 ):
     paths = list(paths)
     imgs = [Image.open(p).convert("RGB") for p in paths]
@@ -70,16 +73,28 @@ def make_grid_custom(
         y = r * (ch + padding)
         canvas.paste(tile, (x, y))
 
-    name = paths[0].parent.stem
-    canvas.save(save_path / f"{name}.png", dpi=(300, 300))
-    canvas.save(save_path / f"{name}.pdf")  # convenient for LaTeX includegraphics
+    # --- draw 1xn rectangles (every n columns per row) ---
+    if not draw_rect:
+        return canvas
+    draw = ImageDraw.Draw(canvas)
+    for r in range(rows):
+        n_in_row = min(cols, len(tiles) - r * cols)  # handle last partial row safely
+        for c0 in range(0, n_in_row, pair_cols):
+            c_last = min(c0 + pair_cols - 1, n_in_row - 1)
 
+            x0 = c0 * (cw + padding)
+            y0 = r * (ch + padding)
+            x1 = c_last * (cw + padding) + cw
+            y1 = y0 + ch
+
+            # -1 keeps the stroke inside the image bounds
+            draw.rectangle(
+                [x0, y0, x1 - 1, y1 - 1], outline=rect_color, width=rect_width
+            )
     return canvas
 
 
-def make_grid_torchvision(
-    paths, save_path, cols, cell_size=(512, 512), padding=0, bg="white"
-):
+def make_grid_torchvision(paths, cols, cell_size=(512, 512), padding=0, bg="white"):
     W, H = cell_size
 
     def to_cell(im):
@@ -90,21 +105,28 @@ def make_grid_torchvision(
     imgs = [to_cell(Image.open(p).convert("RGB")) for p in paths]
     batch = torch.stack(imgs)
     grid = make_grid(batch, nrow=cols, padding=padding, pad_value=1.0)
+    return grid
+
+
+def save_grid(canvas, paths, save_path):
     name = paths[0].parent.stem
-    save_image(grid, save_path / f"{name}_tv.png")
+    canvas.save(save_path / f"{name}.png", dpi=(300, 300))
+    canvas.save(save_path / f"{name}.pdf")  # convenient for LaTeX includegraphics
 
 
-# Example: all PNGs in a folder, sorted by name
 save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
 fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
 cols = 6
+DRW_RECT = True
 # fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
 # cols = 2
+# DRW_RECT = False
 paths = sorted(fig_path.glob("*.png"))
-make_grid_custom(
-    paths, save_path, cols=cols, cell_size=(640, 480), padding=0, bg="white"
+canvas = make_grid_custom(
+    paths, cols=cols, cell_size=(640, 480), padding=0, bg="white", draw_rect=DRW_RECT
 )
-# make_grid_torchvision(paths, save_path, cols=cols, cell_size=(640, 480), padding=0)
+save_grid(canvas, paths, save_path)
+# grid = make_grid_torchvision(paths, cols=cols, cell_size=(640, 480), padding=0)
 
 exp_exclude = dict()
 all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
