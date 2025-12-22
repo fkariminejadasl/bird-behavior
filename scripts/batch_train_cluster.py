@@ -26,7 +26,8 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.exp = 135 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_same_half_data")
+#     cfg.model.parameters.mid_channels = 30
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/results/1discover_same_half_data2")
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
 #     train_module.main(cfg)
 
@@ -52,7 +53,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.exp = 180 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/results/1discover_2")
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
 #     train_module.main(cfg)
 
@@ -68,7 +69,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.exp = 185 + i
 #     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
 #     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/results/1discover_2")
 #     print(f"Experiment {cfg.exp}: Excluding label {exclude}")
 #     train_module.main(cfg)
 
@@ -85,24 +86,31 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     exp = 135 + i
 
 #     # e.g. exclude_labels_from_data, discover_labels = ([], [2]), ([2], [10])
-#     exclude_labels_from_data = list(exclude) # [], list(exclude)
-#     cfg.discover_labels = [10] # list(exclude), [10]
-#     cfg.data_labels = sorted(set(cfg.all_labels)-set(exclude_labels_from_data))
-#     cfg.trained_labels = sorted(set(cfg.all_labels) - set(cfg.discover_labels) - set(exclude_labels_from_data))
+#     exclude_labels_from_data = []  # [], list(exclude)
+#     cfg.discover_labels = list(exclude)  # list(exclude), [10]
+#     cfg.data_labels = sorted(set(cfg.all_labels) - set(exclude_labels_from_data))
+#     cfg.trained_labels = sorted(
+#         set(cfg.all_labels) - set(cfg.discover_labels) - set(exclude_labels_from_data)
+#     )
 
 #     cfg.lt_labels = cfg.trained_labels.copy()
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.out_channel = len(cfg.trained_labels)
+#     cfg.mid_channel = 30
 #     cfg.model_checkpoint = Path(
-#         f"/home/fatemeh/Downloads/bird/result/1discover_same_half_data/{exp}_best.pth"
+#         f"/home/fatemeh/Downloads/bird/results/1discover_same_half_data2/{exp}_best.pth"
 #     )
 #     cfg.model.name = "small"  # "small", "smallemb", "mae"
-#     cfg.model.channel_first = True # False
+#     cfg.model.channel_first = True  # False
 #     cfg.layer_name = "fc"  # avgpool, fc
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_same_half_data")
+#     cfg.save_path = Path(
+#         "/home/fatemeh/Downloads/bird/results/1discover_same_half_data2"
+#     )
 #     cfg.use_unlabel = False
 #     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
-#     print(f"Experiment {exp}: Discover label {cfg.discover_labels}, Exclude label from data {exclude_labels_from_data}")
+#     print(
+#         f"Experiment {exp}: Discover label {cfg.discover_labels}, Exclude label from data {exclude_labels_from_data}"
+#     )
 #     acc = cluster_module.main(cfg)
 #     accs[exp] = acc
 # print(accs)
@@ -115,7 +123,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # for i, exclude in enumerate(pairs):  # [(0,1)]
 #     exp = 144 + i
 #     cfg.lt_labels = sorted(set(all_labels) - set(exclude))
-#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+#     cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/{exp}_best.pth")
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
 #     cfg.out_channel = len(cfg.lt_labels)
@@ -134,7 +142,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
 #     cfg.model_checkpoint = Path(
-#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#         f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"
 #     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
@@ -142,7 +150,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/results/1discover_2")
 #     cfg.use_unlabel = False
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)
@@ -162,7 +170,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.all_labels = all_labels.copy()
 #     cfg.lt_labels = sorted(set(cfg.all_labels) - set(exclude))
 #     cfg.model_checkpoint = Path(
-#         f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth"
+#         f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"
 #     )
 #     cfg.model.name = "small"
 #     cfg.model.channel_first = True
@@ -170,7 +178,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 #     cfg.out_channel = len(cfg.trained_labels)
 #     cfg.n_clusters = len(cfg.all_labels)
 #     cfg.layer_name = "fc"  # avgpool, fc
-#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/result/1discover_2")
+#     cfg.save_path = Path("/home/fatemeh/Downloads/bird/results/1discover_2")
 #     cfg.use_unlabel = False
 #     print(f"Experiment {exp}: Excluding label {exclude}")
 #     acc = cluster_module.main(cfg)

@@ -1,5 +1,6 @@
 import itertools
 import math
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -10,6 +11,34 @@ from torchvision import transforms
 from torchvision.utils import make_grid, save_image
 
 from behavior import utils as bu
+
+"""
+# ----------------------------------------
+# Parse scores from text file and print summary
+# ----------------------------------------
+# Read the text file (update path as needed)
+text = Path("/home/fatemeh/Downloads/bird/results/1discover_same_half_data2/scores.txt").read_text(encoding="utf-8")
+
+# Match blocks like:
+# name:\n accuracy:<number> max_ovl_hdr:<number>
+pattern = re.compile(
+    r"^(?P<name>[^\s:]+):\s*\n"
+    r".*?\baccuracy:(?P<acc>-?\d+(?:\.\d+)?)\b"
+    r".*?\bmax_ovl_hdr:(?P<ovl>-?\d+(?:\.\d+)?)\b",
+    re.MULTILINE | re.DOTALL,
+)
+
+for m in pattern.finditer(text):
+    name = m.group("name")
+    given = name.split('_gvn')[1].split('_dsl')[0]
+    removed = int((set("012345689")-set(given)).pop())
+    discover = int(name.split('_dsl')[1].split('_fc')[0])
+
+    acc_str = m.group("acc")
+    acc = "-" if float(acc_str) == 0.0 else acc_str
+    val = m.group("ovl")
+    print(f"{removed}:{bu.ind2name[removed]}  {removed}  {discover} {acc} {val}")
+"""
 
 
 def make_grid_custom(
@@ -41,8 +70,9 @@ def make_grid_custom(
         y = r * (ch + padding)
         canvas.paste(tile, (x, y))
 
-    canvas.save(save_path / "tsne_d0.png", dpi=(300, 300))
-    canvas.save(save_path / "tsne_d0.pdf")  # convenient for LaTeX includegraphics
+    name = paths[0].parent.stem
+    canvas.save(save_path / f"{name}.png", dpi=(300, 300))
+    canvas.save(save_path / f"{name}.pdf")  # convenient for LaTeX includegraphics
 
     return canvas
 
@@ -60,15 +90,21 @@ def make_grid_torchvision(
     imgs = [to_cell(Image.open(p).convert("RGB")) for p in paths]
     batch = torch.stack(imgs)
     grid = make_grid(batch, nrow=cols, padding=padding, pad_value=1.0)
-    save_image(grid, save_path / "tsne_d0_tv.png")
+    name = paths[0].parent.stem
+    save_image(grid, save_path / f"{name}_tv.png")
 
 
 # Example: all PNGs in a folder, sorted by name
-fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
 save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
+fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
+cols = 6
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
+# cols = 2
 paths = sorted(fig_path.glob("*.png"))
-make_grid_custom(paths, save_path, cols=2, cell_size=(512, 512), padding=0, bg="white")
-make_grid_torchvision(paths, save_path, cols=2, cell_size=(512, 512), padding=0)
+make_grid_custom(
+    paths, save_path, cols=cols, cell_size=(640, 480), padding=0, bg="white"
+)
+# make_grid_torchvision(paths, save_path, cols=cols, cell_size=(640, 480), padding=0)
 
 exp_exclude = dict()
 all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]

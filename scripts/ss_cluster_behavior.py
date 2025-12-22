@@ -1044,11 +1044,11 @@ def main(cfg):
     results_path.mkdir(parents=True, exist_ok=True)
 
     if cfg.model.name == "smallemb":
-        model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
+        model = bm.BirdModelWithEmb(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
         bm.load_model(cfg.model_checkpoint, model, device)
 
     if cfg.model.name == "small":
-        model = bm.BirdModel(cfg.in_channel, 30, cfg.out_channel)
+        model = bm.BirdModel(cfg.in_channel, cfg.mid_channel, cfg.out_channel)
         bm.load_model(cfg.model_checkpoint, model, device)
 
     if cfg.model.name == "mae":
