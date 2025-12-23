@@ -3,6 +3,7 @@ import math
 import re
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -49,8 +50,8 @@ def make_grid_custom(
     bg="white",
     draw_rect: bool = True,
     pair_cols: int = 2,  # size of group in columns (1x2)
-    rect_color="black",
-    rect_width: int = 4,
+    rect_width: int = 6,
+    labels: list = [0, 1, 2, 3, 4, 5, 6, 8, 9],
 ):
     paths = list(paths)
     imgs = [Image.open(p).convert("RGB") for p in paths]
@@ -77,6 +78,9 @@ def make_grid_custom(
     if not draw_rect:
         return canvas
     draw = ImageDraw.Draw(canvas)
+    cmap = plt.get_cmap("tab20")
+    rect_colors = [mcolors.to_hex(cmap(i)) for i in labels]
+    i = 0
     for r in range(rows):
         n_in_row = min(cols, len(tiles) - r * cols)  # handle last partial row safely
         for c0 in range(0, n_in_row, pair_cols):
@@ -89,8 +93,9 @@ def make_grid_custom(
 
             # -1 keeps the stroke inside the image bounds
             draw.rectangle(
-                [x0, y0, x1 - 1, y1 - 1], outline=rect_color, width=rect_width
+                [x0, y0, x1 - 1, y1 - 1], outline=rect_colors[i], width=rect_width
             )
+            i += 1
     return canvas
 
 
@@ -114,13 +119,15 @@ def save_grid(canvas, paths, save_path):
     canvas.save(save_path / f"{name}.pdf")  # convenient for LaTeX includegraphics
 
 
-save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
-fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
+fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp10")
 cols = 6
 DRW_RECT = True
-# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
+# # fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_r0_d10")
 # cols = 2
 # DRW_RECT = False
+save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
 paths = sorted(fig_path.glob("*.png"))
 canvas = make_grid_custom(
     paths, cols=cols, cell_size=(640, 480), padding=0, bg="white", draw_rect=DRW_RECT
