@@ -14,11 +14,11 @@
 # TEST
 # ===========
 # Paths
-save_path:  # /home/fatemeh/Downloads/bird/result/125 # f_mem1_1 # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
+save_path:  # /home/fatemeh/Downloads/bird/results/125 # f_mem1_1 # f_mem1_bal5_gull_fc, f_mem2_bal1_gull_fc # emb_bal3_fc
 # data_file: /home/fatemeh/Downloads/bird/data/final/combined_unique.csv
 data_file: /home/fatemeh/Downloads/bird/data/ssl/final/gull  # /home/fatemeh/Downloads/bird/data/ssl_mini # /home/fatemeh/Downloads/bird/data/ssl/final
 test_data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #final/proc2/s_correct.csv, test.csv, final/s_data_shift/s_data_unbalanced.csv, orig/s_data_orig.csv, s_data/s_data_unbalanced.csv, s_data_unbalance_1378, s_data_balanced.csv # unbalance_1378.csv, balanced.csv, corrected_combined_unique_sorted012.csv
-model_checkpoint: /home/fatemeh/Downloads/bird/result/134_best.pth #13_best.pth, f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
+model_checkpoint: /home/fatemeh/Downloads/bird/results/134_best.pth #13_best.pth, f_mem1_half_data_best.pth, f_mem1_1_best.pth, f_mem1_bal116_best.pth, f_mem1_bal5_best.pth, f_mem2_bal1_best.pth # f_mem1_bal3_best.pth # 45_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_1_1500.pth
 # Data
 all_labels: [0, 1, 2, 3, 4, 5, 6, 8, 9]
 lt_labels: [2, 3, 4, 6, 9]
@@ -89,77 +89,3 @@ epochs: 1
 perplexity: 30 # TSNE
 n_neighbors: 15 # UMAP
 min_dist: 0.1 # UMAP
-
-# ### GCD
-# Data:   Unlabel: /home/fatemeh/Downloads/bird/data/ssl/final/*.csv,{/gull/*.csv}, 
-#   Label: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv
-#   Balanced: /home/fatemeh/Downloads/bird/data/final/s_data:create_balanced_data, /home/fatemeh/Downloads/bird/data/final/balanced.csv:balance_data
-# Model:  
-#   Self Supervised: /home/fatemeh/Downloads/bird/snellius/ p20_1_1500.pth:cp+gull,20, p20_2_1500.pth:gull,20, p_mem6_500.pth:cp+gull,60
-#   Fine Tune: /home/fatemeh/Downloads/bird/result/ f_mem2_1,starts,9; f_mem2_2,starts,6
-#   Small: /home/fatemeh/Downloads/bird/result/ 125_best.pth:starts,9; exp132:starts,6;
-# Experiment:
-#   Sanity: 125(small,starts,9),6use,3discover,(avg|fc)
-#   Sanity: (p20_2,all,starts,9),6use,3discover,(norm|fc))
-#   Unbala: 132(small,starts,6),6use,3discover,(avg|fc)
-
-# old: Maybe removed
-# =====
-# f_mem1_bal5.pth 5 classes no sitstand
-# exp121, f_mem1_bal121_best.pth, 121_best.pth 6 classes
-# f_mem1_half_data_best.pth, 113_best.pth 9 classes
-
-# Classification results: old
-# =====
-# 4516 4694 # small
-# 4532 4694 # ft: large 9 classes f_mem1
-# 2080 2184 # ft: large 9 classes small on balance data
-# 2084 2184 # ft: large 9 classes f_mem1 on balance data
-# 2034 2184 # ft: large 6 classes f_mem_bal1
-# 2020 2184 # ft: large 6 classes f_mem_bal2
-# 2065 2184 # ft: large 6 classes f_mem1_bal3
-# 1999 2184 # ft: large 6 classes f_mem_bal4
-# 4068 4327 # ft: large 6 classes f_mem1_bal3
-
-# GCD results: old
-# =====
-# ft: large 6 classes f_mem1_bal3
-# mo: 119 2065 2184 0.95
-# ss: 110 2074 2184 0.95 # fc
-# ss: 127 2057 2184 0.94 # norm
-# us: 186 1998 2184 0.91 # fc
-# us: 299 1885 2184 0.86 # norm
-# us: 130 2054 2184 0.94 # norm f_mem_bal1
-#
-# ft: large 6 classes f_mem_bal1 unbalance_1378
-# mo:  259 4068 4327 0.94
-# ss:  220 4107 4327 0.95 # fc
-# ss:  495 3832 4327 0.89 # norm
-# us:  311 4016 4327 0.93 # fc
-# us:  324 4003 4327 0.93 # norm
-#
-# ft: large 6 classes f_mem_bal1 corrected_combined_unique_sorted012 6 given 3 predicted
-# mo:  435 4259 4694 0.91
-# ss:  152 4542 4694 0.97 # fc
-# ss:  440 4254 4694 0.91 # fc with 2000 samples
-# us:  1202 3492 4694 0.74 # fc # 1151 3543 4694 0.75 chaged after loading
-#
-# ft: large 6 classes f_mem1_bal4 (only fc trained.)
-# mo: 185 1999 2184 0.92
-# ss: 230 1954 2184 0.89 # norm
-# us: 495 1689 2184 0.77 # norm
-#
-# ft: large 9 classes f_mem1
-# mo: 100 2084 2184 0.95
-# ss: 382 1802 2184 0.83 # norm
-# us: 484 1700 2184 0.78 # norm
-#
-# small: 9 classes
-# mo: 104 2080 2184 0.95 # avgpool
-# ss: 403 1781 2184 0.82 # avgpool
-# ss: 432 1752 2184 0.80 # fc
-# us: 510 1674 2184 0.77 # avgpool
-# us: 503 1681 2184 0.77 # fc
-
-# 1092 1092 2184 # balanced data
-# 2313 2014 4327 # unbalance_1378

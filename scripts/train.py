@@ -316,7 +316,7 @@ if __name__ == "__main__":
     cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
     cfg.model.parameters.out_channels = len(cfg.labels_to_use)
     cfg.exp = 137  # "181"
-    cfg.save_path = "/home/fatemeh/Downloads/bird/result/1discover_2"
+    cfg.save_path = "/home/fatemeh/Downloads/bird/results/1discover_2"
     main(cfg)
     # fmt: on
 

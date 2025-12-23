@@ -12,7 +12,7 @@ seed = 1234
 exp = 107
 save_name = f"{exp}"
 width = 30
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
+save_path = Path("/home/fatemeh/Downloads/bird/results/")
 fail_path = save_path / f"failed/{save_name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 

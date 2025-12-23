@@ -338,7 +338,7 @@ cfg = dict(
     in_channe=4,
     width=30,
     n_classes=None,
-    checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/result"),
+    checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
     main_path=Path("/home/fatemeh/Downloads/bird/data/ssl/tmp"),
     save_path=Path("/home/fatemeh/Downloads/bird/data/ssl/stats"),
 )

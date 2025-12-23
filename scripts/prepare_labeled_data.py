@@ -114,7 +114,7 @@ for i in ["s", "j", "m", "w"]:  # ["combined"]:
 """
 # Visualize shift data
 df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
-save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+save_path = Path("/home/fatemeh/Downloads/bird/results/shift")
 glen = 20
 dt = 6011, "2015-04-30 09:10:31"
 dt = 6210, "2016-05-09 11:09:55"

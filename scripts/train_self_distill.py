@@ -265,9 +265,9 @@ transform = ContrastiveLearningViewGenerator(base_transform=transform, n_views=2
 cfg = dict(
     # # test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
     # data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
-    # # model_checkpoint=Path("/home/fatemeh/Downloads/bird/result/125_best.pth"),
+    # # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
     # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
-    # save_path=Path("/home/fatemeh/Downloads/bird/result/"),
+    # save_path=Path("/home/fatemeh/Downloads/bird/results/"),
     data_path=Path("/home/fkarimineja/data/bird/ssl20parquet"),
     model_checkpoint=Path("/home/fkarimineja/exps/bird/runs/p20_4_best.pth"),
     save_path=Path("/home/fkarimineja/exps/bird/runs"),

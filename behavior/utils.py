@@ -158,7 +158,7 @@ def generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20):
     >>> import pandas as pd
     >>> from pathlib import Path
     >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
-    >>> save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+    >>> save_path = Path("/home/fatemeh/Downloads/bird/results/shift")
     >>> glen = 20
     >>> dt = 6011, "2015-04-30 09:10:31"
     >>> ind2name = bdp.get_rules().ind2name

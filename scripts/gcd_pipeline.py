@@ -835,11 +835,11 @@ if __name__ == "__main__":
     cfg.lt_labels = cfg.trained_labels.copy()
     cfg.n_clusters = 10
     cfg.out_channel = len(cfg.trained_labels)
-    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/result/1discover_2/{exp}_best.pth")
+    cfg.model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth")
     cfg.model.name = "small"  # "small", "smallemb", "mae"
     cfg.model.channel_first = True # False
     cfg.layer_name = "fc"  # avgpool, fc, norm
-    cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/result")
+    cfg.save_path = Path(f"/home/fatemeh/Downloads/bird/results")
     cfg.use_unlabel = False
     cfg.data_file = Path("/home/fatemeh/Downloads/bird/data/ssl_mini")
     print(f"Experiment {exp}: Discover label {cfg.discover_labels}")

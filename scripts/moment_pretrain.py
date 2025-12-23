@@ -203,7 +203,7 @@ cfg = {
     # Result
     "seed": 42,
     "exp": "mpt_1",
-    "save_path": Path("/home/fatemeh/Downloads/bird/result"),
+    "save_path": Path("/home/fatemeh/Downloads/bird/results"),
     # "save_path": Path("/home/fkarimi/exps/bird"),
     # Data
     "data_path": Path("/home/fatemeh/Downloads/bird/data/ssl_mini"),

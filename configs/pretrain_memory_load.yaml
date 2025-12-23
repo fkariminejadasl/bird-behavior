@@ -38,8 +38,8 @@ layer_norm_eps: 1e-6
 # # gimus: read_csv_file("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv"
 # # gimus: read_csv_file("/home/fatemeh/Downloads/bird/ssl/tmp3/304.csv"
 # data_path: /home/fatemeh/Downloads/bird/data/ssl/parquetmini #/home/fatemeh/Downloads/bird/data/ssl/miniparquet.parquet #/home/fatemeh/Downloads/bird/data/ssl/mini # /home/fatemeh/Downloads/bird/data/ssl/final
-# save_path: "/home/fatemeh/Downloads/bird/result"
-# model_checkpoint: "" #"/home/fatemeh/Downloads/bird/result/p_mem7_best.pth" # "": when no checkpoint is used
+# save_path: "/home/fatemeh/Downloads/bird/results"
+# model_checkpoint: "" #"/home/fatemeh/Downloads/bird/results/p_mem7_best.pth" # "": when no checkpoint is used
 # # General
 # seed: 1234
 # exp: "p_mem13"

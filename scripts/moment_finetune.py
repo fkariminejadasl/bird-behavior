@@ -200,8 +200,8 @@ cfg = {
     # Result
     "seed": 42,
     "exp": "mft_1",
-    "save_path": Path("/home/fatemeh/Downloads/bird/result"),
-    "checkpoint_path": Path("/home/fatemeh/Downloads/bird/result/mpt_1_best.pth"),
+    "save_path": Path("/home/fatemeh/Downloads/bird/results"),
+    "checkpoint_path": Path("/home/fatemeh/Downloads/bird/results/mpt_1_best.pth"),
     # Data
     "data_file": Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
     "valid_file": None,

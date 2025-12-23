@@ -105,7 +105,7 @@ def print_dev_datetime(file_info):
 
 # Example usage
 # Folder containing the IMU images
-imu_folder = Path("/home/fatemeh/Downloads/bird/result/gt2/all")
+imu_folder = Path("/home/fatemeh/Downloads/bird/results/gt2/all")
 output_file = Path("/home/fatemeh/Desktop/tmp2.json")
 
 file_infos = get_file_info(imu_folder)

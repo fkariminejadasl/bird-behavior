@@ -556,7 +556,6 @@ def build_mae_vit_encoder_from_checkpoint(
         f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
     )
 
-    # bm.load_model("/home/fatemeh/Downloads/bird/result/f_mem1_bal116_best.pth", model, device)
     del pmodel, name, p, state_dict
     torch.cuda.empty_cache()
     print("model is loaded")

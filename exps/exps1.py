@@ -17,7 +17,7 @@ data_per = 1
 exp = 181
 labels_to_use = [0, 4, 5, 6]
 in_channel, width, n_classes = 4, 30, len(labels_to_use)
-save_path = Path("/home/fatemeh/Downloads/bird/result/")
+save_path = Path("/home/fatemeh/Downloads/bird/results/")
 data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
 
 save_name = f"{exp}"

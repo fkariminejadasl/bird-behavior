@@ -1,7 +1,7 @@
 # Paths
-save_path: "/home/fatemeh/Downloads/bird/result"
+save_path: "/home/fatemeh/Downloads/bird/results"
 data_file: "/home/fatemeh/Downloads/bird/data/final/combined_unique.csv" # old: /home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv
-model_checkpoint: "/home/fatemeh/Downloads/bird/result/p1_best.pth"
+model_checkpoint: "/home/fatemeh/Downloads/bird/results/p1_best.pth"
 # General
 seed: 1234
 exp: "f1"

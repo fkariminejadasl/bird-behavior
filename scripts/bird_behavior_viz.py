@@ -43,7 +43,7 @@ def test_confmat():
     labels_to_use = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     in_channel, width, n_classes = 4, 30, len(labels_to_use)
     data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
-    checkpoint_file = Path(f"/home/fatemeh/Downloads/bird/result/{exp}_best.pth")
+    checkpoint_file = Path(f"/home/fatemeh/Downloads/bird/results/{exp}_best.pth")
 
     bu.set_seed(seed)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -212,7 +212,7 @@ cfg = dict(
     in_channe=4,
     width=30,
     n_classes=None,
-    checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/result"),
+    checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
     database_url=None,
 )
 

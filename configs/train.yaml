@@ -1,5 +1,5 @@
 # Paths
-save_path: "/home/fatemeh/Downloads/bird/result"
+save_path: "/home/fatemeh/Downloads/bird/results"
 data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #final/proc2/train.csv #"final/s_data_shift/s_data_balanced_1.csv" # 
 valid_file: #/home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
 test_file: #/home/fatemeh/Downloads/bird/data/final/proc2/test.csv
