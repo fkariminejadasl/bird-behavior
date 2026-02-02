@@ -119,15 +119,33 @@ def save_grid(canvas, paths, save_path):
     canvas.save(save_path / f"{name}.pdf")  # convenient for LaTeX includegraphics
 
 
-# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
-fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp10")
-cols = 6
-DRW_RECT = True
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/embeddings/125")
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/embeddings/mae")
+fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/embeddings/moment")
+cols = 2
+DRW_RECT = False
+
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_cm_lp")
+# cols = 3
+# DRW_RECT = False
+
+# # fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp")
+# fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/all_tsne_lp10")
+# cols = 6
+# DRW_RECT = True
 # # fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_d0")
 # fig_path = Path("/home/fatemeh/Downloads/bird/results/paper/tsne_r0_d10")
 # cols = 2
 # DRW_RECT = False
 save_path = Path("/home/fatemeh/Downloads/bird/results/paper")
+
+# # only for: all_cm_lp
+# dsl_re = re.compile(r"_dsl(\d+)_")
+# paths = sorted(
+#     fig_path.glob("*.png"),
+#     key=lambda p: int(dsl_re.search(p.name).group(1))
+# )
+
 paths = sorted(fig_path.glob("*.png"))
 canvas = make_grid_custom(
     paths, cols=cols, cell_size=(640, 480), padding=0, bg="white", draw_rect=DRW_RECT

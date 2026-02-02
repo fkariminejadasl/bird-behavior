@@ -21,7 +21,9 @@ from behavior import model1d as bm1
 from behavior import utils as bu
 
 
-def setup_testing_dataloader(test_data_file, data_labels, channel_first):
+def setup_testing_dataloader(
+    test_data_file, data_labels, channel_first, collate_fn=None
+):
     df = pd.read_csv(test_data_file, header=None)
     df = df[df[3].isin(data_labels)]
     # GPS 2D speed smaller than 30 m/s
@@ -37,6 +39,7 @@ def setup_testing_dataloader(test_data_file, data_labels, channel_first):
         shuffle=False,
         num_workers=1,
         drop_last=False,
+        collate_fn=collate_fn,
     )
     print(all_measurements.shape)
     del all_measurements, label_ids
@@ -45,8 +48,6 @@ def setup_testing_dataloader(test_data_file, data_labels, channel_first):
 
 
 def get_activation(activation):
-    """Create a hook function that updates the given activation list."""
-
     def hook(model, input, output):
         activation.append(output.detach())
 
@@ -79,7 +80,7 @@ def compute_labeled_embeddings(loader, model, layer_to_hook, device):
                 output = output[1]
             if activation:
                 feats = activation.pop()
-                if cfg.layer_name != "fc":
+                if cfg.layer_name == "norm":
                     feats = feats[:, 0, :]  # B x L x embed_dim -> B x embed_dim
                 else:
                     feats = feats.flatten(1)  # B x embed_dim x 1 -> B x embed_dim
@@ -93,6 +94,29 @@ def compute_labeled_embeddings(loader, model, layer_to_hook, device):
     print(f"Embeddings are loaded in {end_time - start_time:.2f} seconds.")
     print(f"Embedding {feats.shape}, labels {labels.shape}, output {ouput.shape}")
     return feats, labels, ouput
+
+
+def compute_labeled_embeddings_moment(loader, model, device):
+    start_time = time.time()
+    with torch.no_grad():
+        for i, (batch_x, batch_masks, batch_labels) in tqdm(
+            enumerate(loader), total=len(loader)
+        ):
+            batch_x = batch_x.to(device)  # [batch_size, n_channels, seq_len]
+            batch_masks = batch_masks.to(device)  # [batch_size, seq_len]
+
+            # [batch_size, 512]
+            feats = model.embed(
+                x_enc=batch_x, input_mask=batch_masks, reduction="mean"
+            ).embeddings.squeeze()
+
+            labels = batch_labels.numpy()  # [batch_size]
+            feats = feats.detach().cpu().numpy()
+
+    end_time = time.time()
+    print(f"Embeddings are loaded in {end_time - start_time:.2f} seconds.")
+    print(f"Embedding {feats.shape}, labels {labels.shape}")
+    return feats, labels
 
 
 def plot_labeled_embeddings(reduced, labels, true_labels):
@@ -152,6 +176,7 @@ def classification_and_clustering(
 
 
 def main(cfg):
+    collate_fn = None
     # Load model
     if cfg.model.name == "smallemb":
         model = bm.BirdModelWithEmb(cfg.in_channel, 30, cfg.out_channel)
@@ -175,6 +200,34 @@ def main(cfg):
         )
         bm.load_model(cfg.model_checkpoint, model, device)
 
+    if cfg.model.name == "moment":
+        from momentfm import MOMENTPipeline
+
+        collate_fn = lambda b: bd.moment_bird_collate_fn(b, seq_len=cfg.seq_len)
+        model = MOMENTPipeline.from_pretrained(
+            "AutonLab/MOMENT-1-small",
+            model_kwargs={
+                "task_name": "reconstruction",
+                "freeze_encoder": False,  # Freeze the transformer encoder
+                "freeze_embedder": False,  # Freeze the patch embedding layer
+                "freeze_head": False,  # The linear forecasting head must be trained} # For imputation, we will load MOMENT in `reconstruction` mode
+                "enable_gradient_checkpointing": False,
+            },
+        )
+        model.init()
+        model.load_state_dict(
+            torch.load(cfg.model_checkpoint, weights_only=True)["model"], strict=True
+        )
+        # h = model.encoder.final_layer_norm.register_forward_hook(get_activation(act))
+        # act = []
+        # x = torch.randn(2, cfg.in_channel, cfg.g_len).to(device)
+        # model.to(device)
+        # model.eval()
+        # _ = model(x).reconstruction.squeeze()
+        # e2 = act[0].mean(dim=0).mean(dim=0)
+        # e = model.embed(x, reduction="mean").embeddings.squeeze()
+        # torch.equal(e, e2)
+
     if cfg.model.name == "vit":
         model = bm1.build_mae_vit_encoder_from_checkpoint(
             cfg.model_checkpoint, device, cfg
@@ -187,12 +240,18 @@ def main(cfg):
 
     # Prepare embeddings
     test_loader = setup_testing_dataloader(
-        cfg.test_data_file, cfg.data_labels, cfg.model.channel_first
+        cfg.test_data_file,
+        cfg.data_labels,
+        cfg.model.channel_first,
+        collate_fn=collate_fn,
     )
-    layer_to_hook = dict(model.named_modules())[cfg.layer_name]  # fc
-    feats, labels, output = compute_labeled_embeddings(
-        test_loader, model, layer_to_hook, device
-    )
+    if cfg.model.name == "moment":
+        feats, labels = compute_labeled_embeddings_moment(test_loader, model, device)
+    else:
+        layer_to_hook = dict(model.named_modules())[cfg.layer_name]
+        feats, labels, output = compute_labeled_embeddings(
+            test_loader, model, layer_to_hook, device
+        )
     print("Embeddings are computed")
 
     if cfg.save_path.exists() is False:
@@ -208,24 +267,30 @@ def main(cfg):
 
 
 def get_config():
-    exp = "self_distill_test"
+    exp = "moment"
     cfg = dict(
         data_labels=[0, 1, 2, 3, 4, 5, 6, 8, 9],
+        # model=dict(
+        #     name="moment",  # "small", "smallemb", "mae", "vit", "moment"
+        #     channel_first=True,  # False
+        # ),
         model=dict(
-            name="mae",  # "small", "smallemb", "mae", "vit"
-            channel_first=False,  # False
+            name="moment",  # "small", "vit", "moment", "smallemb", "mae"
+            channel_first=True,  # False
         ),
-        layer_name="fc",  # (avgpool, fc) small, (fc, norm) vit
+        layer_name="emb",  # (avgpool, fc) small, (fc, norm) vit, moment (emb) no hook
         save_path=Path("/home/fatemeh/Downloads/bird/results/embeddings_plot"),
         test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
         # model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
-        model_checkpoint=Path(
-            "/home/fatemeh/Downloads/bird/snellius/self_distill_1_best.pth"
-        ),
-        exp=exp,
-        channel_first=False,
+        # model_checkpoint=Path(
+        #     "/home/fatemeh/Downloads/bird/snellius/self_distill_1_best.pth"
+        # ),
+        model_checkpoint=Path("/home/fatemeh/Downloads/bird/hipster/mpt_1_best.pth"),
+        # exp=exp,
+        # scp -r fkarimi@hipster.science.uva.nl:/home/fkarimi/dev/bird-behavior/scripts/moment_pretrain.py /home/fatemeh/Downloads/bird/hipster/
+        # configs/ds.yaml, slurm/moment_test_hipster.slurm
         # model parameters
         # # small model
         # in_channel=4,
@@ -244,6 +309,8 @@ def get_config():
         mlp_ratio=4,
         drop=0.0,
         layer_norm_eps=1e-6,
+        # moment model
+        seq_len=32,
         # General
         seed=1234,
         num_workers=1,  # 17 (a_100), 15 (h_100)

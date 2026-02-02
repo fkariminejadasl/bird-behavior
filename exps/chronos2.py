@@ -163,18 +163,21 @@ def main(cfg):
 
     # fmt: off
     acts = acts.view(N, num_targets, T_tokens, d)  # [N, 4, T_tokens, 768]
-    # vecs = acts.mean(dim=(1, 2)).cpu().to(torch.float32).numpy() # [N, 768]
-    vecs = acts.mean(dim=2).reshape(N, -1).cpu().to(torch.float32).numpy() # [N, 4*768=3072]
+    vecs = acts.mean(dim=(1, 2)).cpu().to(torch.float32).numpy() # [N, 768]
+    # vecs = acts.mean(dim=2).reshape(N, -1).cpu().to(torch.float32).numpy() # [N, 4*768=3072]
     # fmt: on
 
-    pca = PCA(n_components=50, random_state=cfg.seed)
-    vecs_pca = pca.fit_transform(vecs)
+    # pca = PCA(n_components=50, random_state=cfg.seed)
+    # vecs_pca = pca.fit_transform(vecs)
     tsne = TSNE(n_components=2, random_state=cfg.seed)
-    r_vecs = tsne.fit_transform(vecs_pca)
+    # r_vecs = tsne.fit_transform(vecs_pca)
+    r_vecs = tsne.fit_transform(vecs)
     labels = df[3].iloc[::20].values
     true_labels = [ind2name[l] for l in data_labels]
 
     plot_embeddings(r_vecs, labels, true_labels)
+    results_file = cfg.results_path / f"chronos2.png"
+    plt.savefig(results_file, bbox_inches="tight")
     print("done")
 
     # """Simple classifier on learned representations"""
@@ -188,7 +191,7 @@ def main(cfg):
 
 cfg = dict(
     seed=12,
-    results_path=Path(f"/home/fatemeh/Downloads/bird/results/chronos2"),
+    results_path=Path(f"/home/fatemeh/Downloads/bird/results/embeddings_plot"),
     data_file="/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv",
 )
 cfg = OmegaConf.create(cfg)

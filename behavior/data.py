@@ -12,6 +12,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import psycopg2
+import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 
 """
@@ -236,9 +237,6 @@ def read_json_data(json_path: Union[Path, str]):
         all_measurements.append(measurements)
     all_measurements = np.array(all_measurements)
     return labels, label_ids, device_ids, time_stamps, all_measurements
-
-
-import torch
 
 
 class BirdDataset(Dataset):
@@ -1268,6 +1266,52 @@ def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
     sel_df = pd.concat(sel_df).reset_index(drop=True)
     return sel_df
     # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+def moment_bird_collate_fn(batch, seq_len=32):
+    """
+    batch: list of (data, label) tuples where
+      data is Tensor shaped (C, g_len)
+      label is Tensor shaped (…)
+    returns:
+      x_flat:    Tensor of shape (B, C, seq_len)
+      mask_flat: Tensor of shape (B, seq_len)
+      y_batch:   Tensor of shape (B, …)
+    """
+    # unpack
+    has_label = len(batch[0]) == 2
+    if has_label:
+        xs, ys = zip(*batch)
+    else:
+        xs = batch
+
+    # Stack into (B, C, g_len)
+    x = torch.stack(xs, dim=0)  # (B, C, g_len)
+    B, C, g_len = x.shape
+
+    # pad last dim L→seq_len
+    if g_len < seq_len:
+        # pad: (left, right) on final (L) dim
+        x = torch.nn.functional.pad(x, (0, seq_len - g_len), mode="constant", value=0)
+    # now x is (B, C, seq_len)
+
+    # flatten channels (B*C, 1, seq_len)
+    # x_flat = x.reshape(B * C, 1, seq_len)
+    x_flat = x  # (B, C, seq_len)
+
+    # build a single-channel 2D mask:
+    # 1 for real frames [0:g_len), 0 for padding [g_len:seq_len)
+    base_mask = x.new_ones(seq_len, dtype=torch.long)
+    base_mask[g_len:] = 0  # shape: (seq_len,)
+
+    # repeat for every (sample,channel) row -> (B*C, seq_len)
+    # mask_flat = base_mask.unsqueeze(0).repeat(B * C, 1)
+    mask_flat = base_mask.unsqueeze(0).repeat(B, 1)  # (B, seq_len)
+
+    if has_label:
+        y = torch.stack(ys, dim=0)[:, 0]
+        return x_flat, mask_flat, y
+    return x_flat, mask_flat
 
 
 # TODO to check and remove

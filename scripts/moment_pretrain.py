@@ -42,52 +42,6 @@ large: trainable params: 6,291,456 || all params: 347,539,976 || trainable%: 1.8
 """
 
 
-def bird_collate_fn(batch, seq_len=32):
-    """
-    batch: list of (data, label) tuples where
-      data is Tensor shaped (C, g_len)
-      label is Tensor shaped (…)
-    returns:
-      x_flat:    Tensor of shape (B, C, seq_len)
-      mask_flat: Tensor of shape (B, seq_len)
-      y_batch:   Tensor of shape (B, …)
-    """
-    # unpack
-    has_label = len(batch[0]) == 2
-    if has_label:
-        xs, ys = zip(*batch)
-    else:
-        xs = batch
-
-    # Stack into (B, C, g_len)
-    x = torch.stack(xs, dim=0)  # (B, C, g_len)
-    B, C, g_len = x.shape
-
-    # pad last dim L→seq_len
-    if g_len < seq_len:
-        # pad: (left, right) on final (L) dim
-        x = F.pad(x, (0, seq_len - g_len), mode="constant", value=0)
-    # now x is (B, C, seq_len)
-
-    # flatten channels (B*C, 1, seq_len)
-    # x_flat = x.reshape(B * C, 1, seq_len)
-    x_flat = x  # (B, C, seq_len)
-
-    # build a single-channel 2D mask:
-    # 1 for real frames [0:g_len), 0 for padding [g_len:seq_len)
-    base_mask = x.new_ones(seq_len, dtype=torch.long)
-    base_mask[g_len:] = 0  # shape: (seq_len,)
-
-    # repeat for every (sample,channel) row -> (B*C, seq_len)
-    # mask_flat = base_mask.unsqueeze(0).repeat(B * C, 1)
-    mask_flat = base_mask.unsqueeze(0).repeat(B, 1)  # (B, seq_len)
-
-    if has_label:
-        y = torch.stack(ys, dim=0)[:, 0]
-        return x_flat, mask_flat, y
-    return x_flat, mask_flat
-
-
 def read_csv_file(csv_file):
     gimus = []
     dis = []
@@ -281,7 +235,7 @@ train_loader = DataLoader(
     shuffle=True,
     num_workers=cfg.num_workers,
     drop_last=False,
-    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    collate_fn=lambda b: bd.moment_bird_collate_fn(b, seq_len=seq_len),
     # pin_memory=True,  # fast but more memory
 )
 val_loader = DataLoader(
@@ -290,7 +244,7 @@ val_loader = DataLoader(
     shuffle=False,
     num_workers=cfg.num_workers,
     drop_last=False,
-    collate_fn=lambda b: bird_collate_fn(b, seq_len=seq_len),
+    collate_fn=lambda b: bd.moment_bird_collate_fn(b, seq_len=seq_len),
     # pin_memory=True,  # fast but more memory
 )
 print(f"All: {gimus.shape}, Train: {len(train_dataset)}, valid: {len(val_dataset)}")
