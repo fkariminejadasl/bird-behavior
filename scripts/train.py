@@ -18,7 +18,7 @@ from behavior import data_augmentation as bau
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, new_label_inds, target_labels
+from behavior.utils import new_label_inds
 
 models = {
     "BirdModel": bm.BirdModel,
@@ -46,228 +46,280 @@ import wandb
 
 # wandb.init(project="small-bird", config=cfg_dict)
 
-# Set seed and device
-bu.set_seed(cfg.seed)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Use one of the augmentation. transforms.Compose use all the augmentations.
-transforms = tvt2.RandomChoice(
-    [
-        bau.RandomJitter(sigma=0.05),
-        bau.RandomScaling(sigma=0.05),
-        # bau.TimeWarp(sigma=0.05),
-        # bau.MagnitudeWarp(sigma=0.05, knot=4),
-    ]
-)
-transforms = None
+def main(cfg):
+    # Set seed and device
+    bu.set_seed(cfg.seed)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Prepare datasets
-if cfg.valid_file is not None:
-    train_dataset = bd.get_bird_dataset_from_csv(
-        cfg.data_file, cfg.labels_to_use, channel_first=True
+    # Use one of the augmentation. transforms.Compose use all the augmentations.
+    transforms = tvt2.RandomChoice(
+        [
+            bau.RandomJitter(sigma=0.05),
+            bau.RandomScaling(sigma=0.05),
+            # bau.TimeWarp(sigma=0.05),
+            # bau.MagnitudeWarp(sigma=0.05, knot=4),
+        ]
     )
-    eval_dataset = bd.get_bird_dataset_from_csv(
-        cfg.valid_file, cfg.labels_to_use, channel_first=True
-    )
-else:
-    print("No validation file provided, using train dataset for evaluation.")
-    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-        cfg.data_file,
-        cfg.train_per,
-        cfg.data_per,
-        cfg.labels_to_use,
-        channel_first=True,
-        transforms=transforms,
-    )
+    transforms = None
 
-# Build the sampler: inversely weight by class frequency
-labels = train_dataset.ldts[:, 0]
-class_counts = torch.bincount(torch.tensor(labels))
-class_weights = 1.0 / class_counts.float()
-sample_weights = class_weights[labels]  # one weight per sample
-sampler = WeightedRandomSampler(
-    weights=sample_weights, num_samples=len(sample_weights), replacement=True
-)
-
-batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=batch_size,
-    # sampler=sampler,
-    shuffle=True,
-    num_workers=cfg.num_workers,
-    drop_last=False,
-)
-eval_loader = DataLoader(
-    eval_dataset,
-    batch_size=len(eval_dataset),
-    shuffle=False,
-    num_workers=cfg.num_workers,
-    drop_last=False,
-)
-
-# Model setup
-# Number of input channels
-in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-
-if cfg.model.name not in models:
-    raise ValueError(f"Unknown model name: {cfg.model_name}")
-model = models[cfg.model.name](**cfg.model.parameters).to(device)
-print(cfg.model.name)
-
-# bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
-
-
-# Loss function and optimizer
-if cfg.use_weighted_loss:
-    weights = bd.get_labels_weights(new_label_inds)
-    criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
-else:
-    criterion = torch.nn.CrossEntropyLoss()
-
-# Select optimizer based on configuration
-if cfg.optimizer_name == "AdamW":
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
-    )
-else:
-    raise ValueError(f"Unknown optimizer name: {cfg.optimizer_name}")
-
-# Select scheduler based on configuration
-if cfg.scheduler_name == "StepLR":
-    scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=cfg.step_size, gamma=0.1
-    )
-elif cfg.scheduler_name == "CosineAnnealingLR":
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=cfg.no_epochs, eta_min=cfg.min_lr
-    )
-elif cfg.scheduler_name == "CosineAnnealingWarmRestarts":
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-        optimizer, cfg.warmup_epochs, eta_min=cfg.min_lr
-    )
-elif cfg.scheduler_name == "SequentialLR":
-    warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer, start_factor=0.1, end_factor=1, total_iters=cfg.warmup_epochs
-    )
-    main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=cfg.no_epochs - cfg.warmup_epochs, eta_min=cfg.min_lr
-    )
-    scheduler = torch.optim.lr_scheduler.SequentialLR(
-        optimizer,
-        schedulers=[warmup_lr_scheduler, main_lr_scheduler],
-        milestones=[cfg.warmup_epochs],
-    )
-else:
-    raise ValueError(f"Unknown scheduler name: {cfg.scheduler_name}")
-
-# Print dataset sizes and device
-len_train, len_eval = len(train_dataset), len(eval_dataset)
-print(
-    f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
-    f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
-)
-# """
-# Training loop
-best_accuracy = 0
-with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
-    for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
-        # tqdm.tqdm(range(4001, no_epochs + 1)): # start from a checkpoint
-        start_time = datetime.now()
-        print(f"Start time: {start_time}")
-
-        # Train for one epoch
-        bm.train_one_epoch(
-            train_loader,
-            model,
-            criterion,
-            device,
-            epoch,
-            cfg.no_epochs,
-            writer,
-            optimizer,
+    # Prepare datasets
+    if cfg.valid_file is not None:
+        # The transform is not implemented here.
+        train_dataset = bd.get_bird_dataset_from_csv(
+            cfg.data_file, cfg.labels_to_use, channel_first=True
         )
-        accuracy = bm.evaluate(
-            eval_loader, model, criterion, device, epoch, cfg.no_epochs, writer
+        eval_dataset = bd.get_bird_dataset_from_csv(
+            cfg.valid_file, cfg.labels_to_use, channel_first=True
+        )
+    else:
+        print("No validation file provided, using train dataset for evaluation.")
+        # train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+        #     cfg.data_file,
+        #     cfg.train_per,
+        #     cfg.data_per,
+        #     cfg.labels_to_use,
+        #     channel_first=True,
+        #     transforms=transforms,
+        # )
+
+        # Stratified split: ensures each class is represented with the same ratio
+        # Note: This implementation is suboptimal—data flows through pandas (read),
+        # PyTorch (stratified split), and then back to NumPy (for dataset creation).
+        igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=20)
+        igs = torch.tensor(igs, device=device)
+        ldts = torch.tensor(ldts, device=device)
+        split_ratios = [cfg.train_per, 1 - cfg.train_per]
+        splits = bu.stratified_split(
+            ldts[:, 0], split_ratios=split_ratios, seed=cfg.seed
+        )
+        idx1, idx2 = splits[0], splits[1]
+        igs_train = igs[idx1].cpu().numpy()
+        igs_eval = igs[idx2].cpu().numpy()
+        ldts_train = ldts[idx1].cpu().numpy()
+        ldts_valid = ldts[idx2].cpu().numpy()
+        train_dataset = bd.BirdDataset(
+            igs_train, ldts_train, transforms, channel_first=True
+        )
+        eval_dataset = bd.BirdDataset(
+            igs_eval, ldts_valid, transforms, channel_first=True
         )
 
-        end_time = datetime.now()
-        print(f"End time: {end_time}, Elapsed time: {end_time - start_time}")
+    # Build the sampler: inversely weight by class frequency
+    labels = train_dataset.ldts[:, 0]
+    class_counts = torch.bincount(torch.tensor(labels))
+    class_weights = 1.0 / class_counts.float()
+    sample_weights = class_weights[labels]  # one weight per sample
+    sampler = WeightedRandomSampler(
+        weights=sample_weights, num_samples=len(sample_weights), replacement=True
+    )
 
-        # Update scheduler and log learning rates
-        scheduler.step()
-        lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
-        lr_sched = scheduler.get_last_lr()[0]
-        writer.add_scalar("lr/optim", lr_optim, epoch)
-        writer.add_scalar("lr/sched", lr_sched, epoch)
-        print(
-            f"Optimizer LR: {optimizer.param_groups[-1]['lr']:.6f}, "
-            f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
-        )
-
-        # Save model at intervals
-        if epoch % cfg.save_every == 0:
-            bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
-        # Save best model
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            # 1-based save for epoch
-            bm.save_model(
-                cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler, best=True
-            )
-            print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
-
-
-# Save the final model
-# 1-based save for epoch
-bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
-# """
-
-bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
-model.eval()
-name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
-fail_path = cfg.save_path / f"failed/{name}"
-fail_path.mkdir(parents=True, exist_ok=True)
-
-datasets = dict()
-if cfg.valid_file is not None:
-    data_files = {
-        "train": cfg.data_file,
-        "valid": cfg.valid_file,
-        "test": cfg.test_file,
-    }
-    for stage, data_file in data_files.items():
-        if data_file is not None:
-            # del eval_loader, train_loader, train_dataset, eval_dataset
-            dataset = bd.get_bird_dataset_from_csv(
-                data_file, cfg.labels_to_use, channel_first=True
-            )
-            datasets[stage] = dataset
-
-else:
-    datasets = {"train": train_dataset, "valid": eval_dataset}
-
-for stage, dataset in datasets.items():
-    loader = DataLoader(
-        dataset,
-        batch_size=len(dataset),
+    batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        # sampler=sampler,
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+    )
+    eval_loader = DataLoader(
+        eval_dataset,
+        batch_size=len(eval_dataset),
         shuffle=False,
         num_workers=cfg.num_workers,
         drop_last=False,
     )
-    data, ldts = next(iter(loader))
-    bu.helper_results(
-        data,
-        ldts,
-        model,
-        criterion,
-        device,
-        fail_path,
-        bu.target_labels_names,
-        n_classes,
-        stage=stage,
-        SAVE_FAILED=False,
+
+    # Model setup
+    # Number of input channels
+    in_channel = train_dataset[0][0].shape[0]  # 3 or 4
+
+    if cfg.model.name not in models:
+        raise ValueError(f"Unknown model name: {cfg.model_name}")
+    model = models[cfg.model.name](**cfg.model.parameters).to(device)
+    print(cfg.model.name)
+
+    # bm.load_model(save_path / f"{exp}_4000.pth", model, device) # start from a checkpoint
+
+    # Loss function and optimizer
+    if cfg.use_weighted_loss:
+        weights = bd.get_labels_weights(new_label_inds)
+        criterion = torch.nn.CrossEntropyLoss(torch.tensor(weights).to(device))
+    else:
+        criterion = torch.nn.CrossEntropyLoss()
+
+    # Select optimizer based on configuration
+    if cfg.optimizer_name == "AdamW":
+        optimizer = torch.optim.AdamW(
+            model.parameters(), lr=cfg.max_lr, weight_decay=cfg.weight_decay
+        )
+    else:
+        raise ValueError(f"Unknown optimizer name: {cfg.optimizer_name}")
+
+    # Select scheduler based on configuration
+    if cfg.scheduler_name == "StepLR":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=cfg.step_size, gamma=0.1
+        )
+    elif cfg.scheduler_name == "CosineAnnealingLR":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=cfg.no_epochs, eta_min=cfg.min_lr
+        )
+    elif cfg.scheduler_name == "CosineAnnealingWarmRestarts":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, cfg.warmup_epochs, eta_min=cfg.min_lr
+        )
+    elif cfg.scheduler_name == "SequentialLR":
+        warmup_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=0.1, end_factor=1, total_iters=cfg.warmup_epochs
+        )
+        main_lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=cfg.no_epochs - cfg.warmup_epochs, eta_min=cfg.min_lr
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup_lr_scheduler, main_lr_scheduler],
+            milestones=[cfg.warmup_epochs],
+        )
+    else:
+        raise ValueError(f"Unknown scheduler name: {cfg.scheduler_name}")
+
+    # Print dataset sizes and device
+    len_train, len_eval = len(train_dataset), len(eval_dataset)
+    print(
+        f"Device: {device}, Train samples: {len_train:,}, Validation samples: {len_eval:,}, "
+        f"Train loader batches: {len(train_loader)}, Eval loader batches: {len(eval_loader)}"
     )
+    # """
+    # Training loop
+    best_accuracy = 0
+    with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
+        for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
+            # tqdm.tqdm(range(4001, no_epochs + 1)): # start from a checkpoint
+            start_time = datetime.now()
+            print(f"Start time: {start_time}")
+
+            # Train for one epoch
+            bm.train_one_epoch(
+                train_loader,
+                model,
+                criterion,
+                device,
+                epoch,
+                cfg.no_epochs,
+                writer,
+                optimizer,
+            )
+            accuracy = bm.evaluate(
+                eval_loader, model, criterion, device, epoch, cfg.no_epochs, writer
+            )
+
+            end_time = datetime.now()
+            print(f"End time: {end_time}, Elapsed time: {end_time - start_time}")
+
+            # Update scheduler and log learning rates
+            scheduler.step()
+            lr_optim = round(optimizer.param_groups[-1]["lr"], 6)
+            lr_sched = scheduler.get_last_lr()[0]
+            writer.add_scalar("lr/optim", lr_optim, epoch)
+            writer.add_scalar("lr/sched", lr_sched, epoch)
+            print(
+                f"Optimizer LR: {optimizer.param_groups[-1]['lr']:.6f}, "
+                f"Scheduler LR: {scheduler.get_last_lr()[0]:.6f}"
+            )
+
+            # Save model at intervals
+            # if epoch % cfg.save_every == 0:
+            #     bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+            # Save best model
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                # 1-based save for epoch
+                bm.save_model(
+                    cfg.save_path,
+                    cfg.exp,
+                    epoch,
+                    model,
+                    optimizer,
+                    scheduler,
+                    best=True,
+                )
+                print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
+
+    # Save the final model
+    # 1-based save for epoch
+    # bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+    # """
+
+    bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
+    model.eval()
+    name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
+    fail_path = cfg.save_path / f"failed/{name}"
+    fail_path.mkdir(parents=True, exist_ok=True)
+
+    datasets = dict()
+    if cfg.valid_file is not None:
+        data_files = {
+            "train": cfg.data_file,
+            "valid": cfg.valid_file,
+            "test": cfg.test_file,
+        }
+        for stage, data_file in data_files.items():
+            if data_file is not None:
+                # del eval_loader, train_loader, train_dataset, eval_dataset
+                dataset = bd.get_bird_dataset_from_csv(
+                    data_file, cfg.labels_to_use, channel_first=True
+                )
+                datasets[stage] = dataset
+
+    else:
+        datasets = {"train": train_dataset, "valid": eval_dataset}
+
+    for stage, dataset in datasets.items():
+        loader = DataLoader(
+            dataset,
+            batch_size=len(dataset),
+            shuffle=False,
+            num_workers=cfg.num_workers,
+            drop_last=False,
+        )
+        label_names = [bu.ind2name[i] for i in cfg.labels_to_use]
+        data, ldts = next(iter(loader))
+        probs, preds, labels, loss, accuracy = bu.evaluate(
+            data, ldts, model, criterion, device
+        )
+        bu.save_confusion_matrix_other_stats(
+            probs,
+            preds,
+            labels,
+            loss,
+            accuracy,
+            fail_path,
+            label_names,
+            len(cfg.labels_to_use),
+            stage=stage,
+        )
+
+
+def get_config():
+    return cfg
+
+
+if __name__ == "__main__":
+    # fmt: off
+    cfg.seed = 1234
+    cfg.train_per = 0.5
+    cfg.no_epochs = 2000
+    exclude = {2}  # {2}  # {1, 8}
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
+    cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+    cfg.exp = 137  # "181"
+    cfg.save_path = "/home/fatemeh/Downloads/bird/results/1discover_2"
+    main(cfg)
+    # fmt: on
+
 
 """
 from copy import deepcopy

@@ -1,4 +1,7 @@
+import csv
+import gc
 import json
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -9,7 +12,8 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import psycopg2
-from torch.utils.data import Dataset
+import torch
+from torch.utils.data import DataLoader, Dataset, random_split
 
 """
 about data:
@@ -235,14 +239,11 @@ def read_json_data(json_path: Union[Path, str]):
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
-import torch
-
-
 class BirdDataset(Dataset):
     def __init__(
         self,
-        all_measurements: np.ndarray,
-        ldts: np.ndarray = None,
+        all_measurements: np.ndarray,  # NxLxC
+        ldts: np.ndarray = None,  # Nx3
         transform=None,
         channel_first=True,
     ):
@@ -254,6 +255,9 @@ class BirdDataset(Dataset):
         self.data = all_measurements.copy()  # NxLxC C=4
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
+        # mean  = self.data.mean(axis=(0,1))                      # [C]
+        # std = np.maximum(self.data.std(axis=(0,1)), 1e-6)
+        # self.data = (self.data - mean[None, None, :]) / (std[None, None, :] + 1e-8)
         self.data = self.data.astype(np.float32)
 
         self.has_label = ldts is not None  # Check if labels are provided
@@ -280,6 +284,51 @@ class BirdDataset(Dataset):
 
         if self.has_label:
             ldt = torch.from_numpy(self.ldts[ind]).long()  # 3 torch
+            # ldt = self.ldts[ind]  # 3 numpy
+            return data, ldt  # Return both data and label
+        else:
+            return data
+
+
+class BirdDatasetNoNorm(Dataset):
+    def __init__(
+        self,
+        all_measurements: np.ndarray,  # NxLxC
+        ldts: np.ndarray = None,  # Nx3
+        transform=None,
+        channel_first=True,
+    ):
+        """
+        dtype: all_measurements np.float32
+        dtype: ldts np.int64 or None (if no labels are provided)
+        :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
+        """
+        # data: NxLxC C=4
+        self.data = np.ascontiguousarray(all_measurements, dtype=np.float32)
+
+        self.has_label = ldts is not None  # Check if labels are provided
+        if self.has_label:
+            self.ldts = np.ascontiguousarray(ldts, dtype=np.int64)  # Nx3
+
+        self.transform = transform
+        self.channel_first = channel_first  # Flag for channel arrangement
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, ind):
+        data = self.data[ind]  # LxC
+
+        data = torch.from_numpy(data)  # torch
+        if self.transform:
+            data = self.transform(data)
+
+        # Rearrange channels if channel_first is True
+        if self.channel_first:
+            data = data.transpose(1, 0)  # LxC -> CxL
+
+        if self.has_label:
+            ldt = torch.from_numpy(self.ldts[ind])  # 3 torch
             # ldt = self.ldts[ind]  # 3 numpy
             return data, ldt  # Return both data and label
         else:
@@ -379,53 +428,6 @@ def load_all_data_from_json(json_file):
     return all_measurements.astype(np.float64), label_device_times.astype(np.int64)
 
 
-def shuffle_data(gimus, idts):
-    inds = np.arange(gimus.shape[0])
-    np.random.shuffle(inds)
-    gimus = gimus[inds]
-    idts = idts[inds]
-    return gimus.astype(np.float64), idts.astype(np.int64)
-
-
-def reindex_ids(ldts):
-    unique_ids = set(ldts[:, 0])
-    new_ldts = ldts.copy()
-    for i, unique_id in enumerate(unique_ids):
-        new_ldts[ldts[:, 0] == unique_id, 0] = i
-    return new_ldts
-
-
-def get_specific_labesl(all_measurements, ldts, labels_to_use):
-    """
-    e.g. labels_to_use=[0, 2, 4, 5]
-    """
-    agps_imus = np.empty(shape=(0, 20, 4))
-    new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
-    for i in labels_to_use:
-        agps_imus = np.concatenate(
-            (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
-        )
-        new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
-
-    inds = np.arange(new_ldts.shape[0])
-    np.random.shuffle(inds)
-    agps_imus = agps_imus[inds]
-    new_ldts = new_ldts[inds]
-    new_ldts = reindex_ids(new_ldts)
-    return agps_imus, new_ldts
-
-
-def combine_specific_labesl(ldts, target_labels):
-    """
-    e.g. target_labels=[0, 2, 4, 5]
-    """
-    new_id = target_labels[0]
-    new_ldts = ldts.copy()
-    for i in target_labels:
-        new_ldts[ldts[:, 0] == i] = new_id
-    return new_ldts
-
-
 def query_database_improved(database_url, sql_query, retries=5, delay=5):
     """
     Execute a SQL query and return the results with retry logic.
@@ -433,17 +435,26 @@ def query_database_improved(database_url, sql_query, retries=5, delay=5):
     This was due to this error message:
     Error processing device 298, date 2010-06-30 10:27:01: canceling statement due to conflict with recovery
     DETAIL:  User query might have needed to see row versions that must be removed.
+
+    options: Passes PostgreSQL session parameters at connection time.
+    - statement_timeout=60000  Cancels any SQL statement that runs longer than 60 seconds.
+    - lock_timeout=5000  Cancels queries waiting more than 5 seconds to acquire a lock.
+    - idle_in_transaction_session_timeout=60000  Terminates a session left idle inside a transaction for more than 60 seconds.
     """
     for attempt in range(retries):
         try:
-            connection = psycopg2.connect(database_url)
+            # Add Postgres timeouts (so a single slow query can’t hang a worker)
+            connection = psycopg2.connect(
+                database_url,
+                options="-c statement_timeout=60000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000",
+            )
             cursor = connection.cursor()
             cursor.execute(sql_query)
             result = cursor.fetchall()
             cursor.close()
             connection.close()
             return result
-        except psycopg2.OperationalError as e:
+        except (psycopg2.OperationalError, psycopg2.errors.QueryCanceled) as e:
             if "canceling statement due to conflict with recovery" in str(e):
                 if attempt < retries - 1:
                     print(
@@ -494,9 +505,19 @@ def query_database(database_url, sql_query):
     order by date_time, index
 
     >>> results = query_database(database_url, sql_query)
+
+    options: Passes PostgreSQL session parameters at connection time.
+    - statement_timeout=60000  Cancels any SQL statement that runs longer than 60 seconds.
+    - lock_timeout=5000  Cancels queries waiting more than 5 seconds to acquire a lock.
+    - idle_in_transaction_session_timeout=60000  Terminates a session left idle inside a transaction for more than 60 seconds.
+    """
     '''
     # connection = psycopg2.connect(dbname=database_name, user=username, password=password, host=host, port=port)
-    connection = psycopg2.connect(database_url)
+    # Add Postgres timeouts (so a single slow query can’t hang a worker)
+    connection = psycopg2.connect(
+        database_url,
+        options="-c statement_timeout=60000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000",
+    )
     cursor = connection.cursor()
     cursor.execute(sql_query)
     result = cursor.fetchall()
@@ -508,6 +529,12 @@ def query_database(database_url, sql_query):
 def fetch_calibration_data(database_url, device_id):
     """
     Fetch calibration IMU values from the database.
+
+    Returns
+    -------
+    list[float]
+        Calibration values: [x_o, x_s, y_o, y_s, z_o, z_s].
+        example: [124.8, 1275.7, 25.6, 1335.7, -14.1, 1331.9]
     """
     sql_query = f"""
     SELECT *
@@ -523,6 +550,13 @@ def fetch_calibration_data(database_url, device_id):
 def fetch_gps_data(database_url, device_id, start_time, end_time):
     """
     Fetch GPS data from the database.
+    `date_time, speed_2d, latitude, longitude, altitude, temperature
+
+    Returns
+    -------
+    list[list]
+        Each list contains [timestamp (int), speed_2d, latitude, longitude, altitude, temperature].
+        example: [[1277920912, 0.053851636230134343, 53.0082892, 4.7180608, 5, None], ...]
     """
     sql_query = f"""
     SELECT *
@@ -551,6 +585,12 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
 def fetch_imu_data(database_url, device_id, start_time, end_time):
     """
     Fetch IMU data from the database.
+
+    Returns
+    -------
+    list[tuple]
+        Each tuple contains IMU data for a specific timestamp and index.
+        example: [(311, datetime.datetime(2010, 6, 30, 18, 1, 52), 0, 35, 92, 1317), ...]
     """
     sql_query = f"""
     SELECT *
@@ -706,6 +746,47 @@ def format_sensor_data(groups, device_id):
     return np.array(igs), np.array(idts, dtype=np.int64), llat
 
 
+def calibrate_imu_data(imu_data, calibration_values):
+    """
+    Calibrate IMU data using the provided calibration values.
+
+    Parameters
+    ----------
+    imu_data : list[tuple]
+        Raw IMU data. e.g. (311, datetime.datetime(2010, 6, 30, 18, 1, 52), 0, 35, 92, 1317)
+    calibration_values : list[float]
+        Calibration values for the IMU data. e.g. [124.8, 1275.7, 25.6, 1335.7, -14.1, 1331.9]
+
+    Returns
+    -------
+    list[list]
+        Calibrated IMU data.
+        e.g. [[0, 1277920912, -0.07039273, 0.04971176, 0.99939935], ...]
+    """
+    # indices are zero-based
+    indices = [result[2] for result in imu_data]
+    if indices[0] == 1:  #
+        indices = [ind - 1 for ind in indices]
+    timestamps = [
+        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
+    ]
+    imus = [
+        np.round(raw2meas(*result[-3:], *calibration_values), 8) for result in imu_data
+    ]
+    data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
+    return data
+
+
+def combine_sensor_data(calibrated_imu_data, gps_data, device_id, glen):
+    groups = identify_and_process_groups(calibrated_imu_data, glen)
+
+    matched_groups = match_gps_to_groups(groups, gps_data)
+    if len(matched_groups) == 0:
+        raise ValueError("No matching IMU and GPS data found")
+
+    return format_sensor_data(matched_groups, device_id)
+
+
 def get_data(database_url, device_id, start_time, end_time, glen=20):
     """
     Retrieve sensor data from a specified database within a given time range.
@@ -758,24 +839,9 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
     imu_data = fetch_imu_data(database_url, device_id, start_time, end_time)
 
-    # indices are zero-based
-    indices = [result[2] for result in imu_data]
-    if indices[0] == 1:  #
-        indices = [ind - 1 for ind in indices]
-    timestamps = [
-        int(result[1].replace(tzinfo=timezone.utc).timestamp()) for result in imu_data
-    ]
-    imus = [
-        np.round(raw2meas(*result[-3:], *calibration_values), 8) for result in imu_data
-    ]
-    data = [[i, t, *imu] for i, t, imu in zip(indices, timestamps, imus)]
-    groups = identify_and_process_groups(data, glen)
+    cal_imu_data = calibrate_imu_data(imu_data, calibration_values)
 
-    matched_groups = match_gps_to_groups(groups, gps_data)
-    if len(matched_groups) == 0:
-        raise ValueError("No matching IMU and GPS data found")
-
-    return format_sensor_data(matched_groups, device_id)
+    return combine_sensor_data(cal_imu_data, gps_data, device_id, glen)
 
 
 def random_time_between(start_time_str, end_time_str, time_format="%Y-%m-%d %H:%M:%S"):
@@ -881,6 +947,58 @@ def append_to_csv(save_file, gimus, idts):
             rfile.write(item)
 
 
+def save_specific_labels(data_file, save_file, keep_labels):
+    """
+    Keeping only specified classes
+
+    data_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
+    save_file: str, Path
+        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
+    keep_labels : list of int
+        List of class labels to retain in the dataset.
+        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
+
+    Replace: get_specific_labesl and similar but not completely to load_csv_pandas
+    """
+
+    df = pd.read_csv(data_file, header=None)
+    df = pd.concat([df[df[3] == i] for i in keep_labels])
+    df = df.reset_index(drop=True)
+    # for i, j in enumerate(keep_labels):
+    #     df.loc[df[3] == j, 3] = i
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+def load_csv_pandas(data_file, labels_to_use, glen=20):
+    """
+    data_file: e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
+    e.g. labels_to_use = [0, 4, 5, 6]
+
+    Replace:
+    igs, ldts = bd.load_csv(data_file)
+    igs, ldts = bd.get_specific_labesl(igs, ldts, labels_to_use)
+    """
+
+    df = pd.read_csv(data_file, header=None)
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
+    df = df[df[3].isin(labels_to_use)].reset_index(drop=True)
+    present = sorted(df[3].unique())
+    df[3] = df[3].map({lab: i for i, lab in enumerate(present)})
+    df["ts"] = (
+        pd.to_datetime(df[1], format="%Y-%m-%d %H:%M:%S", utc=True).astype(
+            "int64"
+        )  # nanoseconds as int64
+        // 1_000_000_000  # convert to seconds
+    )
+    igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
+    ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
+    return igs, ldts[:, 0, :]
+
+
 def load_csv(csv_file, g_len=20):
     """
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205
@@ -909,6 +1027,53 @@ def load_csv(csv_file, g_len=20):
     igs = np.array(igs).astype(np.float64).reshape(-1, g_len, 4)
     ldts = np.array(ldts).astype(np.int64).reshape(-1, g_len, 3)[:, 0, :]
     return igs, ldts
+
+
+def shuffle_data(gimus, idts):
+    inds = np.arange(gimus.shape[0])
+    np.random.shuffle(inds)
+    gimus = gimus[inds]
+    idts = idts[inds]
+    return gimus.astype(np.float64), idts.astype(np.int64)
+
+
+def reindex_ids(ldts):
+    unique_ids = sorted(set(ldts[:, 0]))  # sorted added in commit: 11a07d5
+    new_ldts = ldts.copy()
+    for i, unique_id in enumerate(unique_ids):
+        new_ldts[ldts[:, 0] == unique_id, 0] = i
+    return new_ldts
+
+
+def get_specific_labesl(all_measurements, ldts, labels_to_use):
+    """
+    e.g. labels_to_use=[0, 2, 4, 5]
+    """
+    agps_imus = np.empty(shape=(0, 20, 4))
+    new_ldts = np.empty(shape=(0, 3), dtype=np.int64)
+    for i in labels_to_use:
+        agps_imus = np.concatenate(
+            (agps_imus, all_measurements[ldts[:, 0] == i]), axis=0
+        )
+        new_ldts = np.concatenate((new_ldts, ldts[ldts[:, 0] == i]), axis=0)
+
+    inds = np.arange(new_ldts.shape[0])
+    np.random.shuffle(inds)
+    agps_imus = agps_imus[inds]
+    new_ldts = new_ldts[inds]
+    new_ldts = reindex_ids(new_ldts)
+    return agps_imus, new_ldts
+
+
+def combine_specific_labesl(ldts, target_labels):
+    """
+    e.g. target_labels=[0, 2, 4, 5]
+    """
+    new_id = target_labels[0]
+    new_ldts = ldts.copy()
+    for i in target_labels:
+        new_ldts[ldts[:, 0] == i] = new_id
+    return new_ldts
 
 
 def load_filter_shuffle(data_file, labels_to_use):
@@ -955,20 +1120,6 @@ def prepare_train_valid_dataset(
     train_dataset = BirdDataset(train_imugs, train_ldts, transforms, channel_first)
     eval_dataset = BirdDataset(valid_imugs, valid_ldts, transforms, channel_first)
 
-    # train_size = int(train_per * len(dataset))
-    # val_size = len(dataset) - train_size
-    # train_dataset, eval_dataset = random_split(dataset, [train_size, val_size], generator)
-
-    # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_200").glob("part*")
-    # csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-    # csv_files = [str(csv_file) for csv_file in csv_files]
-
-    # # csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
-    # # dataset = bd.BirdDataset2(
-    # #     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
-    # # )
-    # dataset = bd.BirdDataset3(csv_files)
-
     print(
         len(train_ldts),
         len(valid_ldts),
@@ -977,6 +1128,64 @@ def prepare_train_valid_dataset(
     )
 
     return train_dataset, eval_dataset
+
+
+def load_gimu_data(cfg):
+    gimus = []
+    parquet_files = cfg.data_path.glob("*.parquet")
+    for parquet_file in parquet_files:
+        df = pd.read_parquet(parquet_file)
+        data = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+        print(parquet_file.stem, data.shape)
+        gimus.append(data)
+    gimus = np.vstack(gimus)
+
+    # free memory
+    del df, data
+    gc.collect()
+    # df = pd.read_parquet(cfg.data_path)
+    # gimus = np.vstack(df["gimu"].apply(lambda x: x.reshape(-1, 20, 4)))
+    # gimus = read_csv_files(cfg.data_path)
+    # gimus = gimus.reshape(-1, cfg.g_len, cfg.in_channel)
+    gimus = np.ascontiguousarray(gimus)
+    print(gimus.shape)
+    return gimus
+
+
+def prepare_dataloaders(dataset, cfg):
+    # Calculate the sizes for training and validation datasets
+    train_size = int(cfg.train_per * cfg.data_per * len(dataset))
+    val_size = len(dataset) - train_size
+    generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
+    train_dataset, eval_dataset = random_split(
+        dataset, [train_size, val_size], generator=generator
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=min(cfg.batch_size, len(train_dataset)),
+        shuffle=True,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+        pin_memory=True,  # fast but more memory
+    )
+    eval_loader = DataLoader(
+        eval_dataset,
+        batch_size=min(cfg.batch_size, len(eval_dataset)),
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        drop_last=False,
+        pin_memory=True,
+    )
+
+    len_data, len_train, len_eval = len(dataset), len(train_dataset), len(eval_dataset)
+
+    print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
+    print(
+        f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
+        train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
+    )
+    return train_loader, eval_loader
 
 
 def balance_data(data_file, save_file, keep_labels):
@@ -1059,25 +1268,50 @@ def create_balanced_data(df, keep_labels, n_samples=None, glen=20):
     # sel_df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
-# TODO replace get_specific_labesl
-def save_specific_labels(data_file, save_file, keep_labels):
+def moment_bird_collate_fn(batch, seq_len=32):
     """
-    Keeping only specified classes
+    batch: list of (data, label) tuples where
+      data is Tensor shaped (C, g_len)
+      label is Tensor shaped (…)
+    returns:
+      x_flat:    Tensor of shape (B, C, seq_len)
+      mask_flat: Tensor of shape (B, seq_len)
+      y_batch:   Tensor of shape (B, …)
+    """
+    # unpack
+    has_label = len(batch[0]) == 2
+    if has_label:
+        xs, ys = zip(*batch)
+    else:
+        xs = batch
 
-    data_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv"
-    save_file: str, Path
-        e.g. "/home/fatemeh/Downloads/bird/data/final/balanced.csv"
-    keep_labels : list of int
-        List of class labels to retain in the dataset.
-        Example: [0, 2, 4, 5, 6, 9]  # removed: [1, 3, 7, 8]
-    """
-    df = pd.read_csv(data_file, header=None)
-    df = pd.concat([df[df[3] == i] for i in keep_labels])
-    df = df.reset_index(drop=True)
-    # for i, j in enumerate(keep_labels):
-    #     df.loc[df[3] == j, 3] = i
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # Stack into (B, C, g_len)
+    x = torch.stack(xs, dim=0)  # (B, C, g_len)
+    B, C, g_len = x.shape
+
+    # pad last dim L→seq_len
+    if g_len < seq_len:
+        # pad: (left, right) on final (L) dim
+        x = torch.nn.functional.pad(x, (0, seq_len - g_len), mode="constant", value=0)
+    # now x is (B, C, seq_len)
+
+    # flatten channels (B*C, 1, seq_len)
+    # x_flat = x.reshape(B * C, 1, seq_len)
+    x_flat = x  # (B, C, seq_len)
+
+    # build a single-channel 2D mask:
+    # 1 for real frames [0:g_len), 0 for padding [g_len:seq_len)
+    base_mask = x.new_ones(seq_len, dtype=torch.long)
+    base_mask[g_len:] = 0  # shape: (seq_len,)
+
+    # repeat for every (sample,channel) row -> (B*C, seq_len)
+    # mask_flat = base_mask.unsqueeze(0).repeat(B * C, 1)
+    mask_flat = base_mask.unsqueeze(0).repeat(B, 1)  # (B, seq_len)
+
+    if has_label:
+        y = torch.stack(ys, dim=0)[:, 0]
+        return x_flat, mask_flat, y
+    return x_flat, mask_flat
 
 
 # TODO to check and remove
@@ -1109,269 +1343,3 @@ for data_file in files:
             count += 1
 print(count) # 78=1560/20
 """
-import csv
-import os
-
-
-def split_csv(input_file, output_dir, lines_per_file):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    with open(input_file, "r") as file:
-        count = 0
-        file_count = 1
-        output_file = open(os.path.join(output_dir, f"part_{file_count}.csv"), "w")
-
-        for line in file:
-            items = line.split(",")
-            label = int(items[3])
-            if label not in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                continue
-            if label in [8, 9]:
-                items[3] = str(label - 1)
-            line = ",".join(items[3:])  # only for label and data
-
-            if count < lines_per_file:
-                output_file.write(line)
-                count += 1
-                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                #     if label in [8, 9]:
-                #         items[3] = str(label-1)
-                #         line = ','.join(items)
-                # output_file.write(line)
-                # count += 1
-            else:
-                output_file.close()
-                count = 0
-                file_count += 1
-                output_file = open(
-                    os.path.join(output_dir, f"part_{file_count}.csv"), "w"
-                )
-                output_file.write(line)
-                count = 1
-                # if label in [0, 1, 2, 3, 4, 5, 6, 8, 9]:
-                #     if label in [8, 9]:
-                #         items[3] = str(label-1)
-                #         line = ','.join(items)
-                # output_file.write(line)
-                # count = 1
-
-        output_file.close()
-
-
-def compute_group_counts(file_paths, group_size=20):
-    group_counts = {}
-    for file_path in file_paths:
-        with open(file_path, "r") as f:
-            reader = csv.reader(f)
-            row_count = sum(1 for row in reader)
-            group_count = row_count // group_size
-            group_counts[str(file_path)] = group_count
-    return group_counts
-
-
-# # split_csv('/home/fatemeh/Downloads/bird/test_data/combined_s_w_m_j.csv', '/home/fatemeh/Downloads/bird/test_data/split_20', 20)
-
-# # List of CSV file paths
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_600").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
-# group_counts = compute_group_counts(csv_files)
-
-# # Save group_counts to a file (or use directly)
-# import json
-# with open('/home/fatemeh/Downloads/bird/test_data/group_counts.json', 'w') as f:
-#     json.dump(group_counts, f)
-
-# for csv_file in csv_files:
-#     with open(csv_file,'r') as f:
-#         for line in f:
-#             if int(line.split(',')[3]) == 9:
-#                 print(csv_files, line)
-
-
-class BirdDataset2(Dataset):
-    def __init__(self, file_paths, group_counts_file, group_size=20, transform=None):
-        """
-        Args:
-            file_paths (list of str): List of paths to CSV files.
-            group_counts_file (str): Path to the JSON file containing group counts for each file.
-            group_size (int): Number of rows per group.
-            transform (callable, optional): Optional transform to be applied on a sample.
-        """
-        self.file_paths = file_paths
-        self.group_size = group_size
-        self.transform = transform
-
-        # Load precomputed group counts
-        with open(group_counts_file, "r") as f:
-            self.group_counts = json.load(f)
-
-        self.data_index = self._create_data_index()
-
-    def _create_data_index(self):
-        """Create an index of the data based on precomputed group counts."""
-        data_index = []
-        for file_path in self.file_paths:
-            group_count = self.group_counts[file_path]
-            for i in range(group_count):
-                data_index.append((file_path, i))
-        return data_index
-
-    def __len__(self):
-        return len(self.data_index)
-
-    def _load_csv(self, file_path):
-        igs = []
-        ldts = []
-        with open(file_path, "r") as file:
-            for row in file:
-                items = row.strip().split(",")
-                # device_id = int(items[0])
-                # timestamp = (
-                #     datetime.strptime(items[1], "%Y-%m-%d %H:%M:%S")
-                #     .replace(tzinfo=timezone.utc)
-                #     .timestamp()
-                # )
-                label = int(items[3])
-                ig = [float(i) for i in items[4:]]
-                ig[-1] /= 22.3012351755624
-                igs.append(ig)
-                # ldts.append([label, device_id, timestamp])
-                ldts.append(label)
-        igs = np.array(igs).astype(np.float32)
-        ldts = np.array(ldts).astype(np.int64)
-        return igs, ldts
-
-    def __getitem__(self, idx):
-        file_path, group_idx = self.data_index[idx]
-        start_row = group_idx * self.group_size
-
-        measurements, ldts = self._load_csv(file_path)
-        data = measurements[start_row : start_row + self.group_size]
-        ldts = ldts[start_row : start_row + self.group_size][0]
-        data = data.transpose((1, 0))  # LxC -> CxL
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data, ldts
-
-
-class BirdDataset3(Dataset):
-    def __init__(self, file_paths, transform=None):
-        """
-        Args:
-            file_paths (list of str): List of paths to CSV files.
-            group_counts_file (str): Path to the JSON file containing group counts for each file.
-            group_size (int): Number of rows per group.
-            transform (callable, optional): Optional transform to be applied on a sample.
-        """
-        self.file_paths = file_paths
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.file_paths)
-
-    def _load_csv(self, file_path):
-        igs = []
-        ldts = []
-        with open(file_path, "r") as file:
-            for row in file:
-                items = row.strip().split(",")
-                label = int(items[0])  # 3
-                ig = [float(i) for i in items[1:]]  # 4
-                ig[-1] /= 22.3012351755624
-                igs.append(ig)
-                ldts.append(label)
-        igs = np.array(igs).astype(np.float32)
-        ldts = np.array(ldts).astype(np.int64)
-        return igs, ldts
-
-    def __getitem__(self, idx):
-        file_path = self.file_paths[idx]
-
-        data, ldts = self._load_csv(file_path)
-        ldts = np.int64(ldts[0])
-
-        data = data.transpose((1, 0))  # LxC -> CxL
-        data = np.ascontiguousarray(data)
-
-        if self.transform:
-            data = self.transform(data)
-
-        return data, ldts
-
-
-# # Load in memory
-# igs, ltds = load_csv("/home/fatemeh/Downloads/bird/test_data/all_data.csv")
-# dataset = BirdDataset(igs, ltds)
-# dataset[0]
-
-# # each file has multiple data (here 30 with data size 20x4)
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data//split_600").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-# csv_files = [str(csv_file) for csv_file in csv_files]
-# dataset = BirdDataset2(
-#     csv_files, "/home/fatemeh/Downloads/bird/test_data/group_counts.json", group_size=20
-# )
-# dataset[0]
-
-# # one file per data (data size here 20x4)
-# csv_files = Path("/home/fatemeh/Downloads/bird/test_data/split_20").glob("part*")
-# csv_files = sorted(csv_files, key=lambda x: int(x.stem.split("_")[1]))
-# csv_files = [str(csv_file) for csv_file in csv_files]
-# dataset = BirdDataset3(csv_files)
-# dataset[0]
-
-"""
-import torch
-from torch.utils.data import DataLoader
-
-
-all_measurements, ldts = load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
-all_measurements, ldts = get_specific_labesl(all_measurements, ldts, [0, 1, 2, 3, 4, 5, 6, 8, 9])
-train_dataset = BirdDataset(all_measurements, ldts)
-
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=2,
-    shuffle=True,
-    num_workers=1,
-    drop_last=True,
-)
-
-from torch.utils.data import random_split   
-csv_files = Path("/home/fatemeh/Downloads/bird/tmp3").glob("part*")
-csv_files = sorted(csv_files, key=lambda x: int(x.stem.split('_')[1]))
-csv_files = [str(csv_file) for csv_file in csv_files]
-
-# dataset = BirdDataset2(csv_files, "/home/fatemeh/Downloads/bird/tmp/group_counts.json", group_size=20)
-dataset = BirdDataset3(csv_files)
-d, l = dataset[0]
-d, l = dataset[1]
-
-# Calculate the sizes for training and validation datasets
-train_size = int(0.9 * len(dataset))
-val_size = len(dataset) - train_size
-
-# Use random_split to divide the dataset
-tr, val = random_split(dataset, [train_size, val_size])
-
-train_loader2 = DataLoader(
-    dataset,
-    batch_size=2,
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-
-for m, l in train_loader2:
-    print(m.shape)
-val_loader2 = DataLoader(
-    val,
-    batch_size=len(val),
-    shuffle=False,
-    num_workers=1,
-    drop_last=True,
-)
-# """

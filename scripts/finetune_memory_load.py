@@ -17,7 +17,7 @@ from behavior import data as bd
 from behavior import model as bm
 from behavior import model1d as bm1
 from behavior import utils as bu
-from behavior.utils import n_classes, new_label_inds, target_labels
+from behavior.utils import get_gpu_memory, n_classes, set_seed
 
 
 def read_csv_file(csv_file):
@@ -101,19 +101,6 @@ def evaluate(loader, model, device, epoch, no_epochs, writer):
     write_info_in_tensorboard(writer, epoch, total_loss, stage)
 
 
-def get_gpu_memory():
-    # Total memory currently allocated by tensors
-    allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
-    # Total memory reserved by the caching allocator (may be more than allocated_memory)
-    reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
-    # Total memory available on the GPU
-    total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # in GB
-    print(f"Allocated memory: {allocated_memory:.2f} GB")
-    print(f"Reserved memory: {reserved_memory:.2f} GB")
-    print(f"Total GPU memory: {total_memory:.2f} GB")
-    # torch.cuda.empty_cache()
-
-
 @dataclass
 class PathConfig:
     save_path: Path
@@ -150,8 +137,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # nvidia-smi -i 0 # also show properties
 
 # Random seed
-np.random.seed(cfg.seed)
-torch.manual_seed(cfg.seed)
+set_seed(cfg.seed)
 generator = torch.Generator().manual_seed(cfg.seed)  # for random_split
 
 # Data
@@ -163,13 +149,31 @@ if cfg.valid_file is not None:
         cfg.valid_file, cfg.labels_to_use, channel_first=False
     )
 else:
-    train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
-        cfg.data_file,
-        cfg.train_per,
-        cfg.data_per,
-        cfg.labels_to_use,
-        channel_first=False,
+    # train_dataset, eval_dataset = bd.prepare_train_valid_dataset(
+    #     cfg.data_file,
+    #     cfg.train_per,
+    #     cfg.data_per,
+    #     cfg.labels_to_use,
+    #     channel_first=False,
+    # )
+    # Stratified split: ensures each class is represented with the same ratio
+    # Note: This implementation is suboptimal—data flows through pandas (read),
+    # PyTorch (stratified split), and then back to NumPy (for dataset creation).
+    transforms = None
+    igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=20)
+    igs = torch.tensor(igs, device=device)
+    ldts = torch.tensor(ldts, device=device)
+    split_ratios = [cfg.train_per, 1 - cfg.train_per]
+    splits = bu.stratified_split(ldts[:, 0], split_ratios=split_ratios, seed=cfg.seed)
+    idx1, idx2 = splits[0], splits[1]
+    igs_train = igs[idx1].cpu().numpy()
+    igs_eval = igs[idx2].cpu().numpy()
+    ldts_train = ldts[idx1].cpu().numpy()
+    ldts_valid = ldts[idx2].cpu().numpy()
+    train_dataset = bd.BirdDataset(
+        igs_train, ldts_train, transforms, channel_first=False
     )
+    eval_dataset = bd.BirdDataset(igs_eval, ldts_valid, transforms, channel_first=False)
 print(len(train_dataset) + len(eval_dataset), len(train_dataset), len(eval_dataset))
 
 train_loader = DataLoader(
@@ -191,36 +195,8 @@ eval_loader = DataLoader(
 
 print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
 # in_channel = train_dataset[0][0].shape[0]  # 3 or 4
-model = bm1.TransformerEncoderMAE(
-    img_size=cfg.g_len,
-    in_chans=cfg.in_channel,
-    out_chans=cfg.out_channel,
-    embed_dim=cfg.embed_dim,
-    depth=cfg.depth,
-    num_heads=cfg.num_heads,
-    mlp_ratio=cfg.mlp_ratio,
-    drop=cfg.drop,
-    layer_norm_eps=cfg.layer_norm_eps,
-).to(device)
 
-# bm.load_model(model_checkpoint, model, device)
-pmodel = torch.load(cfg.model_checkpoint, weights_only=True)["model"]
-state_dict = model.state_dict()
-for name, p in pmodel.items():
-    if (
-        "decoder" not in name and "mask" not in name
-    ):  # and name!="norm.weight" and name!="norm.bias":
-        state_dict[name].data.copy_(p.data)
-        # freeze all layers except class head
-        # dict(model.named_parameters())[name].requires_grad = False
-print(
-    f"fc: {model.fc.weight.requires_grad}, other:{model.blocks[0].norm2.weight.requires_grad}"
-)
-
-# bm.load_model("/home/fatemeh/Downloads/bird/result/f_mem1_bal116_best.pth", model, device)
-del pmodel, name, p, state_dict
-torch.cuda.empty_cache()
-print("model is loaded")
+model = bm1.build_mae_vit_encoder_from_checkpoint(cfg.model_checkpoint, device, cfg)
 
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.AdamW(
@@ -236,6 +212,8 @@ print(
     images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
 )
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
+
+# """
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):
@@ -287,18 +265,33 @@ with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writ
 
 # 1-based save for epoch
 bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+# """
 
 bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
 model.eval()
-fail_path = cfg.save_path / f"failed/{cfg.exp}"
+name = f"{cfg.exp}_{Path(cfg.data_file).stem}"
+fail_path = cfg.save_path / f"failed/{name}"
 fail_path.mkdir(parents=True, exist_ok=True)
 
-del eval_loader, train_loader, train_dataset, eval_dataset
-data_files = {"valid": cfg.valid_file, "test": cfg.test_file}
-for stage, data_file in data_files.items():
-    dataset = bd.get_bird_dataset_from_csv(
-        data_file, cfg.labels_to_use, channel_first=False
-    )
+datasets = dict()
+if cfg.valid_file is not None:
+    data_files = {
+        "train": cfg.data_file,
+        "valid": cfg.valid_file,
+        "test": cfg.test_file,
+    }
+    for stage, data_file in data_files.items():
+        if data_file is not None:
+            # del eval_loader, train_loader, train_dataset, eval_dataset
+            dataset = bd.get_bird_dataset_from_csv(
+                data_file, cfg.labels_to_use, channel_first=True
+            )
+            datasets[stage] = dataset
+
+else:
+    datasets = {"train": train_dataset, "valid": eval_dataset}
+
+for stage, dataset in datasets.items():
     loader = DataLoader(
         dataset,
         batch_size=len(dataset),
@@ -307,15 +300,17 @@ for stage, data_file in data_files.items():
         drop_last=False,
     )
     data, ldts = next(iter(loader))
-    bu.helper_results(
-        data,
-        ldts,
-        model,
-        criterion,
-        device,
+    probs, preds, labels, loss, accuracy = bu.evaluate(
+        data, ldts, model, criterion, device
+    )
+    bu.save_confusion_matrix_other_stats(
+        probs,
+        preds,
+        labels,
+        loss,
+        accuracy,
         fail_path,
         bu.target_labels_names,
         n_classes,
         stage=stage,
-        SAVE_FAILED=False,
     )

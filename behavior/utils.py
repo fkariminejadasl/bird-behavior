@@ -1,3 +1,5 @@
+import os
+import random
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Tuple
@@ -37,6 +39,52 @@ new_ind2name = {int(i): name for i, name in zip(new_label_inds, target_labels_na
 # target_labels = [0, 1, 2, 3, 4, 5, 6, 9]  # no Other:7; combine soar:2 and manuver:8
 
 
+def set_seed(seed: int = 42):
+    """Ensure reproducibility."""
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # for multiple gpu
+    # torch.cuda.manual_seed(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    # generator = torch.Generator().manual_seed(seed)  # for random_split
+
+
+def print_enviroment_info():
+    print("Torch version:", torch.__version__)
+    print("GPU Device Properties:", torch.cuda.get_device_properties())
+    print("Threads:", torch.get_num_threads())
+    print("Inter-op threads:", torch.get_num_interop_threads())
+
+
+def get_gpu_memory():
+    # Total memory currently allocated by tensors
+    allocated_memory = torch.cuda.memory_allocated(0) / (1024**3)  # in GB
+    # Total memory reserved by the caching allocator (may be more than allocated_memory)
+    reserved_memory = torch.cuda.memory_reserved(0) / (1024**3)  # in GB
+    # Total memory available on the GPU
+    total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)  # in GB
+    print(f"Allocated memory: {allocated_memory:.2f} GB")
+    print(f"Reserved memory: {reserved_memory:.2f} GB")
+    print(f"Total GPU memory: {total_memory:.2f} GB")
+    # torch.cuda.empty_cache()
+
+
+def check_types(model):
+    def make_hook(name):
+        def hook(module, inp, out):
+            if isinstance(out, torch.Tensor):
+                print(f"[{name:30s}] output dtype = {out.dtype}")
+
+        return hook
+
+    for name, module in model.named_modules():
+        module.register_forward_hook(make_hook(name))
+
+
 def save_gimus_idts(save_file, gimus, idts):
     wfile = open(save_file, "w")
     for gimu, idt in zip(gimus, idts):
@@ -55,21 +103,6 @@ def compare_rows(row1, row2, subset):
     row1 = row1[subset].reset_index(drop=True)
     row2 = row2[subset].reset_index(drop=True)
     return row1.equals(row2)
-
-
-# matches = df.apply(lambda row: compare_rows(row, query_row), axis=1)
-# matches = dow[subset].eq(query[subset]).all(axis=1)
-# dow.index[matches]
-def set_seed(seed):
-    """Ensure reproducibility."""
-    # https://pytorch.org/docs/stable/notes/randomness.html
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # for multiple gpu
-    # generator = torch.Generator().manual_seed(seed)  # for random_split
-    # torch.cuda.manual_seed(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
 
 
 def plot_confusion_matrix(confusion_matrix, true_labels=None, pred_labels=None):
@@ -125,7 +158,7 @@ def generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20):
     >>> import pandas as pd
     >>> from pathlib import Path
     >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
-    >>> save_path = Path("/home/fatemeh/Downloads/bird/result/shift")
+    >>> save_path = Path("/home/fatemeh/Downloads/bird/results/shift")
     >>> glen = 20
     >>> dt = 6011, "2015-04-30 09:10:31"
     >>> ind2name = bdp.get_rules().ind2name
@@ -538,6 +571,103 @@ def precision_recall(
     return precision, recall, f_score
 
 
+def inference(data, model, device):
+    model.to(device)
+    model.eval()
+    with torch.no_grad():
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        prob = torch.nn.functional.softmax(outputs, dim=-1)  # N x C
+        pred = torch.argmax(outputs.data, 1)  # N
+
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+    return prob, pred
+
+
+def evaluate(
+    data,
+    ldts,
+    model,
+    criterion,
+    device,
+):
+    model.eval()
+    with torch.no_grad():
+        labels = ldts[:, 0]
+        labels = labels.to(device)  # N
+        data = data.to(device)  # N x C x L
+        outputs = model(data)  # N x C
+        if len(outputs) == 2:  # for models with embeddings
+            embs, outputs = outputs
+            embs = embs.unsqueeze(1)  # N x 1 x C
+            embs = torch.nn.functional.normalize(embs, dim=-1)
+            # loss = criterion(outputs, labels) + criterion2(embs, labels)
+            losses = dict()
+            loss = 0
+            for key, crit in criterion.items():
+                if key == "cls":
+                    losses[key] = crit(outputs, labels)  # 1
+                if key == "sup_con":
+                    losses[key] = crit(embs, labels)  # 1]
+            for key, val in losses.items():
+                loss += val
+        else:
+            loss = criterion(outputs, labels)  # 1
+        prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
+        pred = torch.argmax(outputs.data, 1)  # N
+        corrects = (pred == labels).sum().item()
+        accuracy = corrects / len(labels) * 100
+
+    labels = labels.cpu().numpy()
+    prob = prob.cpu().numpy()
+    pred = pred.cpu().numpy()
+    return prob, pred, labels, loss, accuracy
+
+
+def save_confusion_matrix_other_stats(
+    prob,
+    pred,
+    labels,
+    loss,
+    accuracy,
+    fail_path: Path,
+    target_labels_names,
+    n_classes,
+    stage="valid",
+):
+    # confusion matrix
+    confmat = confusion_matrix(labels, pred, labels=np.arange(len(target_labels_names)))
+    # cm_percentage = cm.astype('float') / confmat.sum(axis=1)[:, np.newaxis] * 100
+    plot_confusion_matrix(confmat, target_labels_names)
+    plt.savefig(fail_path / f"confusion_matrix_{stage}.png", bbox_inches="tight")
+
+    metrics_df = per_class_statistics(confmat, target_labels_names)
+    metrics_df.to_csv(fail_path / f"per_class_metrics_{stage}.csv", index=False)
+    metrics_df = per_class_statistics_balanced(confmat, target_labels_names)
+    metrics_df.to_csv(
+        fail_path / f"per_class_metrics_balanced_{stage}.csv", index=False
+    )
+
+    # if one of the classes is empty
+    inds = np.where(np.all(confmat == 0, axis=1) == True)[0]  # indices of zero rows
+    if len(inds) != 0:
+        labels = np.concatenate((labels, inds))
+        prob = np.concatenate((prob, np.zeros((len(inds), prob.shape[1]))))
+
+    if n_classes == 2:
+        ap = average_precision_score(labels, np.argmax(prob, axis=1))
+    else:
+        ap = average_precision_score(labels, prob)
+    app_loss_acc = (
+        f"{stage}: AP: {ap:.2f}, Loss: {loss.item():.2f}, Accuracy: {accuracy:.2f}\n"
+    )
+    with open(fail_path / "app_loss_acc.txt", "a") as f:
+        f.write(app_loss_acc)
+    print(app_loss_acc)
+    print(confmat)
+
+
 def helper_results(
     data,
     ldts,
@@ -549,16 +679,32 @@ def helper_results(
     n_classes,
     stage="valid",
     SAVE_FAILED=False,
+    # criterion2=None,
 ):
+    model.eval()
     with torch.no_grad():
         labels = ldts[:, 0]
         labels = labels.to(device)  # N
         data = data.to(device)  # N x C x L
         outputs = model(data)  # N x C
+        if len(outputs) == 2:  # for models with embeddings
+            embs, outputs = outputs
+            embs = embs.unsqueeze(1)  # N x 1 x C
+            embs = torch.nn.functional.normalize(embs, dim=-1)
+            # loss = criterion(outputs, labels) + criterion2(embs, labels)
+            losses = dict()
+            loss = 0
+            for key, crit in criterion.items():
+                if key == "cls":
+                    losses[key] = crit(outputs, labels)  # 1
+                if key == "sup_con":
+                    losses[key] = crit(embs, labels)  # 1]
+            for key, val in losses.items():
+                loss += val
+        else:
+            loss = criterion(outputs, labels)  # 1
         prob = torch.nn.functional.softmax(outputs, dim=-1).detach()  # N x C
         pred = torch.argmax(outputs.data, 1)  # N
-        # loss and accuracy
-        loss = criterion(outputs, labels)  # 1
         corrects = (pred == labels).sum().item()
         accuracy = corrects / len(labels) * 100
 
@@ -899,3 +1045,45 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
     # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
     # if len(found) != 0:
     #     print("Found", found)
+
+
+def stratified_split(labels, split_ratios=[0.9, 0.1], seed=None, shuffle=True):
+    """
+    Stratified split of index positions according to class labels.
+    similar: sklearn StratifiedKFold, StratifiedShuffleSplit
+
+    Args:
+        labels: 1D tensor of integer class ids (device is preserved).
+        split_ratios: iterable of fold proportions (e.g., (0.9, 0.1)).
+                Assumed to sum to ~1.0. Length = number of folds.
+        seed:   optional seed for deterministic shuffling.
+        shuffle: shuffle indices within each class before splitting.
+
+    Returns:
+        List[torch.Tensor]: one index tensor per ratio, covering all samples exactly once.
+    """
+
+    device = labels.device
+    classes = torch.unique(labels)
+    g = torch.Generator(device=device)
+    if seed is not None:
+        g.manual_seed(seed)
+
+    n_splits = len(split_ratios)
+    folds = [[] for _ in range(n_splits)]
+    for c in classes:
+        idx = torch.nonzero(labels == c, as_tuple=False).squeeze(1)
+        if shuffle:
+            idx = idx[torch.randperm(idx.numel(), generator=g, device=device)]
+
+        n = idx.numel()
+        n_elements = [int(i * n) for i in split_ratios]
+        ends = list(np.cumsum(n_elements))
+        # assign remainder to last so nothing is dropped.
+        ends[-1] += n - ends[-1]
+        starts = [0] + ends[:-1]
+        for i, (s, e) in enumerate(zip(starts, ends)):
+            folds[i].append(idx[s:e])
+
+    folds = [torch.cat(f) for f in folds]
+    return folds

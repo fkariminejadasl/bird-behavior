@@ -78,6 +78,43 @@ class BirdModel(nn.Module):
         return x
 
 
+class BirdModelWithEmb(nn.Module):
+    """
+    model = bm.BirdModel(4, 30, 9)
+    model(torch.rand(1,4,20)) # x=NxLxC
+    """
+
+    def __init__(self, in_channels, mid_channels, out_channels):
+        super().__init__()
+        self.conv1 = torch.nn.Conv1d(
+            in_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.conv2 = torch.nn.Conv1d(
+            mid_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.conv3 = torch.nn.Conv1d(
+            mid_channels, mid_channels, kernel_size=3, padding=1
+        )
+        self.fc = torch.nn.Linear(mid_channels, out_channels)
+        self.bn1 = torch.nn.BatchNorm1d(mid_channels)
+        self.bn2 = torch.nn.BatchNorm1d(mid_channels)
+        self.bn3 = torch.nn.BatchNorm1d(mid_channels)
+        self.relu = torch.nn.ReLU()
+        self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
+        self.dropout = nn.Dropout(0.25)
+
+    def forward(self, x):
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.dropout(x)
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.dropout(x)
+        x = self.relu(self.bn3(self.conv3(x)))
+        x = self.dropout(x)
+        x = self.avgpool(x).flatten(1)
+        cls = self.fc(x)
+        return x, cls
+
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, dropout=0.0):
         super().__init__()
@@ -504,12 +541,13 @@ def _print_per_batch(
     return start_time
 
 
-def _print_final(
-    epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
+def print_epoch_summary(
+    epoch, total_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
 ):
     print(
-        f"{stage}: epoch/total: {epoch}/{no_epochs}, total loss: {total_loss:.4f}, accuracy: {total_accuracy:.2f}, \
-        no. correct: {running_corrects}, length data:{data_len}"
+        f"{stage}: epoch {epoch}/{total_epochs}, "
+        f"loss {total_loss:.4f}, accuracy {total_accuracy:.2f} "
+        f"({running_corrects}/{data_len} correct)"
     )
 
 
@@ -572,7 +610,7 @@ def train_one_epoch(
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    _print_final(
+    print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)
@@ -606,7 +644,7 @@ def evaluate(loader, model, criterion, device, epoch, no_epochs, writer):
     total_loss, total_accuracy = _calculate_total_stats(
         running_loss, running_corrects, data_len, i
     )
-    _print_final(
+    print_epoch_summary(
         epoch, no_epochs, data_len, running_corrects, total_loss, total_accuracy, stage
     )
     write_info_in_tensorboard(writer, epoch, total_loss, total_accuracy, stage)

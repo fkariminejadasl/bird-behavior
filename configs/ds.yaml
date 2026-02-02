@@ -1,0 +1,23 @@
+compute_environment: LOCAL_MACHINE
+debug: true # use with `export TORCH_DISTRIBUTED_DEBUG=INFO` ACCELERATE_LOG_LEVEL=info
+# deepspeed_config:
+#   gradient_clipping: 1.0
+#   offload_optimizer_device: none
+#   offload_param_device: none
+#   zero_stage: 2
+#   bf16:
+#     enabled: true
+#   fp16:
+#     enabled: true
+#     loss_scale: 0          # or "auto"
+#     loss_scale_window: 1000
+distributed_type: MULTI_GPU # DEEPSPEED, MULTI_GPU
+downcast_bf16: 'no'
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16 # fp16, bf16, fp8, 'no' use 'no' for deepspeed
+num_machines: 1
+num_processes: 1 #2
+rdzv_backend: static
+same_network: true
+use_cpu: false

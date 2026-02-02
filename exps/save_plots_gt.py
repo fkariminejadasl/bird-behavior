@@ -8,7 +8,7 @@ from behavior import data_processing as bdp
 from behavior import utils as bu
 
 # combined.csv -> gt2_combined
-save_path = Path("/home/fatemeh/Downloads/bird/result")
+save_path = Path("/home/fatemeh/Downloads/bird/results")
 data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
 database_file = Path(
     "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"

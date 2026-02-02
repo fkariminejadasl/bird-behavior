@@ -1,10 +1,86 @@
 from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 import behavior.data as bd
+
+
+@pytest.mark.local
+def test_combine_sensor_data():
+    device_id = 311
+    start_time = "2010-06-30 18:01:52"
+    end_time = "2010-06-30 18:12:09"
+    s_ts = int(
+        datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
+    e_ts = int(
+        datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
+    imu_data = pd.read_csv(
+        Path("/home/fatemeh/Downloads")
+        / f"{device_id}_{start_time}_{end_time}_imu.csv",
+        header=None,
+    )
+    gps_data = [
+        [1277920912, 0.053851636230134343, 53.0082892, 4.7180608, 5, None],
+        [1277921529, 0.03451161398091312, 53.0082796, 4.7180707, 3, None],
+    ]
+    f_imu_data = [
+        [int(r[0]), int(r[1]), r[2], r[3], r[4]]
+        for r in imu_data.itertuples(index=False)
+    ]
+    result = bd.combine_sensor_data(f_imu_data, gps_data, device_id, glen=20)
+    expected = pd.read_csv(
+        Path("/home/fatemeh/Downloads")
+        / f"{device_id}_{start_time}_{end_time}_gimu.csv",
+        header=None,
+    )
+
+    np.testing.assert_array_almost_equal(
+        expected[[4, 5, 6, 7]].to_numpy(), result[0], decimal=8
+    )
+    np.testing.assert_array_equal(np.unique(result[1][:, 1]), np.array([device_id]))
+    np.testing.assert_array_equal(np.unique(result[1][:, 2]), np.array([s_ts, e_ts]))
+    np.testing.assert_array_equal(result[1][:, 0], expected[2].to_numpy())
+
+
+@pytest.mark.ignore
+def test_get_data():
+    database_url = ""
+    device_id = 311
+    start_time = "2010-06-30 18:01:52"
+    end_time = "2010-06-30 18:12:09"
+    s_ts = int(
+        datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
+    e_ts = int(
+        datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+        .replace(tzinfo=timezone.utc)
+        .timestamp()
+    )
+    result = bd.get_data(database_url, device_id, start_time, end_time)
+    expected = pd.read_csv(
+        Path("/home/fatemeh/Downloads")
+        / f"{device_id}_{start_time}_{end_time}_gimu.csv",
+        header=None,
+    )
+
+    np.testing.assert_array_almost_equal(
+        expected[[4, 5, 6, 7]].to_numpy(), result[0], decimal=8
+    )
+    np.testing.assert_array_equal(np.unique(result[1][:, 1]), np.array([device_id]))
+    np.testing.assert_array_equal(np.unique(result[1][:, 2]), np.array([s_ts, e_ts]))
+    np.testing.assert_array_equal(result[1][:, 0], expected[2].to_numpy())
 
 
 def test_select_random_groups():
