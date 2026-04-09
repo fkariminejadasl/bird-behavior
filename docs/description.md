@@ -229,8 +229,15 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### App
 
-- `app/bird_behavior_viz_app.py`: visualize IMU with behavior and the location in the map. The data for this app comes from `scripts/bird_behavior_viz.py`.
+- `app/bird_behavior_viz_app.py`: visualize IMU with behavior and the location in the map. 
 - `app/gps_locations_viz.py`: visualize GPS traces on the interactive map.
+
+The data for these apps comes from `scripts/bird_behavior_viz.py`. The data format for these apps is:
+
+```bash
+device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude
+298,2010-06-07 09:43:05,0,-1,-0.167287,-0.004737,1.014680,0.200996,5,0.986863,53.009282,4.717725
+```
 
 #### Visualization
 
