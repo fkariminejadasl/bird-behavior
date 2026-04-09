@@ -123,7 +123,7 @@ LABEL_MODE = "day"  # or "month"
 
 
 def mk_marks(ts: pd.Series, max_marks=12):
-    ts_full = ts.sort_values().dt.floor("S").drop_duplicates()
+    ts_full = ts.sort_values().dt.floor("s").drop_duplicates()
 
     if LABEL_MODE == "month":
         ts_norm = ts_full.dt.to_period("M").dt.start_time.drop_duplicates()
@@ -187,4 +187,5 @@ def update_map(selected_range):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
+    # app.run(host="0.0.0.0", port=8050, debug=False)

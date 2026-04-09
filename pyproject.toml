@@ -44,6 +44,14 @@ notebook = [
 # pip install .[app]
 app = [
     "gradio",
+    "plotly",
+    "dash",
+    "dash_extensions",
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
+    "build",
+    "python-dotenv", # for .env files
 ]
 # pip install .[test]
 test = [
