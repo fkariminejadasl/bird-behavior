@@ -23,7 +23,7 @@ from behavior import utils as bu
 
 def get_data():
     all_measurements, label_ids = bd.load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
+        "/home/fatemeh/Downloads/bird/data/final/starts.csv"
     )
     all_measurements, label_ids = bd.get_specific_labesl(
         all_measurements, label_ids, bu.target_labels
@@ -157,7 +157,7 @@ def get_embeddings(model, device, reduction, dataloader: DataLoader):
 
 def get_dataloader():
     all_measurements, label_ids = bd.load_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"
+        "/home/fatemeh/Downloads/bird/data/final/starts.csv"
     )
     all_measurements, label_ids = bd.get_specific_labesl(
         all_measurements, label_ids, bu.target_labels

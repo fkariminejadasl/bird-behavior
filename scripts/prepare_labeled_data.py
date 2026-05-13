@@ -1,7 +1,6 @@
 from collections import Counter
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -23,10 +22,8 @@ change_format = {
     "m": change_format_mat_files,
     "w": change_format_csv_files,
 }
-save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
-database_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
-)
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
+database_file = Path("/home/fatemeh/Downloads/bird/data/final/all_database.csv")
 name_input_files = [
     ("s", Path("/home/fatemeh/Downloads/bird/data/set1/data")),
     ("j", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
@@ -46,7 +43,7 @@ print("Done")
 # Train, valid, test split
 seed = 42
 np.random.seed(seed)
-save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+save_path = Path("/home/fatemeh/Downloads/bird/data/final")
 data_file = save_path / "shift.csv"
 bdp.make_train_valid_test_split(data_file, save_path)
 """
@@ -57,17 +54,17 @@ bdp.make_train_valid_test_split(data_file, save_path)
 for i in ["s", "j", "m", "w"]:  # ["combined"]:
     name = f"{i}_complete"  # "combined"
     df = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc2/{name}.csv", header=None
+        f"/home/fatemeh/Downloads/bird/data/final/{name}.csv", header=None
     )
     save_file = Path(
-        f"/home/fatemeh/Downloads/bird/data/final/proc2/{name}_label_range.txt"
+        f"/home/fatemeh/Downloads/bird/data/final/{name}_label_range.txt"
     )
     bdp.write_all_start_end_inds(df, save_file)
 """
 
 """
 # Visualize shift data
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/shift.csv", header=None)
 save_path = Path("/home/fatemeh/Downloads/bird/results/shift")
 glen = 20
 dt = 6011, "2015-04-30 09:10:31"
@@ -81,7 +78,7 @@ bu.generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20)
 """
 # Create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
 
-# data_file = "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv"
+# data_file = "/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv"
 # save_path = Path("/home/fatemeh/Downloads/bird/data/final/s_data")
 data_file = "/home/fatemeh/Downloads/bird/data/final/s_data_shift.csv"
 save_path = Path("/home/fatemeh/Downloads/bird/data/final/s_data_shift")
@@ -90,10 +87,10 @@ create_five_balanced_data_and_unbalanced(data_file, save_path)
 
 
 def get_stats(df: pd.DataFrame, glen=20):
-    # dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map.csv", header=None)
-    # dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_map.csv", header=None)
-    # dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None)
-    # dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map.csv", header=None)
+    # dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_map.csv", header=None)
+    # dfj = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/j_map.csv", header=None)
+    # dfm = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_map.csv", header=None)
+    # dfw = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_map.csv", header=None)
     # dts = dfs[[0,1]].drop_duplicates().reset_index(drop=True)
     # dtw = dfw[[0,1]].drop_duplicates().reset_index(drop=True)
     # dtj = dfj[[0,1]].drop_duplicates().reset_index(drop=True)
@@ -108,7 +105,7 @@ def get_stats(df: pd.DataFrame, glen=20):
     # (71842, 90668, 32790, 67807)
     # >>> len(dfswjm)
     # 105692
-    save_path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    save_path = Path("/home/fatemeh/Downloads/bird/data/final")
     a = [
         pd.read_csv(save_path / f"{i}_map.csv", header=None)
         for i in ["s", "j", "m", "w"]
@@ -120,15 +117,15 @@ def get_stats(df: pd.DataFrame, glen=20):
     # train, valid, test: 832020/20, 163940/20, 166520/20
 
 
-# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_map0.csv", header=None)
-# >>> df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_map0.csv", header=None)
+# >>> df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_map0.csv", header=None)
+# >>> df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/w_map0.csv", header=None)
 # >>> dts1 = set(df1.groupby([0,1]).groups.keys())
 # >>> dts2 = set(df2.groupby([0,1]).groups.keys())
 # dts1.difference(dts2)
 # >>> len(dts1), len(dts2), len(df1), len(df2)
 # (1536, 1439, 70100, 67689)
 
-# path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+# path = Path("/home/fatemeh/Downloads/bird/data/final")
 # for n in ["s","j","m","w"]:
 #     df = pd.read_csv(path/f"{n}_map0.csv",header=None)
 #     df = df.sort_values([0,1]).reset_index(drop=True)

@@ -329,7 +329,7 @@ invalid_rows = df.loc[invalid_indices]
 ```python
 import pandas as pd
 import numpy as np
-df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)
 a = df.iloc[:5].copy()
 b = df.iloc[3:7].copy()
 b = b.reset_index(drop=True)
@@ -342,8 +342,8 @@ c[c==True].index.values
 
 ### Example: If there are duplicates in both DataFrames, common also contains duplicates
 ```python
-df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
-df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
+df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)
 a, b = df1[[0,1,3,4,5,6,7]], df2[[0,1,3,4,5,6,7]]
 
 from collections import Counter
@@ -364,8 +364,8 @@ print("Excess due to cartesian product:", all_merged - common_count)
 ### Example: find rows that appear 3 or more times in a DataFrame
 
 ```python
-df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
-df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
+df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)
 a, b = df1[[0,1,3,4,5,6,7]], df2[[0,1,3,4,5,6,7]]
 # Step 1: Convert the relevant columns to tuples (rows must be hashable)
 rows = a[[0,1,3,4,5,6,7]].apply(tuple, axis=1)

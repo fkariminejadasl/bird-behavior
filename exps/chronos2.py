@@ -192,7 +192,7 @@ def main(cfg):
 cfg = dict(
     seed=12,
     results_path=Path(f"/home/fatemeh/Downloads/bird/results/embeddings_plot"),
-    data_file="/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv",
+    data_file="/home/fatemeh/Downloads/bird/data/final/starts.csv",
 )
 cfg = OmegaConf.create(cfg)
 main(cfg)

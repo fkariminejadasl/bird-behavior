@@ -280,7 +280,7 @@ def get_config():
         ),
         layer_name="emb",  # (avgpool, fc) small, (fc, norm) vit, moment (emb) no hook
         save_path=Path("/home/fatemeh/Downloads/bird/results/embeddings_plot"),
-        test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+        test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/starts.csv"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
         # model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),

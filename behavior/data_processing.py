@@ -285,7 +285,7 @@ def identify_mistakes(df_s, df, glen=20):
     """
     Identify labeling mistakes. Find which data points are labeled differently.
 
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     dfs = pd.read_csv(path / "s_map0.csv", header=None)
     dfj = pd.read_csv(path / "j_map0.csv", header=None)
     dfm = pd.read_csv(path / "m_map0.csv", header=None)
@@ -402,7 +402,7 @@ def Discovered_mapping():
     Then for each label check which mapping is used for the other data.
     Usually top of the list had common data.
 
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     df1 = pd.read_csv(path / "s_index.csv", header=None)
     df2 = pd.read_csv(path / "j_index.csv", header=None)
     df3 = pd.read_csv(path / "m_index.csv", header=None)
@@ -788,7 +788,7 @@ def ensure_database_file(
             data, database_file, database_url, glen=1, mode=mode
         )
         # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
-        # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
+        # With glen=20, we get 40 rows. # all_database.csv glen=1, old: all_database.csv glen=20.
     else:
         print("Database: complete")
 

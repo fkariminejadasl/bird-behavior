@@ -42,7 +42,7 @@ def test_confmat():
     exp = 125
     labels_to_use = [0, 1, 2, 3, 4, 5, 6, 8, 9]
     in_channel, width, n_classes = 4, 30, len(labels_to_use)
-    data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+    data_file = Path("/home/fatemeh/Downloads/bird/data/final/starts.csv")
     checkpoint_file = Path(f"/home/fatemeh/Downloads/bird/results/{exp}_best.pth")
 
     bu.set_seed(seed)
@@ -233,9 +233,9 @@ for data_file in data_paths:
     prepare_imu_gps_class_data(data_file, save_file, cfg)
 
 # On the ground truth data
-data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/starts.csv")
 save_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv"
+    "/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv"
 )
 prepare_imu_gps_class_data(data_file, save_file, cfg)
 """
@@ -244,9 +244,7 @@ prepare_imu_gps_class_data(data_file, save_file, cfg)
 # Visualize IMU and behavior
 # gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 # dt = (298, "2010-06-07 09:43:05")
-gimu_beh_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv"
-)
+gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv")
 dt = (806, "2014-05-16 12:56:53")
 dt = (6210, "2016-05-09 10:26:25")
 df = pd.read_csv(gimu_beh_file, header=None)

@@ -18,7 +18,7 @@ ind2name = {
 # fmt: on
 
 # --- load your CSV ---
-# gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts_gimu_behavior.csv")
+# gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv")
 gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 df = pd.read_csv(gimu_beh_file, header=None)
 df = df.sort_values([0, 1, 2]).reset_index(drop=True)

@@ -127,12 +127,12 @@ def test_equal_dataframes_false():
     "file_path1, file_path2",
     [
         (
-            "/home/fatemeh/Downloads/bird/data/final/proc2/m_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc2/m_index.csv",
+            "/home/fatemeh/Downloads/bird/data/final/m_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/m_index.csv",
         ),
         (
-            "/home/fatemeh/Downloads/bird/data/final/proc2/w_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc2/w_index.csv",
+            "/home/fatemeh/Downloads/bird/data/final/w_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/w_index.csv",
         ),
     ],
 )

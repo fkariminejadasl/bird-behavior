@@ -333,7 +333,7 @@ import pandas as pd
 from behavior import utils as bu
 
 df = pd.read_csv(
-    "/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv", header=None
+    "/home/fatemeh/Downloads/bird/data/final/starts.csv", header=None
 )
 a = df[df[1] == "2012-05-15 03:15:00"].iloc[:20].copy()
 time = a.iloc[:, 2].values.copy()

@@ -157,7 +157,7 @@ def generate_per_glen_figures_for_dt(save_path, df, dt, ind2name, glen=20):
     --------
     >>> import pandas as pd
     >>> from pathlib import Path
-    >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None)
+    >>> df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/shift.csv", header=None)
     >>> save_path = Path("/home/fatemeh/Downloads/bird/results/shift")
     >>> glen = 20
     >>> dt = 6011, "2015-04-30 09:10:31"
@@ -199,7 +199,7 @@ def plot_all(dataframe, dataframe_db, glen=20):
     dt = (534, "2013-06-10 10:36:23") # start from 7
     dt = (533, "2012-05-15 03:38:59") # separate
 
-    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/all_database.csv", header=None)
     df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None) # s_data_orig_index
     dataframe = df.groupby(by=[0, 1]).get_group(dt).sort_values(by=[2])
     dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
@@ -326,7 +326,7 @@ def plot_labeled_data(df, df_db, ind2name):
     dt = (534, "2013-06-10 10:36:23") # start from 7
     dt = (533, "2012-05-15 03:38:59") # separate
 
-    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database.csv", header=None)
+    df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/all_database.csv", header=None)
     df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined_unique_sorted012.csv", header=None) # s_data_orig_index
     df = df.groupby(by=[0, 1]).get_group(dt).sort_values(by=[2])
     dataframe_db = df_db[(df_db[0] == dt[0]) & (df_db[1] == dt[1])].sort_values(by=[2])
@@ -427,7 +427,7 @@ def plot_labeled_data(df, df_db, ind2name):
 
 # ind2name = {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking',
 # 10: 'Looking_food', 11: 'Handling_mussel', 13: 'StandForage', 14: 'xtraShake', 15: 'xtraCall', 16: 'xtra', 17: 'Float_groyne'}
-# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv", header=None)
+# df_db = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/all_database.csv", header=None)
 # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/j_data_map0.csv", header=None)
 # # df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc/w_data_index.csv", header=None)
 # df_db = df_db.sort_values([0, 1, 2])
@@ -1030,8 +1030,8 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
         equal_dataframe(df1, df2) → True
     """
 
-    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
-    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv", header=None)
+    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
+    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)
     a = df1.copy()
     b = df2.copy()
     a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
