@@ -756,6 +756,42 @@ def drop_duplicates(df, glen=20):
     return df
 
 
+def ensure_database_file(
+    name_input_files, save_path, database_file, database_url, change_format
+):
+    save_path.mkdir(parents=True, exist_ok=True)
+    database_file.parent.mkdir(parents=True, exist_ok=True)
+
+    formatted = []
+    for name, input_file in name_input_files:
+        save_file = save_path / f"{name}_format.csv"
+        if save_file.exists():
+            df = pd.read_csv(save_file, header=None)
+        else:
+            print(f"Format {name}")
+            df = change_format[name](input_file, save_file)
+        formatted.append(df)
+
+    data = pd.concat(formatted, axis=0, ignore_index=True)
+    mode = "w"
+    if database_file.exists() and database_file.stat().st_size > 0:
+        done = pd.read_csv(database_file, header=None, usecols=[0, 1]).drop_duplicates()
+        data = data.merge(done, on=[0, 1], how="left", indicator=True)
+        data = data[data["_merge"].eq("left_only")].drop(columns="_merge")
+        mode = "a"
+
+    remaining = len(data[[0, 1]].drop_duplicates())
+    if remaining:
+        print(f"Database: {remaining} missing")
+        get_s_j_w_m_data_from_database(
+            data, database_file, database_url, glen=1, mode=mode
+        )
+        # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
+        # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
+    else:
+        print("Database: complete")
+
+
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
     pipeline: format, index, map0, mistake, map, drop_neg1, complete, not{combine, shift, drop}
@@ -768,12 +804,15 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 
     save_path.mkdir(parents=True, exist_ok=True)
 
-    df_db = pd.read_csv(database_file, header=None)
-
     # Format
     print("Format")
     save_file = save_path / f"{name}_format.csv"
-    df = change_format[name](input_file, save_file)
+    if save_file.exists():
+        df = pd.read_csv(save_file, header=None)
+    else:
+        df = change_format[name](input_file, save_file)
+
+    df_db = pd.read_csv(database_file, header=None)
 
     # Index
     print("Index")

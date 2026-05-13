@@ -48,46 +48,8 @@ data = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/missing_keys.cs
 get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
 """
 
-"""
-database_url = "postgresql://username:password@host:port/database_name"
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
-df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig.csv", header=None)
-df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv", header=None)
-df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
-data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-bdp.get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
-# e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
-# With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
-"""
-
-"""
-# No database_file exist. Create it first
-database_url = "postgresql://username:password@host:port/database_name"
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
-df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_format.csv", header=None)
-df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_format.csv", header=None)
-df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_format.csv", header=None)
-df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_format.csv", header=None)
-data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
-mode = "w"
-if save_file.exists():
-    done = pd.read_csv(save_file, header=None, usecols=[0, 1]).drop_duplicates()
-    data = data.merge(done, on=[0, 1], how="left", indicator=True)
-    data = data[data["_merge"].eq("left_only")].drop(columns="_merge")
-    mode = "a"
-    print(
-        f"Resuming: {len(done)} done, {len(data[[0, 1]].drop_duplicates())} left"
-    )
-else:
-    print(f"Starting: {len(data[[0, 1]].drop_duplicates())} total")
-bdp.get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1, mode=mode)
-# e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
-# With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
-"""
-
-"""
 # Prepare data: complete pipeline
+database_url = "postgresql://username:password@host:port/database_name"
 change_format = {
     "s": change_format_json_files,
     "j": change_format_json_files,
@@ -104,6 +66,9 @@ name_input_files = [
     ("m", Path("/home/fatemeh/Downloads/bird/data/data_from_Susanne")),
     ("w", Path("/home/fatemeh/Downloads/bird/data/data_from_Willem")),
 ]
+bdp.ensure_database_file(
+    name_input_files, save_path, database_file, database_url, change_format
+)
 [
     make_data_pipeline(name, input_file, save_path, database_file, change_format)
     for name, input_file in name_input_files
@@ -111,7 +76,6 @@ name_input_files = [
 filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
 print("Done")
-"""
 
 """
 # Train, valid, test split
