@@ -759,6 +759,7 @@ def drop_duplicates(df, glen=20):
 def ensure_database_file(
     name_input_files, save_path, database_file, database_url, change_format
 ):
+    "Downloading data is slow, it is about 1 hour for 2261 items"
     save_path.mkdir(parents=True, exist_ok=True)
     database_file.parent.mkdir(parents=True, exist_ok=True)
 

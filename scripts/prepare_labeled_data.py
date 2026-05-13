@@ -15,39 +15,6 @@ from behavior.data_processing import (
     make_data_pipeline,
 )
 
-"""
-Get the data from the database
-
-"/home/fatemeh/Downloads/bird/data/final/orig/{}_data_orig.csv" or
-first make {}_format.csv (The first operation in the data pipeline).
-/home/fatemeh/Downloads/bird/data/final/proc2/{}_format.csv
-
-Since get_s_j_w_m_data_from_database is very slow, we previously downloaded the data from the database. But some keys 
-wwere missing, so we need to download them again. Below is the code to download the missing keys.
-"""
-
-"""
-# Find missing keys
-# ======
-# Since, some labels are removed from both j_data, m_data, previous getting data from database doesn't contain all the data.
-# Here the missing keys are downloaded from database and them manually added to the all_database_final.csv.
-m0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig_no_mapping.csv", header=None)
-j0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/j_data_orig_no_mapping_with_index.csv", header=None)
-a0 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final_no_missing_keys.csv", header=None)
-mk = list(m0.groupby([0,1]).groups.keys())
-jk = list(j0.groupby([0,1]).groups.keys())
-ak = list(a0.groupby([0,1]).groups.keys())
-a = set(jk).difference(ak)
-b = set(mk).difference(ak)
-# sum these two since a.difference(b) empty
-n = pd.DataFrame(list(a.intersection(b)) + list(b.difference(a)))
-n.to_csv("/home/fatemeh/Downloads/bird/data/final/orig/to_be_download.csv", header=None)
-database_url = "postgresql://username:password@host:port/database_name"
-save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final_missing_keys.csv")
-data = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/missing_keys.csv", header=None)
-get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
-"""
-
 # Prepare data: complete pipeline
 database_url = "postgresql://username:password@host:port/database_name"
 change_format = {
@@ -69,10 +36,8 @@ name_input_files = [
 bdp.ensure_database_file(
     name_input_files, save_path, database_file, database_url, change_format
 )
-[
+for name, input_file in name_input_files:
     make_data_pipeline(name, input_file, save_path, database_file, change_format)
-    for name, input_file in name_input_files
-]
 filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
 print("Done")
