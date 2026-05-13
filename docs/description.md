@@ -280,4 +280,5 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling equal number of groups from each specified class.
 - `utils::stratified_split`: class-wise data split
+- `utils::equal_dataframe`: compare two data frames
 - `map.py`: Visualize map from latitude longitude

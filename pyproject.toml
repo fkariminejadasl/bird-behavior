@@ -44,6 +44,9 @@ notebook = [
 # pip install .[app]
 app = [
     "gradio",
+    "plotly",
+    "dash",
+    "dash_extensions",
 ]
 # testing extras
 # pip install .[test]

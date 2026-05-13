@@ -999,16 +999,24 @@ print(metrics_df)
 # )
 
 
-def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
+def equal_dataframe(
+    df1,
+    df2,
+    cols_to_compare=None,
+    sort_cols=None,
+    round_cols=None,
+    precision=4,
+):
     """
-    Compare two DataFrames for equality based on selected columns,
-    after rounding float features and sorting rows.
+    Compare two DataFrames after optional rounding, column selection, and sorting.
 
     Args:
         df1 (pd.DataFrame): First DataFrame to compare.
         df2 (pd.DataFrame): Second DataFrame to compare.
-        cols_to_compare (List[int], optional): Column indices to use for comparison.
-            Default is [0, 1, 3, 4, 5, 6, 7].
+        cols_to_compare: Columns to compare. Default is [0, 1, 3, 4, 5, 6, 7].
+        sort_cols: Columns to sort by before comparing. Defaults to cols_to_compare.
+        round_cols: Columns to round before comparing. Defaults to columns from 4 onward.
+        precision: Decimal places for round_cols. Use None to skip rounding.
 
     Returns:
         bool: True if DataFrames are equal on the selected columns, False otherwise.
@@ -1030,14 +1038,22 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
         equal_dataframe(df1, df2) → True
     """
 
-    # df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
-    # df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)
+    if cols_to_compare is None:
+        cols_to_compare = [0, 1, 2, 3, 4, 5, 6, 7]
+    if sort_cols is None:
+        sort_cols = cols_to_compare
+    if round_cols is None:
+        round_cols = df1.columns[4:]
+
     a = df1.copy()
     b = df2.copy()
-    a.iloc[:, 4:] = np.round(a.iloc[:, 4:], 4)
-    b.iloc[:, 4:] = np.round(b.iloc[:, 4:], 4)
-    a = a[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
-    b = b[cols_to_compare].sort_values(by=cols_to_compare).reset_index(drop=True)
+    if precision is not None and len(round_cols) > 0:
+        a.loc[:, round_cols] = np.round(a.loc[:, round_cols], precision)
+        b.loc[:, round_cols] = np.round(b.loc[:, round_cols], precision)
+    a = a.sort_values(by=sort_cols).reset_index(drop=True)
+    b = b.sort_values(by=sort_cols).reset_index(drop=True)
+    a = a[cols_to_compare].reset_index(drop=True)
+    b = b[cols_to_compare].reset_index(drop=True)
     return a.equals(b)
 
     # a = 606,"2014-05-15 07:26:50",12,1,-0.082707,0.030143,1.000751,0.376769
@@ -1045,6 +1061,27 @@ def equal_dataframe(df1, df2, cols_to_compare=[0, 1, 3, 4, 5, 6, 7]):
     # found = dd[(dd[0]==a[0]) & (dd[1]==a[1])&(dd[4]==a[4])&(dd[5]==a[5])& (dd[6]==a[6]) & (dd[7]==a[7])]
     # if len(found) != 0:
     #     print("Found", found)
+
+
+def equal_csv_files(
+    file1,
+    file2,
+    cols_to_compare=None,
+    sort_cols=None,
+    round_cols=None,
+    precision=4,
+    header=None,
+):
+    df1 = pd.read_csv(file1, header=header)
+    df2 = pd.read_csv(file2, header=header)
+    return equal_dataframe(
+        df1,
+        df2,
+        cols_to_compare=cols_to_compare,
+        sort_cols=sort_cols,
+        round_cols=round_cols,
+        precision=precision,
+    )
 
 
 def stratified_split(labels, split_ratios=[0.9, 0.1], seed=None, shuffle=True):
