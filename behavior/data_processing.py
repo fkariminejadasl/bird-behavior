@@ -896,7 +896,7 @@ def make_train_valid_test_split(input_file, save_path: Path):
     print(f"Done. Train: {len(train_df)}, Valid: {len(valid_df)}, Test: {len(test_df)}")
 
 
-def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
+def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20, mode="w"):
     """
     Get all the data from the database (1930 requests)
     """
@@ -905,7 +905,7 @@ def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
         data[[0, 1]].drop_duplicates().sort_values(by=[0, 1]).reset_index(drop=True)
     )
 
-    file = open(save_file, "w")
+    file = open(save_file, mode)
     for _, row in tqdm(unique_dt.iterrows(), total=len(unique_dt)):
         device_id, start_time = list(row)
         try:

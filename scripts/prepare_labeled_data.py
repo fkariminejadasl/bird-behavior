@@ -16,7 +16,6 @@ from behavior.data_processing import (
 )
 
 """
-'''
 Get the data from the database
 
 "/home/fatemeh/Downloads/bird/data/final/orig/{}_data_orig.csv" or
@@ -25,9 +24,9 @@ first make {}_format.csv (The first operation in the data pipeline).
 
 Since get_s_j_w_m_data_from_database is very slow, we previously downloaded the data from the database. But some keys 
 wwere missing, so we need to download them again. Below is the code to download the missing keys.
-'''
+"""
 
-'''
+"""
 # Find missing keys
 # ======
 # Since, some labels are removed from both j_data, m_data, previous getting data from database doesn't contain all the data.
@@ -47,8 +46,9 @@ database_url = "postgresql://username:password@host:port/database_name"
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final_missing_keys.csv")
 data = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/missing_keys.csv", header=None)
 get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
-'''
+"""
 
+"""
 database_url = "postgresql://username:password@host:port/database_name"
 save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
 df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig.csv", header=None)
@@ -57,6 +57,31 @@ df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/w_data_orig.csv
 df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/orig/m_data_orig.csv", header=None)
 data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
 bdp.get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1)
+# e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
+# With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
+"""
+
+"""
+# No database_file exist. Create it first
+database_url = "postgresql://username:password@host:port/database_name"
+save_file = Path("/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv")
+df_s = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/s_format.csv", header=None)
+df_j = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/j_format.csv", header=None)
+df_w = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/w_format.csv", header=None)
+df_m = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/m_format.csv", header=None)
+data = pd.concat((df_s, df_j, df_w, df_m), axis=0, ignore_index=True)
+mode = "w"
+if save_file.exists():
+    done = pd.read_csv(save_file, header=None, usecols=[0, 1]).drop_duplicates()
+    data = data.merge(done, on=[0, 1], how="left", indicator=True)
+    data = data[data["_merge"].eq("left_only")].drop(columns="_merge")
+    mode = "a"
+    print(
+        f"Resuming: {len(done)} done, {len(data[[0, 1]].drop_duplicates())} left"
+    )
+else:
+    print(f"Starting: {len(data[[0, 1]].drop_duplicates())} total")
+bdp.get_s_j_w_m_data_from_database(data, save_file, database_url, glen=1, mode=mode)
 # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
 # With glen=20, we get 40 rows. # all_database_final.csv glen=1, old: all_database.csv glen=20.
 """

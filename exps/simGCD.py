@@ -3,7 +3,7 @@ Non contrastive learning: DINO / iBOT / SimSiam / BYOL / SwAV / VICReg / BarlowT
 Contrastive learning: SimCLR / MoCo
 
 This script is used to train non-contrastive self-supervised learning models.
-Other names can be non contrastive / self distillation / alignmet: train_self_distill.py, train_non_contrastive_ssl.py  
+Other names can be non contrastive / self distillation / alignmet: train_self_distill.py, train_non_contrastive_ssl.py
 
 Based on: https://github.com/CVMI-Lab/SimGCD/blob/main/train_mp.py
 """

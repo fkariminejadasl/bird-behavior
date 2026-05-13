@@ -207,10 +207,8 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 )
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
-print(
-    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
-)
+print(f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
+    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}")
 print(f"number of paratmeters: {sum(i.numel() for i in model.parameters()):,}")
 
 # """
