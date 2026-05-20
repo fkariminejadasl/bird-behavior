@@ -19,7 +19,7 @@ For example, device ID 6210 contains 1,562,699 GPS timestamps and 1,510,999 IMU 
 
 The script first downloads the GPS timestamps, then downloads and filters the IMU and GPS data before saving them to files. For each device, the data is split into shards of 21,000 timestamps.
 
-The code to generate the data is located in `scripts/get_data_gull_20.py`.
+The code to generate the data is located in `get_data_gull_20.py`.
 
 <details>
 <summary>[Device: number of GPS timestamps. Click to expand]</summary>
@@ -40,7 +40,7 @@ This dataset contains 42,978,660 IMU items (716,311 data points of length 60, al
 
 Of the 42,978,660 IMU items, 19,830,960 (CG_KREUPEL, LBBG_TEXEL, HG_TEXEL) are Gull data, and 23,147,700 are Crab Plover data (CP_OMAN).
 
-The code to download the data is in `scripts/get_data_gull_cp_60.py`.
+The code to download the data is in `get_data_gull_cp_60.py`.
 
 <details>
 <summary>[Device: number of GPS timestamps. Click to expand]</summary>
@@ -57,7 +57,7 @@ The data is a combination of several datasets annotated by different experts. Ea
 
 The data contains missing values and inconsistent label mappings. Since we have access to the database, missing items can be retrieved as needed.
 
-The pipeline used to prepare the final dataset is implemented in `scripts/prepare_labeled_data.py`. It consists of two parts: one for individual datasets and one for the combined dataset.
+The pipeline used to prepare the final dataset is implemented in `scripts/data/prepare_labeled_data.py`. It consists of two parts: one for individual datasets and one for the combined dataset.
 
 {45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 128710, 5996: 73367, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 222193, 6396: 193394, 6397: 118675, 6400: 22169, 6401: 86693, 6402: 155329, 6403: 60984, 6501: 100562, 6502: 53395, 6503: 92919, 6504: 115164, 6506: 63602, 6507: 92191, 6508: 94375, 6509: 82911, 6510: 74843, 6511: 36190, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 163355, 7045: 13362, 7046: 208593, 7047: 58469, 7048: 181939, 7050: 61365, 7055: 240955, 7056: 154, 7058: 40385, 7059: 83582, 7061: 151258, 7062: 117698, 7063: 69725, 7077: 4340, 7078: 6766, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 133660, 7132: 14299, 7133: 77046, 7135: 1259, 7137: 45824, 7138: 36336, 7139: 7034, 7140: 6120, 7142: 16013, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 29507, 7161: 10593, 7162: 5596}
 
@@ -229,13 +229,13 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### App
 
-- `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/bird_behavior_viz.py`.
-- `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map.
+- `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_viz.py,merge_simon_data.py}`.
+- `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_viz.py,merge_simon_data.py}`.
 
 #### Visualization
 
 - `scripts/embeddings_plot.py`: Plot embeddings (currently t-SNE) for a given dataset and model.
-- `scripts/bird_behavior_viz.py`: Generate data (IMU, behavior classes by inference, and GPS by downloading from the database) and visualize IMU data with behavior labels and locations on the downloaded map. The visualization is also available in interactive mode in `app/bird_behavior_viz_app.py`.
+- `scripts/data/bird_behavior_viz.py`: Generate data (IMU, behavior classes by inference, and GPS by downloading from the database) and visualize IMU data with behavior labels and locations on the downloaded map. The visualization is also available in interactive mode in `app/bird_behavior_viz_app.py`.
 - `exps/save_plots_gt.py`: Save IMU plots for ground-truth data based on device IDs and starting times.
 - `exps/save_plots.py`: Save IMU plots for each label and run inference for the predictions.
 - `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: Generate IMU plots for structured data (divisible by glen=20), such as `shift.csv`.
@@ -259,8 +259,8 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### Helper Scripts
 
-- `scripts/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
-- `scripts/get_data.py`: Script to retrieve unlabeled data. See the description above.
+- `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
+- `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
 
 #### Data 
