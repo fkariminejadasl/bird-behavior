@@ -10,7 +10,9 @@ from dash import Dash, Input, Output, dcc, html  # ensure html is imported
 
 # ---------- Load full data ----------
 gimu_beh_file = Path(
-    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
+    # "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
+    "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
+    # sed -n '1000,397180p' /home/fatemeh/Downloads/bird/data/simon/simon_merged.csv > /home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv
 )
 df_all = (
     pd.read_csv(gimu_beh_file, header=None)
@@ -123,7 +125,7 @@ LABEL_MODE = "day"  # or "month"
 
 
 def mk_marks(ts: pd.Series, max_marks=12):
-    ts_full = ts.sort_values().dt.floor("S").drop_duplicates()
+    ts_full = ts.sort_values().dt.floor("s").drop_duplicates()
 
     if LABEL_MODE == "month":
         ts_norm = ts_full.dt.to_period("M").dt.start_time.drop_duplicates()
