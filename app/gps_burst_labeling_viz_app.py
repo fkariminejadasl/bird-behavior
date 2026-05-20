@@ -12,6 +12,7 @@ Notes:
     - A GPS burst is identified by the unique pair: device_id + date_time.
     - Each burst is expected to contain 20 IMU rows.
     - The map shows one point per burst.
+    - Relabeling writes a complete updated CSV to OUTPUT_FILE.
 """
 
 import math
@@ -29,8 +30,16 @@ from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 
 GIMU_BEH_FILE = Path(
     # Change this path to your own CSV file.
-    "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
+    # "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
+    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
 )
+
+# A full copy of the data is written here after each relabel action.
+# It keeps the same no-header CSV format as the input file.
+OUTPUT_FILE = GIMU_BEH_FILE.with_name(f"{GIMU_BEH_FILE.stem}_relabelled.csv")
+
+# Optional audit trail: one row per relabel action.
+CHANGE_LOG_FILE = GIMU_BEH_FILE.with_name(f"{GIMU_BEH_FILE.stem}_label_changes.csv")
 
 LABEL_MODE = "day"  # or "month"
 
@@ -353,19 +362,19 @@ def make_map_figure(
     return fig
 
 
-def make_imu_figure(selected_burst: dict | None) -> go.Figure:
+def make_imu_figure(selected_burst: dict | None, height: int = 620) -> go.Figure:
     if not selected_burst:
-        return make_empty_fig("IMU burst")
+        return make_empty_fig("IMU burst", height=height)
 
     burst_id = int(selected_burst["burst_id"])
     g = df_all[df_all["burst_id"] == burst_id].sort_values("index")
     if g.empty:
-        return make_empty_fig("IMU burst")
+        return make_empty_fig("IMU burst", height=height)
 
     row = burst_df.loc[burst_df["burst_id"] == burst_id].iloc[0]
     label_name = ind2name.get(int(row["label"]), str(row["label"]))
     title = (
-        f"IMU burst: device={row['device_id']}, date_time={row['date_time']}, "
+        f"IMU burst<br>device={row['device_id']}, {row['date_time']}<br>"
         f"label={label_name}, confidence={row['confidence']:.3f}"
     )
 
@@ -403,8 +412,8 @@ def make_imu_figure(selected_burst: dict | None) -> go.Figure:
     fig.add_hline(y=0, line_width=1, line_color="black")
     fig.update_layout(
         title=title,
-        height=280,
-        margin=dict(l=45, r=20, t=55, b=40),
+        height=height,
+        margin=dict(l=45, r=20, t=85, b=40),
         yaxis=dict(range=[-3.5, 3.5], tickmode="array", tickvals=[-3.5, 0, 3.5]),
         xaxis_title="IMU index within burst",
         yaxis_title="IMU value",
@@ -513,6 +522,48 @@ def click_to_burst(click_data: dict | None) -> dict | None:
         return None
 
 
+def save_relabelled_data(output_file: Path = OUTPUT_FILE) -> None:
+    """Save the full current dataset in the same no-header CSV format as the input."""
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    df_all[COLS].to_csv(
+        output_file,
+        header=False,
+        index=False,
+        date_format="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def append_change_log(selected: pd.DataFrame, new_label: int) -> None:
+    """Append one compact audit row for each relabel action."""
+    CHANGE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    row = pd.DataFrame(
+        [
+            {
+                "changed_at_utc": datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "device_id": selected.iloc[0]["device_id"],
+                "start_date_time": selected.iloc[0]["date_time"],
+                "end_date_time": selected.iloc[-1]["date_time"],
+                "start_burst_id": int(selected.iloc[0]["burst_id"]),
+                "end_burst_id": int(selected.iloc[-1]["burst_id"]),
+                "new_label": int(new_label),
+                "new_label_name": ind2name.get(int(new_label), str(new_label)),
+                "n_bursts": int(len(selected)),
+                "n_raw_rows": int(selected["n_imu"].sum()),
+                "output_file": str(OUTPUT_FILE),
+            }
+        ]
+    )
+    row.to_csv(
+        CHANGE_LOG_FILE,
+        mode="a",
+        header=not CHANGE_LOG_FILE.exists(),
+        index=False,
+        date_format="%Y-%m-%d %H:%M:%S",
+    )
+
+
 # -----------------------------------------------------------------------------
 # Dash app
 # -----------------------------------------------------------------------------
@@ -530,6 +581,13 @@ app.index_string = """<!DOCTYPE html>
     <style>
       .rc-slider-tooltip{display:none !important;}
       button, select { font-size: 14px; }
+      .main-row { display: flex; gap: 12px; align-items: stretch; }
+      .map-pane { flex: 1 1 68%; min-width: 0; }
+      .imu-pane { flex: 0 0 32%; min-width: 360px; }
+      @media (max-width: 950px) {
+        .main-row { flex-direction: column; }
+        .imu-pane { min-width: 0; }
+      }
     </style>
   </head>
   <body>
@@ -597,20 +655,36 @@ app.layout = html.Div(
                 html.Div(id="click-status", style={"fontWeight": 600}),
             ],
         ),
-        dcc.Graph(id="map-graph", config={"scrollZoom": True}),
-        html.Div("Time window", style={"padding": "8px 4px 0 4px"}),
-        dcc.RangeSlider(
-            id="time-slider",
-            min=t_min,
-            max=t_max,
-            step=1,
-            allowCross=False,
-            value=[t_min, t_max],
-            marks=mk_marks(burst_df["date_time"]),
-            tooltip={"always_visible": False, "placement": "bottom"},
+        html.Div(
+            className="main-row",
+            children=[
+                html.Div(
+                    className="map-pane",
+                    children=[
+                        dcc.Graph(id="map-graph", config={"scrollZoom": True}),
+                        html.Div("Time window", style={"padding": "8px 4px 0 4px"}),
+                        dcc.RangeSlider(
+                            id="time-slider",
+                            min=t_min,
+                            max=t_max,
+                            step=1,
+                            allowCross=False,
+                            value=[t_min, t_max],
+                            marks=mk_marks(burst_df["date_time"]),
+                            tooltip={"always_visible": False, "placement": "bottom"},
+                        ),
+                        html.Div(
+                            id="time-readout",
+                            style={"marginTop": "6px", "opacity": 0.7},
+                        ),
+                    ],
+                ),
+                html.Div(
+                    className="imu-pane",
+                    children=[dcc.Graph(id="imu-graph")],
+                ),
+            ],
         ),
-        html.Div(id="time-readout", style={"marginTop": "6px", "opacity": 0.7}),
-        dcc.Graph(id="imu-graph"),
         html.Div(
             style={
                 "display": "flex",
@@ -804,9 +878,19 @@ def apply_label(_n_clicks, selection, new_label, label_version):
         new_label, str(new_label)
     )
 
+    try:
+        save_relabelled_data()
+        append_change_log(selected, new_label)
+    except OSError as exc:
+        return (
+            f"Applied label in memory, but could not save the file: {exc}",
+            int(label_version or 0) + 1,
+        )
+
     return (
         f"Applied label {new_label}: {ind2name.get(new_label, str(new_label))} "
-        f"to {len(selected)} bursts and {int(selected['n_imu'].sum())} raw rows in memory.",
+        f"to {len(selected)} bursts and {int(selected['n_imu'].sum())} raw rows. "
+        f"Saved full updated CSV to: {OUTPUT_FILE}",
         int(label_version or 0) + 1,
     )
 
