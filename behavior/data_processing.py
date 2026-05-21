@@ -578,8 +578,13 @@ def merge_prefer_valid(*dfs):
         # argmax gives position of first True, or 0 if none
         return sub.iloc[valid.argmax()]
 
+    # groupby.apply returns rows as Series, which can upcast mixed int/float rows;
+    # cast label column back to int so labels are written as integers in CSV output.
     return (
-        df.groupby([0, 1, 2], as_index=False).apply(pick_valid).reset_index(drop=True)
+        df.groupby([0, 1, 2], as_index=False)
+        .apply(pick_valid)
+        .reset_index(drop=True)
+        .astype({3: "int64"})
     )
 
 
@@ -873,15 +878,16 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     del dfs
 
-    # print("Shift")
-    df = shift_df(df, 20)
-    save_file = save_path / "shift.csv"
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-    # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
-
-    # save_file = save_path / "starts.csv"
-    # df = slice_from_first_label(df, glen=20)
+    # # print("Shift")
+    # df = shift_df(df, 20)
+    # save_file = save_path / "shift.csv"
     # df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
+
+    # print("Slice from first label")
+    save_file = save_path / "starts.csv"
+    df = slice_from_first_label(df, glen=20)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     print("Drop duplicates")
     save_file = save_path / "drop.csv"
