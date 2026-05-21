@@ -30,8 +30,7 @@ from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 
 GIMU_BEH_FILE = Path(
     # Change this path to your own CSV file.
-    # "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
-    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
+    "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
 )
 
 # A full copy of the data is written here after each relabel action.
@@ -166,6 +165,24 @@ def epoch_seconds_to_str(seconds: int) -> str:
     )
 
 
+def label_text(label_id) -> str:
+    try:
+        label_id = int(label_id)
+    except (TypeError, ValueError):
+        return str(label_id)
+    return ind2name.get(label_id, str(label_id))
+
+
+def gt_text(gt_label) -> str:
+    try:
+        gt_label = int(gt_label)
+    except (TypeError, ValueError):
+        return "None"
+    if gt_label == -1:
+        return "None"
+    return ind2name.get(gt_label, str(gt_label))
+
+
 def mk_marks(ts: pd.Series, max_marks: int = 12) -> dict[int, str]:
     ts_full = ts.sort_values().dt.floor("s").drop_duplicates()
 
@@ -288,6 +305,8 @@ def make_map_figure(
                     sub["label"],
                     sub["label_name"],
                     sub["confidence"],
+                    sub["gt_label"],
+                    sub["gt_label"].apply(gt_text),
                     sub["gps_speed"],
                     sub["altitude"],
                     sub["n_imu"],
@@ -305,7 +324,8 @@ def make_map_figure(
                 customdata=customdata,
                 hovertemplate=(
                     "date_time: %{customdata[2]}<br>"
-                    "label: %{customdata[4]}<br>"
+                    "pred: %{customdata[4]}<br>"
+                    "gt: %{customdata[7]}<br>"
                     "confidence: %{customdata[5]:.3f}<extra></extra>"
                 ),
                 showlegend=True,
@@ -371,13 +391,6 @@ def make_imu_figure(selected_burst: dict | None, height: int = 620) -> go.Figure
     if g.empty:
         return make_empty_fig("IMU burst", height=height)
 
-    row = burst_df.loc[burst_df["burst_id"] == burst_id].iloc[0]
-    label_name = ind2name.get(int(row["label"]), str(row["label"]))
-    title = (
-        f"IMU burst<br>device={row['device_id']}, {row['date_time']}<br>"
-        f"label={label_name}, confidence={row['confidence']:.3f}"
-    )
-
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -411,13 +424,13 @@ def make_imu_figure(selected_burst: dict | None, height: int = 620) -> go.Figure
     )
     fig.add_hline(y=0, line_width=1, line_color="black")
     fig.update_layout(
-        title=title,
+        title="IMU burst",
         height=height,
-        margin=dict(l=45, r=20, t=85, b=40),
+        margin=dict(l=45, r=20, t=45, b=55),
         yaxis=dict(range=[-3.5, 3.5], tickmode="array", tickvals=[-3.5, 0, 3.5]),
         xaxis_title="IMU index within burst",
         yaxis_title="IMU value",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5),
         uirevision="keep",
     )
     return fig
@@ -449,7 +462,13 @@ def make_series_figure(
     y = selected[y_col]
     fig = go.Figure()
     customdata = np.stack(
-        [selected["burst_id"], selected["label_name"], selected["confidence"]], axis=-1
+        [
+            selected["burst_id"],
+            selected["label_name"],
+            selected["gt_label"].apply(gt_text),
+            selected["confidence"],
+        ],
+        axis=-1,
     )
     fig.add_trace(
         go.Scatter(
@@ -461,8 +480,9 @@ def make_series_figure(
             hovertemplate=(
                 "date_time: %{x}<br>"
                 f"{y_title}: " + "%{y}<br>"
-                "label: %{customdata[1]}<br>"
-                "confidence: %{customdata[2]:.3f}<extra></extra>"
+                "pred: %{customdata[1]}<br>"
+                "gt: %{customdata[2]}<br>"
+                "confidence: %{customdata[3]:.3f}<extra></extra>"
             ),
         )
     )
@@ -514,9 +534,11 @@ def click_to_burst(click_data: dict | None) -> dict | None:
             "label": int(customdata[3]),
             "label_name": str(customdata[4]),
             "confidence": float(customdata[5]),
-            "gps_speed": float(customdata[6]),
-            "altitude": float(customdata[7]),
-            "n_imu": int(customdata[8]),
+            "gt_label": int(customdata[6]),
+            "gt_label_name": str(customdata[7]),
+            "gps_speed": float(customdata[8]),
+            "altitude": float(customdata[9]),
+            "n_imu": int(customdata[10]),
         }
     except (TypeError, ValueError, IndexError):
         return None
@@ -561,6 +583,45 @@ def append_change_log(selected: pd.DataFrame, new_label: int) -> None:
         header=not CHANGE_LOG_FILE.exists(),
         index=False,
         date_format="%Y-%m-%d %H:%M:%S",
+    )
+
+
+def make_imu_metadata(selected_burst: dict | None):
+    if not selected_burst:
+        return "Click a GPS burst to inspect its IMU data."
+
+    burst_id = int(selected_burst["burst_id"])
+    row_df = burst_df.loc[burst_df["burst_id"] == burst_id]
+    if row_df.empty:
+        return "Selected burst was not found."
+
+    row = row_df.iloc[0]
+    pred = label_text(row["label"])
+    gt = gt_text(row["gt_label"])
+    mismatch = ""
+    if int(row["gt_label"]) != -1 and int(row["gt_label"]) != int(row["label"]):
+        mismatch = " | mismatch"
+
+    return html.Div(
+        style={
+            "padding": "8px 10px",
+            "marginBottom": "6px",
+            "border": "1px solid #ddd",
+            "borderRadius": "6px",
+            "background": "#fafafa",
+            "fontSize": "13px",
+            "lineHeight": "1.45",
+        },
+        children=[
+            html.Div(f"Device: {row['device_id']}"),
+            html.Div(f"Date time: {row['date_time']}"),
+            html.Div(
+                f"Pred: {pred} | GT: {gt} | Confidence: {row['confidence']:.3f}{mismatch}"
+            ),
+            html.Div(
+                f"GPS speed: {row['gps_speed']:.3f} | Altitude: {row['altitude']} | IMU rows: {int(row['n_imu'])}"
+            ),
+        ],
     )
 
 
@@ -681,7 +742,10 @@ app.layout = html.Div(
                 ),
                 html.Div(
                     className="imu-pane",
-                    children=[dcc.Graph(id="imu-graph")],
+                    children=[
+                        html.Div(id="imu-meta"),
+                        dcc.Graph(id="imu-graph"),
+                    ],
                 ),
             ],
         ),
@@ -803,12 +867,13 @@ def update_map(selected_range, device_id, selection, _label_version):
 
 
 @app.callback(
+    Output("imu-meta", "children"),
     Output("imu-graph", "figure"),
     Input("selected-burst", "data"),
     Input("label-version", "data"),
 )
 def update_imu(selected_burst, _label_version):
-    return make_imu_figure(selected_burst)
+    return make_imu_metadata(selected_burst), make_imu_figure(selected_burst)
 
 
 @app.callback(
