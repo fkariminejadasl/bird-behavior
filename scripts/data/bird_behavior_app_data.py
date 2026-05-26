@@ -141,6 +141,36 @@ def prepare_imu_gps_class_data(data_file, save_file, cfg):
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
+def prepare_rose_app_data(data_file, save_file):
+    df = pd.read_csv(data_file)
+    df = df.sort_values(["device_id", "UTC_datetime"], kind="stable").reset_index(
+        drop=True
+    )
+    gps_cols = ["speed_km_h", "Latitude", "Longitude", "Altitude_m"]
+    df[gps_cols] = df.groupby("device_id")[gps_cols].ffill()
+
+    df = df[df["datatype"] == "SENSORS"].copy()
+    df["index"] = df.groupby("device_id").cumcount()
+    df_app = pd.DataFrame(
+        {
+            0: df["device_id"],
+            1: df["UTC_datetime"],
+            2: df["index"],
+            3: -1,
+            4: df["x_g"],
+            5: df["y_g"],
+            6: df["z_g"],
+            7: df["speed_km_h"],
+            8: -1,
+            9: -1,
+            10: df["Latitude"],
+            11: df["Longitude"],
+            12: df["Altitude_m"],
+        }
+    )
+    df_app.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
 def plot_labeled_data(df, ind2name, glen=20):
 
     y_limits = [-3.5, 3.5]
@@ -220,6 +250,11 @@ cfg = OmegaConf.create(cfg)
 cfg.n_classes = len(cfg.labels_to_use)
 cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
+
+
+# data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
+# prepare_rose_app_data(data_file, save_file)
 
 """
 # On unlabeled data

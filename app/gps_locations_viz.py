@@ -12,7 +12,7 @@ from dash import Dash, Input, Output, dcc, html  # ensure html is imported
 gimu_beh_file = Path(
     # "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6210_72.csv"
     "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
-    # sed -n '1000,397180p' /home/fatemeh/Downloads/bird/data/simon/simon_merged.csv > /home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv
+    # sed -n '1001,397180p' /home/fatemeh/Downloads/bird/data/simon/simon_merged.csv > /home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv # sed one based
 )
 df_all = (
     pd.read_csv(gimu_beh_file, header=None)
