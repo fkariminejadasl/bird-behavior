@@ -142,15 +142,30 @@ def prepare_imu_gps_class_data(data_file, save_file, cfg):
 
 
 def prepare_rose_app_data(data_file, save_file):
-    df = pd.read_csv(data_file)
-    df = df.sort_values(["device_id", "UTC_datetime"], kind="stable").reset_index(
-        drop=True
-    )
+    cols = [
+        "device_id",
+        "UTC_datetime",
+        "datatype",
+        "Latitude",
+        "Longitude",
+        "Altitude_m",
+        "speed_km_h",
+        "x_g",
+        "y_g",
+        "z_g",
+    ]
+    df = pd.read_csv(data_file, usecols=cols)
     gps_cols = ["speed_km_h", "Latitude", "Longitude", "Altitude_m"]
-    df[gps_cols] = df.groupby("device_id")[gps_cols].ffill()
+    is_gps = df["datatype"] == "GPS"
+    zero_gps = is_gps & df["Latitude"].eq(0) & df["Longitude"].eq(0)
+    df["gps_i"] = is_gps.groupby(df["device_id"]).cumsum()
+    df.loc[~is_gps | zero_gps, gps_cols] = np.nan
+    df[gps_cols] = df.groupby(["device_id", "gps_i"], sort=False)[gps_cols].ffill()
 
     df = df[df["datatype"] == "SENSORS"].copy()
-    df["index"] = df.groupby("device_id").cumcount()
+    df = df[~(df["Latitude"].eq(0) & df["Longitude"].eq(0))]
+    df = df[df["Latitude"].notna() & df["Longitude"].notna()]
+    df["index"] = df.groupby(["device_id", "gps_i"], sort=False).cumcount()
     df_app = pd.DataFrame(
         {
             0: df["device_id"],
@@ -252,9 +267,9 @@ cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
 
 
-# data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
-# prepare_rose_app_data(data_file, save_file)
+data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
+save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
+prepare_rose_app_data(data_file, save_file)
 
 """
 # On unlabeled data
