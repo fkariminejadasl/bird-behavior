@@ -241,6 +241,7 @@ prepare_imu_gps_class_data(data_file, save_file, cfg)
 """
 
 
+"""
 # Visualize IMU and behavior
 # gimu_beh_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/298.csv")
 # dt = (298, "2010-06-07 09:43:05")
@@ -266,3 +267,20 @@ for i in [1536, 179]:
     map_image.show()
 
 print("done")
+"""
+
+
+"""
+simon steps:
+ - create birds_full from all_devices_calibrated.csv
+ - classify_birds -> no ll
+ - merge_simon_data
+
+bird_behavior_app_data: get GPS from database and append. Then it does inference.
+
+Simpler for me to use bird_behavior_app_data or fix classify_birds for simon and others.
+
+bird_behavior_app_data:
+- functionality: getting data for three apps and visualization is optional
+- add the Rose data reading and make it as device_id, date_time, imu_x, imu_y, imu_z, speed, lat, lon, alt
+"""

@@ -229,13 +229,13 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### App
 
-- `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_viz.py,merge_simon_data.py}`.
-- `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_viz.py,merge_simon_data.py}`.
+- `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
+- `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 
 #### Visualization
 
 - `scripts/embeddings_plot.py`: Plot embeddings (currently t-SNE) for a given dataset and model.
-- `scripts/data/bird_behavior_viz.py`: Generate data (IMU, behavior classes by inference, and GPS by downloading from the database) and visualize IMU data with behavior labels and locations on the downloaded map. The visualization is also available in interactive mode in `app/bird_behavior_viz_app.py`.
+- `scripts/data/bird_behavior_app_data.py`: Generate data (IMU, behavior classes by inference, and GPS by downloading from the database).
 - `exps/save_plots_gt.py`: Save IMU plots for ground-truth data based on device IDs and starting times.
 - `exps/save_plots.py`: Save IMU plots for each label and run inference for the predictions.
 - `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: Generate IMU plots for structured data (divisible by glen=20), such as `shift.csv`.
