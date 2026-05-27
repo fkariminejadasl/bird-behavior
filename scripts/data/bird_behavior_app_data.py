@@ -141,90 +141,6 @@ def prepare_imu_gps_class_data(data_file, save_file, cfg):
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
-"""
-def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
-    cols = [
-        "device_id",
-        "UTC_datetime",
-        "datatype",
-        "Latitude",
-        "Longitude",
-        "Altitude_m",
-        "speed_km_h",
-        "x_g",
-        "y_g",
-        "z_g",
-    ]
-
-    df = pd.read_csv(data_file, usecols=cols)
-    df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
-
-    gps = df[df["datatype"].eq("GPS")].copy()
-    sensors = df[df["datatype"].eq("SENSORS")].copy()
-
-    # Remove invalid GPS rows where both Latitude and Longitude are zero.
-    gps = gps[~(gps["Latitude"].eq(0) & gps["Longitude"].eq(0))]
-
-    gps = gps[
-        [
-            "device_id",
-            "UTC_datetime",
-            "Latitude",
-            "Longitude",
-            "Altitude_m",
-            "speed_km_h",
-        ]
-    ]
-
-    sensors = sensors[
-        [
-            "device_id",
-            "UTC_datetime",
-            "x_g",
-            "y_g",
-            "z_g",
-        ]
-    ]
-
-    # Attach the latest previous GPS row to each SENSOR row.
-    df_app = pd.merge_asof(
-        sensors.sort_values("UTC_datetime"),
-        gps.sort_values("UTC_datetime"),
-        on="UTC_datetime",
-        by="device_id",
-        direction="backward",
-    )
-
-    # Remove SENSOR rows that did not get any previous valid GPS.
-    df_app = df_app[df_app["Latitude"].notna()].copy()
-
-    df_app = pd.DataFrame(
-        {
-            0: df_app["device_id"],
-            1: df_app["UTC_datetime"].dt.strftime("%Y-%m-%d %H:%M:%S"),
-            2: 0,          # temporary index, can be fixed later
-            3: -1,
-            4: df_app["x_g"],
-            5: df_app["y_g"],
-            6: df_app["z_g"],
-            7: df_app["speed_km_h"],
-            8: -1,
-            9: -1,
-            10: df_app["Latitude"],
-            11: df_app["Longitude"],
-            12: df_app["Altitude_m"],
-        }
-    )
-
-    df_app.to_csv(save_file, index=False, header=False, float_format="%.6f")
-"""
-
-
-from pathlib import Path
-
-import pandas as pd
-
-
 def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
     cols = [
         "device_id",
@@ -428,29 +344,30 @@ def plot_labeled_data(df, ind2name, glen=20):
     return fig
 
 
-# Prepare data
-cfg = dict(
-    glen=20,
-    exp=125,
-    labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
-    in_channe=4,
-    width=30,
-    n_classes=None,
-    checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
-    database_url=None,
-)
+if __name__ == "__main__":
+    # Prepare data
+    cfg = dict(
+        glen=20,
+        exp=125,
+        labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
+        in_channe=4,
+        width=30,
+        n_classes=None,
+        checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
+        database_url=None,
+    )
 
-cfg = OmegaConf.create(cfg)
-cfg.n_classes = len(cfg.labels_to_use)
-cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
-cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
+    cfg = OmegaConf.create(cfg)
+    cfg.n_classes = len(cfg.labels_to_use)
+    cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
+    cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
 
+    # data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
+    # save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
 
-# data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
-# save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
+    # prepare_rose_app_data(data_file, save_file)
+    # check_consecutive_gps_sensor_time_diff(data_file)
 
-# prepare_rose_app_data(data_file, save_file)
-# check_consecutive_gps_sensor_time_diff(data_file)
 
 """
 # On unlabeled data

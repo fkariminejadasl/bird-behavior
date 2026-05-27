@@ -32,8 +32,9 @@ from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 # To run the app: python app/gps_burst_labeling_viz_app.py [input_csv_path] [port]
 GIMU_BEH_FILE = Path(
     # Change this path to your own CSV file.
-    "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv"
-    # "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv"
+    "/home/fatemeh/Downloads/bird/data/simon/simon_merged_1000_397180.csv" # unlabeled Rose
+    # "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv" # unlabeled database
+    # "/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv" # labeled
 )
 GIMU_BEH_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else GIMU_BEH_FILE
 port = int(sys.argv[2]) if len(sys.argv) > 2 else 8050
