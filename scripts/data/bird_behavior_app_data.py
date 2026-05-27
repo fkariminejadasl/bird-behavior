@@ -126,7 +126,7 @@ def fetch_merge_gps(df, database_url):
     return df
 
 
-def prepare_database_app_data(data_file, cfg):
+def load_database_app_data(data_file, cfg):
     df = pd.read_csv(data_file, header=None)
     df = df.sort_values([0, 1, 2])
     df = df.iloc[:, :8].copy()
@@ -136,12 +136,22 @@ def prepare_database_app_data(data_file, cfg):
     return df[[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
 
 
-def prepare_imu_gps_class_data(data_file, save_file, cfg):
-    df = prepare_database_app_data(data_file, cfg)
+def infer_save_app_data(df, save_file, cfg):
+    df = df.sort_values([0, 1, 2])
     df = bmu.infer_update_classes(
         df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
     )
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+
+def prepare_app_class_data(data_file, save_file, cfg):
+    df = pd.read_csv(data_file, header=None)
+    infer_save_app_data(df, save_file, cfg)
+
+
+def prepare_database_app_class_data(data_file, save_file, cfg):
+    df = load_database_app_data(data_file, cfg)
+    infer_save_app_data(df, save_file, cfg)
 
 
 def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
@@ -394,12 +404,6 @@ if __name__ == "__main__":
     cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
     cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
 
-    # data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
-    # save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
-
-    # prepare_rose_app_data(data_file, save_file)
-    # check_consecutive_gps_sensor_time_diff(data_file)
-
 
 """
 # On unlabeled data
@@ -410,14 +414,22 @@ data_paths = sorted(list(data_path.glob("*")), key=lambda x: int(x.stem))
 for data_file in data_paths:
     device_id = int(data_file.stem)
     save_file = save_path / f"{device_id}.csv"
-    prepare_imu_gps_class_data(data_file, save_file, cfg)
+    prepare_database_app_class_data(data_file, save_file, cfg)
 
 # On the ground truth data
 data_file = Path("/home/fatemeh/Downloads/bird/data/final/starts.csv")
 save_file = Path(
     "/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv"
 )
-prepare_imu_gps_class_data(data_file, save_file, cfg)
+prepare_database_app_class_data(data_file, save_file, cfg)
+
+# On Rose data
+data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
+app_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
+save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior.csv")
+# check_consecutive_gps_sensor_time_diff(data_file)
+# prepare_rose_app_data(data_file, app_file)
+prepare_app_class_data(app_file, save_file, cfg)
 """
 
 

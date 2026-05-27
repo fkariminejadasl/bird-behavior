@@ -286,3 +286,16 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 ## Data Format
 
+App data:
+
+```text
+device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed,class,confidence,lat,lon,altitude
+```
+
+IMU data:
+
+```text
+device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed
+```
+
+`imu_x`, `imu_y`, and `imu_z` are in `m/s2`; `gps_speed` is in `m/s`.

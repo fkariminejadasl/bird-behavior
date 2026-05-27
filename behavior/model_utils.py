@@ -1,23 +1,9 @@
-import os
-from collections import Counter
-from functools import partial
-from pathlib import Path
-from types import SimpleNamespace
-
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
-import torch.nn as nn
-from omegaconf import OmegaConf
-from sklearn.metrics import average_precision_score, confusion_matrix
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from behavior import data as bd
-from behavior import map as bmap
 from behavior import model as bm
-from behavior import model1d as bm1
 from behavior import utils as bu
 
 seed = 32984
@@ -44,11 +30,12 @@ def infer_update_classes(df, glen, labels_to_use, checkpoint_file, n_classes):
     Inference and update class/confidence columns in app-format data.
     -> df is mutated
     """
-    if df.shape[1] < 13:
+    if df.shape[1] < 12:
         raise ValueError(
-            "Expected app-format data with 13 columns: "
+            "Expected app-format data with 12 columns: "
             "device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed,"
             "class,confidence,lat,lon,altitude"
+            " altitude is optional"
         )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
