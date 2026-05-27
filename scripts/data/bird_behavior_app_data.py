@@ -99,6 +99,7 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
             str(result[1]),  # date_time
             result[2],  # latitude
             result[3],  # longitude
+            result[4],  # altitude
         ]
         for result in results
         if result[-4] is not None  # speed_2d
@@ -108,7 +109,6 @@ def fetch_gps_data(database_url, device_id, start_time, end_time):
 def fetch_merge_gps(df, database_url):
     """
     Fetch GPS data and merge with IMU data
-    -> df is mutated
     """
 
     groups = df.groupby([0])
@@ -119,56 +119,59 @@ def fetch_merge_gps(df, database_url):
         device_id = group.iloc[0, 0]
         per_group = fetch_gps_data(database_url, device_id, start_time, end_time)
         gps_data.extend(per_group)
-    gps_data = pd.DataFrame(gps_data)
+    gps_data = pd.DataFrame(gps_data, columns=[0, 1, 10, 11, 12])
 
-    # Change dataframe: append columns at the end
-    last_col = int(df.columns[-1])
     df = df.merge(gps_data, on=[0, 1], how="inner")
-    df = df.rename(
-        columns={"2_x": 2, "3_x": 3, "2_y": last_col + 1, "3_y": last_col + 2}
-    )
 
     return df
 
 
-def prepare_imu_gps_class_data(data_file, save_file, cfg):
+def prepare_database_app_data(data_file, cfg):
     df = pd.read_csv(data_file, header=None)
     df = df.sort_values([0, 1, 2])
+    df = df.iloc[:, :8].copy()
+    df[8] = -1
+    df[9] = -1
+    df = fetch_merge_gps(df, cfg.database_url)
+    return df[[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
+
+
+def prepare_imu_gps_class_data(data_file, save_file, cfg):
+    df = prepare_database_app_data(data_file, cfg)
     df = bmu.infer_update_classes(
         df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
     )
-    df = fetch_merge_gps(df, cfg.database_url)
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
 def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
     """
-    prepare_rose_app_data reads calibrated GPS/SENSOR CSV data and converts it to the ROSE app input format. 
-    It keeps GPS records only when latitude and longitude are valid and 
-    the next row is a SENSOR record from the same device 
-    with an absolute timestamp difference of at most 2 seconds. 
-    The valid GPS values are forward-filled to the following SENSOR rows from the same device. 
-    SENSOR rows after invalid GPS records are discarded. 
-    Finally, SENSOR rows are grouped by device_id and UTC_datetime, 
+    prepare_rose_app_data reads calibrated GPS/SENSOR CSV data and converts it to the ROSE app input format.
+    It keeps GPS records only when latitude and longitude are valid and
+    the next row is a SENSOR record from the same device
+    with an absolute timestamp difference of at most 2 seconds.
+    The valid GPS values are forward-filled to the following SENSOR rows from the same device.
+    SENSOR rows after invalid GPS records are discarded.
+    Finally, SENSOR rows are grouped by device_id and UTC_datetime,
     trimmed so each group size is divisible by 20, indexed from zero, and saved to a headerless CSV file.
 
     The input file:
-      is a CSV file containing calibrated GPS and SENSOR records. 
-      Each row belongs to one device and has a UTC timestamp in the column UTC_datetime. 
-      GPS rows are identified by datatype == "GPS" and contain location fields 
-      such as Latitude, Longitude, Altitude_m, and speed_km_h. 
-      SENSOR rows are identified by datatype == "SENSORS" and 
-      contain IMU acceleration fields x_g, y_g, and z_g. GPS rows 
+      is a CSV file containing calibrated GPS and SENSOR records.
+      Each row belongs to one device and has a UTC timestamp in the column UTC_datetime.
+      GPS rows are identified by datatype == "GPS" and contain location fields
+      such as Latitude, Longitude, Altitude_m, and speed_km_h.
+      SENSOR rows are identified by datatype == "SENSORS" and
+      contain IMU acceleration fields x_g, y_g, and z_g. GPS rows
       with both Latitude and Longitude equal to zero are treated as invalid and are not used.
 
-    The output file is a CSV file without a header. 
+    The output file is a CSV file without a header.
     It contains only SENSOR rows that can be matched to a valid nearby GPS row. The output columns are:
 
     device_id, UTC_datetime, index, -1, x_g, y_g, z_g, speed_m_s, -1, -1, Latitude, Longitude, Altitude_m
 
-    The speed value is converted from km/h to m/s. 
-    The index starts at 0 for each device_id and UTC_datetime group and increases within that group. 
-    Only groups with a number of SENSOR rows divisible by 20 are saved; 
+    The speed value is converted from km/h to m/s.
+    The index starts at 0 for each device_id and UTC_datetime group and increases within that group.
+    Only groups with a number of SENSOR rows divisible by 20 are saved;
     extra rows at the end of a group are removed.
     """
     cols = [

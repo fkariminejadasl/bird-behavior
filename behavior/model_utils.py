@@ -41,9 +41,15 @@ class Mapper:
 
 def infer_update_classes(df, glen, labels_to_use, checkpoint_file, n_classes):
     """
-    Inference and update classes
+    Inference and update class/confidence columns in app-format data.
     -> df is mutated
     """
+    if df.shape[1] < 13:
+        raise ValueError(
+            "Expected app-format data with 13 columns: "
+            "device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed,"
+            "class,confidence,lat,lon,altitude"
+        )
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -69,10 +75,9 @@ def infer_update_classes(df, glen, labels_to_use, checkpoint_file, n_classes):
     mapper = Mapper({l: i for i, l in enumerate(labels_to_use)})
     preds = mapper.decode(preds)
 
-    # Change dataframe: append columns at the end
-    last_col = int(df.columns[-1])
-    df[last_col + 1] = preds[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
+    # Update app-format class and confidence columns.
+    df[8] = preds[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
     max_probs = np.max(probs, axis=1)
-    df[last_col + 2] = max_probs[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
+    df[9] = max_probs[:, np.newaxis].repeat(glen, axis=1).reshape(-1)
 
     return df
