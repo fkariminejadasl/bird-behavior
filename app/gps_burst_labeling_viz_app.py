@@ -47,6 +47,7 @@ OUTPUT_FILE = GIMU_BEH_FILE.with_name(f"{GIMU_BEH_FILE.stem}_relabelled.csv")
 CHANGE_LOG_FILE = GIMU_BEH_FILE.with_name(f"{GIMU_BEH_FILE.stem}_label_changes.csv")
 
 LABEL_MODE = "day"  # or "month"
+PREDICTION_GLEN = 20
 
 # Behavior labels and colors.
 ind2name = {
@@ -121,6 +122,27 @@ def load_data(path: Path) -> pd.DataFrame:
 
 
 def build_burst_df(raw: pd.DataFrame) -> pd.DataFrame:
+    def block_values(series: pd.Series) -> list:
+        return series.iloc[::PREDICTION_GLEN].tolist()
+
+    def block_label_text(series: pd.Series) -> str:
+        return ", ".join(
+            ind2name.get(int(label_id), str(label_id))
+            for label_id in block_values(series)
+        )
+
+    def block_gt_text(series: pd.Series) -> str:
+        names = []
+        for label_id in block_values(series):
+            label_id = int(label_id)
+            names.append(
+                "None" if label_id == -1 else ind2name.get(label_id, str(label_id))
+            )
+        return ", ".join(names)
+
+    def block_confidence_text(series: pd.Series) -> str:
+        return ", ".join(f"{float(conf):.3f}" for conf in block_values(series))
+
     b = (
         raw.groupby(["device_id", "date_time"], sort=True)
         .agg(
@@ -131,6 +153,9 @@ def build_burst_df(raw: pd.DataFrame) -> pd.DataFrame:
             confidence=("confidence", "first"),
             altitude=("altitude", "first"),
             gt_label=("gt_label", "first"),
+            label_name=("label", block_label_text),
+            gt_label_name=("gt_label", block_gt_text),
+            confidence_text=("confidence", block_confidence_text),
             row_start=("index", "idxmin"),
             n_imu=("index", "size"),
         )
@@ -139,7 +164,6 @@ def build_burst_df(raw: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     b["burst_id"] = b.index.astype(int)
-    b["label_name"] = b["label"].map(ind2name).fillna(b["label"].astype(str))
     b["device_id_str"] = b["device_id"].astype(str)
     return b
 
@@ -187,6 +211,11 @@ def gt_text(gt_label) -> str:
     if gt_label == -1:
         return "None"
     return ind2name.get(gt_label, str(gt_label))
+
+
+def repeated_label_text(label_id, n_rows) -> str:
+    n_blocks = max(1, math.ceil(int(n_rows) / PREDICTION_GLEN))
+    return ", ".join([label_text(label_id)] * n_blocks)
 
 
 def mk_marks(ts: pd.Series, max_marks: int = 12) -> dict[int, str]:
@@ -312,10 +341,11 @@ def make_map_figure(
                     sub["label_name"],
                     sub["confidence"],
                     sub["gt_label"],
-                    sub["gt_label"].apply(gt_text),
+                    sub["gt_label_name"],
                     sub["gps_speed"],
                     sub["altitude"],
                     sub["n_imu"],
+                    sub["confidence_text"],
                 ],
                 axis=-1,
             )
@@ -332,7 +362,7 @@ def make_map_figure(
                     "date_time: %{customdata[2]}<br>"
                     "pred: %{customdata[4]}<br>"
                     "gt: %{customdata[7]}<br>"
-                    "confidence: %{customdata[5]:.3f}<extra></extra>"
+                    "confidence: %{customdata[11]}<extra></extra>"
                 ),
                 showlegend=True,
             )
@@ -471,8 +501,8 @@ def make_series_figure(
         [
             selected["burst_id"],
             selected["label_name"],
-            selected["gt_label"].apply(gt_text),
-            selected["confidence"],
+            selected["gt_label_name"],
+            selected["confidence_text"],
         ],
         axis=-1,
     )
@@ -488,7 +518,7 @@ def make_series_figure(
                 f"{y_title}: " + "%{y}<br>"
                 "pred: %{customdata[1]}<br>"
                 "gt: %{customdata[2]}<br>"
-                "confidence: %{customdata[3]:.3f}<extra></extra>"
+                "confidence: %{customdata[3]}<extra></extra>"
             ),
         )
     )
@@ -602,8 +632,8 @@ def make_imu_metadata(selected_burst: dict | None):
         return "Selected burst was not found."
 
     row = row_df.iloc[0]
-    pred = label_text(row["label"])
-    gt = gt_text(row["gt_label"])
+    pred = row["label_name"]
+    gt = row["gt_label_name"]
     mismatch = ""
     if int(row["gt_label"]) != -1 and int(row["gt_label"]) != int(row["label"]):
         mismatch = " | mismatch"
@@ -622,7 +652,7 @@ def make_imu_metadata(selected_burst: dict | None):
             html.Div(f"Device: {row['device_id']}"),
             html.Div(f"Date time: {row['date_time']}"),
             html.Div(
-                f"Pred: {pred} | GT: {gt} | Confidence: {row['confidence']:.3f}{mismatch}"
+                f"Pred: {pred} | GT: {gt} | Confidence: {row['confidence_text']}{mismatch}"
             ),
             html.Div(
                 f"GPS speed: {row['gps_speed']:.3f} | Altitude: {row['altitude']} | IMU rows: {int(row['n_imu'])}"
@@ -945,9 +975,9 @@ def apply_label(_n_clicks, selection, new_label, label_version):
     # Update the raw rows and the burst table in memory.
     df_all.loc[df_all["burst_id"].isin(selected_ids), "label"] = new_label
     burst_df.loc[burst_df["burst_id"].isin(selected_ids), "label"] = new_label
-    burst_df.loc[burst_df["burst_id"].isin(selected_ids), "label_name"] = ind2name.get(
-        new_label, str(new_label)
-    )
+    burst_df.loc[burst_df["burst_id"].isin(selected_ids), "label_name"] = burst_df.loc[
+        burst_df["burst_id"].isin(selected_ids), "n_imu"
+    ].apply(lambda n_rows: repeated_label_text(new_label, n_rows))
 
     try:
         save_relabelled_data()
