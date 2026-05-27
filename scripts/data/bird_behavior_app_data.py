@@ -220,6 +220,11 @@ def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
 """
 
 
+from pathlib import Path
+
+import pandas as pd
+
+
 def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
     cols = [
         "device_id",
@@ -237,8 +242,11 @@ def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
     df = pd.read_csv(data_file, usecols=cols)
     df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
 
+    is_gps = df["datatype"].eq("GPS")
+    is_sensor = df["datatype"].eq("SENSORS")
+
     gps_next_sensor = (
-        df["datatype"].eq("GPS")
+        is_gps
         & df["datatype"].shift(-1).eq("SENSORS")
         & df["device_id"].eq(df["device_id"].shift(-1))
         & ~(df["Latitude"].eq(0) & df["Longitude"].eq(0))
@@ -248,33 +256,40 @@ def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
 
     valid_gps = gps_next_sensor & (time_diff.abs() <= pd.Timedelta(seconds=2))
 
-    gps_rows = df.loc[
-        valid_gps,
-        [
-            "device_id",
-            "Latitude",
-            "Longitude",
-            "Altitude_m",
-            "speed_km_h",
-        ],
-    ].reset_index(drop=True)
+    # The latest GPS row before each SENSOR row.
+    df["gps_datetime"] = df["UTC_datetime"].where(is_gps)
+    df["gps_datetime"] = df.groupby("device_id")["gps_datetime"].ffill()
 
-    sensor_rows = (
-        df.shift(-1)
-        .loc[
-            valid_gps,
-            [
-                "UTC_datetime",
-                "x_g",
-                "y_g",
-                "z_g",
-            ],
-        ]
-        .reset_index(drop=True)
+    # The latest valid GPS row before each SENSOR row.
+    df["valid_gps_datetime"] = df["UTC_datetime"].where(valid_gps)
+    df["valid_gps_datetime"] = df.groupby("device_id")["valid_gps_datetime"].ffill()
+
+    # Keep GPS values only from valid GPS rows, then forward-fill them.
+    gps_cols = ["Latitude", "Longitude", "Altitude_m", "speed_km_h"]
+
+    for col in gps_cols:
+        df[col] = df[col].where(valid_gps)
+        df[col] = df.groupby("device_id")[col].ffill()
+
+    # Keep SENSOR rows only when the most recent GPS is valid.
+    df_app = df[
+        is_sensor
+        & df["gps_datetime"].eq(df["valid_gps_datetime"])
+        & df["Latitude"].notna()
+        & df["Longitude"].notna()
+    ].copy()
+
+    # Keep only rows up to a count divisible by 20 per device_id and SENSOR datetime.
+    df_app["index"] = df_app.groupby(["device_id", "UTC_datetime"]).cumcount()
+
+    n_per_group = df_app.groupby(["device_id", "UTC_datetime"])["index"].transform(
+        "size"
     )
+    keep_n = n_per_group - (n_per_group % 20)
 
-    df_app = pd.concat([gps_rows, sensor_rows], axis=1)
+    df_app = df_app[df_app["index"] < keep_n].copy()
 
+    # Recreate index after filtering.
     df_app["index"] = df_app.groupby(["device_id", "UTC_datetime"]).cumcount()
 
     out = pd.DataFrame(
