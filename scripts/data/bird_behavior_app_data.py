@@ -141,7 +141,8 @@ def prepare_imu_gps_class_data(data_file, save_file, cfg):
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
 
-def prepare_rose_app_data(data_file, save_file):
+"""
+def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
     cols = [
         "device_id",
         "UTC_datetime",
@@ -154,36 +155,199 @@ def prepare_rose_app_data(data_file, save_file):
         "y_g",
         "z_g",
     ]
-    df = pd.read_csv(data_file, usecols=cols)
-    gps_cols = ["speed_km_h", "Latitude", "Longitude", "Altitude_m"]
-    is_gps = df["datatype"] == "GPS"
-    zero_gps = is_gps & df["Latitude"].eq(0) & df["Longitude"].eq(0)
-    df["gps_i"] = is_gps.groupby(df["device_id"]).cumsum()
-    df.loc[~is_gps | zero_gps, gps_cols] = np.nan
-    df[gps_cols] = df.groupby(["device_id", "gps_i"], sort=False)[gps_cols].ffill()
 
-    df = df[df["datatype"] == "SENSORS"].copy()
-    df = df[~(df["Latitude"].eq(0) & df["Longitude"].eq(0))]
-    df = df[df["Latitude"].notna() & df["Longitude"].notna()]
-    df["index"] = df.groupby(["device_id", "gps_i"], sort=False).cumcount()
+    df = pd.read_csv(data_file, usecols=cols)
+    df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
+
+    gps = df[df["datatype"].eq("GPS")].copy()
+    sensors = df[df["datatype"].eq("SENSORS")].copy()
+
+    # Remove invalid GPS rows where both Latitude and Longitude are zero.
+    gps = gps[~(gps["Latitude"].eq(0) & gps["Longitude"].eq(0))]
+
+    gps = gps[
+        [
+            "device_id",
+            "UTC_datetime",
+            "Latitude",
+            "Longitude",
+            "Altitude_m",
+            "speed_km_h",
+        ]
+    ]
+
+    sensors = sensors[
+        [
+            "device_id",
+            "UTC_datetime",
+            "x_g",
+            "y_g",
+            "z_g",
+        ]
+    ]
+
+    # Attach the latest previous GPS row to each SENSOR row.
+    df_app = pd.merge_asof(
+        sensors.sort_values("UTC_datetime"),
+        gps.sort_values("UTC_datetime"),
+        on="UTC_datetime",
+        by="device_id",
+        direction="backward",
+    )
+
+    # Remove SENSOR rows that did not get any previous valid GPS.
+    df_app = df_app[df_app["Latitude"].notna()].copy()
+
     df_app = pd.DataFrame(
         {
-            0: df["device_id"],
-            1: df["UTC_datetime"],
-            2: df["index"],
+            0: df_app["device_id"],
+            1: df_app["UTC_datetime"].dt.strftime("%Y-%m-%d %H:%M:%S"),
+            2: 0,          # temporary index, can be fixed later
             3: -1,
-            4: df["x_g"],
-            5: df["y_g"],
-            6: df["z_g"],
-            7: df["speed_km_h"],
+            4: df_app["x_g"],
+            5: df_app["y_g"],
+            6: df_app["z_g"],
+            7: df_app["speed_km_h"],
             8: -1,
             9: -1,
-            10: df["Latitude"],
-            11: df["Longitude"],
-            12: df["Altitude_m"],
+            10: df_app["Latitude"],
+            11: df_app["Longitude"],
+            12: df_app["Altitude_m"],
         }
     )
-    df_app.to_csv(save_file, index=False, header=None, float_format="%.6f")
+
+    df_app.to_csv(save_file, index=False, header=False, float_format="%.6f")
+"""
+
+
+def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
+    cols = [
+        "device_id",
+        "UTC_datetime",
+        "datatype",
+        "Latitude",
+        "Longitude",
+        "Altitude_m",
+        "speed_km_h",
+        "x_g",
+        "y_g",
+        "z_g",
+    ]
+
+    df = pd.read_csv(data_file, usecols=cols)
+    df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
+
+    gps_next_sensor = (
+        df["datatype"].eq("GPS")
+        & df["datatype"].shift(-1).eq("SENSORS")
+        & df["device_id"].eq(df["device_id"].shift(-1))
+        & ~(df["Latitude"].eq(0) & df["Longitude"].eq(0))
+    )
+
+    time_diff = df["UTC_datetime"].shift(-1) - df["UTC_datetime"]
+
+    valid_gps = gps_next_sensor & (time_diff.abs() <= pd.Timedelta(seconds=2))
+
+    gps_rows = df.loc[
+        valid_gps,
+        [
+            "device_id",
+            "Latitude",
+            "Longitude",
+            "Altitude_m",
+            "speed_km_h",
+        ],
+    ].reset_index(drop=True)
+
+    sensor_rows = (
+        df.shift(-1)
+        .loc[
+            valid_gps,
+            [
+                "UTC_datetime",
+                "x_g",
+                "y_g",
+                "z_g",
+            ],
+        ]
+        .reset_index(drop=True)
+    )
+
+    df_app = pd.concat([gps_rows, sensor_rows], axis=1)
+
+    df_app["index"] = df_app.groupby(["device_id", "UTC_datetime"]).cumcount()
+
+    out = pd.DataFrame(
+        {
+            0: df_app["device_id"],
+            1: df_app["UTC_datetime"].dt.strftime("%Y-%m-%d %H:%M:%S"),
+            2: df_app["index"],
+            3: -1,
+            4: df_app["x_g"],
+            5: df_app["y_g"],
+            6: df_app["z_g"],
+            7: df_app["speed_km_h"] / 3.6,  # speed m/s
+            8: -1,
+            9: -1,
+            10: df_app["Latitude"],
+            11: df_app["Longitude"],
+            12: df_app["Altitude_m"],
+        }
+    )
+
+    out.to_csv(save_file, index=False, header=False, float_format="%.6f")
+
+
+def check_consecutive_gps_sensor_time_diff(data_file):
+    """
+    Check the time difference between consecutive GPS and SENSORS rows for the same device_id.
+    """
+    cols = [
+        "device_id",
+        "UTC_datetime",
+        "datatype",
+        "Latitude",
+        "Longitude",
+        "Altitude_m",
+        "speed_km_h",
+        "x_g",
+        "y_g",
+        "z_g",
+    ]
+
+    df = pd.read_csv(data_file, usecols=cols)
+    df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
+
+    gps_next_sensor = (
+        df["datatype"].eq("GPS")
+        & df["datatype"].shift(-1).eq("SENSORS")
+        & df["device_id"].eq(df["device_id"].shift(-1))
+        & ~(df["Latitude"].eq(0) & df["Longitude"].eq(0))
+    )
+
+    time_diff = (
+        df["UTC_datetime"].shift(-1)[gps_next_sensor]
+        - df["UTC_datetime"][gps_next_sensor]
+    )
+
+    print(time_diff.value_counts().sort_index())
+    print("max:", time_diff.max())
+
+    print(
+        df.loc[
+            gps_next_sensor,
+            ["device_id", "UTC_datetime", "Latitude", "Longitude", "Altitude_m"],
+        ]
+        .assign(
+            gps_time=df["UTC_datetime"][gps_next_sensor],
+            next_sensor_time=df["UTC_datetime"].shift(-1)[gps_next_sensor],
+            time_diff=time_diff,
+        )
+        .sort_values("time_diff", ascending=False)
+        .head(20)
+    )
+
+    print("done")
 
 
 def plot_labeled_data(df, ind2name, glen=20):
@@ -267,9 +431,11 @@ cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
 
 
-data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
-save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
-prepare_rose_app_data(data_file, save_file)
+# data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated.csv")
+# save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
+
+# prepare_rose_app_data(data_file, save_file)
+# check_consecutive_gps_sensor_time_diff(data_file)
 
 """
 # On unlabeled data
