@@ -1,5 +1,33 @@
 #!/usr/bin/env python3
-"""Merge Simon IMU, prediction, and GPS data into one headerless CSV."""
+"""Merge Simon IMU, prediction, and GPS data into one headerless CSV.
+
+Input files
+-----------
+``birds_full.txt`` is a headerless CSV with one row per IMU sample:
+
+    device_id,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed
+
+``results.csv`` is the output from classify_birds.py and must include the header
+columns ``device_info_serial``, ``date_time``, ``prediction``, and
+``confidence``. ``prediction`` is a behavior name from ``ind2name`` and is
+converted to its numeric class ID in the merged output.
+
+``all_devices_calibrated.csv`` is the calibrated Simon/Rose export with a
+header. The script reads ``device_id``, ``UTC_datetime``, ``datatype``,
+``Latitude``, ``Longitude``, and ``Altitude_m``. GPS rows are identified with
+``datatype == "GPS"``. In this file the GPS timestamp is one row earlier than
+the matching SENSOR/IMU timestamp, so each valid GPS location is attached to
+the next row for the same device.
+
+Output file
+-----------
+``simon_merged.csv`` is a headerless CSV consumed by the visualization apps:
+
+    device_id,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed,label,confidence,latitude,longitude,altitude
+
+``gt_label`` is ``-1`` for unlabeled data. ``label`` is the predicted numeric
+behavior class. Missing ``None`` or ``NA`` values are written as empty strings.
+"""
 
 from __future__ import annotations
 

@@ -229,6 +229,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 #### App
 
+- `app/gps_burst_labeling_viz_app.py`: Combines the IMU/behavior visualization app and the GPS locations app, with label editing added.
 - `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 - `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 
@@ -261,6 +262,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
+- `scripts/data/merge_simon_data.py`: Merge Simon/Rose IMU rows, model predictions, and shifted GPS locations into the 13-column app CSV format.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
 
 #### Data 
@@ -282,20 +284,3 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.
 - `map.py`: Visualize a map from latitude and longitude.
-
-
-## Data Format
-
-App data:
-
-```text
-device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed,class,confidence,lat,lon,altitude
-```
-
-IMU data:
-
-```text
-device,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed
-```
-
-`imu_x`, `imu_y`, and `imu_z` are in `m/s2`; `gps_speed` is in `m/s`.
