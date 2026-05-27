@@ -142,6 +142,35 @@ def prepare_imu_gps_class_data(data_file, save_file, cfg):
 
 
 def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
+    """
+    prepare_rose_app_data reads calibrated GPS/SENSOR CSV data and converts it to the ROSE app input format. 
+    It keeps GPS records only when latitude and longitude are valid and 
+    the next row is a SENSOR record from the same device 
+    with an absolute timestamp difference of at most 2 seconds. 
+    The valid GPS values are forward-filled to the following SENSOR rows from the same device. 
+    SENSOR rows after invalid GPS records are discarded. 
+    Finally, SENSOR rows are grouped by device_id and UTC_datetime, 
+    trimmed so each group size is divisible by 20, indexed from zero, and saved to a headerless CSV file.
+
+    The input file:
+      is a CSV file containing calibrated GPS and SENSOR records. 
+      Each row belongs to one device and has a UTC timestamp in the column UTC_datetime. 
+      GPS rows are identified by datatype == "GPS" and contain location fields 
+      such as Latitude, Longitude, Altitude_m, and speed_km_h. 
+      SENSOR rows are identified by datatype == "SENSORS" and 
+      contain IMU acceleration fields x_g, y_g, and z_g. GPS rows 
+      with both Latitude and Longitude equal to zero are treated as invalid and are not used.
+
+    The output file is a CSV file without a header. 
+    It contains only SENSOR rows that can be matched to a valid nearby GPS row. The output columns are:
+
+    device_id, UTC_datetime, index, -1, x_g, y_g, z_g, speed_m_s, -1, -1, Latitude, Longitude, Altitude_m
+
+    The speed value is converted from km/h to m/s. 
+    The index starts at 0 for each device_id and UTC_datetime group and increases within that group. 
+    Only groups with a number of SENSOR rows divisible by 20 are saved; 
+    extra rows at the end of a group are removed.
+    """
     cols = [
         "device_id",
         "UTC_datetime",

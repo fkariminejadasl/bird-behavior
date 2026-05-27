@@ -282,3 +282,7 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.
 - `map.py`: Visualize a map from latitude and longitude.
+
+
+## Data Format
+
