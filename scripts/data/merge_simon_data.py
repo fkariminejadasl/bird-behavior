@@ -1,12 +1,7 @@
-#!/usr/bin/env python3
-"""Merge Simon IMU, prediction, and GPS data into one headerless CSV.
+"""Merge Simon calibrated IMU and GPS, and prediction into CSV for visualization apps.
 
 Input files
 -----------
-``birds_full.txt`` is a headerless CSV with one row per IMU sample:
-
-    device_id,date_time,index,gt_label,imu_x,imu_y,imu_z,gps_speed
-
 ``results.csv`` is the output from classify_birds.py and must include the header
 columns ``device_info_serial``, ``date_time``, ``prediction``, and
 ``confidence``. ``prediction`` is a behavior name from ``ind2name`` and is
@@ -14,10 +9,11 @@ converted to its numeric class ID in the merged output.
 
 ``all_devices_calibrated.csv`` is the calibrated Simon/Rose export with a
 header. The script reads ``device_id``, ``UTC_datetime``, ``datatype``,
-``Latitude``, ``Longitude``, and ``Altitude_m``. GPS rows are identified with
-``datatype == "GPS"``. In this file the GPS timestamp is one row earlier than
-the matching SENSOR/IMU timestamp, so each valid GPS location is attached to
-the next row for the same device.
+``Latitude``, ``Longitude``, ``Altitude_m``, ``speed_km_h``, ``x_g``, ``y_g``,
+and ``z_g``. GPS rows are identified with ``datatype == "GPS"`` and SENSOR/IMU
+rows are identified with ``datatype == "SENSORS"``. In this file the GPS
+timestamp is one row earlier than the matching SENSOR/IMU timestamp, so each
+valid GPS location is attached to the next SENSOR rows for the same device.
 
 Output file
 -----------
@@ -29,20 +25,21 @@ Output file
 behavior class. Missing ``None`` or ``NA`` values are written as empty strings.
 """
 
-from __future__ import annotations
-
 import argparse
 import csv
-from collections import Counter
+from collections import Counter, defaultdict
+from datetime import datetime
+from math import isfinite
 from pathlib import Path
+from typing import Optional
 
 DEFAULT_DIR = Path("/home/fatemeh/Downloads/bird/data/simon")
-DEFAULT_BIRDS_FULL = DEFAULT_DIR / "birds_full.txt"
 DEFAULT_RESULTS = DEFAULT_DIR / "results.csv"
 DEFAULT_CALIBRATED = DEFAULT_DIR / "all_devices_calibrated.csv"
-DEFAULT_OUTPUT = DEFAULT_DIR / "simon_merged.csv"
+DEFAULT_OUTPUT = DEFAULT_DIR / "simon_merged2.csv"
 
-BIRDS_FULL_COLUMNS = 8
+APP_GROUP_SIZE = 20
+MAX_GPS_SENSOR_TIME_DIFF_SECONDS = 2
 ind2name = {
     0: "Flap",
     1: "ExFlap",
@@ -58,11 +55,46 @@ ind2name = {
 NAME2IND = {name: str(ind) for ind, name in ind2name.items()}
 
 
-def clean(value: str | None) -> str:
+def clean(value: Optional[str]) -> str:
     if value is None:
         return ""
     value = value.strip()
-    return "" if value in {"None", "NA"} else value
+    return "" if value in {"None", "NA", "NaN", "nan"} else value
+
+
+def parse_datetime(value: Optional[str]) -> datetime:
+    value = clean(value)
+    if value.endswith("Z"):
+        value = f"{value[:-1]}+00:00"
+    return datetime.fromisoformat(value)
+
+
+def clean_datetime(value: Optional[str]) -> str:
+    value = clean(value)
+    if not value:
+        return ""
+
+    return parse_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_imu(value: Optional[str]) -> str:
+    value = clean(value)
+    if not value:
+        return ""
+
+    value = float(value)
+    return f"{value:.6f}" if isfinite(value) else ""
+
+
+def valid_number(value: Optional[str]) -> bool:
+    value = clean(value)
+    if not value:
+        return False
+
+    try:
+        return isfinite(float(value))
+    except ValueError:
+        return False
 
 
 def load_predictions(results_file: Path) -> dict[tuple[str, str], tuple[str, str]]:
@@ -71,101 +103,159 @@ def load_predictions(results_file: Path) -> dict[tuple[str, str], tuple[str, str
     with results_file.open("r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            key = (clean(row["device_info_serial"]), clean(row["date_time"]))
-            prediction = NAME2IND[clean(row["prediction"])]
+            key = (clean(row["device_info_serial"]), clean_datetime(row["date_time"]))
+            prediction = NAME2IND.get(clean(row["prediction"]), "")
             confidence = clean(row["confidence"])
             predictions[key] = (prediction, confidence)
 
     return predictions
 
 
-def load_shifted_gps(
-    calibrated_file: Path,
-) -> dict[tuple[str, str], tuple[str, str, str]]:
-    gps = {}
-    gps_from_previous_row: tuple[str, str, str, str] | None = None
+def is_zero(value: str) -> bool:
+    try:
+        return float(value) == 0
+    except ValueError:
+        return False
 
+
+def load_calibrated_rows(calibrated_file: Path) -> list[list[str]]:
     with calibrated_file.open("r", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            device_id = clean(row["device_id"])
-            utc_datetime = clean(row["UTC_datetime"])
+        rows = list(csv.DictReader(f))
 
-            # GPS timestamps are one row earlier than the matching IMU timestamp.
-            # Store GPS coordinates when we see a GPS row, then attach them to the
-            # next row's UTC_datetime.
-            if gps_from_previous_row is not None:
-                gps_device_id, latitude, longitude, altitude = gps_from_previous_row
-                if device_id == gps_device_id:
-                    gps[(gps_device_id, utc_datetime)] = (latitude, longitude, altitude)
-                gps_from_previous_row = None
+    latest_gps_by_device: dict[str, Optional[dict[str, str]]] = {}
+    grouped_rows: dict[tuple[str, str], list[list[str]]] = defaultdict(list)
+    group_order: list[tuple[str, str]] = []
 
-            if clean(row["datatype"]) == "GPS":
-                latitude = clean(row["Latitude"])
-                longitude = clean(row["Longitude"])
-                altitude = clean(row["Altitude_m"])
-                if latitude and longitude:
-                    gps_from_previous_row = (device_id, latitude, longitude, altitude)
+    for row_index, row in enumerate(rows):
+        device_id = clean(row["device_id"])
+        datatype = clean(row["datatype"])
 
-    return gps
+        if datatype == "GPS":
+            latitude = clean(row["Latitude"])
+            longitude = clean(row["Longitude"])
+            next_row = rows[row_index + 1] if row_index + 1 < len(rows) else None
+            latest_gps_by_device[device_id] = None
+
+            if next_row is not None:
+                time_diff = parse_datetime(next_row["UTC_datetime"]) - parse_datetime(
+                    row["UTC_datetime"]
+                )
+                valid_gps = (
+                    clean(next_row["datatype"]) == "SENSORS"
+                    and clean(next_row["device_id"]) == device_id
+                    and latitude
+                    and longitude
+                    and not (is_zero(latitude) and is_zero(longitude))
+                    and abs(time_diff.total_seconds())
+                    <= MAX_GPS_SENSOR_TIME_DIFF_SECONDS
+                )
+                if valid_gps:
+                    latest_gps_by_device[device_id] = {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "altitude": clean(row["Altitude_m"]),
+                        "speed_km_h": clean(row["speed_km_h"]),
+                    }
+            continue
+
+        if datatype != "SENSORS":
+            continue
+
+        gps = latest_gps_by_device.get(device_id)
+        if gps is None:
+            continue
+
+        date_time = clean_datetime(row["UTC_datetime"])
+        key = (device_id, date_time)
+        if key not in grouped_rows:
+            group_order.append(key)
+
+        speed = clean(gps["speed_km_h"])
+        x_g = format_imu(row["x_g"])
+        y_g = format_imu(row["y_g"])
+        z_g = format_imu(row["z_g"])
+
+        if not all(
+            [
+                x_g,
+                y_g,
+                z_g,
+                valid_number(speed),
+                valid_number(gps["latitude"]),
+                valid_number(gps["longitude"]),
+            ]
+        ):
+            continue
+
+        altitude = gps["altitude"] if valid_number(gps["altitude"]) else "-1"
+        grouped_rows[key].append(
+            [
+                device_id,
+                date_time,
+                "",
+                "-1",
+                x_g,
+                y_g,
+                z_g,
+                f"{float(speed) / 3.6:.6f}" if speed else "",
+                gps["latitude"],
+                gps["longitude"],
+                altitude,
+            ]
+        )
+
+    calibrated_rows = []
+    for key in group_order:
+        rows_in_group = grouped_rows[key]
+        keep_n = len(rows_in_group) - (len(rows_in_group) % APP_GROUP_SIZE)
+        for sample_index, row in enumerate(rows_in_group[:keep_n]):
+            row[2] = str(sample_index)
+            calibrated_rows.append(row)
+
+    return calibrated_rows
 
 
 def merge_simon_data(
-    birds_full: Path,
     results: Path,
     calibrated: Path,
     output: Path,
 ) -> None:
     predictions = load_predictions(results)
-    gps = load_shifted_gps(calibrated)
+    calibrated_rows = load_calibrated_rows(calibrated)
     counts: Counter[str] = Counter()
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    with (
-        birds_full.open("r", newline="") as birds_file,
-        output.open("w", newline="") as output_file,
-    ):
-        reader = csv.reader(birds_file)
+    with output.open("w", newline="") as output_file:
         writer = csv.writer(output_file, lineterminator="\n")
-
-        for row in reader:
-            if len(row) < BIRDS_FULL_COLUMNS:
-                counts["short_bird_rows"] += 1
+        for row in calibrated_rows:
+            bird_row = row[:8]
+            key = (bird_row[0], bird_row[1])
+            if key not in predictions:
+                counts["missing_prediction"] += 1
                 continue
 
-            bird_row = [clean(value) for value in row[:BIRDS_FULL_COLUMNS]]
-            key = (bird_row[0], bird_row[1])
-            prediction, confidence = predictions.get(key, ("", ""))
-            latitude, longitude, altitude = gps.get(key, ("", "", ""))
+            prediction, confidence = predictions[key]
 
             if not prediction or not confidence:
                 counts["missing_prediction"] += 1
-            if not latitude or not longitude:
-                counts["missing_gps"] += 1
+                continue
 
-            writer.writerow(
-                [*bird_row, prediction, confidence, latitude, longitude, altitude]
-            )
+            writer.writerow([*bird_row, prediction, confidence, *row[8:]])
             counts["written"] += 1
 
     print(f"Wrote {counts['written']:,} rows to {output}")
     if counts["missing_prediction"]:
         print(f"Missing predictions: {counts['missing_prediction']:,}")
-    if counts["missing_gps"]:
-        print(f"Missing GPS rows: {counts['missing_gps']:,}")
-    if counts["short_bird_rows"]:
-        print(f"Skipped short bird rows: {counts['short_bird_rows']:,}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--birds-full", type=Path, default=DEFAULT_BIRDS_FULL)
     parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
     parser.add_argument("--calibrated", type=Path, default=DEFAULT_CALIBRATED)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    merge_simon_data(args.birds_full, args.results, args.calibrated, args.output)
+    merge_simon_data(args.results, args.calibrated, args.output)
 
 
 if __name__ == "__main__":

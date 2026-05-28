@@ -154,9 +154,9 @@ def prepare_database_app_class_data(data_file, save_file, cfg):
     infer_save_app_data(df, save_file, cfg)
 
 
-def prepare_rose_app_data(data_file: Path, save_file: Path) -> None:
+def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
     """
-    prepare_rose_app_data reads calibrated GPS/SENSOR CSV data and converts it to the ROSE app input format.
+    Reads calibrated GPS/SENSOR CSV data and converts it to the app input format.
     It keeps GPS records only when latitude and longitude are valid and
     the next row is a SENSOR record from the same device
     with an absolute timestamp difference of at most 2 seconds.
@@ -428,7 +428,7 @@ data_file = Path("/home/fatemeh/Downloads/bird/data/simon/all_devices_calibrated
 app_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
 save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior.csv")
 # check_consecutive_gps_sensor_time_diff(data_file)
-# prepare_rose_app_data(data_file, app_file)
+# prepare_calibrated_app_data(data_file, app_file)
 prepare_app_class_data(app_file, save_file, cfg)
 """
 
