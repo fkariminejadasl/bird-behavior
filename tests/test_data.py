@@ -192,7 +192,7 @@ def test_get_data():
         "/home/fatemeh/Downloads/bird/data/final/w_data.csv",
         "/home/fatemeh/Downloads/bird/data/final/m_data.csv",
         "/home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv",
-        "/home/fatemeh/Downloads/bird/data/final/orig/s_data_orig_with_index.csv",
+        "/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv",
         "/home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_balanced_0.csv",
         "/home/fatemeh/Downloads/bird/data/final/s_data_shift/s_data_unbalanced.csv",
     ],
@@ -252,7 +252,7 @@ def test_find_index_jumps(df):
     # (6080, '2014-06-26 07:59:49') [21] was wrong. But if we ignore label 10, everything is OK.
 
     # from pathlib import Path
-    # path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    # path = Path("/home/fatemeh/Downloads/bird/data/final")
     # for i in ["s", "j", "m", "w"]:
     #     df = pd.read_csv(path / f"{i}_map.csv", header=None)
     #     print(f"Testing {i} data")

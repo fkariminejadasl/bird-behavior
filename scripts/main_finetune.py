@@ -121,10 +121,8 @@ scheduler = torch.optim.lr_scheduler.StepLR(
 
 
 len_train, len_eval = len(train_dataset), len(eval_dataset)
-print(
-    f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
-    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
-)
+print(f"device: {device}, train: {len_train:,}, valid: {len_eval:,} \
+    images, train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}")
 best_accuracy = 0
 with tensorboard.SummaryWriter(cfg.save_path / f"tensorboard/{cfg.exp}") as writer:
     for epoch in tqdm.tqdm(range(1, cfg.no_epochs + 1)):

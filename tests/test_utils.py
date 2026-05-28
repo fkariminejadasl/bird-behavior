@@ -122,17 +122,59 @@ def test_equal_dataframes_false():
     assert bu.equal_dataframe(df1, df2, [0, 1, 2, 3, 4, 5]) is False
 
 
+def test_equal_csv_files_ignores_row_order_and_resets_index(tmp_path):
+    df1 = pd.DataFrame(
+        [
+            [
+                6210,
+                "2016-05-09 10:27:20",
+                18,
+                -1,
+                0.502449,
+                -0.210526,
+                0.882411,
+                0.074034,
+            ],
+            [
+                6210,
+                "2016-05-09 10:27:20",
+                17,
+                -1,
+                0.541626,
+                -0.151072,
+                0.888340,
+                0.074034,
+            ],
+        ]
+    )
+    df2 = df1.iloc[[1, 0]].copy()
+
+    file1 = tmp_path / "a.csv"
+    file2 = tmp_path / "b.csv"
+    df1.to_csv(file1, index=False, header=None)
+    df2.to_csv(file2, index=False, header=None)
+
+    assert bu.equal_csv_files(
+        file1,
+        file2,
+        cols_to_compare=list(range(8)),
+        sort_cols=[0, 1, 2],
+        round_cols=[4, 5, 6, 7],
+        precision=6,
+    )
+
+
 @pytest.mark.local
 @pytest.mark.parametrize(
     "file_path1, file_path2",
     [
         (
-            "/home/fatemeh/Downloads/bird/data/final/proc2/m_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc2/m_index.csv",
+            "/home/fatemeh/Downloads/bird/data/final/m_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/m_index.csv",
         ),
         (
-            "/home/fatemeh/Downloads/bird/data/final/proc2/w_format.csv",
-            "/home/fatemeh/Downloads/bird/data/final/proc2/w_index.csv",
+            "/home/fatemeh/Downloads/bird/data/final/w_format.csv",
+            "/home/fatemeh/Downloads/bird/data/final/w_index.csv",
         ),
     ],
 )

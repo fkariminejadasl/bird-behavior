@@ -36,9 +36,9 @@
 # TEST
 # ===========
 # Paths
-test_file: #/home/fatemeh/Downloads/bird/data/final/proc2/test.csv
-valid_file: #/home/fatemeh/Downloads/bird/data/final/proc2/valid.csv
-data_file: /home/fatemeh/Downloads/bird/data/final/proc2/starts.csv #/home/fatemeh/Downloads/bird/data/final/proc2/train.csv, final/s_data_shift/s_data_balanced_0.csv, s_data_balanced.csv /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
+test_file: #/home/fatemeh/Downloads/bird/data/final/test.csv
+valid_file: #/home/fatemeh/Downloads/bird/data/final/valid.csv
+data_file: /home/fatemeh/Downloads/bird/data/final/starts.csv #/home/fatemeh/Downloads/bird/data/final/train.csv, final/s_data_shift/s_data_balanced_0.csv, s_data_balanced.csv /home/fatemeh/Downloads/bird/data/final/corrected_combined_unique_sorted012.csv
 save_path: "/home/fatemeh/Downloads/bird/results/"
 model_checkpoint: /home/fatemeh/Downloads/bird/results/f_p20_4_best.pth #/home/fatemeh/Downloads/bird/snellius/p20_2_best.pth
 # General

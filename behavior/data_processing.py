@@ -285,7 +285,7 @@ def identify_mistakes(df_s, df, glen=20):
     """
     Identify labeling mistakes. Find which data points are labeled differently.
 
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     dfs = pd.read_csv(path / "s_map0.csv", header=None)
     dfj = pd.read_csv(path / "j_map0.csv", header=None)
     dfm = pd.read_csv(path / "m_map0.csv", header=None)
@@ -402,7 +402,7 @@ def Discovered_mapping():
     Then for each label check which mapping is used for the other data.
     Usually top of the list had common data.
 
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     df1 = pd.read_csv(path / "s_index.csv", header=None)
     df2 = pd.read_csv(path / "j_index.csv", header=None)
     df3 = pd.read_csv(path / "m_index.csv", header=None)
@@ -578,8 +578,13 @@ def merge_prefer_valid(*dfs):
         # argmax gives position of first True, or 0 if none
         return sub.iloc[valid.argmax()]
 
+    # groupby.apply returns rows as Series, which can upcast mixed int/float rows;
+    # cast label column back to int so labels are written as integers in CSV output.
     return (
-        df.groupby([0, 1, 2], as_index=False).apply(pick_valid).reset_index(drop=True)
+        df.groupby([0, 1, 2], as_index=False)
+        .apply(pick_valid)
+        .reset_index(drop=True)
+        .astype({3: "int64"})
     )
 
 
@@ -756,6 +761,43 @@ def drop_duplicates(df, glen=20):
     return df
 
 
+def ensure_database_file(
+    name_input_files, save_path, database_file, database_url, change_format
+):
+    "Downloading data is slow, it is about 1 hour for 2261 items"
+    save_path.mkdir(parents=True, exist_ok=True)
+    database_file.parent.mkdir(parents=True, exist_ok=True)
+
+    formatted = []
+    for name, input_file in name_input_files:
+        save_file = save_path / f"{name}_format.csv"
+        if save_file.exists():
+            df = pd.read_csv(save_file, header=None)
+        else:
+            print(f"Format {name}")
+            df = change_format[name](input_file, save_file)
+        formatted.append(df)
+
+    data = pd.concat(formatted, axis=0, ignore_index=True)
+    mode = "w"
+    if database_file.exists() and database_file.stat().st_size > 0:
+        done = pd.read_csv(database_file, header=None, usecols=[0, 1]).drop_duplicates()
+        data = data.merge(done, on=[0, 1], how="left", indicator=True)
+        data = data[data["_merge"].eq("left_only")].drop(columns="_merge")
+        mode = "a"
+
+    remaining = len(data[[0, 1]].drop_duplicates())
+    if remaining:
+        print(f"Database: {remaining} missing")
+        get_s_j_w_m_data_from_database(
+            data, database_file, database_url, glen=1, mode=mode
+        )
+        # e.g. 782,2013-06-07 15:33:49 contains 59 rows in the database. So with glen=1 we get all the data.
+        # With glen=20, we get 40 rows. # all_database.csv glen=1, old: all_database.csv glen=20.
+    else:
+        print("Database: complete")
+
+
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
     pipeline: format, index, map0, mistake, map, drop_neg1, complete, not{combine, shift, drop}
@@ -768,12 +810,15 @@ def make_data_pipeline(name, input_file, save_path, database_file, change_format
 
     save_path.mkdir(parents=True, exist_ok=True)
 
-    df_db = pd.read_csv(database_file, header=None)
-
     # Format
     print("Format")
     save_file = save_path / f"{name}_format.csv"
-    df = change_format[name](input_file, save_file)
+    if save_file.exists():
+        df = pd.read_csv(save_file, header=None)
+    else:
+        df = change_format[name](input_file, save_file)
+
+    df_db = pd.read_csv(database_file, header=None)
 
     # Index
     print("Index")
@@ -833,15 +878,16 @@ def make_combined_data_pipeline(input_path: Path, save_path: Path, filenames: li
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
     del dfs
 
-    # print("Shift")
-    df = shift_df(df, 20)
-    save_file = save_path / "shift.csv"
-    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
-    # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
-
-    # save_file = save_path / "starts.csv"
-    # df = slice_from_first_label(df, glen=20)
+    # # print("Shift")
+    # df = shift_df(df, 20)
+    # save_file = save_path / "shift.csv"
     # df.to_csv(save_file, index=False, header=None, float_format="%.6f")
+    # # sorted({k: v//20 for k, v in Counter(df[3].values).items()}.items())
+
+    # print("Slice from first label")
+    save_file = save_path / "starts.csv"
+    df = slice_from_first_label(df, glen=20)
+    df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
     print("Drop duplicates")
     save_file = save_path / "drop.csv"
@@ -896,7 +942,7 @@ def make_train_valid_test_split(input_file, save_path: Path):
     print(f"Done. Train: {len(train_df)}, Valid: {len(valid_df)}, Test: {len(test_df)}")
 
 
-def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
+def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20, mode="w"):
     """
     Get all the data from the database (1930 requests)
     """
@@ -905,7 +951,7 @@ def get_s_j_w_m_data_from_database(data, save_file, database_url, glen=20):
         data[[0, 1]].drop_duplicates().sort_values(by=[0, 1]).reset_index(drop=True)
     )
 
-    file = open(save_file, "w")
+    file = open(save_file, mode)
     for _, row in tqdm(unique_dt.iterrows(), total=len(unique_dt)):
         device_id, start_time = list(row)
         try:

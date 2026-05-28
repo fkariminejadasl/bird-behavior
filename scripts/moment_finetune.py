@@ -157,7 +157,7 @@ cfg = {
     "save_path": Path("/home/fatemeh/Downloads/bird/results"),
     "checkpoint_path": Path("/home/fatemeh/Downloads/bird/results/mpt_1_best.pth"),
     # Data
-    "data_file": Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    "data_file": Path("/home/fatemeh/Downloads/bird/data/final/starts.csv"),
     "valid_file": None,
     "test_file": None,
     "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],

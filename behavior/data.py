@@ -1181,10 +1181,8 @@ def prepare_dataloaders(dataset, cfg):
     len_data, len_train, len_eval = len(dataset), len(train_dataset), len(eval_dataset)
 
     print(f"data shape: {train_dataset[0][0].shape}")  # 3x20
-    print(
-        f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
-        train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}"
-    )
+    print(f"all data: {len_data:,}, train: {len_train:,}, valid: {len_eval:,},  \
+        train_loader: {len(train_loader)}, eval_loader: {len(eval_loader)}")
     return train_loader, eval_loader
 
 

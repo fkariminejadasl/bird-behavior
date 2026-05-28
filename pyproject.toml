@@ -47,15 +47,15 @@ app = [
     "plotly",
     "dash",
     "dash_extensions",
-    "fastapi",
-    "uvicorn",
-    "python-multipart",
-    "build",
-    "python-dotenv", # for .env files
 ]
+# testing extras
 # pip install .[test]
 test = [
+    "black",
+    "isort",
+    "pyflakes",
     "pytest",
+    # "pytest-cov",
 ]
 
 # Exposing `scripts/` under the `behavior` namespace. We can do:

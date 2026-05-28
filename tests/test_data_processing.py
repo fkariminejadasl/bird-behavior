@@ -232,7 +232,7 @@ def test_add_index():
 
 @pytest.mark.local
 def test_map0():
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     for name in ["s", "m", "w"]:
         df1 = pd.read_csv(path / f"{name}_index.csv", header=None)
         df2 = pd.read_csv(path / f"{name}_map0.csv", header=None)
@@ -242,7 +242,7 @@ def test_map0():
 @pytest.mark.local
 def test_correct_mistakes():
     dt = (534, "2012-06-08 12:39:39")
-    path = Path("/home/fatemeh/Downloads/bird/data/final/proc2")
+    path = Path("/home/fatemeh/Downloads/bird/data/final")
     for name in ["s", "j", "w", "m"]:
         df1 = pd.read_csv(path / f"{name}_map0.csv", header=None)
         df2 = bdp.correct_mistakes(df1, name)
@@ -319,12 +319,10 @@ def test_complete_data_from_db_with_example():
 @pytest.mark.local
 def test_complete_data_from_db():
     df_db = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv",
+        "/home/fatemeh/Downloads/bird/data/final/all_database.csv",
         header=None,
     )
-    df = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/m_map.csv", header=None
-    )
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/m_map.csv", header=None)
 
     df = bdp.drop_groups_with_all_neg1(df)
     df_comp = bdp.complete_data_from_db(df, df_db)
@@ -526,11 +524,11 @@ def test_shift_df():
     ]
 
     expected = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc2/test_shift_2.csv",
+        f"/home/fatemeh/Downloads/bird/data/final/test_shift_2.csv",
         header=None,
     )
     df = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv",
+        f"/home/fatemeh/Downloads/bird/data/final/combined.csv",
         header=None,
     )
 
@@ -541,7 +539,7 @@ def test_shift_df():
 
     # Test for all shifted data
     df = pd.read_csv(
-        f"/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv",
+        f"/home/fatemeh/Downloads/bird/data/final/shift.csv",
         header=None,
     )
     bdp.check_batches(df, batch_size=glen)
@@ -550,11 +548,9 @@ def test_shift_df():
 @pytest.mark.local
 def test_combine_shift():
     dfc = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
+        "/home/fatemeh/Downloads/bird/data/final/combined.csv", header=None
     )
-    dfs = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/shift.csv", header=None
-    )
+    dfs = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/shift.csv", header=None)
     gc = dfc.groupby([0, 1])
     gs = dfs.groupby([0, 1])
     cdt = set(gc.groups.keys())
@@ -572,7 +568,7 @@ def test_combine_shift():
 @pytest.mark.local
 def test_starts_class_stats():
     df = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None
+        "/home/fatemeh/Downloads/bird/data/final/combined.csv", header=None
     )
     expected = {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}
     df = bdp.slice_from_first_label(df, 20)
@@ -620,7 +616,7 @@ def test_drop_duplicates():
 @pytest.mark.local
 def test_get_label_ranges_per_dt():
     # fmt:off
-    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/proc2/combined.csv", header=None)
+    df = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/combined.csv", header=None)
     dt = 6011, "2015-04-30 09:10:31"
     expected = {(0, 13): 9, (43, 60): 9, (84, 104): 9, (114, 132): 5, (165, 199): 9}
     # fmt:on
@@ -641,7 +637,7 @@ def test_issue_previous_m_data_format():
     Check how impactful the bug is in the m_data format. The impact is not significant.
     """
     df = pd.read_csv(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/m_complete.csv", header=None
+        "/home/fatemeh/Downloads/bird/data/final/m_complete.csv", header=None
     )
     df = df.sort_values(by=[0, 1], ignore_index=True)
     groups = df.groupby([0, 1])
@@ -673,7 +669,7 @@ def test_labels_comes_together():
     # lrs = get_label_ranges(df)
     # Counter([tuple(sorted(set(v.values()))) for v in lrs.values() if len(set(v.values()))>1])
     with open(
-        "/home/fatemeh/Downloads/bird/data/final/proc2/combined_label_range.txt", "r"
+        "/home/fatemeh/Downloads/bird/data/final/combined_label_range.txt", "r"
     ) as file:
         lines = file.readlines()
         data = []

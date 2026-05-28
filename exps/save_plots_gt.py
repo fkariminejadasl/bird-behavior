@@ -9,10 +9,8 @@ from behavior import utils as bu
 
 # combined.csv -> gt2_combined
 save_path = Path("/home/fatemeh/Downloads/bird/results")
-data_file = Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv")
-database_file = Path(
-    "/home/fatemeh/Downloads/bird/data/final/orig/all_database_final.csv"
-)
+data_file = Path("/home/fatemeh/Downloads/bird/data/final/starts.csv")
+database_file = Path("/home/fatemeh/Downloads/bird/data/final/all_database.csv")
 
 df = pd.read_csv(data_file, header=None)  # combined.csv
 df_db = pd.read_csv(database_file, header=None)

@@ -3,7 +3,7 @@ Non contrastive learning: DINO / iBOT / SimSiam / BYOL / SwAV / VICReg / BarlowT
 Contrastive learning: SimCLR / MoCo
 
 This script is used to train non-contrastive self-supervised learning models.
-Other names can be non contrastive / self distillation / alignmet: train_self_distill.py, train_non_contrastive_ssl.py  
+Other names can be non contrastive / self distillation / alignmet: train_self_distill.py, train_non_contrastive_ssl.py
 
 Based on: https://github.com/CVMI-Lab/SimGCD/blob/main/train_mp.py
 """
@@ -263,7 +263,7 @@ transform = tvt2.RandomChoice(
 transform = ContrastiveLearningViewGenerator(base_transform=transform, n_views=2)
 
 cfg = dict(
-    # # test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/proc2/starts.csv"),
+    # # test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/starts.csv"),
     # data_path=Path("/home/fatemeh/Downloads/bird/data/ssl/parquetmini"),
     # # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
     # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),

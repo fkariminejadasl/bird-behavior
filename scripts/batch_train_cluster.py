@@ -62,7 +62,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # # Exclude one label at a time: exp185-189
 # all_labels = [0, 2, 4, 5, 6]
 # cfg = train_module.get_config()
-# cfg.data_file="/home/fatemeh/Downloads/bird/data/final/proc2/balanced_02456.csv"
+# cfg.data_file="/home/fatemeh/Downloads/bird/data/final/balanced_02456.csv"
 # pairs = list(itertools.combinations(all_labels, 1))
 # for i, exclude in enumerate(pairs):
 #     cfg.no_epochs = 2000
@@ -161,7 +161,7 @@ all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 # # # Exclude one label at a time: exp185-189
 # all_labels = [0, 2, 4, 5, 6]
 # cfg = cluster_module.get_config()
-# cfg.test_data_file = "/home/fatemeh/Downloads/bird/data/final/proc2/balanced_02456.csv"
+# cfg.test_data_file = "/home/fatemeh/Downloads/bird/data/final/balanced_02456.csv"
 # pairs = list(itertools.combinations(all_labels, 1))
 # accs = dict()
 # for i, exclude in enumerate(pairs):
