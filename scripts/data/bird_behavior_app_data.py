@@ -256,8 +256,8 @@ def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
             1: df_app["UTC_datetime"].dt.strftime("%Y-%m-%d %H:%M:%S"),
             2: df_app["index"],
             3: -1,
-            4: df_app["x_g"],
-            5: df_app["y_g"],
+            4: df_app["y_g"],  # In Ornitela devices x and y switched
+            5: df_app["x_g"],
             6: df_app["z_g"],
             7: df_app["speed_km_h"] / 3.6,  # speed m/s
             8: -1,
