@@ -13,6 +13,11 @@ Notes:
     - Each burst is expected to contain 20 IMU rows.
     - The map shows one point per burst.
     - Relabeling writes a complete updated CSV to OUTPUT_FILE.
+
+Data is generated from scripts/data/bird_behavior_app_data.py.
+
+Example of how part the data is obtained by:
+    sed -n '1223941,1620120p' /home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior.csv > /home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv
 """
 
 import math

@@ -230,13 +230,14 @@ The bird model consists of three 1-D convolution layers, each with a kernel size
 #### App
 
 - `app/gps_burst_labeling_viz_app.py`: Combines the IMU/behavior visualization app and the GPS locations app, with label editing added.
+The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 - `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 - `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 
-The data for these apps comes from `scripts/bird_behavior_viz.py`. The data format for these apps is:
+The data format for these apps is:
 
 ```bash
-device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude
+device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude,altitude(optional)
 298,2010-06-07 09:43:05,0,-1,-0.167287,-0.004737,1.014680,0.200996,5,0.986863,53.009282,4.717725
 ```
 
@@ -264,7 +265,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,co
 - `exps/cluster_behavior.py`: Unsupervised clustering.
 - `exps/exps1`: Run inference and save the metrics.
 
-#### Helper Scripts
+#### Data / Helper Scripts
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
