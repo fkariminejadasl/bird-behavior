@@ -8,7 +8,7 @@ Steps:
 
 Data format:
 ```
-device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude,altitude(optional)
+device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,confidence,latitude,longitude,altitude(optional)
 298,2010-06-07 09:43:05,0,-1,-0.167287,-0.004737,1.014680,0.200996,5,0.986863,53.009282,4.717725
 ```
 
@@ -147,6 +147,10 @@ def fetch_merge_gps(df, database_url):
 def load_database_app_data(data_file, cfg):
     df = pd.read_csv(data_file, header=None)
     df = df.sort_values([0, 1, 2])
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
     df = df.iloc[:, :8].copy()
     df[8] = -1
     df[9] = -1
@@ -156,6 +160,10 @@ def load_database_app_data(data_file, cfg):
 
 def infer_save_app_data(df, save_file, cfg):
     df = df.sort_values([0, 1, 2])
+    # GPS 2D speed smaller than 30 m/s
+    df = df[df[7] < 30.0].copy()
+    # Clip IMU x, y, z values between -2, 2
+    df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
     df = bmu.infer_update_classes(
         df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
     )
@@ -408,7 +416,7 @@ if __name__ == "__main__":
     # Prepare data
     cfg = dict(
         glen=20,
-        exp=125,
+        exp=194,
         labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
         in_channe=4,
         width=30,
@@ -447,6 +455,13 @@ app_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_data.csv")
 save_file = Path("/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior.csv")
 # check_consecutive_gps_sensor_time_diff(data_file)
 # prepare_calibrated_app_data(data_file, app_file)
+prepare_app_class_data(app_file, save_file, cfg)
+
+# On App data without classification
+app_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv")
+save_file = Path(
+    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004_194.csv"
+)
 prepare_app_class_data(app_file, save_file, cfg)
 """
 

@@ -800,7 +800,7 @@ def ensure_database_file(
 
 def make_data_pipeline(name, input_file, save_path, database_file, change_format):
     """
-    pipeline: format, index, map0, mistake, map, drop_neg1, complete, not{combine, shift, drop}
+    pipeline: format, index, map0, mistake, map, invalid, complete, not{combine, shift, drop}
 
     name: s: set1 (judy), j (json suzzane), m (mat suzzane), w (csv willem)
     """

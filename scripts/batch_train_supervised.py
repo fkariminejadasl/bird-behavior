@@ -1,12 +1,9 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
-from functools import partial
 from pathlib import Path
-from typing import Optional
 
-import pandas as pd
 import torch
-import torch.nn as nn
 import tqdm
 from omegaconf import OmegaConf
 from torch.utils import tensorboard
@@ -22,6 +19,8 @@ from behavior.utils import new_label_inds
 
 models = {
     "BirdModel": bm.BirdModel,
+    "BirdModelWideRF": bm.BirdModelWideRF,
+    "BirdModelSmallDilated": bm.BirdModelSmallDilated,
     "ResNet18_1D": bm.ResNet18_1D,
     "BirdModelTransformer": bm.BirdModelTransformer,
     "TransformerEncoderMAE": bm1.TransformerEncoderMAE,
@@ -34,11 +33,74 @@ class PathConfig:
     save_path: Path
 
 
-cfg_file = Path(__file__).parents[1] / "configs/train.yaml"
-cfg = OmegaConf.load(cfg_file)
-cfg_paths = OmegaConf.structured(PathConfig(save_path=cfg.save_path))
-cfg = OmegaConf.merge(cfg, cfg_paths)
-cfg.min_lr = cfg.max_lr / 10
+BASE_CONFIG = {
+    # Paths
+    "save_path": Path("/home/fatemeh/Downloads/bird/results"),
+    "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
+    "valid_file": None,
+    "test_file": None,
+    # General
+    "seed": 32984,
+    "exp": 192,
+    "num_workers": 1,
+    "no_epochs": 4000,
+    "save_every": 4000,
+    # Data
+    "train_per": 0.9,
+    "data_per": 1.0,
+    "batch_size": None,
+    "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
+    # Training
+    "warmup_epochs": 1000,
+    "step_size": 2000,
+    "max_lr": 3e-4,
+    "min_lr": None,
+    "weight_decay": 1e-2,
+    "use_weighted_loss": False,
+    "optimizer_name": "AdamW",
+    "scheduler_name": "StepLR",
+    # Model
+    "model": {
+        "name": "BirdModel",
+        "parameters": {
+            "in_channels": 4,
+            "mid_channels": 30,
+            "out_channels": 9,
+        },
+        # Other model options from configs/train.yaml:
+        # "name": "ResNet18_1D",
+        # "parameters": {"dropout": 0.3, "num_classes": 9},
+        # "name": "BirdModelTransformer",
+        # "parameters": {"out_channels": 9, "embed_dim": 16, "drop": 0.7},
+        # "name": "TransformerEncoderMAE",
+        # "parameters": {
+        #     "img_size": 20,
+        #     "in_chans": 4,
+        #     "out_chans": 9,
+        #     "embed_dim": 16,
+        #     "depth": 1,
+        #     "num_heads": 8,
+        #     "mlp_ratio": 4,
+        #     "drop": 0.0,
+        #     "layer_norm_eps": 1e-6,
+        # },
+        # "name": "BirdModelTransformer_",
+        # "parameters": {"in_channels": 4, "out_channels": 9},
+    },
+}
+
+
+def build_config(overrides=None):
+    cfg = OmegaConf.create(deepcopy(BASE_CONFIG))
+    if overrides is not None:
+        cfg = OmegaConf.merge(cfg, overrides)
+    cfg_paths = OmegaConf.structured(PathConfig(save_path=Path(cfg.save_path)))
+    cfg = OmegaConf.merge(cfg, cfg_paths)
+    cfg.min_lr = cfg.max_lr / 10 if cfg.min_lr is None else cfg.min_lr
+    return cfg
+
+
+cfg = build_config()
 
 # Convert the DictConfig to a standard dictionary
 cfg_dict = OmegaConf.to_container(cfg, resolve=True)
@@ -303,61 +365,59 @@ def main(cfg):
 
 
 def get_config():
-    return cfg
+    return build_config()
+
+
+def iter_batch_configs():
+    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+
+    experiments = [
+        {
+            "exp": 193,
+            "labels_to_use": all_labels,
+            "model": {
+                "name": "BirdModelWideRF",
+                "parameters": {
+                    "in_channels": 4,
+                    "mid_channels": 20,
+                    "out_channels": len(all_labels),
+                    "dropout": 0.15,
+                },
+            },
+        },
+        {
+            "exp": 194,
+            "labels_to_use": all_labels,
+            "model": {
+                "name": "BirdModelSmallDilated",
+                "parameters": {
+                    "in_channels": 4,
+                    "mid_channels": 20,
+                    "out_channels": len(all_labels),
+                    "dropout": 0.15,
+                },
+            },
+        },
+    ]
+
+    for experiment in experiments:
+        cfg = build_config(experiment)
+        cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+        yield cfg
 
 
 if __name__ == "__main__":
-    # fmt: off
-    # cfg.seed = 1234
-    # cfg.train_per = 0.5
-    # cfg.no_epochs = 2000
-    # exclude = {2}  # {2}  # {1, 8}
-    # all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    # cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
-    # cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-    # cfg.exp = 137  # "181"
-    # cfg.save_path = "/home/fatemeh/Downloads/bird/results/1discover_2"
-    main(cfg)
-    # fmt: on
+    for cfg in iter_batch_configs():
+        print(f"Experiment {cfg.exp}: {cfg.model.name}, data={cfg.data_file}")
+        main(cfg)
 
-
-"""
-from copy import deepcopy
-model = bm.BirdModel(3, 30, 10)
-model.load_state_dict(torch.load("/home/fatemeh/test/14_700.pth")["model"])
-orig = deepcopy(dict(model.named_parameters()))
-'conv1.weight', 'conv1.bias', 'conv2.weight', 'conv2.bias', 'conv3.weight', 'conv3.bias', 'fc.weight', 'fc.bias', 'bn.weight', 'bn.bias'
-
-
-def compare_tensors(orig, other):
-    for key in orig.keys():
-        if not orig[key].equal(other[key]):
-            print(key)
-
-compare_tensors(orig, dict(model.state_dict()))
-compare_tensors(orig, dict(model.named_parameters()))
-
-# The difference is in training on the batchnorm buffers (not trained values), bn.running_mean, bn.running_var, bn.num_batches_tracked.
-
-# for unit test (normalizing training data)
-# (array([0.45410261, 0.42281342, 0.49202435]), array([0.07290404, 0.04372777, 0.08819486]), array([0., 0., 0.]), array([1., 1., 1.]))
-"""
-
-"""
-def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
-    return hook
-
-# https://discuss.pytorch.org/t/register-forward-hook-after-every-n-steps/60923/3
-model.requires_grad_(False)
-activation = {}
-model.conv1.register_forward_hook(get_activation('conv1'))
-model.conv2.register_forward_hook(get_activation('conv2'))
-model.conv3.register_forward_hook(get_activation('conv3'))
-model.fc.register_forward_hook(get_activation('fc'))
-output = model(data)
-
-mm = activation['conv1'].permute(1,0,2).flatten(1)
-fig, axs = plt.subplots(10,1);[axs[i].plot(mm[j], "*") for i,j in enumerate(range(20,30))];plt.show(block=False)
-"""
+    # Optional parallel version for small models/data.
+    # This can run two trainings at the same time, but both jobs may compete for
+    # the same GPU memory if only one GPU is available.
+    #
+    # from concurrent.futures import ProcessPoolExecutor
+    #
+    # max_parallel_runs = 2
+    # configs = list(iter_batch_configs())
+    # with ProcessPoolExecutor(max_workers=max_parallel_runs) as executor:
+    #     executor.map(main, configs)

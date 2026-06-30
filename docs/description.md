@@ -237,7 +237,7 @@ The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_
 The data format for these apps is:
 
 ```bash
-device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude,altitude(optional)
+device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,confidence,latitude,longitude,altitude(optional)
 298,2010-06-07 09:43:05,0,-1,-0.167287,-0.004737,1.014680,0.200996,5,0.986863,53.009282,4.717725
 ```
 

@@ -16,6 +16,13 @@ seed = 1234
 bu.set_seed(seed)
 
 """
+BirdModelWideRF(in_channels=4, mid_channels=20, out_channels=9): 6889 parameters, RF=19
+BirdModelSmallDilated(in_channels=4, mid_channels=20, out_channels=9): 5129 parameters, RF=25
+BirdModel(in_channels=4, mid_channels=30, out_channels=9): 6309 parameters, RF=7
+BirdTCN(in_channels=4, channels=30, out_channels=9): 17309 parameters, RF=125
+"""
+
+"""
 torchvision.transforms.ToTensor() changes the CxL to 1xCxL and 
 dataloader change 1xCxL to Nx1xCxL
 I don't use ToTensor anymore. I put everything now in dataset instead of model.
@@ -76,6 +83,148 @@ class BirdModel(nn.Module):
         x = self.avgpool(x).flatten(1)
         x = self.fc(x)
         return x
+
+
+def group_count(c):
+    for g in [8, 4, 2, 1]:
+        if c % g == 0:
+            return g
+    return 1
+
+
+class TCNBlock(nn.Module):
+    def __init__(self, channels, dilation, kernel_size=5, dropout=0.2):
+        super().__init__()
+        pad = dilation * (kernel_size - 1) // 2
+
+        self.conv1 = nn.Conv1d(
+            channels, channels, kernel_size, padding=pad, dilation=dilation
+        )
+        self.norm1 = nn.GroupNorm(group_count(channels), channels)
+
+        self.conv2 = nn.Conv1d(
+            channels, channels, kernel_size, padding=pad, dilation=dilation
+        )
+        self.norm2 = nn.GroupNorm(group_count(channels), channels)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        identity = x
+        x = F.gelu(self.norm1(self.conv1(x)))
+        x = self.dropout(x)
+        x = F.gelu(self.norm2(self.conv2(x)))
+        x = self.dropout(x)
+        return x + identity
+
+
+class BirdTCN(nn.Module):
+    # with channels=64, 168009/6309 = 26.6 times more parameters than BirdModel
+    # with channels=30, 37959/6309 = 6.0 times more parameters than BirdModel
+    def __init__(self, in_channels, channels, out_channels):
+        super().__init__()
+
+        self.stem = nn.Sequential(
+            nn.Conv1d(in_channels, channels, kernel_size=5, padding=2),
+            nn.GroupNorm(group_count(channels), channels),
+            nn.GELU(),
+        )
+
+        self.blocks = nn.Sequential(
+            TCNBlock(channels, dilation=1),
+            TCNBlock(channels, dilation=2),
+            TCNBlock(channels, dilation=4),
+            TCNBlock(channels, dilation=8),
+        )
+
+        self.dropout = nn.Dropout(0.25)
+        self.fc = nn.Linear(channels * 2, out_channels)
+
+    def forward(self, x):
+        # x: [batch, channels, time]
+        x = self.stem(x)
+        x = self.blocks(x)
+
+        avg_pool = x.mean(dim=-1)
+        max_pool = x.max(dim=-1).values
+
+        x = torch.cat([avg_pool, max_pool], dim=1)
+        x = self.dropout(x)
+        return self.fc(x)
+
+
+class BirdModelWideRF(nn.Module):
+    def __init__(self, in_channels=4, mid_channels=20, out_channels=9, dropout=0.15):
+        super().__init__()
+        k = 7
+        p = k // 2
+
+        self.net = nn.Sequential(
+            nn.Conv1d(in_channels, mid_channels, kernel_size=k, padding=p),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+            nn.Conv1d(mid_channels, mid_channels, kernel_size=k, padding=p),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+            nn.Conv1d(mid_channels, mid_channels, kernel_size=k, padding=p),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+        )
+
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(mid_channels * 3, out_channels)
+
+    def forward(self, x):
+        x = self.net(x)
+
+        mean_pool = x.mean(dim=-1)
+        max_pool = x.amax(dim=-1)
+        std_pool = x.std(dim=-1, unbiased=False)
+
+        x = torch.cat([mean_pool, max_pool, std_pool], dim=1)
+        x = self.dropout(x)
+        return self.fc(x)
+
+
+class BirdModelSmallDilated(nn.Module):
+    def __init__(self, in_channels=4, mid_channels=20, out_channels=9, dropout=0.15):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Conv1d(in_channels, mid_channels, kernel_size=5, padding=2, dilation=1),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+            nn.Conv1d(mid_channels, mid_channels, kernel_size=5, padding=4, dilation=2),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+            nn.Conv1d(mid_channels, mid_channels, kernel_size=5, padding=6, dilation=3),
+            nn.GroupNorm(4, mid_channels),
+            nn.GELU(),
+        )
+
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(mid_channels * 3, out_channels)
+
+    def forward(self, x):
+        x = self.net(x)
+        x = torch.cat(
+            [
+                x.mean(dim=-1),
+                x.amax(dim=-1),
+                x.std(dim=-1, unbiased=False),
+            ],
+            dim=1,
+        )
+        return self.fc(self.dropout(x))
+
+
+# model = BirdModelWideRF(in_channels=4, mid_channels=20, out_channels=9, dropout=0.15)
+# model = BirdModelSmallDilated(in_channels=4, mid_channels=20, out_channels=9, dropout=0.15)
+# model = BirdModel(in_channels=4, mid_channels=30, out_channels=9)
+# model = BirdTCN(in_channels=4, channels=64, out_channels=9)
+# x = torch.rand(1, 4, 20)  # x=NxCxL
+# output = model(x)
+# print(output.shape)  # should be [1, 9]
 
 
 class BirdModelWithEmb(nn.Module):
