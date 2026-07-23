@@ -341,9 +341,16 @@ cfg = dict(
     checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
     main_path=Path("/home/fatemeh/Downloads/bird/data/ssl/tmp"),
     save_path=Path("/home/fatemeh/Downloads/bird/data/ssl/stats"),
+    model_name="BirdModel",
+    model_parameters=dict(
+        in_channels=4,
+        mid_channels=30,
+        out_channels=None,
+    ),
 )
 cfg = OmegaConf.create(cfg)
 cfg.n_classes = len(cfg.labels_to_use)
+cfg.model_parameters.out_channels = cfg.n_classes
 cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 
 if not cfg.save_path.exists():
@@ -359,7 +366,13 @@ with open(save_file, "w") as out_f:
         device_id = int(p.stem)
         df = pd.read_csv(p, header=None).sort_values([0, 1, 2])
         df = bmu.infer_update_classes(
-            df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
+            df,
+            cfg.glen,
+            cfg.labels_to_use,
+            cfg.checkpoint_file,
+            cfg.n_classes,
+            cfg.model_name,
+            cfg.model_parameters,
         )
         class_counts = dict(sorted(Counter(df[8]).items()))
         device_class_counts[device_id] = class_counts

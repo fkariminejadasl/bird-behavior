@@ -165,7 +165,13 @@ def infer_save_app_data(df, save_file, cfg):
     # Clip IMU x, y, z values between -2, 2
     df[[4, 5, 6]] = df[[4, 5, 6]].clip(-2.0, 2.0)
     df = bmu.infer_update_classes(
-        df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
+        df,
+        cfg.glen,
+        cfg.labels_to_use,
+        cfg.checkpoint_file,
+        cfg.n_classes,
+        cfg.model_name,
+        cfg.model_parameters,
     )
     df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 
@@ -423,10 +429,18 @@ if __name__ == "__main__":
         n_classes=None,
         checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
         database_url=None,
+        model_name="BirdModelSmallDilated",
+        model_parameters=dict(
+            in_channels=4,
+            mid_channels=20,
+            out_channels=None,
+            dropout=0.15,
+        ),
     )
 
     cfg = OmegaConf.create(cfg)
     cfg.n_classes = len(cfg.labels_to_use)
+    cfg.model_parameters.out_channels = cfg.n_classes
     cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
     cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
 

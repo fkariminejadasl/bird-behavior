@@ -1,4 +1,6 @@
 """
+from: Jasper A. J. Eikelboom, 2026, Optimal deep learning activity recognition pipeline using animal bio-logging data
+
 Summary features:
 0th, 1st, 2nd, 3rd, 4th quartile
 mean
@@ -37,6 +39,7 @@ frequency total: 12 x 3 = 36 features
 
 
 Judy features:
+from: Shamoun-Baranes et al, 2016, Flap or soar? How a flight generalist responds to its aerial environment
 ==============
 mean_x/y/z (B, 3): Static body orientation and posture.
 std_x/y/z (B, 3): Movement amplitude, stronger during active/flapping behavior.
