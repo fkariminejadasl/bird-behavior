@@ -8,6 +8,10 @@
 - Before returning a result, check it. Re-run what was changed and verify every
   number and claim against the source file or a computation, rather than
   assuming it followed from the previous step.
+- Explain short. Plain words, no long write-ups unless asked for detail.
+- Use only this project's skills, in `~/dev/bird-behavior/.claude/skills`. Other
+  repos in this VS Code workspace (hedge-seg, ...) have same-named skills;
+  never run theirs.
 - Commit messages: never mention Claude or Claude Code (no attribution, no
   Co-Authored-By line, no tool names).
 - Always update the related documents in the same change (see Documentation).
