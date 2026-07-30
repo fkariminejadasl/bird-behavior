@@ -6,11 +6,23 @@ Raw notebook of individual runs, terse style. Held to a lower bar than
 
 Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
-(runs that were abandoned or folded elsewhere). For exp190–194 see the
-"Compact models and app reruns" section; exp194 (`BirdModelSmallDilated`,
-starts.csv, no augmentation) is the current best on `starts.csv`, the app's
-configurable inference model, and the no-aug baseline for the rotation A/B
-(exp195, still to be run).
+(runs that were abandoned or folded elsewhere). Newest entries first.
+
+## exp195: rotation augmentation
+
+BirdModelSmallDilated + full SO(3) IMU rotation (train set only), starts.csv,
+9 class, 4000 epochs, hash:62e5b67. Clean A/B vs exp194: identical model
+(`mid_channels=20`, `dropout=0.15`), split (3900/438) and seed (32984); only the
+transform differs.
+
+- val **92.24** (best, epoch 1308) / train 90.21 on unaugmented train data, vs
+  exp194's 99.44/96.35. Valid plateaus at ~91.1 from epoch ~1300; 47m31s.
+- Off-orientation exp194 collapses (x/y swap 71.46, 70° pitch 2.05, random SO(3)
+  13.05) where exp195 holds 90.4–91.6. Table in
+  [docs/lesson_learned.md](lesson_learned.md), from
+  `exps/eval_rotation_robustness.py`.
+- Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss; balanced valid
+  F1 0.92 -> 0.84 (`exps/compare_per_class_metrics.py`).
 
 ## Reference
 
@@ -140,7 +152,8 @@ All on the current pipeline. Numbers read from
 
 - **exp194 is the best supervised run on `starts.csv` so far**, a point above
   exp125 (95.36) and 1.6 above exp192 (BirdModel on the same data). It is the
-  app's configurable inference model and the no-aug baseline for exp195.
+  app's configurable inference model and the no-aug baseline for exp195. Best in
+  the canonical mounting orientation only — see exp195 at the top.
 - exp193 (WideRF, RF 19) is 1.1 pts below exp194 (SmallDilated, RF 25) and was
   dropped as a tracked variant.
 - exp192 did not reproduce exp125's 95.36 (94.75, -0.6) — within the ~2.5 pt
@@ -150,17 +163,11 @@ All on the current pipeline. Numbers read from
 
 ## Rotation augmentation
 
-Full random 3D rotation (SO(3)) of the IMU acceleration channels applied to the
-training set only (GPS untouched). Goal is cross-manufacturer / mounting-frame
-robustness (UvA-BiTS horizontal-to-~70°-pitch mounts, Ornitela x/y swap), not
-raw accuracy on the standard split. Wired into `scripts/batch_train_supervised.py`.
+See exp195 at the top. SmallDilated was picked over BirdModel for its larger
+receptive field (RF 25 vs 7): it captures the global flap sine-wave, which the
+shorter-context BirdModel confuses with Manoeuvre (seen by eye on unlabeled data
+in `app/gps_burst_labeling_viz_app.py`).
 
-- **exp195 (still to be run)**: BirdModelSmallDilated + rotation, clean A/B vs
-  exp194 (same model, same data, no aug). **The number to beat is exp194's
-  96.35 val**, not exp125's 95.36. SmallDilated has a larger receptive field
-  than BirdModel (RF 25 vs 7), so it captures the global flap sine-wave, which
-  the shorter-context BirdModel confuses with Manoeuvre (seen by eye on
-  unlabeled data in `app/gps_burst_labeling_viz_app.py`).
 - A discarded BirdModel + rotation trial (why the model was switched): val 91.55%,
   ~3.8 pts under the exp125 baseline it was run against (95.36) and ~4.8 under
   exp194. The cost did not fall on the orientation-dependent static classes

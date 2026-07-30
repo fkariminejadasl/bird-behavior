@@ -4,6 +4,39 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Rotation augmentation (exp195)
+
+Full SO(3) rotation of the IMU acc channels, train set only (`RandomRotation3D`).
+The labeled data is one logger type mounted much the same way on every bird, so
+the standard split holds no orientation variation at all. Full 3D is the realistic
+model for a new logger, whose tilt and position on the bird are both unknown.
+
+- **A standard-split A/B only measures the cost.** exp195 92.24 val vs exp194
+  96.35 (-4.1) reads as "augmentation hurt". Re-evaluating both checkpoints on
+  orientation-perturbed validation data inverts it
+  (`exps/eval_rotation_robustness.py`):
+
+  | valid under | exp194 (no aug) | exp195 (rotation) |
+  |---|---|---|
+  | clean | **96.35** | 92.24 |
+  | x/y swap | 71.46 | **90.41** |
+  | pitch 20° / 70° | 82.88 / 2.05 | **90.87 / 90.64** |
+  | random SO(3), mean of 20 | 13.05 | **90.67** |
+
+  Off-orientation exp194 is not uncertain, it is confidently wrong: 2.05% is well
+  under the 11% chance rate, so no confidence threshold will catch it.
+- **The cost lands on the ground behaviours**, which need the gravity direction
+  rotation scrambles: valid F1 TerLoco .97 -> .79, Pecking .94 -> .68. Balanced
+  valid F1 0.92 -> 0.84, twice the accuracy drop
+  (`exps/compare_per_class_metrics.py`). Plain and balanced files can disagree in
+  sign on a rare class, so say which one a number came from.
+- **Rotation replaces overfitting with underfitting**: exp194 99.44/96.35 vs
+  exp195 90.21 (unaugmented train) / 92.24. At 5,129 params the capacity goes into
+  invariance, not memorization.
+- **A bigger receptive field did not pay for it**: BirdModel -> SmallDilated is
+  +1.6 val without rotation (exp192 94.75 -> exp194 96.35) but +0.7 with
+  (discarded trial 91.55 -> exp195 92.24).
+
 ## Training recipe
 
 - **AdamW with defaults is already the best.** The small 3-conv model trains
@@ -51,9 +84,10 @@ data/model/script overview is in [docs/description](description.md).
 - **No augmentation gave the best supervised results.** exp125 (no augmentation,
   no sampling) is 96.94/95.36. Jitter/scaling (exp126), time/magnitude warp
   (exp129), and warping GPS all made things worse; holding GPS fixed during
-  augmentation (exp130) beats warping it but still trails. **The current best on
-  `starts.csv` is exp194 (BirdModelSmallDilated, no augmentation, 96.35 val) —
-  that, not exp125, is the number the rotation augmentation must beat.**
+  augmentation (exp130) beats warping it but still trails. **The best accuracy on
+  `starts.csv` is exp194 (BirdModelSmallDilated, no augmentation, 96.35 val)**,
+  and rotation (exp195, 92.24) is no exception — but it is kept anyway, for
+  robustness rather than accuracy; see the rotation section.
 - **The "sampling hurts" claim does not survive its own numbers.** exp127
   (sampling only, no augmentation) is 94.29/95.84: validation is *above* exp125's
   95.36 and only train is lower. The old notes call sampling worse; what the
@@ -72,49 +106,27 @@ data/model/script overview is in [docs/description](description.md).
   fixed seed (32984) and be wary of reading small val differences as real.
 - **Peck labels are noisy**; treat Pecking results with caution.
 
-## Rotation augmentation (current work)
+## Rotation augmentation (background)
 
-- The accelerometer is measured in the **tag body frame**, whose orientation
-  relative to the bird is not fixed. UvA-BiTS tags are mounted at different
-  positions and angles (anywhere from horizontal to ~70° pitch; see the
-  "Accelerometer calibration" section of the UvA-BiTS wiki,
-  https://wiki.e-ecology.nl/index.php/UvA-BiTS_Tracking_Data), and Ornitela
-  mounts x and y swapped relative to UvA-BiTS (the `fix_ornitella_axis_switch`
-  branch and the `# In Ornitela devices x and y switched` note in
-  `scripts/data/bird_behavior_app_data.py`). A model trained on one convention
-  need not transfer to another.
-- **Full random 3D rotation (SO(3)) of the three IMU acceleration channels**
-  (`behavior.data_augmentation.RandomRotation3D`) makes the classifier invariant
-  to that mounting orientation. It preserves the per-timestep acceleration
-  magnitude and leaves the GPS speed channel untouched. A full rotation is a
-  superset of the physical mounting variation (bounded pitch plus the x/y swap),
-  so it covers the real cases as well as many that never occur.
-- **It is an aggressive augmentation, and a short receptive field makes it
-  worse.** A first BirdModel + rotation trial (discarded, val 91.55% — ~3.8 pts
-  below the exp125 baseline it ran against, ~4.8 below exp194) did *not* lose
-  accuracy where the a priori
-  worry said it would. Scrambling the gravity direction left the
-  orientation-dependent static classes intact (val F1 SitStand .97, Float .97,
-  Boat .92): a static behavior has |acc|≈1 g with near-zero temporal variance
-  whatever the orientation, so rotation-invariant statistics (magnitude,
-  variance) still separate it. The loss instead concentrated in the rare dynamic
-  classes (Pecking, Manoeuvre, ExFlap). That matches an independent observation
-  on unlabeled data in `app/gps_burst_labeling_viz_app.py`: BirdModel's short
-  receptive field (RF 7, only a third of the 20-sample burst) confuses the flap
-  sine-wave with Manoeuvre, and rotation only adds to that confusion.
-  **BirdModelSmallDilated has a larger receptive field (RF 25, spanning the full
-  burst) and sees the global flap pattern, so it is the model to test rotation
-  on** — exp195, still to be run, A/B against exp194's 96.35 val. If the accuracy
-  cost still matters, a gravity-preserving yaw-only or bounded-pitch (~70°)
-  rotation is the fallback; do not expect rotation to beat the no-aug baseline on
-  the standard split.
+- The accelerometer reading mixes logger orientation, logger position on the bird
+  (neck, back, wing), bird movement, external forces (wind, water, collision) and
+  gravity. Only bird movement is the label. Known per-manufacturer conventions are
+  a coordinate relabel, not an augmentation problem — Ornitela swaps x and y,
+  undone in `scripts/data/bird_behavior_app_data.py`.
+- **Static classes survive rotation, their members do not.** In the discarded
+  BirdModel + rotation trial (val 91.55%) the orientation-dependent static classes
+  held (val F1 SitStand .97, Float .97, Boat .92): a static behavior has |acc|≈1 g
+  with near-zero temporal variance whatever the orientation, so rotation-invariant
+  statistics still separate it. The loss went to the rare dynamic classes
+  (Pecking .57, Manoeuvre .77, ExFlap .57 — prose record only, that run was not
+  kept). exp195's bigger receptive field fixed exactly those three and the cost
+  moved to TerLoco/Pecking instead.
 - **Only augment the training set.** Both `prepare_train_valid_dataset` and the
   stratified-split path in `scripts/batch_train_supervised.py` pass one transform
   object to the train and eval `BirdDataset`s, which would rotate the evaluation
-  data too. The rotation wiring in `batch_train_supervised.py` avoids this by
-  giving the eval `BirdDataset` a `None` transform, and it clears
-  `dataset.transform` before the final confusion-matrix evaluation (the train
-  dataset is reused there and still holds the training transform).
+  data too. The wiring avoids this by giving the eval `BirdDataset` a `None`
+  transform, and clears `dataset.transform` before the final confusion-matrix
+  evaluation (the train dataset is reused there and still holds the transform).
 
 ## Contrastive and clustering
 

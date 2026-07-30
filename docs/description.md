@@ -262,7 +262,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 * `scripts/train.py`: Training script for supervised bird classification.
 * `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
 * `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training across models/configs (defined in `iter_batch_configs`). Applies the **rotation augmentation** — a full random 3D rotation (SO(3), `behavior.data_augmentation.RandomRotation3D`) of the three IMU acceleration channels, GPS untouched — to the **training set only**: the eval `BirdDataset` is built with no transform and the transform is cleared before the final confusion-matrix pass. Motivation: make the classifier invariant to the accelerometer's mounting frame, which varies across tags (UvA-BiTS tags sit anywhere from horizontal to ~70° pitch; Ornitela swaps x/y relative to UvA-BiTS). exp195 is the clean A/B against exp194 (same `BirdModelSmallDilated` / 9 classes / `starts.csv`, no augmentation — the app inference model). `BirdModelSmallDilated` is used rather than `BirdModel` because its larger receptive field (RF 25, spanning the full 20-sample burst, vs BirdModel's 7) captures the global flap sine-wave pattern instead of confusing it with Manoeuvre. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here.
+* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: the eval `BirdDataset` is built with no transform, and the transform is cleared before the final confusion-matrix pass.
 * `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 * `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 * `scripts/gcd_pipeline.py`: GCD pipeline.
@@ -287,14 +287,11 @@ so a transform receives `(20, 4)`. Most skip the GPS channel (column 3).
   normalized-Gaussian unit quaternion); GPS untouched, per-timestep acceleration
   magnitude preserved. Used by `scripts/batch_train_supervised.py`.
 
-Empirically, supervised runs were best with **no augmentation** (exp125); see
-[docs/lesson_learned.md](lesson_learned.md). Rotation is the current attempt to
-buy cross-manufacturer / mounting-orientation robustness rather than raw accuracy
-(UvA-BiTS tags sit horizontal to ~70° pitch, Ornitela swaps x/y; see the
-"Accelerometer calibration" section of the UvA-BiTS wiki). Note the augmentation
-must be attached to the **train dataset only**: both `prepare_train_valid_dataset`
-and the stratified-split path in `batch_train_supervised.py` would otherwise apply
-the same transform to the eval set too.
+Which augmentation to use, and what each one costs or buys, is in
+[docs/lesson_learned.md](lesson_learned.md). Note the augmentation must be
+attached to the **train dataset only**: both `prepare_train_valid_dataset` and the
+stratified-split path in `batch_train_supervised.py` would otherwise apply the same
+transform to the eval set too.
 
 #### Data Scripts / Helper Scripts
 
@@ -310,6 +307,8 @@ the same transform to the eval set too.
 
 #### Analysis and Debugging
 
+- `exps/eval_rotation_robustness.py`: Re-evaluate two trained checkpoints on the same validation split with the accelerometer frame perturbed (x/y swap, a pitch sweep, and random SO(3) averaged over 20 draws), to separate what an orientation augmentation costs on the standard split from what it buys off it. IMU channels only, GPS untouched; inference only. `--exps <baseline> <variant>`, default `194 195`.
+- `exps/compare_per_class_metrics.py`: Diff the F1 column of two runs' `per_class_metrics_{,balanced_}{train,valid}.csv` (written by `scripts/batch_train_supervised.py` into `save_path/failed/<exp>_<data stem>/`) and flag any class that moved by at least 0.10. Shows which classes a change actually moved, which overall accuracy hides. `--exps <baseline> <variant>`, default `194 195`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
 - `identify_mistakes`: Identify labeling mistakes by finding data points that are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.
 - `test_find_index_jumps`: Identify discontinuities in the indices. Determine whether the signal contains labeled segments separated by unlabeled intervals.

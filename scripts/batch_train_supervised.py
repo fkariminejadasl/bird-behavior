@@ -33,80 +33,14 @@ class PathConfig:
     save_path: Path
 
 
-BASE_CONFIG = {
-    # Paths
-    "save_path": Path("/home/fatemeh/Downloads/bird/results"),
-    "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
-    "valid_file": None,
-    "test_file": None,
-    # General
-    "seed": 32984,
-    "exp": 192,
-    "num_workers": 1,
-    "no_epochs": 4000,
-    "save_every": 4000,
-    # Data
-    "train_per": 0.9,
-    "data_per": 1.0,
-    "batch_size": None,
-    "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
-    # Training
-    "warmup_epochs": 1000,
-    "step_size": 2000,
-    "max_lr": 3e-4,
-    "min_lr": None,
-    "weight_decay": 1e-2,
-    "use_weighted_loss": False,
-    "optimizer_name": "AdamW",
-    "scheduler_name": "StepLR",
-    # Model
-    "model": {
-        "name": "BirdModel",
-        "parameters": {
-            "in_channels": 4,
-            "mid_channels": 30,
-            "out_channels": 9,
-        },
-        # Other model options from configs/train.yaml:
-        # "name": "ResNet18_1D",
-        # "parameters": {"dropout": 0.3, "num_classes": 9},
-        # "name": "BirdModelTransformer",
-        # "parameters": {"out_channels": 9, "embed_dim": 16, "drop": 0.7},
-        # "name": "TransformerEncoderMAE",
-        # "parameters": {
-        #     "img_size": 20,
-        #     "in_chans": 4,
-        #     "out_chans": 9,
-        #     "embed_dim": 16,
-        #     "depth": 1,
-        #     "num_heads": 8,
-        #     "mlp_ratio": 4,
-        #     "drop": 0.0,
-        #     "layer_norm_eps": 1e-6,
-        # },
-        # "name": "BirdModelTransformer_",
-        # "parameters": {"in_channels": 4, "out_channels": 9},
-    },
-}
-
-
-def build_config(overrides=None):
-    cfg = OmegaConf.create(deepcopy(BASE_CONFIG))
+def build_config(base_config, overrides=None):
+    cfg = OmegaConf.create(deepcopy(base_config))
     if overrides is not None:
         cfg = OmegaConf.merge(cfg, overrides)
     cfg_paths = OmegaConf.structured(PathConfig(save_path=Path(cfg.save_path)))
     cfg = OmegaConf.merge(cfg, cfg_paths)
     cfg.min_lr = cfg.max_lr / 10 if cfg.min_lr is None else cfg.min_lr
     return cfg
-
-
-cfg = build_config()
-
-# Convert the DictConfig to a standard dictionary
-cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-import wandb
-
-# wandb.init(project="small-bird", config=cfg_dict)
 
 
 def main(cfg):
@@ -173,9 +107,7 @@ def main(cfg):
             igs_train, ldts_train, transforms, channel_first=True
         )
         # Evaluation data must never be augmented.
-        eval_dataset = bd.BirdDataset(
-            igs_eval, ldts_valid, None, channel_first=True
-        )
+        eval_dataset = bd.BirdDataset(igs_eval, ldts_valid, None, channel_first=True)
 
     # Build the sampler: inversely weight by class frequency
     labels = train_dataset.ldts[:, 0]
@@ -377,13 +309,73 @@ def main(cfg):
         )
 
 
-def get_config():
-    return build_config()
+def iter_batch_configs(base_config, experiments):
+    for experiment in experiments:
+        cfg = build_config(base_config, experiment)
+        cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+        yield cfg
 
 
-def iter_batch_configs():
+if __name__ == "__main__":
     all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 
+    base_config = {
+        # Paths
+        "save_path": Path("/home/fatemeh/Downloads/bird/results"),
+        "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
+        "valid_file": None,
+        "test_file": None,
+        # General
+        "seed": 32984,
+        "exp": 192,
+        "num_workers": 1,
+        "no_epochs": 4000,
+        "save_every": 4000,
+        # Data
+        "train_per": 0.9,
+        "data_per": 1.0,
+        "batch_size": None,
+        "labels_to_use": all_labels,
+        # Training
+        "warmup_epochs": 1000,
+        "step_size": 2000,
+        "max_lr": 3e-4,
+        "min_lr": None,
+        "weight_decay": 1e-2,
+        "use_weighted_loss": False,
+        "optimizer_name": "AdamW",
+        "scheduler_name": "StepLR",
+        # Model
+        "model": {
+            "name": "BirdModel",
+            "parameters": {
+                "in_channels": 4,
+                "mid_channels": 30,
+                "out_channels": 9,
+            },
+            # Other model options from configs/train.yaml:
+            # "name": "ResNet18_1D",
+            # "parameters": {"dropout": 0.3, "num_classes": 9},
+            # "name": "BirdModelTransformer",
+            # "parameters": {"out_channels": 9, "embed_dim": 16, "drop": 0.7},
+            # "name": "TransformerEncoderMAE",
+            # "parameters": {
+            #     "img_size": 20,
+            #     "in_chans": 4,
+            #     "out_chans": 9,
+            #     "embed_dim": 16,
+            #     "depth": 1,
+            #     "num_heads": 8,
+            #     "mlp_ratio": 4,
+            #     "drop": 0.0,
+            #     "layer_norm_eps": 1e-6,
+            # },
+            # "name": "BirdModelTransformer_",
+            # "parameters": {"in_channels": 4, "out_channels": 9},
+        },
+    }
+
+    # One entry per training run; each overrides base_config.
     # main() applies the rotation augmentation to the training set. exp195 is the
     # clean A/B against exp194 (same BirdModelSmallDilated / 9 classes /
     # starts.csv, no aug — the app inference model). BirdModelSmallDilated has a
@@ -406,15 +398,10 @@ def iter_batch_configs():
         },
     ]
 
-    for experiment in experiments:
-        cfg = build_config(experiment)
-        cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-        yield cfg
-
-
-if __name__ == "__main__":
-    for cfg in iter_batch_configs():
+    for cfg in iter_batch_configs(base_config, experiments):
         print(f"Experiment {cfg.exp}: {cfg.model.name}, data={cfg.data_file}")
+        # import wandb
+        # wandb.init(project="small-bird", config=OmegaConf.to_container(cfg, resolve=True))
         main(cfg)
 
     # Optional parallel version for small models/data.
