@@ -13,9 +13,10 @@ transforms in `behavior/data_augmentation.py` build all N at once, and
 `bd.GpuBatches` keeps the split on the GPU and applies them once per batch:
 **the same exp195 config now runs in ~5.5 min**, below the un-augmented baseline.
 
-- **Verify equivalence, not just speed.** 500 epochs track the exp195 log
-  (epoch 500: train 83.03 vs 83.08, valid 86.07 vs 86.30). The RNG stream
-  differs, so reruns are not bit-identical — expect seed-level noise.
+- **Verify equivalence, not just speed.** exp196 is exp195 rerun through the new
+  path: val 92.69 vs 92.24, valid F1 within ±0.01 on 7 of 9 classes, same
+  orientation robustness — in 5m03s against 47m31s. The RNG stream differs, so
+  reruns are not bit-identical; expect seed-level noise, not equality.
 - `train_one_epoch` only iterates its loader, so any iterable works and
   `behavior/model.py` needed no change at all.
 - Augmentation now lives on the train **loader**, not the dataset, which removes

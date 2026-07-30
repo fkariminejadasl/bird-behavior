@@ -8,6 +8,22 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp196: exp195 repeated through the batched GPU path
+
+Same model, data, seed and split as exp195; only the augmentation wiring differs
+(`bd.GpuBatches` + `bau.BatchRandomRotation3D` instead of the per-sample
+transform in `BirdDataset`). hash:520efd0. **5m03s against exp195's 47m31s, 9.4x.**
+
+- val **92.69** (best, epoch 1885) / train 91.56, against exp195's 92.24 / 90.21.
+  Plateau 92.24–92.47 over the last 500 epochs (exp195: ~91.1), final epoch 92.24.
+- Valid F1 within ±0.01 of exp195 on 7 of 9 classes. The two that move are the
+  smallest: TerLoco +0.10 (34 valid bursts) and Manouvre -0.14 (16 bursts, so
+  1–2 samples). Class-balanced valid F1 0.84 -> 0.83.
+- Orientation robustness holds: random SO(3) mean 92.03 (std 0.47) against
+  exp195's 90.67 (std 1.00); x/y swap 93.15 vs 90.41.
+- **Conclusion: same result, within the seed noise this dataset already shows.**
+  The RNG stream differs between the two paths, so equality was never expected.
+
 ## exp195: rotation augmentation
 
 BirdModelSmallDilated + full SO(3) IMU rotation (train set only), starts.csv,

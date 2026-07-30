@@ -370,15 +370,16 @@ if __name__ == "__main__":
     }
 
     # One entry per training run; each overrides base_config.
-    # main() applies the rotation augmentation to the training set. exp195 is the
-    # clean A/B against exp194 (same BirdModelSmallDilated / 9 classes /
-    # starts.csv, no aug — the app inference model). BirdModelSmallDilated has a
-    # larger receptive field than BirdModel (RF 25 vs 7), so it captures the
-    # global flap sine-wave pattern instead of confusing it with Manoeuvre
-    # (observed by eye on unlabeled data in app/gps_burst_labeling_viz_app.py).
+    # main() applies the rotation augmentation to the training set. exp196 repeats
+    # exp195 (same BirdModelSmallDilated / 9 classes / starts.csv / seed) through
+    # the batched GpuBatches path, to check the faster wiring gives the same
+    # result. BirdModelSmallDilated has a larger receptive field than BirdModel
+    # (RF 25 vs 7), so it captures the global flap sine-wave pattern instead of
+    # confusing it with Manoeuvre (observed by eye on unlabeled data in
+    # app/gps_burst_labeling_viz_app.py).
     experiments = [
         {
-            "exp": 195,
+            "exp": 196,
             "labels_to_use": all_labels,
             "model": {
                 "name": "BirdModelSmallDilated",
