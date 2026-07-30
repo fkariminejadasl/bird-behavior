@@ -1,3 +1,9 @@
+# Description
+
+Data, model, and script overview for the bird-behavior classifier. Companion
+docs: [docs/experiments_log.md](experiments_log.md) (per-run notebook) and
+[docs/lesson_learned.md](lesson_learned.md) (curated lessons).
+
 ## Data
 
 ### Unlabeled data
@@ -255,15 +261,40 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 
 * `scripts/train.py`: Training script for supervised bird classification.
 * `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
+* `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
+* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training across models/configs (defined in `iter_batch_configs`). Applies the **rotation augmentation** — a full random 3D rotation (SO(3), `behavior.data_augmentation.RandomRotation3D`) of the three IMU acceleration channels, GPS untouched — to the **training set only**: the eval `BirdDataset` is built with no transform and the transform is cleared before the final confusion-matrix pass. Motivation: make the classifier invariant to the accelerometer's mounting frame, which varies across tags (UvA-BiTS tags sit anywhere from horizontal to ~70° pitch; Ornitela swaps x/y relative to UvA-BiTS). exp195 is the clean A/B against exp194 (same `BirdModelSmallDilated` / 9 classes / `starts.csv`, no augmentation — the app inference model). `BirdModelSmallDilated` is used rather than `BirdModel` because its larger receptive field (RF 25, spanning the full 20-sample burst, vs BirdModel's 7) captures the global flap sine-wave pattern instead of confusing it with Manoeuvre. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here.
 * `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 * `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 * `scripts/gcd_pipeline.py`: GCD pipeline.
-* `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the InfoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the InfoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotations of IMU data.
+* `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the InfoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the InfoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotations of IMU data (now available as `RandomRotation3D`, see the Data augmentation section below).
 
 **Older scripts**: 
 
 - `exps/cluster_behavior.py`: Unsupervised clustering.
 - `exps/exps1`: Run inference and save the metrics.
+
+#### Data augmentation
+
+`behavior/data_augmentation.py` holds the time-series augmentations, each a
+callable on a `(T, C)` tensor (T=20, C=4: IMU x, y, z and GPS 2D speed). They
+run per sample in `BirdDataset.__getitem__` before the channel-first transpose,
+so a transform receives `(20, 4)`. Most skip the GPS channel (column 3).
+
+- `RandomJitter`, `RandomScaling`: element-wise Gaussian noise / per-channel scaling.
+- `TimeWarp`, `MagnitudeWarp`: time- and magnitude-domain warping (torch and numpy versions).
+- `RandomRotation3D`: full random 3D rotation (SO(3)) of the three IMU
+  acceleration channels via `random_rotation_matrix` (uniform Haar measure from a
+  normalized-Gaussian unit quaternion); GPS untouched, per-timestep acceleration
+  magnitude preserved. Used by `scripts/batch_train_supervised.py`.
+
+Empirically, supervised runs were best with **no augmentation** (exp125); see
+[docs/lesson_learned.md](lesson_learned.md). Rotation is the current attempt to
+buy cross-manufacturer / mounting-orientation robustness rather than raw accuracy
+(UvA-BiTS tags sit horizontal to ~70° pitch, Ornitela swaps x/y; see the
+"Accelerometer calibration" section of the UvA-BiTS wiki). Note the augmentation
+must be attached to the **train dataset only**: both `prepare_train_valid_dataset`
+and the stratified-split path in `batch_train_supervised.py` would otherwise apply
+the same transform to the eval set too.
 
 #### Data Scripts / Helper Scripts
 

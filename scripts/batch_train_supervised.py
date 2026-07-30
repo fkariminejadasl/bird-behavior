@@ -115,15 +115,24 @@ def main(cfg):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Use one of the augmentation. transforms.Compose use all the augmentations.
+    # Rotation augmentation: a full random 3D rotation (SO(3)) of the IMU
+    # acceleration channels (x, y, z); the GPS 2D speed channel is left unchanged.
+    # Motivation: UvA-BiTS/Ornitela tags are mounted at different orientations on
+    # the bird (horizontal up to ~70 deg pitch) and Ornitela swaps x/y relative to
+    # UvA-BiTS, so the classifier should be invariant to the accelerometer's
+    # mounting frame. See "Accelerometer calibration" at
+    # https://wiki.e-ecology.nl/index.php/UvA-BiTS_Tracking_Data . Applied to the
+    # training set only (see the eval_dataset construction below).
     transforms = tvt2.RandomChoice(
         [
-            bau.RandomJitter(sigma=0.05),
-            bau.RandomScaling(sigma=0.05),
+            bau.RandomRotation3D(),
+            # bau.RandomJitter(sigma=0.05),
+            # bau.RandomScaling(sigma=0.05),
             # bau.TimeWarp(sigma=0.05),
             # bau.MagnitudeWarp(sigma=0.05, knot=4),
         ]
     )
-    transforms = None
+    # transforms = None  # set to None to disable augmentation
 
     # Prepare datasets
     if cfg.valid_file is not None:
@@ -163,8 +172,9 @@ def main(cfg):
         train_dataset = bd.BirdDataset(
             igs_train, ldts_train, transforms, channel_first=True
         )
+        # Evaluation data must never be augmented.
         eval_dataset = bd.BirdDataset(
-            igs_eval, ldts_valid, transforms, channel_first=True
+            igs_eval, ldts_valid, None, channel_first=True
         )
 
     # Build the sampler: inversely weight by class frequency
@@ -339,6 +349,9 @@ def main(cfg):
         datasets = {"train": train_dataset, "valid": eval_dataset}
 
     for stage, dataset in datasets.items():
+        # Never evaluate on augmented data (the train dataset still holds the
+        # rotation transform used during training).
+        dataset.transform = None
         loader = DataLoader(
             dataset,
             batch_size=len(dataset),
@@ -371,22 +384,15 @@ def get_config():
 def iter_batch_configs():
     all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
 
+    # main() applies the rotation augmentation to the training set. exp195 is the
+    # clean A/B against exp194 (same BirdModelSmallDilated / 9 classes /
+    # starts.csv, no aug — the app inference model). BirdModelSmallDilated has a
+    # larger receptive field than BirdModel (RF 25 vs 7), so it captures the
+    # global flap sine-wave pattern instead of confusing it with Manoeuvre
+    # (observed by eye on unlabeled data in app/gps_burst_labeling_viz_app.py).
     experiments = [
         {
-            "exp": 193,
-            "labels_to_use": all_labels,
-            "model": {
-                "name": "BirdModelWideRF",
-                "parameters": {
-                    "in_channels": 4,
-                    "mid_channels": 20,
-                    "out_channels": len(all_labels),
-                    "dropout": 0.15,
-                },
-            },
-        },
-        {
-            "exp": 194,
+            "exp": 195,
             "labels_to_use": all_labels,
             "model": {
                 "name": "BirdModelSmallDilated",

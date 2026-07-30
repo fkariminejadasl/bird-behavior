@@ -37,6 +37,56 @@ class RandomScaling:
         return x * scales.unsqueeze(0)
 
 
+def random_rotation_matrix(
+    device=None, dtype=torch.float32, generator: torch.Generator = None
+) -> torch.Tensor:
+    """Sample a uniformly random 3D rotation matrix (Haar measure on SO(3)).
+
+    A 4D standard-normal vector, once normalized, is uniform on the unit
+    sphere S^3, and the unit-quaternion -> rotation map then pushes it to the
+    Haar (uniform) measure on SO(3). Returns a (3, 3) rotation matrix (det=+1).
+    """
+    q = torch.randn(4, device=device, dtype=dtype, generator=generator)
+    q = q / q.norm()
+    w, x, y, z = q
+    R = torch.stack(
+        [
+            torch.stack([1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)]),
+            torch.stack([2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)]),
+            torch.stack([2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]),
+        ]
+    )
+    return R
+
+
+class RandomRotation3D:
+    """Apply a uniformly random 3D rotation (SO(3)) to the 3 IMU acceleration
+    channels (x, y, z); any remaining channel (e.g. GPS 2D speed in column 3)
+    is left unchanged.
+
+    The accelerometer is measured in the tag's body frame, whose orientation
+    relative to the bird is arbitrary and differs across manufacturers (for
+    example Ornitela mounts x and y swapped relative to UvA-BiTS). Rotating the
+    acceleration vector makes the classifier invariant to that mounting
+    orientation. A full random rotation also scrambles the gravity direction,
+    so it is an aggressive augmentation.
+    """
+
+    def __init__(self, p: float = 1.0):
+        self.p = p  # probability of applying a rotation to a sample
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (T, C), columns 0..2 are IMU acc (x, y, z), column 3 (optional) GPS
+        if x.dim() != 2 or x.size(1) < 3:
+            raise ValueError(f"Expected (T, C>=3) but got {tuple(x.shape)}")
+        if self.p < 1.0 and torch.rand(()) > self.p:
+            return x
+        R = random_rotation_matrix(device=x.device, dtype=x.dtype)  # (3, 3)
+        out = x.clone()
+        out[:, :3] = x[:, :3] @ R.t()  # rotate each (x, y, z) row: v' = R @ v
+        return out
+
+
 class MagnitudeWarp:
     """Apply magnitude warping to first 3 dims and Gaussian jitter to the 4th dim when C==4."""
 

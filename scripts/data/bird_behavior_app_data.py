@@ -422,7 +422,7 @@ if __name__ == "__main__":
     # Prepare data
     cfg = dict(
         glen=20,
-        exp=194,
+        exp=195,
         labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
         in_channe=4,
         width=30,
