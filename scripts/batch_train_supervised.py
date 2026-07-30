@@ -57,13 +57,15 @@ def main(cfg):
     # mounting frame. See "Accelerometer calibration" at
     # https://wiki.e-ecology.nl/index.php/UvA-BiTS_Tracking_Data . Applied to the
     # training set only (see the eval_dataset construction below).
+    # These are the batched transforms: they take the whole channel-first
+    # (N, C, T) batch on the GPU, which `GpuBatches` below hands them.
     transforms = tvt2.RandomChoice(
         [
-            bau.RandomRotation3D(),
-            # bau.RandomJitter(sigma=0.05),
-            # bau.RandomScaling(sigma=0.05),
-            # bau.TimeWarp(sigma=0.05),
-            # bau.MagnitudeWarp(sigma=0.05, knot=4),
+            bau.BatchRandomRotation3D(),
+            # bau.BatchRandomJitter(sigma=0.05),
+            # bau.BatchRandomScaling(sigma=0.05),
+            # bau.BatchTimeWarp(sigma=0.05),
+            # bau.BatchMagnitudeWarp(sigma=0.05, knot=4),
         ]
     )
     # transforms = None  # set to None to disable augmentation
@@ -103,9 +105,8 @@ def main(cfg):
         igs_eval = igs[idx2].cpu().numpy()
         ldts_train = ldts[idx1].cpu().numpy()
         ldts_valid = ldts[idx2].cpu().numpy()
-        train_dataset = bd.BirdDataset(
-            igs_train, ldts_train, transforms, channel_first=True
-        )
+        # The augmentation is applied per batch by GpuBatches, not per sample.
+        train_dataset = bd.BirdDataset(igs_train, ldts_train, None, channel_first=True)
         # Evaluation data must never be augmented.
         eval_dataset = bd.BirdDataset(igs_eval, ldts_valid, None, channel_first=True)
 
@@ -118,15 +119,7 @@ def main(cfg):
         weights=sample_weights, num_samples=len(sample_weights), replacement=True
     )
 
-    batch_size = len(train_dataset) if cfg.batch_size is None else cfg.batch_size
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        # sampler=sampler,
-        shuffle=True,
-        num_workers=cfg.num_workers,
-        drop_last=False,
-    )
+    train_loader = bd.GpuBatches(train_dataset, device, cfg.batch_size, transforms)
     eval_loader = DataLoader(
         eval_dataset,
         batch_size=len(eval_dataset),
@@ -281,8 +274,9 @@ def main(cfg):
         datasets = {"train": train_dataset, "valid": eval_dataset}
 
     for stage, dataset in datasets.items():
-        # Never evaluate on augmented data (the train dataset still holds the
-        # rotation transform used during training).
+        # Never evaluate on augmented data. The augmentation now lives on the
+        # GpuBatches train loader rather than on the dataset, so this only
+        # guards the `valid_file` path above, which builds its own datasets.
         dataset.transform = None
         loader = DataLoader(
             dataset,

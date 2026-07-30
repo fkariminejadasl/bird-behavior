@@ -4,6 +4,28 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Batched augmentation on the GPU
+
+Per-sample transforms run inside `BirdDataset.__getitem__`, one Python call per
+sample per epoch. On the 3900-sample full batch `RandomRotation3D` alone cost
+~370 ms/epoch — that is why exp195 took 47 min against exp194's 12. The `Batch*`
+transforms in `behavior/data_augmentation.py` build all N at once, and
+`bd.GpuBatches` keeps the split on the GPU and applies them once per batch:
+**the same exp195 config now runs in ~5.5 min**, below the un-augmented baseline.
+
+- **Verify equivalence, not just speed.** 500 epochs track the exp195 log
+  (epoch 500: train 83.03 vs 83.08, valid 86.07 vs 86.30). The RNG stream
+  differs, so reruns are not bit-identical — expect seed-level noise.
+- `train_one_epoch` only iterates its loader, so any iterable works and
+  `behavior/model.py` needed no change at all.
+- Augmentation now lives on the train **loader**, not the dataset, which removes
+  the shared-transform footgun described under "Rotation augmentation
+  (background)" below.
+- Batched transforms take channel-first `(N, C, T)`; the per-sample ones take
+  `(T, C)`. They are not interchangeable, and the other scripts
+  (`train.py`, `train_sup_contrastive.py`, `train_self_distill.py`, `simGCD.py`)
+  still use the per-sample ones.
+
 ## Rotation augmentation (exp195)
 
 Full SO(3) rotation of the IMU acc channels, train set only (`RandomRotation3D`).
@@ -121,12 +143,11 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   (Pecking .57, Manoeuvre .77, ExFlap .57 — prose record only, that run was not
   kept). exp195's bigger receptive field fixed exactly those three and the cost
   moved to TerLoco/Pecking instead.
-- **Only augment the training set.** Both `prepare_train_valid_dataset` and the
-  stratified-split path in `scripts/batch_train_supervised.py` pass one transform
-  object to the train and eval `BirdDataset`s, which would rotate the evaluation
-  data too. The wiring avoids this by giving the eval `BirdDataset` a `None`
-  transform, and clears `dataset.transform` before the final confusion-matrix
-  evaluation (the train dataset is reused there and still holds the transform).
+- **Only augment the training set.** `prepare_train_valid_dataset` passes one
+  transform object to both the train and eval `BirdDataset`s, which would rotate
+  the evaluation data too — still a hazard for any script using it.
+  `batch_train_supervised.py` no longer can: the transform is held by the
+  `GpuBatches` train loader, and the eval `BirdDataset` has none.
 
 ## Contrastive and clustering
 

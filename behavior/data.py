@@ -290,6 +290,38 @@ class BirdDataset(Dataset):
             return data
 
 
+class GpuBatches:
+    """Keep a whole `BirdDataset` on the GPU and yield shuffled batches.
+
+    A drop-in for `DataLoader` in the training loop, which only iterates its
+    loader. It skips the per-sample `from_numpy`/transpose/collate work, and it
+    lets the augmentation run once per batch on the GPU instead of once per
+    sample on the CPU -- together worth roughly 10x an epoch on `starts.csv`.
+
+    `transform` must be a batched transform (the `Batch*` classes in
+    `data_augmentation`), since it receives a channel-first (N, C, T) batch.
+    """
+
+    def __init__(self, dataset, device, batch_size=None, transform=None):
+        data = torch.from_numpy(dataset.data).to(device)  # N x T x C, normalized
+        self.data = data.transpose(1, 2).contiguous()  # -> N x C x T
+        self.ldts = torch.from_numpy(dataset.ldts).long().to(device)
+        self.batch_size = len(dataset) if batch_size is None else batch_size
+        self.transform = transform
+
+    def __len__(self):
+        return (self.data.shape[0] + self.batch_size - 1) // self.batch_size
+
+    def __iter__(self):
+        indices = torch.randperm(self.data.shape[0], device=self.data.device)
+        for start in range(0, len(indices), self.batch_size):
+            selected = indices[start : start + self.batch_size]
+            data = self.data[selected]
+            if self.transform is not None:
+                data = self.transform(data)
+            yield data, self.ldts[selected]
+
+
 class BirdDatasetNoNorm(Dataset):
     def __init__(
         self,

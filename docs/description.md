@@ -262,7 +262,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 * `scripts/train.py`: Training script for supervised bird classification.
 * `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
 * `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: the eval `BirdDataset` is built with no transform, and the transform is cleared before the final confusion-matrix pass.
+* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform.
 * `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 * `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 * `scripts/gcd_pipeline.py`: GCD pipeline.
@@ -285,13 +285,20 @@ so a transform receives `(20, 4)`. Most skip the GPS channel (column 3).
 - `RandomRotation3D`: full random 3D rotation (SO(3)) of the three IMU
   acceleration channels via `random_rotation_matrix` (uniform Haar measure from a
   normalized-Gaussian unit quaternion); GPS untouched, per-timestep acceleration
-  magnitude preserved. Used by `scripts/batch_train_supervised.py`.
+  magnitude preserved.
+
+Each also has a batched form — `BatchRandomJitter`, `BatchRandomScaling`,
+`BatchRandomRotation3D`, `BatchTimeWarp`, `BatchMagnitudeWarp` — taking a whole
+channel-first `(N, C, T)` batch on the GPU instead of one `(T, C)` sample, with
+the same semantics (channel 3 handled identically). They are what
+`data.GpuBatches` and `scripts/batch_train_supervised.py` use; running the
+augmentation once per batch rather than once per sample is worth ~10x an epoch.
+The two forms are not interchangeable — the shape differs.
 
 Which augmentation to use, and what each one costs or buys, is in
 [docs/lesson_learned.md](lesson_learned.md). Note the augmentation must be
-attached to the **train dataset only**: both `prepare_train_valid_dataset` and the
-stratified-split path in `batch_train_supervised.py` would otherwise apply the same
-transform to the eval set too.
+attached to the **train data only**: `prepare_train_valid_dataset` would
+otherwise apply the same transform object to the eval set too.
 
 #### Data Scripts / Helper Scripts
 
@@ -318,6 +325,7 @@ transform to the eval set too.
 
 ## List of Functions
 
+- `data.py::GpuBatches`: Keeps a whole `BirdDataset` on the GPU and yields shuffled batches, applying a batched transform per batch. A drop-in for `DataLoader` in the training loop (`train_one_epoch` only iterates its loader), avoiding the per-sample `from_numpy`/transpose/collate work.
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling an equal number of groups from each specified class.
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.
