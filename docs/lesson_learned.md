@@ -4,6 +4,43 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Label noise
+
+`exps/find_label_noise.py` flags bursts whose **GPS speed** contradicts their own
+label's definition in Table S1 of the Judy supplement
+(`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). **26 of 4338
+bursts (0.60%)**, listed in
+`/home/fatemeh/Downloads/bird/screenshots/label_noise_candidates.csv`.
+
+- **Only the speed half of each definition is usable. Accelerometer-shape rules
+  were tried and all had to be dropped**, after checking them against the plots
+  in `~/Downloads/bird/results/gt2_starts/all`. An ODBA rule ("Stationary means
+  constant on all 3 axes") flagged sitting birds that shifted once mid-burst, and
+  a spectral rule ("Soar means no wing beat") flagged smooth glides — the FFT
+  removes the mean but not the trend, so a glide's slow drift lands in the low
+  bins and imitates a beat over 20 samples. Speed is a hard physical constraint;
+  shape is a description, and a description has a legitimate tail.
+- **Extreme for its class is not the same as mislabeled.** Every dropped rule was
+  thresholded outside its class's 99th percentile and still produced false
+  positives. That test finds the tail of a real distribution, not errors.
+- **Never let the label under test train the judge.** exp194 reaches ~99.4% train
+  accuracy by memorising the bad labels too: it predicts TerLoco at 0.92
+  confidence for a burst moving 17.8 m/s. Use the rotation-augmented exp196
+  instead — it underfits, so it never memorised, and its opinion is independent
+  of the label being checked.
+- **Compare a model's disagreement against its own base rate.** exp196 disagrees
+  with 85% of flagged bursts, which reads as strong corroboration until you see
+  it also disagrees with 8.3% of *all* bursts (exp194: 0.9%). The script prints
+  both numbers together for that reason.
+- **Check whether flags cluster by device and day before calling them label
+  errors.** 16 of the 26 are device 805 on 2014-06-07. A run of flags in one
+  window is more likely a GPS or device fault over that period than that many
+  independent annotation mistakes.
+- **A constant IMU plus high speed is ambiguous.** Sitting on a fast vessel and
+  gliding both give a smooth signal at speed; only the GPS track or altitude
+  separates them. The four device-806 bursts (SitStand at 9.4–13.7 m/s) are the
+  clearest mislabels found, but that caveat stands.
+
 ## Batched augmentation on the GPU
 
 Per-sample transforms run inside `BirdDataset.__getitem__`, one Python call per
