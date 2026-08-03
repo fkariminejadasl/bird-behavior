@@ -373,6 +373,69 @@ def correct_mistakes(df, name):
     return df
 
 
+def remove_label_noise(df, glen=20):
+    """
+    Removes bursts whose GPS speed contradicts their own label, found by
+    exps/find_label_noise.py and listed in
+    /home/fatemeh/Downloads/bird/data/final/label_noise_candidates.csv.
+
+    Where correct_mistakes drops a whole (device, timestamp) fix found by
+    cross-dataset disagreement, this drops a single burst of glen rows, since
+    one fix holds several bursts and only some contradict their label.
+
+    Entries are (device_id, timestamp, start index of the burst). A bird
+    labelled as sitting still cannot move at 13 m/s, so either the label or the
+    GPS fix is wrong; the burst is unusable either way. Note the 16 device-805
+    bursts on 2014-06-07 are one continuous window and look like a GPS fault
+    over that period rather than 16 separate annotation mistakes -- they are
+    dropped for the same reason, not because the labels are known to be wrong.
+    10: SitStand, 5:Pecking, 6:TerLoco
+    """
+
+    # fmt: off
+    remove_bursts = [
+    (533, "2012-05-15 13:46:08", 0),   # TerLoco, 17.8 m/s
+    (533, "2012-05-15 13:46:08", 31),  # Pecking, 17.8 m/s
+    (606, "2014-05-15 12:11:06", 0),   # SitStand, 4.1 m/s
+    (606, "2014-05-15 12:11:06", 20),  # SitStand, 4.1 m/s
+    (606, "2014-06-08 12:47:13", 0),   # SitStand, 3.2 m/s
+    (606, "2014-06-08 12:47:13", 20),  # SitStand, 3.2 m/s
+    (805, "2014-06-07 11:17:08", 0),   # TerLoco, 6.1 m/s
+    (805, "2014-06-07 11:17:08", 20),  # TerLoco, 6.1 m/s
+    (805, "2014-06-07 11:17:28", 0),   # TerLoco, 5.7 m/s
+    (805, "2014-06-07 11:17:28", 20),  # TerLoco, 5.7 m/s
+    (805, "2014-06-07 11:21:43", 0),   # TerLoco, 5.1 m/s
+    (805, "2014-06-07 11:21:43", 20),  # TerLoco, 5.1 m/s
+    (805, "2014-06-07 11:21:48", 0),   # TerLoco, 5.6 m/s
+    (805, "2014-06-07 11:21:48", 20),  # TerLoco, 5.6 m/s
+    (805, "2014-06-07 11:25:15", 0),   # TerLoco, 5.0 m/s
+    (805, "2014-06-07 11:25:15", 20),  # TerLoco, 5.0 m/s
+    (805, "2014-06-07 11:29:35", 0),   # Pecking, 7.3 m/s
+    (805, "2014-06-07 11:29:35", 20),  # Pecking, 7.3 m/s
+    (805, "2014-06-07 11:31:40", 0),   # SitStand, 4.4 m/s
+    (805, "2014-06-07 11:31:40", 20),  # SitStand, 4.4 m/s
+    (805, "2014-06-07 11:38:41", 0),   # Pecking, 6.0 m/s
+    (805, "2014-06-07 11:38:41", 20),  # Pecking, 6.0 m/s
+    (806, "2014-05-16 08:51:49", 0),   # SitStand, 9.4 m/s
+    (806, "2014-05-16 08:51:49", 20),  # SitStand, 9.4 m/s
+    (806, "2014-05-16 08:56:37", 0),   # SitStand, 13.7 m/s
+    (806, "2014-05-16 08:56:37", 20),  # SitStand, 13.7 m/s
+    ]
+    # fmt: on
+
+    df = df.sort_values([0, 1, 2]).reset_index(drop=True)
+    drop = pd.Series(False, index=df.index)
+    for device_id, timestamp, start in remove_bursts:
+        drop |= (
+            (df[0] == device_id)
+            & (df[1] == timestamp)
+            & (df[2] >= start)
+            & (df[2] < start + glen)
+        )
+    print(f"Label noise: dropping {drop.sum() // glen} bursts ({drop.sum()} rows)")
+    return df[~drop].reset_index(drop=True)
+
+
 def map_new_labels(df, mapping, save_file=None, ignore_labels=None):
     """
     Map new labels to old labels and remove data contining ignored labels

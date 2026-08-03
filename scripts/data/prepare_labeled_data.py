@@ -37,6 +37,13 @@ for name, input_file in name_input_files:
     make_data_pipeline(name, input_file, save_path, database_file, change_format)
 filenames = [f"{i}_complete.csv" for i in ["s", "j", "m", "w"]]
 make_combined_data_pipeline(save_path, save_path, filenames)
+
+# Drop bursts whose GPS speed contradicts their label (exps/find_label_noise.py).
+# This step alone can be rerun without the ones above: read starts.csv, filter,
+# write starts_clean.csv.
+df = pd.read_csv(save_path / "starts.csv", header=None)
+df = bdp.remove_label_noise(df, glen=20)
+df.to_csv(save_path / "starts_clean.csv", index=False, header=None, float_format="%.6f")
 print("Done")
 
 """

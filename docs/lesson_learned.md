@@ -10,7 +10,10 @@ data/model/script overview is in [docs/description](description.md).
 label's definition in Table S1 of the Judy supplement
 (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). **26 of 4338
 bursts (0.60%)**, listed in
-`/home/fatemeh/Downloads/bird/screenshots/label_noise_candidates.csv`.
+`/home/fatemeh/Downloads/bird/data/final/label_noise_candidates.csv`. They are
+dropped by `data_processing.remove_label_noise`, the last step of
+`scripts/data/prepare_labeled_data.py`, giving **`starts_clean.csv` (4312
+bursts)** beside `starts.csv`.
 
 - **Only the speed half of each definition is usable. Accelerometer-shape rules
   were tried and all had to be dropped**, after checking them against the plots

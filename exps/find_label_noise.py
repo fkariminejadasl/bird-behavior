@@ -245,7 +245,7 @@ if __name__ == "__main__":
     config = {
         "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
         "save_path": "/home/fatemeh/Downloads/bird/results",
-        "out_dir": "/home/fatemeh/Downloads/bird/screenshots",
+        "out_dir": "/home/fatemeh/Downloads/bird/data/final",
         "out_name": "label_noise_candidates.csv",
         # Rotation-augmented model: it underfits, so it never memorised the
         # labels and its opinion is independent of the label being tested.

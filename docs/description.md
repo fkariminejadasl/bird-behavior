@@ -91,6 +91,7 @@ Steps:
 1. **combine**: Merge all individual datasets into one.
 2. **shift**: Group data into sets of 20 items. Assign a common label to each group or drop the group based on length and labeling rules. **starts** can be used instead. In this case, it extracts a slice of n rows from the DataFrame, starting at the first row where a valid label (0-9) appears.
 3. **drop duplicates**: Perform a sanity check to ensure there are no duplicate groups of 20 items.
+4. **remove label noise**: Drop the 26 bursts whose GPS speed contradicts their label, found by `exps/find_label_noise.py` and hard-coded in `data_processing.remove_label_noise`. Reads `starts.csv` and writes `starts_clean.csv` (4312 bursts). This runs after `make_combined_data_pipeline` and can be rerun on its own, without the database steps above.
 
 
 #### These datasets are:
@@ -128,6 +129,7 @@ shift : {0: 161400, 1: 12040, 2: 113540, 3: 37760, 4: 168860, 5: 448760, 6: 8678
 # burst
 s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
 starts:  {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total: 4338
+starts_clean (label noise removed): {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total: 4312
 shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
