@@ -4,6 +4,43 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Evaluating on unlabeled data
+
+`exps/eval_unlabeled.py` compares models on data with no ground truth, by
+counting predictions that contradict something known independently of the model.
+On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`):
+
+| | mean conf | speed conflict | place conflict | time flip | rotation flip |
+|---|---|---|---|---|---|
+| exp194 | 0.89 | 1.45% | 1.18% | 17.7% | **82.8%** |
+| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | **5.4%** |
+
+- **Winner**: exp196 wins clearly. It makes 16× fewer physically impossible 
+  predictions (0.09% vs 1.45%).
+- **Softmax confidence cannot compare models.** It rates the two within 0.02 of
+  each other while exp194 makes 16x more physically impossible predictions. On
+  the labeled set the same failure is measurable: under rotation exp194 holds
+  0.735 mean confidence at 13% accuracy. Confidence is only good for *ranking*
+  which bursts to inspect (AUROC 0.89 within one dataset), never for "is this
+  model healthy here".
+- **Contradiction counting gives a real error rate without labels.** A predicted
+  SitStand at 13 m/s, or a predicted TerLoco a kilometre out to sea, is wrong on
+  physical grounds. No annotation needed.
+- **Prediction stability under rotation is the sharpest discriminator here**
+  (82.8% vs 5.4%), and it confirms on real unlabeled data what the labeled
+  orientation table showed.
+- **Not every check discriminates.** `time_flip` is ~16-17% for both, so it is
+  measuring genuine behaviour transitions within a fix as much as model noise;
+  and exp196 is slightly *worse* on `place_conflict`, because it predicts more
+  TerLoco (4.2% vs 2.4%), a land class. Report checks that tie or disagree, do
+  not quietly drop them.
+- **Coastline resolution limits the place check.** `global_land_mask` is 1/100
+  deg (~1.1 km), so only the 53% of bursts clearly inland or offshore are
+  scored; a gull on a beach or pier is genuinely ambiguous at that scale.
+- **Validate the pipeline against stored predictions.** The app CSVs already
+  carry the generating model's output, so recomputing it is a free correctness
+  check — 99.98% agreement here before any of the numbers above were trusted.
+
 ## Label noise
 
 `exps/find_label_noise.py` flags bursts whose **GPS speed** contradicts their own

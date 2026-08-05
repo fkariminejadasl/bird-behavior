@@ -23,6 +23,7 @@
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
 - When reporting a path, give a full clickable path so it is easy to check.
+- Ask before installing a package, then install it once approved.
 - No `argparse`. Configure scripts the way the rest of the repo does: a config
   dict wrapped with OmegaConf, defined under `if __name__ == "__main__":` and
   edited in place to change a run.

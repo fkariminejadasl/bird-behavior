@@ -32,7 +32,8 @@ dependencies = [
     "omegaconf",
     "pyarrow",
     "wandb",
-    "seaborn",
+    "seaborn", # plotting
+    "global-land-mask", # sea/land mask
 ]
 
 # pip install .[notebook]
