@@ -1,3 +1,36 @@
+"""Build and inspect the unlabeled 20-length dataset.
+
+Two jobs, both one-off and both driven by editing the commented call blocks
+below rather than by a CLI. The paths say `ssl` only for historical reasons —
+this data was first collected for self-supervised pretraining.
+
+1. **Convert.** The unlabeled data arrives as per-device CSV shards
+   (`<device>_<n>.csv`, columns `device_id, date_time, index, label, imu_x,
+   imu_y, imu_z, gps_2d_speed`). `write_only_gimu_float32_norm_gps_batch` keeps
+   only the four signal columns, curates them (`curate_data`: drop GPS speed
+   >= 30 m/s, clip IMU to [-2, 2], divide GPS by `gps_scale = 22.3012351755624`)
+   and writes one parquet per device, each row a flat float32 `20 x 4` burst.
+   This is the code behind the dataset described in `docs/description.md`
+   ("Unlabeled data") and `docs/efficient_data_loading.md`.
+
+2. **Inspect.** `plot_hist_scatter_plots` walks those parquet files and, per
+   device, writes `<device>.png` (a histogram of each of imu_x, imu_y, imu_z and
+   GPS speed, de-normalized back to m/s) and `<device>_scatter.png` (imu_x vs
+   GPS speed, imu_y vs imu_z). `write_stats` appends the per-device min or max of
+   the four channels to `stats.txt`, with device `0` as the row over all devices.
+
+The last run went to `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20` (plots of
+the 186 devices plus `stats.txt`, max block then min block). It is what motivates
+the curation in step 1: the raw GPS 2D speed reaches `521 m/s` and the raw IMU
+reaches `15.75 g`, so the tail of the GPS channel is sensor error, not flight.
+
+The tail of the file holds further commented-out one-offs: a min/max scan over
+all parquet files, a line count per device shard, and a per-class count per
+device obtained by running a trained model over the unlabeled shards.
+
+  /home/fatemeh/miniconda3/envs/bird/bin/python exps/inspect_unlabeled_data.py
+"""
+
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path

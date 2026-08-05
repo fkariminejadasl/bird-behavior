@@ -25,7 +25,7 @@ For example, device ID 6210 contains 1,562,699 GPS timestamps and 1,510,999 IMU 
 
 The script first downloads the GPS timestamps, then downloads and filters the IMU and GPS data before saving them to files. For each device, the data is split into shards of 21,000 timestamps.
 
-The code to generate the data is located in `get_data_gull_20.py`.
+The code to generate the data is located in `get_data_gull_20.py`. The CSV shards are then curated (the `30 m/s` cut, the clipping and the normalization above) and written as one Parquet file per device by `exps/inspect_unlabeled_data.py`, which also plots the per-device distributions that motivate the curation.
 
 <details>
 <summary>[Device: number of GPS timestamps. Click to expand]</summary>
@@ -325,6 +325,7 @@ otherwise apply the same transform object to the eval set too.
 - `test_issue_previous_m_data_format`: Check how impactful the bug is in the m_data format. The impact is not significant.
 - `check_batches`: Check that each batch with glen=20 meets certain conditions, such as consecutively increasing indices, unique values in columns 0, 1, 3, and 7, and unique batches.
 - `exps/panda_csv_python_read_data_in_memory`: Check the performance of pandas, the CSV library, and pure Python when reading large data into memory.
+- `exps/inspect_unlabeled_data.py`: Build and inspect the unlabeled 20-length dataset. `write_only_gimu_float32_norm_gps_batch` turns a device's CSV shards into one Parquet file of flat float32 `20 x 4` bursts after `curate_data` (drop GPS 2D speed >= `30 m/s`, clip IMU to [-2, 2], divide GPS by `22.3012351755624`); `plot_hist_scatter_plots` then writes, per device, a histogram of each channel and two scatter plots (imu_x vs GPS speed, imu_y vs imu_z), and `write_stats` the per-device min/max to `stats.txt`. The last run is in `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20` and is why the curation exists: raw GPS 2D speed reaches `521 m/s` and raw IMU `15.75 g`. Also holds commented-out one-offs for a min/max scan, line counts per device shard, and per-class counts from model inference. Run by editing the call blocks, not by a CLI.
 
 ## List of Functions
 

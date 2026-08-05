@@ -16,6 +16,10 @@
   Co-Authored-By line, no tool names).
 - Always update the related documents in the same change (see Documentation).
 - Never run `git commit`. Prepare the change and the message; the user commits.
+- Always end a change with a ready-to-paste commit message, without being asked.
+  Give it in a copyable block: a ~50-character imperative subject, then a body
+  saying what changed and why, wrapped at 72 characters. Say so explicitly if
+  the change is not worth committing on its own.
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
 - When reporting a path, give a full clickable path so it is easy to check.

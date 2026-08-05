@@ -4,7 +4,7 @@ I have 186 parquet files. Each file has different sizes. The largest file has tw
 
 Each parquet file created from multiple CSV files roughly the same size (30MB). Each csv file contains device id, date, index, label, imu_x, imu_y, imu_z and GPS 2d speed. Per 20 lines, all the values are the same except imu_{x,y,z}, gps 2d speed and indices. For training, we only need imu_{x,y,z}, gps 2d speed. So, in parquet format, every 20 rows share the same device and date are presented as one line of {imu, gps} x 20, so 80 np.float32. All the csv files of the same device are combined into one parquet file. So, per device, there is one parquet file and multiple CSV file.
 
-For example, device id 298 has several csv files with names like 298_0.csv, 298_1.csv, ...,298_n.csv​. These files are roughly the same size but different number of lines. They are combined to one single parquet file (e.g. 298.parquet ) and took every 20 lines and took column 4-7 and flatten them into 20x4=80 np.float32 numpy array. Here is the code:
+For example, device id 298 has several csv files with names like 298_0.csv, 298_1.csv, ...,298_n.csv​. These files are roughly the same size but different number of lines. They are combined to one single parquet file (e.g. 298.parquet ) and took every 20 lines and took column 4-7 and flatten them into 20x4=80 np.float32 numpy array. Here is the code (it lives in `exps/inspect_unlabeled_data.py`):
 
 
 ```

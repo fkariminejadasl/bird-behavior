@@ -32,6 +32,7 @@ dependencies = [
     "omegaconf",
     "pyarrow",
     "wandb",
+    "seaborn",
 ]
 
 # pip install .[notebook]

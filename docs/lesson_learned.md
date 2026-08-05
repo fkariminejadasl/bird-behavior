@@ -144,6 +144,13 @@ model for a new logger, whose tilt and position on the bird are both unknown.
 
 ## Data
 
+- **The tail of the raw GPS 2D speed is sensor error, not flight.** Over the 186
+  unlabeled devices the max reaches `521 m/s` (and raw IMU `15.75 g`) — see
+  `stats.txt` and the per-device histograms in
+  `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20`, made by
+  `exps/inspect_unlabeled_data.py`. That is the reason the unlabeled data drops speeds
+  above `30 m/s` before anything else. Any rule that reads GPS speed as truth
+  (e.g. `exps/find_label_noise.py`) has to assume this cut was applied.
 - **No augmentation gave the best supervised results.** exp125 (no augmentation,
   no sampling) is 96.94/95.36. Jitter/scaling (exp126), time/magnitude warp
   (exp129), and warping GPS all made things worse; holding GPS fixed during
