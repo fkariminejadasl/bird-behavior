@@ -35,7 +35,8 @@ On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`)
   TerLoco (4.2% vs 2.4%), a land class. Report checks that tie or disagree, do
   not quietly drop them.
 - **Coastline resolution limits the place check.** `global_land_mask` is 1/100
-  deg (~1.1 km), so only the 53% of bursts clearly inland or offshore are
+  deg (~1.1 km), so bursts within `coast_margin_deg` (0.02, ~2 km) of a
+  coastline are skipped, leaving only the 53% clearly inland or offshore to be
   scored; a gull on a beach or pier is genuinely ambiguous at that scale.
 - **Validate the pipeline against stored predictions.** The app CSVs already
   carry the generating model's output, so recomputing it is a free correctness

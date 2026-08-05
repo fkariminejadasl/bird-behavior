@@ -23,7 +23,8 @@
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
 - When reporting a path, give a full clickable path so it is easy to check.
-- Ask before installing a package, then install it once approved.
+- Ask before installing a package. Once approved, install it and add it to
+  `pyproject.toml` with a short comment saying what it is for.
 - No `argparse`. Configure scripts the way the rest of the repo does: a config
   dict wrapped with OmegaConf, defined under `if __name__ == "__main__":` and
   edited in place to change a run.
@@ -60,6 +61,12 @@ Keep these current whenever the code they describe changes:
   behind each.
 - `docs/experiments_log.md`: terse per-run notebook. Held to a lower bar than
   the other two.
+- `presentation/presentation.md`: the talk. Highlights only, short and
+  itemised. Where `lesson_learned.md` gives the reasoning, this gives the conclusion
+  in one line. Keep a technical name in italic parentheses after the plain-language
+  version, so the audience follows and a specialist can still place it.
+- `presentation/README.md`: which figures the talk uses, what each set shows,
+  and the exact steps to remake them. No findings here, only mechanics.
 
 After a change: update the script's top docstring and `docs/description.md` for
 new or changed behavior; add to `docs/lesson_learned.md` for a bug, surprise, or
