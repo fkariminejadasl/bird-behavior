@@ -422,7 +422,7 @@ if __name__ == "__main__":
     # Prepare data
     cfg = dict(
         glen=20,
-        exp=195,
+        exp=197,
         labels_to_use=[0, 1, 2, 3, 4, 5, 6, 8, 9],
         in_channe=4,
         width=30,
@@ -430,8 +430,10 @@ if __name__ == "__main__":
         checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
         database_url=None,
         model_name="BirdModelSmallDilated",
+        # in_channels=7 for exp197, which takes the magnitude channels;
+        # 4 for exp194/195/196. Nothing else changes.
         model_parameters=dict(
-            in_channels=4,
+            in_channels=7,
             mid_channels=20,
             out_channels=None,
             dropout=0.15,
@@ -443,6 +445,12 @@ if __name__ == "__main__":
     cfg.model_parameters.out_channels = cfg.n_classes
     cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
     cfg.database_url = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@pub.e-ecology.nl:5432/eecology"
+
+    # Edit these two paths to change the run. One output file per model, named
+    # after the experiment, so earlier ones are kept.
+    app_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv")
+    save_file = app_file.with_name(f"6004_{cfg.exp}.csv")
+    prepare_app_class_data(app_file, save_file, cfg)
 
 
 """

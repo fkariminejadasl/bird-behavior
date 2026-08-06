@@ -24,12 +24,6 @@ hash:202bf6f plus the uncommitted 7-channel change. 4m56s, best epoch 1870.
   ExFlap +0.14 is 4 bursts, ignore.
 - Unlabeled (device 6004): rotation flip **1.72 vs 5.37%**, unseen flip 4.04 vs
   4.92, place 1.09 vs 1.45, speed 0.11 vs 0.09 (worse). Agree on 93.0%.
-- Why it works: [docs/lesson_learned.md](lesson_learned.md). Pre-run prediction
-  from a random forest proxy:
-  `/home/fatemeh/Downloads/bird/claude/magnitude_feature_prior.py`.
-- Not done: the same channels without rotation augmentation; and the app still
-  loads a 4-channel checkpoint, so switching it needs the 7-channel input in
-  `app/gps_burst_labeling_viz_app.py` and `bird_behavior_app_data.py`.
 
 ## exp196: exp195 repeated through the batched GPU path
 

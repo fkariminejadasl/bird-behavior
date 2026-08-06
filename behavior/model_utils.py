@@ -70,9 +70,10 @@ def infer_update_classes(
     bm.load_model(checkpoint_file, model, device)
     model.eval()
 
-    # Data
+    # Data. A 7-channel model wants the magnitude channels appended.
     igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
-    dataset = bd.BirdDataset(igs)
+    add_magnitudes = model_parameters.get("in_channels", 4) == 7
+    dataset = bd.BirdDataset(igs, add_magnitudes=add_magnitudes)
     loader = DataLoader(
         dataset,
         batch_size=len(dataset),
