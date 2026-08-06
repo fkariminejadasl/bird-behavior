@@ -2,6 +2,10 @@
 
 ## Rules
 
+- At the start of a session, read `docs/description.md` (the Quick reference
+  section first), `docs/lesson_learned.md` and `docs/experiments_log.md` before
+  proposing or running anything. They are not loaded automatically, and they
+  hold what has already been tried, measured and ruled out.
 - Change only what was asked. Leave unrelated code, formatting, files and
   wording alone, even when something nearby looks improvable — mention it
   instead.
