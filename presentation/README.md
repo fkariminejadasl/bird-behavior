@@ -29,8 +29,7 @@ Every number in the talk comes from one of these. Rerun the script to refresh.
 
 | slide | source |
 |---|---|
-| accuracy table, robustness by orientation | `exps/eval_rotation_robustness.py` (`exps: [194, 195]`) |
-| per-class cost of rotation | `exps/compare_per_class_metrics.py` (`exps: [194, 196]`) |
+| accuracy, AP, loss, per-class F1, robustness by orientation | `exps/eval_labeled.py` (`model_exps: [194, 195]` for the talk's orientation table, `[194, 196]` for per-class) |
 | unlabelled comparison, confidence, impossible speed/place/unstable | `exps/eval_unlabeled.py` (`model_exps: [194, 196]`) |
 | bad labels, 26 of 4,338 | `exps/find_label_noise.py` |
 | training time 47 min → 5 min | wall clock in `~/Downloads/bird/results/tensorboard/{195,196}.txt` |

@@ -4,7 +4,61 @@ Data, model, and script overview for the bird-behavior classifier. Companion
 docs: [docs/experiments_log.md](experiments_log.md) (per-run notebook) and
 [docs/lesson_learned.md](lesson_learned.md) (curated lessons).
 
+# Quick reference
+
 ## Data
+
+Labeled bursts: 20 samples at 20 Hz (1 s), 3 IMU axes + GPS speed. 9 classes.
+
+| lab | name | starts | % | starts_clean | % | dropped |
+|---|---|---|---|---|---|---|
+| 0 | Flap | 643 | 14.8 | 643 | 14.9 | |
+| 1 | ExFlap | 38 | 0.9 | 38 | 0.9 | |
+| 2 | Soar | 537 | 12.4 | 537 | 12.5 | |
+| 3 | Boat | 176 | 4.1 | 176 | 4.1 | |
+| 4 | Float | 729 | 16.8 | 729 | 16.9 | |
+| 5 | SitStand | 1502 | 34.6 | 1492 | 34.6 | **10** |
+| 6 | TerLoco | 337 | 7.8 | 326 | 7.6 | **11** |
+| 8 | Manouvre | 151 | 3.5 | 151 | 3.5 | |
+| 9 | Pecking | 225 | 5.2 | 220 | 5.1 | **5** |
+| | **total** | **4338** | | **4312** | | **26** |
+
+```
+starts:       {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total 4338
+starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total 4312
+```
+
+- `scripts/data/prepare_labeled_data.py` — the whole labeled pipeline, ending in
+  `starts.csv` then `starts_clean.csv`
+- `exps/find_label_noise.py` — the 26 dropped bursts (GPS speed contradicts the label)
+- `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
+- `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
+
+## Model
+
+- `behavior/model.py::BirdModelSmallDilated` — **5,129 params**, receptive field 25
+  (three k=5 convs, dilation 1/2/3), the app and baseline model
+- `scripts/batch_train_supervised.py` — training; several configs in one run
+- `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
+- best: **exp194** 96.35 valid (no augmentation) · **exp196** 92.69 (rotation,
+  the only one that survives a different tag)
+
+## Eval
+
+- `exps/eval_labeled.py` — accuracy, per-class F1 (plain + balanced), orientation
+  robustness. Markdown ready for `lesson_learned.md`
+- `exps/eval_unlabeled.py` — no ground truth: impossible speed / place / flicker,
+  and rotation instability
+
+Visual:
+
+- `app/gps_burst_labeling_viz_app.py` — IMU trace + map + editable label
+- `exps/save_plots_gt.py` — one PNG per labeled burst, in
+  `/home/fatemeh/Downloads/bird/results/gt2_starts`
+- `behavior/utils.py::plot_one` — a single burst
+- `scripts/embeddings_plot.py` — t-SNE of the learned features
+
+# Data
 
 ### Unlabeled data
 
@@ -316,11 +370,10 @@ otherwise apply the same transform object to the eval set too.
 
 #### Analysis and Debugging
 
+- `exps/eval_labeled.py`: Compare models on the **labeled** split: train/valid accuracy, valid F1 plain and class-balanced, per-class F1 side by side with a flag on any class moving by `flag_delta`, and an orientation-robustness sweep. Reports accuracy, average precision and loss on both splits. Recomputes from the checkpoints and reuses `behavior.utils.per_class_statistics{,_balanced}`, so every number matches the CSVs and `app_loss_acc.txt` that training writes. Replaces the former `compare_per_class_metrics.py` and `eval_rotation_robustness.py`. Prints markdown ready to paste into [docs/lesson_learned.md](lesson_learned.md), and lists valid bursts per class so a rare-class swing can be read for what it is.
 - `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app.
 - `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
 - `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
-- `exps/eval_rotation_robustness.py`: Re-evaluate two trained checkpoints on the same validation split with the accelerometer frame perturbed (x/y swap, a pitch sweep, and random SO(3) averaged over 20 draws), to separate what an orientation augmentation costs on the standard split from what it buys off it. IMU channels only, GPS untouched; inference only. `--exps <baseline> <variant>`, default `194 195`.
-- `exps/compare_per_class_metrics.py`: Diff the F1 column of two runs' `per_class_metrics_{,balanced_}{train,valid}.csv` (written by `scripts/batch_train_supervised.py` into `save_path/failed/<exp>_<data stem>/`) and flag any class that moved by at least 0.10. Shows which classes a change actually moved, which overall accuracy hides. `--exps <baseline> <variant>`, default `194 195`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
 - `identify_mistakes`: Identify labeling mistakes by finding data points that are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.
 - `test_find_index_jumps`: Identify discontinuities in the indices. Determine whether the signal contains labeled segments separated by unlabeled intervals.

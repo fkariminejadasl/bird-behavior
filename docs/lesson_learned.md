@@ -4,6 +4,41 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Evaluating on labeled data
+
+`exps/eval_labeled.py`, on the 3900/438 split of `starts.csv` (seed 32984).
+Accuracy, AP and loss reproduce each run's `app_loss_acc.txt` exactly.
+
+| | train acc | AP | loss | valid acc | AP | loss | valid F1 | F1 balanced |
+|---|---|---|---|---|---|---|---|---|
+| exp194 | 99.44 | 1.00 | 0.03 | **96.35** | 0.97 | 0.13 | 0.96 | 0.92 |
+| exp196 | 91.56 | 0.92 | 0.26 | 92.69 | 0.91 | 0.27 | 0.93 | 0.83 |
+
+Same valid bursts, accelerometer frame perturbed:
+
+| valid under | exp194 | exp196 |
+|---|---|---|
+| clean | **96.35** | 92.69 |
+| x/y swap | 71.46 | **93.15** |
+| pitch 20° | 82.88 | **92.24** |
+| pitch 70° | 2.05 | **91.55** |
+| random SO(3), mean of 20 | 13.05 | **92.03** |
+
+- **The headline accuracy is the least informative column.** exp194 wins it by
+  3.7 pts and loses every other comparison here and in the unlabeled table below.
+- **Train-valid gap says which regime you are in.** exp194 99.44/96.35 memorises;
+  exp196 91.56/92.69 underfits, valid above train. Same model, same data — the
+  augmentation sets the regime, not the parameter count.
+- **Report plain and class-balanced F1 together.** exp196 is 0.93 plain but 0.83
+  balanced: the loss is concentrated in rare classes. Per-class valid F1
+  exp194 -> exp196: TerLoco .97 -> .89, Manouvre .84 -> .67, Pecking .94 -> .68,
+  everything else within 0.03. With 16 Manouvre and 4 ExFlap valid bursts, one
+  sample moves an F1 by 0.06, so the script prints the per-class counts too.
+- **Rebuild the split on the same device as training.** `stratified_split` seeds
+  a `torch.Generator(device=...)`, so passing a CPU label tensor gives a
+  different split and silently scores the model on bursts it trained on — which
+  showed up here as a suspiciously perfect 99.5% "valid" accuracy for exp194.
+
 ## Evaluating on unlabeled data
 
 `exps/eval_unlabeled.py` compares models on data with no ground truth, by
@@ -122,7 +157,7 @@ model for a new logger, whose tilt and position on the bird are both unknown.
 - **A standard-split A/B only measures the cost.** exp195 92.24 val vs exp194
   96.35 (-4.1) reads as "augmentation hurt". Re-evaluating both checkpoints on
   orientation-perturbed validation data inverts it
-  (`exps/eval_rotation_robustness.py`):
+  (`exps/eval_labeled.py`):
 
   | valid under | exp194 (no aug) | exp195 (rotation) |
   |---|---|---|
@@ -136,7 +171,7 @@ model for a new logger, whose tilt and position on the bird are both unknown.
 - **The cost lands on the ground behaviours**, which need the gravity direction
   rotation scrambles: valid F1 TerLoco .97 -> .79, Pecking .94 -> .68. Balanced
   valid F1 0.92 -> 0.84, twice the accuracy drop
-  (`exps/compare_per_class_metrics.py`). Plain and balanced files can disagree in
+  (`exps/eval_labeled.py`). Plain and balanced numbers can disagree in
   sign on a rare class, so say which one a number came from.
 - **Rotation replaces overfitting with underfitting**: exp194 99.44/96.35 vs
   exp195 90.21 (unaugmented train) / 92.24. At 5,129 params the capacity goes into

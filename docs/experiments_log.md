@@ -36,9 +36,9 @@ transform differs.
 - Off-orientation exp194 collapses (x/y swap 71.46, 70° pitch 2.05, random SO(3)
   13.05) where exp195 holds 90.4–91.6. Table in
   [docs/lesson_learned.md](lesson_learned.md), from
-  `exps/eval_rotation_robustness.py`.
+  `exps/eval_labeled.py`.
 - Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss; balanced valid
-  F1 0.92 -> 0.84 (`exps/compare_per_class_metrics.py`).
+  F1 0.92 -> 0.84 (`exps/eval_labeled.py`).
 
 ## Reference
 

@@ -66,14 +66,14 @@ Per run, under `/home/fatemeh/Downloads/bird/results/`:
 ## 5. Compare against a previous run
 
 ```bash
-/home/fatemeh/miniconda3/envs/bird/bin/python exps/compare_per_class_metrics.py
-/home/fatemeh/miniconda3/envs/bird/bin/python exps/eval_rotation_robustness.py
+/home/fatemeh/miniconda3/envs/bird/bin/python exps/eval_labeled.py
+/home/fatemeh/miniconda3/envs/bird/bin/python exps/eval_unlabeled.py
 ```
 
 Both take the experiment pair from the config dict in their `__main__` — edit it,
-then put it back to the documented pair when done. The second only applies to
-orientation-augmentation runs, and its `clean` row must reproduce each run's
-`app_loss_acc.txt`, or the rest of the table is not trustworthy.
+then put it back to the documented pair when done. `eval_labeled.py`'s accuracy,
+AP and loss must reproduce each run's `app_loss_acc.txt`; if they do not, the
+split is wrong and nothing below it is trustworthy.
 
 ## 6. Update the docs (same change, always)
 
