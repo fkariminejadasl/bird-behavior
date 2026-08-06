@@ -12,7 +12,9 @@
 - Before returning a result, check it. Re-run what was changed and verify every
   number and claim against the source file or a computation, rather than
   assuming it followed from the previous step.
-- Explain short. Plain words, no long write-ups unless asked for detail.
+- Explain short, in chat and in the docs. Plain words, short sentences, no
+  clever phrasing. Spell out an acronym the first time (VeDBA, ODBA).
+  If a sentence needs re-reading, rewrite it.
 - Use only this project's skills, in `~/dev/bird-behavior/.claude/skills`. Other
   repos in this VS Code workspace (hedge-seg, ...) have same-named skills;
   never run theirs.
@@ -22,10 +24,11 @@
   only the latest change. Check what is pending before writing it.
 - Always update the related documents in the same change (see Documentation).
 - Never run `git commit`. Prepare the change and the message; the user commits.
-- Always end a change with a ready-to-paste commit message, without being asked.
-  Give it in a copyable block: a ~50-character imperative subject, then a body
-  saying what changed and why, wrapped at 72 characters. Say so explicitly if
-  the change is not worth committing on its own.
+- Always end a change with a ready-to-paste commit message, without being asked,
+  in a copyable block. **Keep it short**: a ~50-character imperative subject and
+  a body of a few lines wrapped at 72. Say what changed and why. Leave out
+  numbers and reasoning — `experiments_log.md` and `lesson_learned.md` already
+  hold them. Say so if the change is not worth committing.
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
 - When reporting a path, give a full clickable path so it is easy to check.
@@ -39,8 +42,11 @@
   ```bash
   for i in behavior exps scripts app; do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i; done
   ```
-- Keep `docs/lesson_learned.md` and `docs/experiments_log.md` short, and put new
-  entries at the top.
+- Keep every document short: `description.md`, `lesson_learned.md`,
+  `experiments_log.md`, `presentation.md`. Prefer a table or a bullet to a
+  paragraph, and when adding, look for something to cut. The Quick reference in
+  `description.md` is the shortest of all — an index, one line per entry, detail
+  further down. New `lesson_learned` and `experiments_log` entries go at the top.
 - Always call python by its full path: `/home/fatemeh/miniconda3/envs/bird/bin/python`.
   Not bare `python`, not `conda run -n bird`. VS Code puts one env's `bin` at the
   front of `PATH` for every tool call, and conda does not know it is there, so
