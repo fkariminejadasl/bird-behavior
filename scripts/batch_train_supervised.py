@@ -106,9 +106,23 @@ def main(cfg):
         ldts_train = ldts[idx1].cpu().numpy()
         ldts_valid = ldts[idx2].cpu().numpy()
         # The augmentation is applied per batch by GpuBatches, not per sample.
-        train_dataset = bd.BirdDataset(igs_train, ldts_train, None, channel_first=True)
+        # `add_magnitudes` appends mag / dyn_mag / jerk_mag (7 channels instead
+        # of 4); it must match `cfg.model.parameters.in_channels`.
+        train_dataset = bd.BirdDataset(
+            igs_train,
+            ldts_train,
+            None,
+            channel_first=True,
+            add_magnitudes=cfg.add_magnitudes,
+        )
         # Evaluation data must never be augmented.
-        eval_dataset = bd.BirdDataset(igs_eval, ldts_valid, None, channel_first=True)
+        eval_dataset = bd.BirdDataset(
+            igs_eval,
+            ldts_valid,
+            None,
+            channel_first=True,
+            add_magnitudes=cfg.add_magnitudes,
+        )
 
     # Build the sampler: inversely weight by class frequency
     labels = train_dataset.ldts[:, 0]
@@ -330,6 +344,7 @@ if __name__ == "__main__":
         "data_per": 1.0,
         "batch_size": None,
         "labels_to_use": all_labels,
+        "add_magnitudes": False,  # True -> 7 channels, see bd.add_magnitude_features
         # Training
         "warmup_epochs": 1000,
         "step_size": 2000,
@@ -370,21 +385,29 @@ if __name__ == "__main__":
     }
 
     # One entry per training run; each overrides base_config.
-    # main() applies the rotation augmentation to the training set. exp196 repeats
-    # exp195 (same BirdModelSmallDilated / 9 classes / starts.csv / seed) through
-    # the batched GpuBatches path, to check the faster wiring gives the same
-    # result. BirdModelSmallDilated has a larger receptive field than BirdModel
-    # (RF 25 vs 7), so it captures the global flap sine-wave pattern instead of
-    # confusing it with Manoeuvre (observed by eye on unlabeled data in
-    # app/gps_burst_labeling_viz_app.py).
     experiments = [
+        # {
+        #     "exp": 196,
+        #     "labels_to_use": all_labels,
+        #     "add_magnitudes": False,
+        #     "model": {
+        #         "name": "BirdModelSmallDilated",
+        #         "parameters": {
+        #             "in_channels": 4,
+        #             "mid_channels": 20,
+        #             "out_channels": len(all_labels),
+        #             "dropout": 0.15,
+        #         },
+        #     },
+        # },
         {
-            "exp": 196,
+            "exp": 197,
             "labels_to_use": all_labels,
+            "add_magnitudes": True,
             "model": {
                 "name": "BirdModelSmallDilated",
                 "parameters": {
-                    "in_channels": 4,
+                    "in_channels": 7,
                     "mid_channels": 20,
                     "out_channels": len(all_labels),
                     "dropout": 0.15,

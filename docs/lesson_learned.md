@@ -4,6 +4,46 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](description.md).
 
+## Rotation-invariant input channels (exp197)
+
+`data.add_magnitude_features` appends three channels to the 4 inputs: `mag`
+(`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`).
+All three are lengths of an acceleration vector, so rotating the burst leaves
+them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
+
+| | valid acc | F1 balanced | SO(3) mean | rotation flip |
+|---|---|---|---|---|
+| exp196 | 92.69 | 0.83 | 92.03 | 5.37% |
+| exp197 | **94.52** | **0.90** | **93.66** | **1.72%** |
+
+- **Giving a model an invariant beats making it learn one.** exp196 spends
+  capacity learning rotation-invariance from the augmentation and underfits
+  (train 91.56 < valid 92.69). exp197 flips regime, train 97.90 / valid 94.52,
+  and recovers half the accuracy rotation cost — but only half: exp194 is still
+  96.35, and it collapses to 13.05 under rotation.
+- **A conv stack cannot build these itself.** It only takes linear combinations
+  across channels, and `sqrt(x^2+y^2+z^2)` is not one.
+- **Lengths cannot restore directions, and TerLoco proves it.** Rotation costs
+  the *direction* of gravity, i.e. posture. Valid F1 exp196 -> exp197: Manouvre
+  +0.12, Pecking +0.08, Boat +0.06, but **TerLoco does not move** (0.89 both,
+  against .97 for exp194). Walking is separated by which way small movements
+  point relative to gravity, so no invariant channel can reach it.
+- **`mag` carries the gain, `jerk_mag` almost none.** Measured before training,
+  by adding one channel at a time to a random forest on burst summaries and
+  scoring it on randomly rotated data: `mag` +1.7 points, `dyn_mag` +0.6,
+  `jerk_mag` +0.04, all three +2.3. `dyn_mag` and `jerk_mag` correlate at 0.96,
+  so they are nearly one feature. In the *un*rotated frame all three together
+  give +0.2 — the raw axes already separate these behaviours, so the channels
+  buy invariance, not discrimination.
+- **Compute them once at load time, before augmentation.** Being invariant they
+  stay correct whatever rotation follows. Jitter, scaling and warp would break
+  that and would have to be recomputed per batch.
+- **`jerk_mag` is undefined at t=0; edge-replicate, do not zero-pad.** A zero is
+  a "no motion" sample in every burst, and the model pools mean/max/std over
+  time, so it biases the channel down for the high-jerk classes.
+- Untested: these channels **without** rotation augmentation (an exp194
+  counterpart). The forest says that arm gains ~0.2, but that is a proxy.
+
 ## Evaluating on labeled data
 
 `exps/eval_labeled.py`, on the 3900/438 split of `starts.csv` (seed 32984).
@@ -13,16 +53,17 @@ Accuracy, AP and loss reproduce each run's `app_loss_acc.txt` exactly.
 |---|---|---|---|---|---|---|---|---|
 | exp194 | 99.44 | 1.00 | 0.03 | **96.35** | 0.97 | 0.13 | 0.96 | 0.92 |
 | exp196 | 91.56 | 0.92 | 0.26 | 92.69 | 0.91 | 0.27 | 0.93 | 0.83 |
+| exp197 | 97.90 | 0.99 | 0.08 | 94.52 | 0.95 | 0.20 | 0.95 | 0.90 |
 
 Same valid bursts, accelerometer frame perturbed:
 
-| valid under | exp194 | exp196 |
-|---|---|---|
-| clean | **96.35** | 92.69 |
-| x/y swap | 71.46 | **93.15** |
-| pitch 20° | 82.88 | **92.24** |
-| pitch 70° | 2.05 | **91.55** |
-| random SO(3), mean of 20 | 13.05 | **92.03** |
+| valid under | exp194 | exp196 | exp197 |
+|---|---|---|---|
+| clean | **96.35** | 92.69 | 94.52 |
+| x/y swap | 71.46 | 93.15 | **94.52** |
+| pitch 20° | 82.88 | 92.24 | **94.29** |
+| pitch 70° | 2.05 | 91.55 | **93.61** |
+| random SO(3), mean of 20 | 13.05 | 92.03 | **93.66** |
 
 - **The headline accuracy is the least informative column.** exp194 wins it by
   3.7 pts and loses every other comparison here and in the unlabeled table below.
@@ -48,10 +89,13 @@ On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`)
 | | mean conf | speed conflict | place conflict | any flip | unseen flip | rotation flip |
 |---|---|---|---|---|---|---|
 | exp194 | 0.89 | 1.45% | 1.18% | 17.7% | 6.7% | **82.8%** |
-| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | **4.9%** | **5.4%** |
+| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | 4.9% | 5.4% |
+| exp197 | 0.95 | 0.11% | **1.09%** | **15.6%** | **4.0%** | **1.7%** |
 
-- **Winner**: exp196 wins clearly. It makes 16× fewer physically impossible 
-  predictions (0.09% vs 1.45%).
+- **Winner**: exp196 beats exp194 clearly — 16× fewer physically impossible
+  predictions (0.09% vs 1.45%) — and exp197 beats exp196 on four of five checks,
+  most sharply on rotation flip (1.7% vs 5.4%). exp197's speed conflict is
+  marginally worse (0.11% vs 0.09%). They agree on 93.0% of bursts.
 - **Softmax confidence cannot compare models.** It rates the two within 0.02 of
   each other while exp194 makes 16x more physically impossible predictions. On
   the labeled set the same failure is measurable: under rotation exp194 holds

@@ -8,6 +8,29 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp197: rotation-invariant magnitude channels
+
+exp196 with `add_magnitudes=True`: input `[x, y, z, gps, mag, dyn_mag,
+jerk_mag]`, `BirdModelSmallDilated(7, 20, 9)`, 5,429 params. Data, seed, split,
+augmentation and schedule unchanged, so it is a clean A/B on the features.
+hash:202bf6f plus the uncommitted 7-channel change. 4m56s, best epoch 1870.
+
+- val **94.52** / train 97.90 vs exp196's 92.69 / 91.56. Valid F1 0.95 plain,
+  **0.90 balanced** (exp196 0.93 / 0.83).
+- Not seed noise: last-500-epoch plateaus do not overlap, 92.29 (91.78–92.69) vs
+  93.95 (93.61–94.29).
+- Orientation: SO(3) mean 93.66 vs 92.03, 70° pitch 93.61 vs 91.55.
+- Per-class valid F1: Manouvre +0.12, Pecking +0.08, Boat +0.06, TerLoco +0.00.
+  ExFlap +0.14 is 4 bursts, ignore.
+- Unlabeled (device 6004): rotation flip **1.72 vs 5.37%**, unseen flip 4.04 vs
+  4.92, place 1.09 vs 1.45, speed 0.11 vs 0.09 (worse). Agree on 93.0%.
+- Why it works: [docs/lesson_learned.md](lesson_learned.md). Pre-run prediction
+  from a random forest proxy:
+  `/home/fatemeh/Downloads/bird/claude/magnitude_feature_prior.py`.
+- Not done: the same channels without rotation augmentation; and the app still
+  loads a 4-channel checkpoint, so switching it needs the 7-channel input in
+  `app/gps_burst_labeling_viz_app.py` and `bird_behavior_app_data.py`.
+
 ## exp196: exp195 repeated through the batched GPU path
 
 Same model, data, seed and split as exp195; only the augmentation wiring differs

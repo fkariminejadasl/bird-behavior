@@ -7,11 +7,10 @@ size: 16:9
 
 <!-- Slides. See README.md for where the figures come from and how to remake
 them. Render with Marp: see "How to present this" at the end of README.md.
-exp194 is the no-augmentation model. exp195 and exp196 are the same rotation
-config, exp196 being the rerun through the faster wiring, so the orientation
-table quotes exp195 (92.2) and the unlabelled comparison exp196 (92.7); the
-difference is run-to-run noise. All BirdModelSmallDilated on starts.csv, seed
-32984. Keep image height at 400; taller pushes the caption off the slide. -->
+exp194 no augmentation (96.4), exp195/exp196 rotation (92.2/92.7, the same
+config rerun, difference is noise), exp197 rotation + magnitude channels (94.5).
+All BirdModelSmallDilated on starts.csv, seed 32984. Keep image height at 400;
+taller pushes the caption off the slide. -->
 
 # Reading gull behaviour from a tag
 
@@ -95,6 +94,23 @@ Worth it whenever the model will meet a tag it was not trained on.
 
 ---
 
+## Getting half the cost back
+
+Turning the tag changes **which axis** records a movement, never **how big** it
+is. So we give the model three sizes it cannot be confused about: how hard the
+bird is accelerating, how much it moves once gravity is subtracted, and how
+abruptly that changes *(rotation-invariant magnitudes)*.
+
+- Costs **300 parameters**: 5,129 → 5,429
+- **92.7 → 94.5** on normal data, **92.0 → 93.7** at any orientation
+- Rare behaviours recover most: class-balanced score **0.83 → 0.90**
+- On a new bird it changes its answer **3x less often** when the tag is turned
+
+<!-- All five numbers are one A/B pair, same seed and split. -->
+
+
+---
+
 ## How do we know it works on a new bird?
 
 We have millions of unlabelled bursts and no answers for any of them.
@@ -143,15 +159,10 @@ another *(label co-occurrence within a fix)*. Everything else counts.
 
 | | confidence | impossible speed | impossible place | impossible flicker | unstable |
 |---|---|---|---|---|---|
-| no augmentation | 0.89 | 1.45% | **1.18%** | 6.7% | **82.8%** |
-| with rotation | 0.91 | **0.09%** | 1.45% | **4.9%** | **5.4%** |
+| no augmentation | 0.89 | 1.45% | 1.18% | 6.7% | 82.8% |
+| with rotation | 0.91 | **0.09%** | 1.45% | 4.9% | 5.4% |
+| + invariant channels | 0.95 | 0.11% | **1.09%** | **4.0%** | **1.7%** |
 
-**16x fewer impossible predictions, and it stops changing its mind.**
-
-Confidence, the one number you would have reached for, says they are the same.
-
-Place is slightly worse — it predicts more walking, a land class. Reported, not
-hidden.
 
 ---
 
@@ -188,8 +199,6 @@ Nine times more experiments per day, for no change in the science.
 2. **Confidence is not a health check.** A model can be certain and wrong
 3. **You can measure a model without labels** — count predictions that break
    physics
-4. **Robustness costs accuracy.** 4 points bought a model that survives a tag
-   change
 5. **Check the labels too.** Some of what we call error is bad ground truth
 
 ---
@@ -197,7 +206,9 @@ Nine times more experiments per day, for no change in the science.
 ## What is next
 
 1. **Test on a real second logger**, not a synthetic rotation of the first
-2. **Recover the ground behaviours** — walking and pecking pay for the rotation
+2. **Recover walking.** Pecking came back with the new channels; walking cannot
+   — it is recognised by the body being upright, a *direction*, and the new
+   channels are sizes. That needs the tag's orientation estimated instead
 3. **Automate the sea/land and flicker checks** on every new deployment
 4. **Label ~200 bursts from a new bird**, the only way to get a real number
 5. **The other sources of variation**: where the tag sits, wind, water impact
@@ -209,8 +220,10 @@ Nine times more experiments per day, for no change in the science.
 - 4,338 labelled bursts, 9 classes, 20 Hz, 90/10 split, seed 32984
 - exp194 no aug: 96.35 valid / 99.44 train — memorises, overfits
 - exp196 rotation: 92.69 valid / 91.56 train — underfits, never memorises
+- exp197 rotation + 3 invariant channels (5,429 params): 94.52 valid / 97.90 train
 - Per-class cost of rotation: walking .97 → .79, pecking .94 → .68
-- Class-balanced F1 0.92 → 0.84, twice the drop of plain accuracy
-- Rotation robustness: 13.1% → 90.7% mean over 20 random orientations
-- Unlabelled agreement between the two models: 87.5%
+- exp196 → exp197 per-class F1: pecking +.08, manoeuvre +.12, walking +.00
+- Class-balanced F1 0.92 → 0.83 (exp196) with rotation, back to 0.90 (exp197)
+- Rotation robustness: 13.1% → 90.7% → 93.7% mean over 20 random orientations
+- Unlabelled agreement between the two models: 87.5% (exp196 vs exp197: 93.0%)
 - Label-noise check: 26 bursts dropped, `starts_clean.csv` 4,312 bursts

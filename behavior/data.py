@@ -239,6 +239,38 @@ def read_json_data(json_path: Union[Path, str]):
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
+def add_magnitude_features(data: np.ndarray) -> np.ndarray:
+    """N x L x 4 (acc x, y, z, GPS speed) -> N x L x 7, three channels appended.
+
+    All three are norms of an acceleration vector, so all three are exactly
+    invariant under a rotation shared by the whole burst -- which is what
+    `RandomRotation3D` applies. The rotation augmentation therefore leaves them
+    alone, and they hand the model the invariant it would otherwise have to
+    learn from the augmentation. None of them is reconstructable by a 1-D conv
+    stack, which can only take linear combinations across channels.
+
+      mag      ||a_t||, total acceleration regardless of direction. ~1 g when
+               the bird is still, since only gravity is left.
+      dyn_mag  ||a_t - mean_t(a)||, motion after the static (gravity + posture)
+               component is removed. This is VeDBA (Vectorial Dynamic Body
+               Acceleration, the standard movement-intensity measure in
+               bio-logging) taken over the burst mean; a 20 sample burst is too
+               short for the running mean it is usually computed with.
+      jerk_mag ||a_t - a_{t-1}||, how abruptly the acceleration changes. Per
+               sample, not per second: multiply by 20 Hz for g/s.
+
+    `jerk_mag` is undefined at t=0 and gets the t=1 value. Padding it with zero
+    instead would put a "no motion" sample in every burst and pull the channel's
+    time mean and max down for exactly the classes it is meant to separate.
+    """
+    acc = data[:, :, :3]
+    mag = np.linalg.norm(acc, axis=2)
+    dyn_mag = np.linalg.norm(acc - acc.mean(axis=1, keepdims=True), axis=2)
+    jerk_mag = np.linalg.norm(np.diff(acc, axis=1), axis=2)  # L-1 long
+    jerk_mag = np.concatenate([jerk_mag[:, :1], jerk_mag], axis=1)  # edge-replicate
+    return np.concatenate([data, np.stack([mag, dyn_mag, jerk_mag], axis=2)], axis=2)
+
+
 class BirdDataset(Dataset):
     def __init__(
         self,
@@ -246,13 +278,18 @@ class BirdDataset(Dataset):
         ldts: np.ndarray = None,  # Nx3
         transform=None,
         channel_first=True,
+        add_magnitudes=False,
     ):
         """
         dtype: all_measurements np.float32
         dtype: ldts np.int64 or None (if no labels are provided)
         :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
+        :param add_magnitudes: If True, append the three rotation-invariant
+            channels of `add_magnitude_features`, giving 7 channels instead of 4.
         """
         self.data = all_measurements.copy()  # NxLxC C=4
+        if add_magnitudes:
+            self.data = add_magnitude_features(self.data)
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         # mean  = self.data.mean(axis=(0,1))                      # [C]

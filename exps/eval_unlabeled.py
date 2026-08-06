@@ -47,6 +47,7 @@ import torch
 from global_land_mask import globe
 from omegaconf import OmegaConf
 
+from behavior import data as bd
 from behavior import model as bm
 from behavior import utils as bu
 from behavior.data_augmentation import random_rotation_matrix
@@ -75,15 +76,25 @@ def load_app_csv(path, glen):
     }
 
 
+def channels_of(cfg, exp):
+    """Input channels the checkpoint was trained with (4, or 7 with magnitudes)."""
+    return int(cfg.in_channels.get(str(exp), 4))
+
+
 def predict(bursts, exp, cfg, device):
     """Run one checkpoint over every burst; return predicted names and confidence."""
     imu, gps = bursts["imu"], bursts["gps"]
     data = np.concatenate([imu, gps[:, None, None].repeat(imu.shape[1], 1)], axis=2)
     data[:, :, :3] = np.clip(data[:, :, :3], -2.0, 2.0)
+    in_channels = channels_of(cfg, exp)
+    if in_channels == 7:
+        # Same order as bd.BirdDataset: magnitudes from the clipped raw acc,
+        # then the GPS normalization.
+        data = bd.add_magnitude_features(data)
     data[:, :, 3] /= cfg.gps_norm
     x = torch.tensor(data, dtype=torch.float32, device=device).transpose(1, 2)
 
-    model = bm.BirdModelSmallDilated(4, 20, len(cfg.labels_to_use)).to(device)
+    model = bm.BirdModelSmallDilated(in_channels, 20, len(cfg.labels_to_use)).to(device)
     bm.load_model(f"{cfg.save_path}/{exp}_best.pth", model, device)
     model.eval()
 
@@ -101,7 +112,12 @@ def predict(bursts, exp, cfg, device):
 
 
 def rotation_flip_rate(x, model, names, cfg, device):
-    """Share of rotations under which the prediction changes."""
+    """Share of rotations under which the prediction changes.
+
+    Only channels 0..2 are rotated, which is the whole perturbation for a
+    7-channel model as well: mag, dyn_mag and jerk_mag are norms of
+    acceleration, so a rotation shared across the burst leaves them unchanged.
+    """
     name2col = {bu.ind2name[lab]: col for col, lab in enumerate(cfg.labels_to_use)}
     base = torch.tensor([name2col[n] for n in names], device=device)
     flips = torch.zeros(len(x), device=device)
@@ -288,7 +304,10 @@ if __name__ == "__main__":
         "save_path": "/home/fatemeh/Downloads/bird/results",
         "out_dir": "/home/fatemeh/Downloads/bird/data/final",
         "out_name": "unlabeled_triage_6004.csv",
-        "model_exps": [194, 196],  # baseline first, then the model of interest
+        "model_exps": [196, 197],  # baseline first, then the model of interest
+        # Input width per checkpoint; 7 means it was trained with add_magnitudes.
+        # Anything not listed is 4.
+        "in_channels": {"197": 7},
         "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
         "gps_norm": 22.3012351755624,
         "glen": 20,

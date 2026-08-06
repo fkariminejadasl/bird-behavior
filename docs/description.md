@@ -9,6 +9,8 @@ docs: [docs/experiments_log.md](experiments_log.md) (per-run notebook) and
 ## Data
 
 Labeled bursts: 20 samples at 20 Hz (1 s), 3 IMU axes + GPS speed. 9 classes.
+Optionally 7 channels: `data.py::add_magnitude_features` appends `mag`,
+`dyn_mag` and `jerk_mag`.
 
 | lab | name | starts | % | starts_clean | % | dropped |
 |---|---|---|---|---|---|---|
@@ -39,12 +41,10 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 
 ## Model
 
-- `behavior/model.py::BirdModelSmallDilated` — **5,129 params**, receptive field 25
+- `behavior/model.py::BirdModelSmallDilated` — `in_channels=4` **5,129 params**, `in_channels=7` **5,429 params**, receptive field 25
   (three k=5 convs, dilation 1/2/3), the app and baseline model
 - `scripts/batch_train_supervised.py` — training; several configs in one run
 - `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
-- best: **exp194** 96.35 valid (no augmentation) · **exp196** 92.69 (rotation,
-  the only one that survives a different tag)
 
 ## Eval
 
@@ -323,7 +323,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 * `scripts/train.py`: Training script for supervised bird classification.
 * `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
 * `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform.
+* `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`.
 * `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 * `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 * `scripts/gcd_pipeline.py`: GCD pipeline.
@@ -375,8 +375,8 @@ otherwise apply the same transform object to the eval set too.
 
 #### Analysis and Debugging
 
-- `exps/eval_labeled.py`: Compare models on the **labeled** split: train/valid accuracy, valid F1 plain and class-balanced, per-class F1 side by side with a flag on any class moving by `flag_delta`, and an orientation-robustness sweep. Reports accuracy, average precision and loss on both splits. Recomputes from the checkpoints and reuses `behavior.utils.per_class_statistics{,_balanced}`, so every number matches the CSVs and `app_loss_acc.txt` that training writes. Replaces the former `compare_per_class_metrics.py` and `eval_rotation_robustness.py`. Prints markdown ready to paste into [docs/lesson_learned.md](lesson_learned.md), and lists valid bursts per class so a rare-class swing can be read for what it is.
-- `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app.
+- `exps/eval_labeled.py`: Compare models on the **labeled** split: train/valid accuracy, valid F1 plain and class-balanced, per-class F1 side by side with a flag on any class moving by `flag_delta`, and an orientation-robustness sweep. Reports accuracy, average precision and loss on both splits. Recomputes from the checkpoints and reuses `behavior.utils.per_class_statistics{,_balanced}`, so every number matches the CSVs and `app_loss_acc.txt` that training writes. Replaces the former `compare_per_class_metrics.py` and `eval_rotation_robustness.py`. Prints markdown ready to paste into [docs/lesson_learned.md](lesson_learned.md), and lists valid bursts per class so a rare-class swing can be read for what it is. The `in_channels` config map (`{"197": 7}`) says which checkpoints take the 7-channel input, so models of different width compare in one table.
+- `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app.
 - `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
 - `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
@@ -390,6 +390,10 @@ otherwise apply the same transform object to the eval set too.
 ## List of Functions
 
 - `data.py::GpuBatches`: Keeps a whole `BirdDataset` on the GPU and yields shuffled batches, applying a batched transform per batch. A drop-in for `DataLoader` in the training loop (`train_one_epoch` only iterates its loader), avoiding the per-sample `from_numpy`/transpose/collate work.
+- `data.py::add_magnitude_features`: `N x L x 4 -> N x L x 7`, appending `mag`
+  (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`,
+  edge-replicated at `t=0`). All three are unchanged by rotation, so they are
+  computed once at load time and `RandomRotation3D` needs no change.
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling an equal number of groups from each specified class.
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.

@@ -66,12 +66,15 @@ def apply_rot(x, mat):
     return out
 
 
-def build_splits(cfg, device):
+def build_splits(cfg, device, in_channels=4):
     """The exact train/valid split of scripts/batch_train_supervised.py.
 
     The label tensor must be on `device` before `stratified_split`: it seeds a
     `torch.Generator(device=...)`, so a CPU tensor gives a different split and
     silently mixes training bursts into the validation set.
+
+    `in_channels=7` appends the magnitude channels of `bd.add_magnitude_features`,
+    for a model trained with `add_magnitudes`. The split itself does not change.
     """
     bu.set_seed(cfg.seed)
     igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=cfg.glen)
@@ -83,7 +86,11 @@ def build_splits(cfg, device):
     out = {}
     for name, idx in zip(("train", "valid"), splits):
         dataset = bd.BirdDataset(
-            igs[idx].cpu().numpy(), ldts[idx].cpu().numpy(), None, channel_first=True
+            igs[idx].cpu().numpy(),
+            ldts[idx].cpu().numpy(),
+            None,
+            channel_first=True,
+            add_magnitudes=in_channels == 7,
         )
         x = torch.stack([dataset[i][0] for i in range(len(dataset))]).to(device)
         y = torch.tensor(
@@ -93,8 +100,15 @@ def build_splits(cfg, device):
     return out
 
 
+def channels_of(cfg, exp):
+    """Input channels the checkpoint was trained with (4, or 7 with magnitudes)."""
+    return int(cfg.in_channels.get(str(exp), 4))
+
+
 def load_model(cfg, exp, device):
-    model = bm.BirdModelSmallDilated(4, 20, len(cfg.labels_to_use)).to(device)
+    model = bm.BirdModelSmallDilated(
+        channels_of(cfg, exp), 20, len(cfg.labels_to_use)
+    ).to(device)
     bm.load_model(f"{cfg.save_path}/{exp}_best.pth", model, device)
     model.eval()
     return model
@@ -127,9 +141,10 @@ def confusion(pred, y, n_classes):
     return cm  # rows = true, cols = predicted, as behavior.utils expects
 
 
-def accuracy_table(cfg, splits, models, names):
+def accuracy_table(cfg, splits_by_ch, models, names):
     rows = []
     for exp, model in models.items():
+        splits = splits_by_ch[channels_of(cfg, exp)]
         row = {"model": f"exp{exp}"}
         for stage, (x, y) in splits.items():
             acc, ap, loss = scores(model, x, y)
@@ -147,10 +162,11 @@ def accuracy_table(cfg, splits, models, names):
     return pd.DataFrame(rows).round(2)
 
 
-def per_class_table(cfg, splits, models, names, kind):
+def per_class_table(cfg, splits_by_ch, models, names, kind):
     """kind: 'plain' or 'balanced'."""
     stats = {}
     for exp, model in models.items():
+        splits = splits_by_ch[channels_of(cfg, exp)]
         cm = confusion(
             predict(model, splits["valid"][0]), splits["valid"][1], len(names)
         )
@@ -168,8 +184,14 @@ def per_class_table(cfg, splits, models, names, kind):
     return out
 
 
-def robustness_table(cfg, splits, models, device):
-    x, y = splits["valid"]
+def robustness_table(cfg, splits_by_ch, models, device):
+    """Rotate the acc channels only.
+
+    `apply_rot` touches channels 0..2, which is the whole perturbation for a
+    7-channel model too: mag, dyn_mag and jerk_mag are norms of acceleration and
+    so are unchanged by any rotation shared across the burst. Recomputing them
+    from the rotated acc would give the same numbers back.
+    """
     perturbations = [("clean", None), ("xy_swap", swap_xy(device))]
     perturbations += [(f"pitch_{d}", rot_x(d, device)) for d in cfg.pitches]
 
@@ -177,16 +199,19 @@ def robustness_table(cfg, splits, models, device):
     for name, mat in perturbations:
         row = {"valid under": name}
         for exp, model in models.items():
+            x, y = splits_by_ch[channels_of(cfg, exp)]["valid"]
             xx = x if mat is None else apply_rot(x, mat)
             row[f"exp{exp}"] = (predict(model, xx) == y).float().mean().item() * 100
         rows.append(row)
 
     torch.manual_seed(0)
+    dtype = next(iter(splits_by_ch.values()))["valid"][0].dtype
     mats = [
-        random_rotation_matrix(device=device, dtype=x.dtype) for _ in range(cfg.n_so3)
+        random_rotation_matrix(device=device, dtype=dtype) for _ in range(cfg.n_so3)
     ]
     row = {"valid under": f"so3 (mean of {cfg.n_so3})"}
     for exp, model in models.items():
+        x, y = splits_by_ch[channels_of(cfg, exp)]["valid"]
         accs = [
             (predict(model, apply_rot(x, m)) == y).float().mean().item() * 100
             for m in mats
@@ -214,27 +239,42 @@ def as_markdown(df, index=False):
 
 def main(cfg):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    splits = build_splits(cfg, device)
+    # One split per input width in use; the bursts and their order are the same,
+    # only the channel count differs.
+    splits_by_ch = {
+        c: build_splits(cfg, device, c)
+        for c in sorted({channels_of(cfg, exp) for exp in cfg.model_exps})
+    }
+    splits = next(iter(splits_by_ch.values()))
     names = [bu.ind2name[i] for i in cfg.labels_to_use]
     models = {exp: load_model(cfg, exp, device) for exp in cfg.model_exps}
     n_train, n_valid = len(splits["train"][1]), len(splits["valid"][1])
     print(
         f"{cfg.data_file}\n{n_train} train / {n_valid} valid bursts, "
         f"{len(names)} classes, seed {cfg.seed}\n"
+        f"input channels: "
+        + ", ".join(f"exp{e} {channels_of(cfg, e)}" for e in cfg.model_exps)
+        + "\n"
     )
 
     print("## Accuracy\n")
-    print(as_markdown(accuracy_table(cfg, splits, models, names)))
+    print(as_markdown(accuracy_table(cfg, splits_by_ch, models, names)))
 
     print("\n## Per-class valid F1\n")
-    print(as_markdown(per_class_table(cfg, splits, models, names, "plain"), index=True))
+    print(
+        as_markdown(
+            per_class_table(cfg, splits_by_ch, models, names, "plain"), index=True
+        )
+    )
     print("\n## Per-class valid F1, class-balanced\n")
     print(
-        as_markdown(per_class_table(cfg, splits, models, names, "balanced"), index=True)
+        as_markdown(
+            per_class_table(cfg, splits_by_ch, models, names, "balanced"), index=True
+        )
     )
 
     print("\n## Orientation robustness (valid split, accelerometer frame perturbed)\n")
-    print(as_markdown(robustness_table(cfg, splits, models, device)))
+    print(as_markdown(robustness_table(cfg, splits_by_ch, models, device)))
 
     # valid bursts per class, so a per-class swing can be read for what it is
     counts = pd.Series(splits["valid"][1].cpu().numpy()).value_counts().sort_index()
@@ -248,7 +288,10 @@ if __name__ == "__main__":
     config = {
         "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
         "save_path": "/home/fatemeh/Downloads/bird/results",
-        "model_exps": [194, 196],  # baseline first, then the model of interest
+        "model_exps": [196, 197],  # baseline first, then the model of interest
+        # Input width per checkpoint; 7 means it was trained with add_magnitudes.
+        # Anything not listed is 4.
+        "in_channels": {"197": 7},
         "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
         "seed": 32984,
         "train_per": 0.9,
