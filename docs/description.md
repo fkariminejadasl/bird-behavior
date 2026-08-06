@@ -23,6 +23,9 @@ Labeled bursts: 20 samples at 20 Hz (1 s), 3 IMU axes + GPS speed. 9 classes.
 | 9 | Pecking | 225 | 5.2 | 220 | 5.1 | **5** |
 | | **total** | **4338** | | **4312** | | **26** |
 
+Same class names used as in "Shamoun-Baranes et al, 2016, Flap or soar? How a flight generalist responds to its aerial environment", with these changes:
+- SitStand==Stationary, Mauouvre==Mixed, Other is removed.
+
 ```
 starts:       {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total 4338
 starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total 4312
@@ -270,7 +273,9 @@ The combination step in Method2 is the same as the current method in `scripts/pr
 
 Number of parameters:
 
-- Small Model: 6,309
+- BirdModel: 6,309
+- BirdModelSmallDilated: 5,129
+- BirdModelWideRF:       ~6.9k
 - MaskedAutoencoderViT: 9,546,756
 - TransformerEncoderMAE: 4,748,297
 
