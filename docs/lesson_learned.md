@@ -10,10 +10,10 @@ data/model/script overview is in [docs/description](description.md).
 counting predictions that contradict something known independently of the model.
 On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`):
 
-| | mean conf | speed conflict | place conflict | time flip | rotation flip |
-|---|---|---|---|---|---|
-| exp194 | 0.89 | 1.45% | 1.18% | 17.7% | **82.8%** |
-| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | **5.4%** |
+| | mean conf | speed conflict | place conflict | any flip | unseen flip | rotation flip |
+|---|---|---|---|---|---|---|
+| exp194 | 0.89 | 1.45% | 1.18% | 17.7% | 6.7% | **82.8%** |
+| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | **4.9%** | **5.4%** |
 
 - **Winner**: exp196 wins clearly. It makes 16× fewer physically impossible 
   predictions (0.09% vs 1.45%).
@@ -29,11 +29,18 @@ On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`)
 - **Prediction stability under rotation is the sharpest discriminator here**
   (82.8% vs 5.4%), and it confirms on real unlabeled data what the labeled
   orientation table showed.
-- **Not every check discriminates.** `time_flip` is ~16-17% for both, so it is
-  measuring genuine behaviour transitions within a fix as much as model noise;
-  and exp196 is slightly *worse* on `place_conflict`, because it predicts more
-  TerLoco (4.2% vs 2.4%), a land class. Report checks that tie or disagree, do
-  not quietly drop them.
+- **A raw change-rate is not an error rate; subtract what the labels allow.**
+  Counting every prediction change inside a fix: **17.7% and 16.1%** — the two
+  models look the same. Counting only transitions never seen between labeled
+  behaviours: **6.7% and 4.9%**, and the triage list drops from 13,396 bursts to
+  4,995. `exps/label_cooccurrence.py` supplies the seen set from the labeled
+  data — only **10 of 36** possible pairs occur, led by SitStand+Pecking (31),
+  TerLoco+Pecking (23), SitStand+TerLoco (19). It reproduces the counts recorded
+  in `test_labels_comes_together` exactly, and prints the fixes behind each rare
+  pair (ExFlap+SitStand happens once: device 782, 2014-05-31 22:43:03).
+- **Not every check discriminates.** exp196 is slightly *worse* on
+  `place_conflict`, because it predicts more TerLoco (4.2% vs 2.4%), a land
+  class. Report checks that tie or disagree, do not quietly drop them.
 - **Coastline resolution limits the place check.** `global_land_mask` is 1/100
   deg (~1.1 km), so bursts within `coast_margin_deg` (0.02, ~2 km) of a
   coastline are skipped, leaving only the 53% clearly inland or offshore to be

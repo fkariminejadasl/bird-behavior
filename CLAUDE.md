@@ -14,6 +14,8 @@
   never run theirs.
 - Commit messages: never mention Claude or Claude Code (no attribution, no
   Co-Authored-By line, no tool names).
+- A commit message must cover everything still uncommitted (`git status`), not
+  only the latest change. Check what is pending before writing it.
 - Always update the related documents in the same change (see Documentation).
 - Never run `git commit`. Prepare the change and the message; the user commits.
 - Always end a change with a ready-to-paste commit message, without being asked.
@@ -71,4 +73,6 @@ Keep these current whenever the code they describe changes:
 After a change: update the script's top docstring and `docs/description.md` for
 new or changed behavior; add to `docs/lesson_learned.md` for a bug, surprise, or
 design decision (with the reason); add to `docs/experiments_log.md` for a
-finished or planned run.
+finished or planned run. When a number the talk quotes changes, update
+`presentation/presentation.md` in the same change — it goes stale silently,
+because nothing breaks when it is wrong.

@@ -18,9 +18,12 @@ not a proxy:
    (1/100 deg, ~1.1 km), so bursts within `coast_margin_deg` of a coastline are
    excluded rather than flagged; a gull on a beach or pier is genuinely ambiguous
    at that resolution.
-3. **time_flip** -- consecutive bursts inside one (device, datetime) fix are one
-   second apart, and a gull does not alternate behaviours that fast. The share of
-   adjacent pairs whose prediction changes is an instability rate.
+3. **unseen_flip** -- consecutive bursts inside one (device, datetime) fix are
+   one second apart. A gull does walk, peck and walk again in that time, so a
+   plain change count punishes a model for being right; only a transition never
+   seen between labeled behaviours counts. The seen set comes from
+   `exps/label_cooccurrence.py`, which finds 10 of 36 possible pairs. Reported
+   beside `any_flip`, the raw change rate, so the two can be compared.
 4. **rotation_flip** -- the same burst re-predicted under random SO(3) rotations.
    A model that changes its mind when the logger is mounted differently is
    unreliable on any logger it was not trained on.
@@ -145,19 +148,44 @@ def place_conflict(names, lat, lon, margin):
     return reason, clear
 
 
-def time_flip(bursts, names):
-    """Mark bursts whose prediction differs from the previous burst of the fix."""
+def load_seen_transitions(path, min_count):
+    """Label pairs that really do follow one another, from the labeled data.
+
+    Written by `exps/label_cooccurrence.py`. Returned as unordered frozensets,
+    since that script symmetrises before writing.
+    """
+    trans = pd.read_csv(path)
+    trans = trans[trans["count"] >= min_count]
+    return {frozenset((a, b)) for a, b in zip(trans.from_name, trans.to_name)}
+
+
+def time_flip(bursts, names, seen):
+    """Prediction changes between consecutive bursts of one fix.
+
+    Returns the changes that are *unseen* in the labeled data, and the total.
+    A gull really does walk, peck and walk again inside ten seconds, so a plain
+    change count punishes a model for being right; only a transition never
+    observed between labeled behaviours is evidence of instability.
+    """
     key = pd.DataFrame(
         {"d": bursts["device_id"], "t": bursts["datetime"], "i": bursts["start_index"]}
     )
     order = np.lexsort((key.i.values, key.t.values, key.d.values))
-    flip = np.zeros(len(names), dtype=bool)
     same_fix = (key.d.values[order][1:] == key.d.values[order][:-1]) & (
         key.t.values[order][1:] == key.t.values[order][:-1]
     )
-    changed = names[order][1:] != names[order][:-1]
-    flip[order[1:]] = same_fix & changed
-    return flip, same_fix.sum()
+    prev, curr = names[order][:-1], names[order][1:]
+    changed = same_fix & (prev != curr)
+
+    unseen = np.zeros(len(changed), dtype=bool)
+    for i in np.flatnonzero(changed):
+        unseen[i] = frozenset((prev[i], curr[i])) not in seen
+
+    flip_all = np.zeros(len(names), dtype=bool)
+    flip_unseen = np.zeros(len(names), dtype=bool)
+    flip_all[order[1:]] = changed
+    flip_unseen[order[1:]] = unseen
+    return flip_unseen, flip_all, same_fix.sum()
 
 
 def main(cfg):
@@ -166,6 +194,12 @@ def main(cfg):
     n = len(bursts["gps"])
     print(f"{n:,} bursts from {cfg.data_file}\n")
 
+    seen = load_seen_transitions(cfg.transitions_file, cfg.min_transition_count)
+    print(
+        f"{len(seen)} label transitions seen in the labeled data "
+        f"(of {9 * 8 // 2} possible), from {cfg.transitions_file}\n"
+    )
+
     rows, per_model = [], {}
     for exp in cfg.model_exps:
         names, conf, x, model = predict(bursts, exp, cfg, device)
@@ -173,7 +207,7 @@ def main(cfg):
         place, clear = place_conflict(
             names, bursts["lat"], bursts["lon"], cfg.coast_margin_deg
         )
-        flip, n_pairs = time_flip(bursts, names)
+        flip, flip_all, n_pairs = time_flip(bursts, names, seen)
         rot = rotation_flip_rate(x, model, names, cfg, device)
         del x, model
         torch.cuda.empty_cache()
@@ -187,7 +221,8 @@ def main(cfg):
                 "mean_conf": conf.mean(),
                 "speed_conflict_%": 100 * (speed != "").mean(),
                 "place_conflict_%": 100 * (place != "").mean(),
-                "time_flip_%": 100 * flip.sum() / max(n_pairs, 1),
+                "any_flip_%": 100 * flip_all.sum() / max(n_pairs, 1),
+                "unseen_flip_%": 100 * flip.sum() / max(n_pairs, 1),
                 "rotation_flip_%": 100 * rot.mean(),
             }
         )
@@ -232,7 +267,7 @@ def main(cfg):
             "lon": bursts["lon"],
             "speed_conflict": m["speed"],
             "place_conflict": m["place"],
-            "time_flip": m["flip"],
+            "unseen_flip": m["flip"],
         }
     )[problem]
     out = out.sort_values(["conf"]).head(cfg.max_triage_rows)
@@ -259,6 +294,10 @@ if __name__ == "__main__":
         "glen": 20,
         "batch_size": 65536,
         "n_rotations": 10,
+        "transitions_file": (
+            "/home/fatemeh/Downloads/bird/data/final/label_transitions.csv"
+        ),
+        "min_transition_count": 3,  # rarer pairs are too thin to call normal
         "coast_margin_deg": 0.02,  # ~2 km; skip bursts near a coastline
         "max_triage_rows": 500,
     }

@@ -131,18 +131,24 @@ independently.
 - **Impossible flicker** — behaviour changing every second within one recording
 - **Unstable** — a different answer when the tag is rotated
 
+For flicker, "impossible" has to be learned: gulls really do walk, peck and walk
+again. From the labelled data, only **10 of 36** behaviour pairs ever follow one
+another *(label co-occurrence within a fix)*. Everything else counts.
+
 ---
 
 ## The two models on a new bird, no labels
 
 115,266 bursts, device 6004
 
-| | confidence | impossible speed | impossible place | unstable |
-|---|---|---|---|---|
-| no augmentation | 0.89 | 1.45% | **1.18%** | **82.8%** |
-| with rotation | 0.91 | **0.09%** | 1.45% | **5.4%** |
+| | confidence | impossible speed | impossible place | impossible flicker | unstable |
+|---|---|---|---|---|---|
+| no augmentation | 0.89 | 1.45% | **1.18%** | 6.7% | **82.8%** |
+| with rotation | 0.91 | **0.09%** | 1.45% | **4.9%** | **5.4%** |
 
 **16x fewer impossible predictions, and it stops changing its mind.**
+
+Confidence, the one number you would have reached for, says they are the same.
 
 Place is slightly worse — it predicts more walking, a land class. Reported, not
 hidden.
