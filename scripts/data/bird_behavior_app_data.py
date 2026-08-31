@@ -448,8 +448,10 @@ if __name__ == "__main__":
 
     # Edit these two paths to change the run. One output file per model, named
     # after the experiment, so earlier ones are kept.
-    app_file = Path("/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv")
-    save_file = app_file.with_name(f"6004_{cfg.exp}.csv")
+    app_file = Path(
+        "/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv"
+    )
+    save_file = app_file.with_name(f"{app_file.stem}_{cfg.exp}.csv")
     prepare_app_class_data(app_file, save_file, cfg)
 
 

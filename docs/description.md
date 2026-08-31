@@ -365,7 +365,7 @@ otherwise apply the same transform object to the eval set too.
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
-- `scripts/data/bird_behavior_app_data.py`: Generate appp data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `6004_<exp>.csv`.
+- `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`.
 - `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
 

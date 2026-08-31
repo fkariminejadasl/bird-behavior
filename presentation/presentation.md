@@ -18,16 +18,6 @@ Nine behaviours from one second of accelerometer and GPS
 
 A model small enough to run anywhere: **5,129 parameters**
 
----
-
-## The result in one sentence
-
-# One model. One set of held-out bursts. **96% correct.**
-
-# Turn the tag to a different mounting angle and feed it the very same bursts: **13%.**
-
-Nothing about the bird or the behaviour changed — only which way the tag faces.
-That fragility, not the 96%, is the finding.
 
 ---
 
@@ -226,4 +216,9 @@ Nine times more experiments per day, for no change in the science.
 - Class-balanced F1 0.92 → 0.83 (exp196) with rotation, back to 0.90 (exp197)
 - Rotation robustness: 13.1% → 90.7% → 93.7% mean over 20 random orientations
 - Unlabelled agreement between the two models: 87.5% (exp196 vs exp197: 93.0%)
+
+---
+
+## Backup: numbers
+
 - Label-noise check: 26 bursts dropped, `starts_clean.csv` 4,312 bursts
