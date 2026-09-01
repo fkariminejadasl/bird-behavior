@@ -2,7 +2,7 @@
 
 Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
-data/model/script overview is in [docs/description](description.md).
+data/model/script overview is in [docs/description](descriptions.md).
 
 ## Rotation-invariant input channels (exp197)
 

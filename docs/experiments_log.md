@@ -2,7 +2,7 @@
 
 Raw notebook of individual runs, terse style. Held to a lower bar than
 [docs/lesson_learned.md](lesson_learned.md) (curated lessons) and
-[docs/description.md](description.md) (data/model/script overview). 
+[docs/descriptions.md](descriptions.md) (data/model/script overview). 
 
 Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps

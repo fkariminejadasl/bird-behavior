@@ -10,7 +10,7 @@ this data was first collected for self-supervised pretraining.
    only the four signal columns, curates them (`curate_data`: drop GPS speed
    >= 30 m/s, clip IMU to [-2, 2], divide GPS by `gps_scale = 22.3012351755624`)
    and writes one parquet per device, each row a flat float32 `20 x 4` burst.
-   This is the code behind the dataset described in `docs/description.md`
+   This is the code behind the dataset described in `docs/descriptions.md`
    ("Unlabeled data") and `docs/efficient_data_loading.md`.
 
 2. **Inspect.** `plot_hist_scatter_plots` walks those parquet files and, per

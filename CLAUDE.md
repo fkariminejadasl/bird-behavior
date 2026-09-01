@@ -2,7 +2,7 @@
 
 ## Rules
 
-- At the start of a session, read `docs/description.md` (the Quick reference
+- At the start of a session, read `docs/descriptions.md` (the Quick reference
   section first), `docs/lesson_learned.md` and `docs/experiments_log.md` before
   proposing or running anything. They are not loaded automatically, and they
   hold what has already been tried, measured and ruled out.
@@ -42,10 +42,10 @@
   ```bash
   for i in behavior exps scripts app; do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i; done
   ```
-- Keep every document short: `description.md`, `lesson_learned.md`,
+- Keep every document short: `descriptions.md`, `lesson_learned.md`,
   `experiments_log.md`, `presentation.md`. Prefer a table or a bullet to a
   paragraph, and when adding, look for something to cut. The Quick reference in
-  `description.md` is the shortest of all — an index, one line per entry, detail
+  `descriptions.md` is the shortest of all — an index, one line per entry, detail
   further down. New `lesson_learned` and `experiments_log` entries go at the top.
 - Always call python by its full path: `/home/fatemeh/miniconda3/envs/bird/bin/python`.
   Not bare `python`, not `conda run -n bird`. VS Code puts one env's `bin` at the
@@ -67,7 +67,7 @@
 
 Keep these current whenever the code they describe changes:
 
-- `docs/description.md`: overview of the data, models, and every script. Keep it
+- `docs/descriptions.md`: overview of the data, models, and every script. Keep it
   polished.
 - `docs/lesson_learned.md`: curated lessons that generalize, with the reason
   behind each.
@@ -80,7 +80,7 @@ Keep these current whenever the code they describe changes:
 - `presentation/README.md`: which figures the talk uses, what each set shows,
   and the exact steps to remake them. No findings here, only mechanics.
 
-After a change: update the script's top docstring and `docs/description.md` for
+After a change: update the script's top docstring and `docs/descriptions.md` for
 new or changed behavior; add to `docs/lesson_learned.md` for a bug, surprise, or
 design decision (with the reason); add to `docs/experiments_log.md` for a
 finished or planned run. When a number the talk quotes changes, update

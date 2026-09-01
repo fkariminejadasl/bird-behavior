@@ -79,7 +79,7 @@ split is wrong and nothing below it is trustworthy.
 
 - `docs/experiments_log.md`: new entry **at the top**, terse, with the git hash.
 - `docs/lesson_learned.md`: only if the run taught something that generalizes.
-- `docs/description.md`: only if script behavior changed.
+- `docs/descriptions.md`: only if script behavior changed.
 
 ## Gotchas
 
