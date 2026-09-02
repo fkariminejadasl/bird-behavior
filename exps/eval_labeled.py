@@ -288,7 +288,7 @@ if __name__ == "__main__":
     config = {
         "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
         "save_path": "/home/fatemeh/Downloads/bird/results",
-        "model_exps": [196, 197],  # baseline first, then the model of interest
+        "model_exps": [194, 196, 197],  # baseline first, then the model of interest
         # Input width per checkpoint; 7 means it was trained with add_magnitudes.
         # Anything not listed is 4.
         "in_channels": {"197": 7},

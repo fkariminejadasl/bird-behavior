@@ -28,6 +28,16 @@ them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
   +0.12, Pecking +0.08, Boat +0.06, but **TerLoco does not move** (0.89 both,
   against .97 for exp194). Walking is separated by which way small movements
   point relative to gravity, so no invariant channel can reach it.
+- **Only an orientation estimate can bring walking back.** Pecking and Manouvre
+  are bursts of movement, so a size channel carries much of what marks them, and
+  both win part of the rotation cost back: valid F1 .68 -> .76 and .67 -> .79
+  (exp194 has .94 and .84, `exps/eval_labeled.py`). Walking is a posture plus a
+  small rhythm — the body upright, the steps shaking it sideways. Both of those
+  are directions relative to gravity, which every invariant channel throws away,
+  so TerLoco stays at .89 however many such channels we add. The way in is to
+  put the frame back: estimate the gravity direction per burst (the low-pass
+  part of the acceleration), rotate the burst so it points down, and train on
+  the aligned axes. Untested.
 - **`mag` carries the gain, `jerk_mag` almost none.** Measured before training,
   by adding one channel at a time to a random forest on burst summaries and
   scoring it on randomly rotated data: `mag` +1.7 points, `dyn_mag` +0.6,

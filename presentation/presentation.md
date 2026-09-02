@@ -76,9 +76,9 @@ Train on the same bursts **rotated to every possible orientation**
 
 - Costs **4 points** on the birds we already handle: 96.4 → 92.2
 - Holds **~91% at any mounting orientation**, instead of collapsing
-- The cost lands on the ground behaviours — walking and pecking — which are
+- The cost lands on the ground behaviours — manuver, walking and pecking — which are
   told apart by the *direction* of small movements relative to gravity, exactly
-  what rotating destroys
+  what rotating destroys (`exps/eval_labeled.py`)
 
 Worth it whenever the model will meet a tag it was not trained on.
 
@@ -196,9 +196,11 @@ Nine times more experiments per day, for no change in the science.
 ## What is next
 
 1. **Test on a real second logger**, not a synthetic rotation of the first
-2. **Recover walking.** Pecking came back with the new channels; walking cannot
-   — it is recognised by the body being upright, a *direction*, and the new
-   channels are sizes. That needs the tag's orientation estimated instead
+2. **Recover walking.** The new channels are sizes, so pecking and manoeuvring
+   won part of their score back; walking won none. Walking is read from a
+   *direction* — the body upright, the steps shaking it sideways — and a size
+   cannot carry a direction. The way in is to estimate the tag's orientation on
+   every burst *(gravity direction from the low-pass acceleration)*
 3. **Automate the sea/land and flicker checks** on every new deployment
 4. **Label ~200 bursts from a new bird**, the only way to get a real number
 5. **The other sources of variation**: where the tag sits, wind, water impact
@@ -211,8 +213,8 @@ Nine times more experiments per day, for no change in the science.
 - exp194 no aug: 96.35 valid / 99.44 train — memorises, overfits
 - exp196 rotation: 92.69 valid / 91.56 train — underfits, never memorises
 - exp197 rotation + 3 invariant channels (5,429 params): 94.52 valid / 97.90 train
-- Per-class cost of rotation: walking .97 → .79, pecking .94 → .68
-- exp196 → exp197 per-class F1: pecking +.08, manoeuvre +.12, walking +.00
+- Per-class cost of rotation: walking .97 → .89, pecking .94 → .68, manoeuvre .84 → .67
+- exp196 → exp197 per-class F1: walking .89 → .89, pecking .67 → .77, manoeuvre .68 → .76
 - Class-balanced F1 0.92 → 0.83 (exp196) with rotation, back to 0.90 (exp197)
 - Rotation robustness: 13.1% → 90.7% → 93.7% mean over 20 random orientations
 - Unlabelled agreement between the two models: 87.5% (exp196 vs exp197: 93.0%)
