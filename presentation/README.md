@@ -1,8 +1,9 @@
 # Presentation figures
 
 The talk itself is `presentation.md`, and `update.md` is the meeting-update
-deck. This file is only about the mechanics: where the figures and numbers
-come from, and how to remake them. Both decks render the same way.
+deck, which is written by hand. This file is only about the mechanics: where
+the figures and numbers come from, and how to remake them. Both decks render
+the same way.
 
 ## Figures
 

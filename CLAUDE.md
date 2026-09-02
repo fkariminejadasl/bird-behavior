@@ -43,10 +43,11 @@
   for i in behavior exps scripts app; do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i; done
   ```
 - Keep every document short: `descriptions.md`, `lesson_learned.md`,
-  `experiments_log.md`, `presentation.md`, `update.md`. Prefer a table or a
-  bullet to a paragraph, and when adding, look for something to cut. The Quick reference in
-  `descriptions.md` is the shortest of all — an index, one line per entry, detail
-  further down. New `lesson_learned` and `experiments_log` entries go at the top.
+  `experiments_log.md`, `presentation.md`. Prefer a table or a bullet to a
+  paragraph, and when adding, look for something to cut. The Quick reference
+  in `descriptions.md` is the shortest of all — an index, one line per entry,
+  detail further down. New `lesson_learned` and `experiments_log` entries go
+  at the top.
 - Always call python by its full path: `/home/fatemeh/miniconda3/envs/bird/bin/python`.
   Not bare `python`, not `conda run -n bird`. VS Code puts one env's `bin` at the
   front of `PATH` for every tool call, and conda does not know it is there, so
@@ -82,9 +83,10 @@ Keep these current whenever the code they describe changes:
   in one line. Keep a technical name in italic parentheses after the plain-language
   version, so the audience follows and a specialist can still place it.
 - `presentation/update.md`: the meeting updates, a second Marp deck. One
-  slide per meeting, newest first, in short bullets: what was
-  done, what is next. Where `presentation.md` builds one
-  coherent story, this is the running progress report and may be rough.
+  slide per meeting, newest first, in short bullets. Where `presentation.md`
+  builds one coherent story, this is the running progress report. The user
+  writes it. Do not add to it, reorder it or fill it in; only correct
+  the wording and nothing else.
 - `presentation/README.md`: which figures the talk uses, what each set shows,
   and the exact steps to remake them. No findings here, only mechanics.
 
@@ -93,6 +95,4 @@ new or changed behavior; add to `docs/lesson_learned.md` for a bug, surprise, or
 design decision (with the reason); add to `docs/experiments_log.md` for a
 finished or planned run. When a number the talk quotes changes, update
 `presentation/presentation.md` in the same change — it goes stale silently,
-because nothing breaks when it is wrong. Add anything finished, started or
-dropped since the last meeting to `presentation/update.md`, as a bullet on
-the newest slide; start a new slide at the top once that meeting has passed.
+because nothing breaks when it is wrong.
