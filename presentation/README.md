@@ -1,7 +1,8 @@
 # Presentation figures
 
-The talk itself is `presentation.md`. This file is only about the mechanics:
-where the figures and numbers come from, and how to remake them.
+The talk itself is `presentation.md`, and `update.md` is the meeting-update
+deck. This file is only about the mechanics: where the figures and numbers
+come from, and how to remake them. Both decks render the same way.
 
 ## Figures
 
@@ -30,7 +31,7 @@ Every number in the talk comes from one of these. Rerun the script to refresh.
 | slide | source |
 |---|---|
 | accuracy, AP, loss, per-class F1, robustness by orientation | `exps/eval_labeled.py` (`model_exps: [194, 195]` for the talk's orientation table, `[194, 196]` for per-class) |
-| unlabelled comparison, confidence, impossible speed/place/unstable | `exps/eval_unlabeled.py` (`model_exps: [194, 196]`) |
+| unlabelled comparison, confidence, impossible speed/place/rotation flip | `exps/eval_unlabeled.py` (`model_exps: [194, 196]`) |
 | bad labels, 26 of 4,338 | `exps/find_label_noise.py` |
 | training time 47 min → 5 min | wall clock in `~/Downloads/bird/results/tensorboard/{195,196}.txt` |
 | valid/train accuracy per run | `~/Downloads/bird/results/failed/<exp>_starts/app_loss_acc.txt` |

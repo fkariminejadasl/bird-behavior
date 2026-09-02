@@ -55,7 +55,7 @@ same way on every bird**, so the standard test split cannot see any of this.
 
 ---
 
-## What happens on a differently mounted tag
+## What happens on a differently mounted tag: rotation augmentation
 
 | test data | no augmentation | with rotation |
 |---|---|---|
@@ -84,7 +84,7 @@ Worth it whenever the model will meet a tag it was not trained on.
 
 ---
 
-## Getting half the cost back
+## Getting half the cost back: more features
 
 Turning the tag changes **which axis** records a movement, never **how big** it
 is. So we give the model three sizes it cannot be confused about: how hard the
@@ -135,7 +135,7 @@ independently.
 - **Impossible speed** — "sitting still" at 13 m/s
 - **Impossible place** — "walking" a kilometre out to sea *(land/sea mask)*
 - **Impossible flicker** — behaviour changing every second within one recording
-- **Unstable** — a different answer when the tag is rotated
+- **Rotation flip** — a different answer when the tag is rotated
 
 For flicker, "impossible" has to be learned: gulls really do walk, peck and walk
 again. From the labelled data, only **10 of 36** behaviour pairs ever follow one
@@ -147,7 +147,7 @@ another *(label co-occurrence within a fix)*. Everything else counts.
 
 115,266 bursts, device 6004
 
-| | confidence | impossible speed | impossible place | impossible flicker | unstable |
+| | confidence | impossible speed | impossible place | impossible flicker | rotation flip |
 |---|---|---|---|---|---|
 | no augmentation | 0.89 | 1.45% | 1.18% | 6.7% | 82.8% |
 | with rotation | 0.91 | **0.09%** | 1.45% | 4.9% | 5.4% |
@@ -160,12 +160,12 @@ another *(label co-occurrence within a fix)*. Everything else counts.
 
 The same speed rule, pointed at the *labels* instead of the predictions.
 
+- 10: SitStand, 5:Pecking, 6:TerLoco wrong
 - **26 of 4,338 bursts** contradict their own label
 - Clearest: a bird labelled "sitting still" moving at **13.7 m/s**
-- 16 of the 26 are one device in one 20-minute window — that is a **broken GPS**,
-  not 16 annotation mistakes
+- 16 of the 26 are one device in one 20-minute window — might be a **broken GPS**
 
-Kept separate, because the fix is different.
+Mentioned in `behavior/data_processing.py::remove_label_noise`.
 
 ---
 
