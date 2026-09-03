@@ -15,9 +15,10 @@
 - Explain short, in chat and in the docs. Plain words, short sentences, no
   clever phrasing. Spell out an acronym the first time (VeDBA, ODBA).
   If a sentence needs re-reading, rewrite it.
-- Use only this project's skills, in `~/dev/bird-behavior/.claude/skills`. Other
-  repos in this VS Code workspace (hedge-seg, ...) have same-named skills;
-  never run theirs.
+- Answer from this repository only. The other repos in this VS Code workspace
+  (hedge-seg, ...) are not context unless I say so. That includes skills: use
+  only this project's, in `~/dev/bird-behavior/.claude/skills`, because the
+  other repos have same-named ones.
 - Commit messages: never mention Claude or Claude Code (no attribution, no
   Co-Authored-By line, no tool names).
 - A commit message must cover everything still uncommitted (`git status`), not
@@ -29,9 +30,25 @@
   a body of a few lines wrapped at 72. Say what changed and why. Leave out
   numbers and reasoning — `experiments_log.md` and `lesson_learned.md` already
   hold them. Say so if the change is not worth committing.
+- Give it as the full command, `git commit -m "..."`, not as bare text I have
+  to wrap myself. **So the message may not contain any of these four
+  characters:**
+
+  | character | why it breaks |
+  |---|---|
+  | `"` | closes the quote early |
+  | `'` | breaks the shell if I quote with it instead |
+  | `` ` `` | runs as a command inside double quotes |
+  | `$` | expands as a variable inside double quotes |
+
+  Write `model=BirdModelSmallDilated`, not `` `model="..."` ``. Say: the 0.05
+  threshold, without quotes. Blank lines between paragraphs are fine inside
+  the quotes, so a multi-paragraph message still works with one `-m`.
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
 - When reporting a path, give a full clickable path so it is easy to check.
+  Name the exact function or class too, not "the training script".
+- Say which files were inspected before answering a question about the repo.
 - Ask before installing a package. Once approved, install it and add it to
   `pyproject.toml` with a short comment saying what it is for.
 - No `argparse`. Configure scripts the way the rest of the repo does: a config
