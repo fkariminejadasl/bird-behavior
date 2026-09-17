@@ -38,7 +38,7 @@ from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 GIMU_BEH_FILE = Path(
     # Change this path to your own CSV file.
     # "/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv"  # unlabeled Rose
-    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004_197.csv" # unlabeled database
+    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004_197.csv"  # unlabeled database
     # "/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv" # labeled
 )
 GIMU_BEH_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else GIMU_BEH_FILE
