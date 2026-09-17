@@ -24,6 +24,11 @@ hash:202bf6f plus the uncommitted 7-channel change. 4m56s, best epoch 1870.
   ExFlap +0.14 is 4 bursts, ignore.
 - Unlabeled (device 6004): rotation flip **1.72 vs 5.37%**, unseen flip 4.04 vs
   4.92, place 1.09 vs 1.45, speed 0.11 vs 0.09 (worse). Agree on 93.0%.
+- Where the three weak classes go wrong (`exps/plot_errors.py`, 15 plots in
+  `/home/fatemeh/Downloads/bird/results/errors_exp197`): TerLoco 3 of 34 wrong
+  (2 to Pecking) and 5 wrongly predicted (3 from Pecking); Pecking 7 of 23 wrong
+  (3 to TerLoco, 2 Soar, 2 SitStand); Manouvre 5 of 16 wrong (4 to Soar).
+  Walking and pecking mostly trade with each other, Manouvre loses to Soar.
 
 ## exp196: exp195 repeated through the batched GPU path
 

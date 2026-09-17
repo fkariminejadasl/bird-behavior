@@ -4,6 +4,16 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## `load_csv_pandas` timestamps are 1000x too small under pandas 3
+
+`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64")
+// 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
+division yields seconds/1000 and every burst dates to 1970. The label, device
+and index columns of `ldts` are fine; only column 2 is wrong. Training does not
+read it, but anything naming a burst does, so `exps/plot_errors.py` takes the
+datetime as text from `find_label_noise.load_bursts` instead. Not fixed yet:
+the loader is shared with the training scripts.
+
 ## Rotation-invariant input channels (exp197)
 
 `data.add_magnitude_features` appends three channels to the 4 inputs: `mag`

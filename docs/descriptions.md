@@ -58,6 +58,8 @@ Visual:
 - `app/gps_burst_labeling_viz_app.py` — IMU trace + map + editable label
 - `exps/save_plots_gt.py` — one PNG per labeled burst, in
   `/home/fatemeh/Downloads/bird/results/gt2_starts`
+- `exps/plot_errors.py` — one PNG per valid burst a model gets wrong, in
+  `/home/fatemeh/Downloads/bird/results/errors_exp<exp>`
 - `behavior/utils.py::plot_one` — a single burst
 - `scripts/embeddings_plot.py` — t-SNE of the learned features
 
@@ -313,6 +315,10 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 - `scripts/embeddings_plot.py`: Plot embeddings (currently t-SNE) for a given dataset and model.
 - `exps/save_plots_gt.py`: Save IMU plots for ground-truth data based on device IDs and starting times.
 - `exps/save_plots.py`: Save IMU plots for each label and run inference for the predictions.
+- `exps/plot_errors.py`: Plot the valid bursts a model gets wrong, one PNG per
+  burst, in `<true class>/<predicted class>,<device>,<datetime>,<start index>.png`.
+  Uses the split and predictions of `exps/eval_labeled.py`, so the plots are the
+  errors behind its per-class F1. Prints where each class went and what came in.
 - `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: Generate IMU plots for structured data (divisible by glen=20), such as `shift.csv`.
 - `exps/imu_3d_movie`: Make a movie from IMU data.
 - `exps/visualize`: old (I should remove)
