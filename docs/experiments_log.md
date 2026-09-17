@@ -2,7 +2,7 @@
 
 Raw notebook of individual runs, terse style. Held to a lower bar than
 [docs/lesson_learned.md](lesson_learned.md) (curated lessons) and
-[docs/descriptions.md](descriptions.md) (data/model/script overview). 
+[docs/descriptions.md](descriptions.md) (data/model/script overview).
 
 Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
@@ -10,8 +10,7 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 
 ## exp197: rotation-invariant magnitude channels
 
-exp196 with `add_magnitudes=True`: input `[x, y, z, gps, mag, dyn_mag,
-jerk_mag]`, `BirdModelSmallDilated(7, 20, 9)`, 5,429 params. Data, seed, split,
+exp196 with `add_magnitudes=True`: input `[x, y, z, gps, mag, dyn_mag, jerk_mag]`, `BirdModelSmallDilated(7, 20, 9)`, 5,429 params. Data, seed, split,
 augmentation and schedule unchanged, so it is a clean A/B on the features.
 hash:202bf6f plus the uncommitted 7-channel change. 4m56s, best epoch 1870.
 
@@ -71,8 +70,7 @@ ind2name = {0: "Flap", 1: "ExFlap", 2: "Soar", 3: "Boat", 4: "Float",
             5: "SitStand", 6: "TerLoco", 7: "Other", 8: "Manouvre", 9: "Pecking"}
 ```
 
-`s_data` burst counts (index): `{0:634, 1:38, 2:501, 3:176, 4:558, 5:894,
-6:318, 7:25, 8:151, 9:210}`. `starts` (current pipeline, no Other): total 4338
+`s_data` burst counts (index): `{0:634, 1:38, 2:501, 3:176, 4:558, 5:894, 6:318, 7:25, 8:151, 9:210}`. `starts` (current pipeline, no Other): total 4338
 `{5:1502, 4:729, 0:643, 2:537, 6:337, 9:225, 3:176, 8:151, 1:38}`.
 
 Behavior grouping (peck labels are noisy):
@@ -114,7 +112,7 @@ GPS 2D speed normalized by 22.3. Standard seed is 32984.
 
 Best runs:
 
-- exp44 `[0,3,4,5,6]`: 99.2% (hash:dac5a78) ***
+- exp44 `[0,3,4,5,6]`: 99.2% (hash:dac5a78) `***`
 - exp45 no-Other (9 class): 94.5% (hash:8b3b3d9); exp47 slightly better. Three
   numbers exist for this run in the old notes — 95.4% as first recorded, 94.5%
   on rerun, and 96.15% at seed 32984 (quoted as 96.1 in the exp78 line). The
@@ -180,13 +178,13 @@ dropout 0.7 (~2000 params); exp122–123 same on shifted data.
 All on the current pipeline. Numbers read from
 `~/Downloads/bird/results/failed/<exp>/app_loss_acc.txt`.
 
-| exp | model / data | train | valid |
-|---|---|---|---|
-| exp190 | BirdModel, starts.csv (IMU clipped to [-2, 2]) | 95.49 | 94.98 |
-| exp191 | BirdModel, s_index (repeat exp45) | 94.92 | 94.32 |
-| exp192 | BirdModel, starts.csv (repeat exp125) | 95.95 | 94.75 |
-| exp193 | BirdModelWideRF, starts.csv | 99.67 | 95.21 |
-| exp194 | BirdModelSmallDilated, starts.csv | 99.44 | **96.35** |
+| exp    | model / data                                   | train | valid     |
+| ------ | ---------------------------------------------- | ----- | --------- |
+| exp190 | BirdModel, starts.csv (IMU clipped to [-2, 2]) | 95.49 | 94.98     |
+| exp191 | BirdModel, s_index (repeat exp45)              | 94.92 | 94.32     |
+| exp192 | BirdModel, starts.csv (repeat exp125)          | 95.95 | 94.75     |
+| exp193 | BirdModelWideRF, starts.csv                    | 99.67 | 95.21     |
+| exp194 | BirdModelSmallDilated, starts.csv              | 99.44 | **96.35** |
 
 - **exp194 is the best supervised run on `starts.csv` so far**, a point above
   exp125 (95.36) and 1.6 above exp192 (BirdModel on the same data). It is the
@@ -213,7 +211,6 @@ in `app/gps_burst_labeling_viz_app.py`).
   dynamic classes (Pecking .57, Manouvre .77, ExFlap .57) — consistent with the
   short receptive field confusing the flap pattern with Manoeuvre. Not kept as a
   tracked run.
-
 
 ## Data percentage
 

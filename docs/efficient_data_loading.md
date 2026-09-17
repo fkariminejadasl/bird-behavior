@@ -1,11 +1,10 @@
 # Solutions for efficiently loading very large datasets
 
-I have 186 parquet files. Each file has different sizes. The largest file has two row groups one with about 300MB data and the other 100MB, each has 1048576, 462367 lines. Each line is 80 np.float32 array. The example of the other file is only one row group with 9296 lines, which is about 1MB data. 
+I have 186 parquet files. Each file has different sizes. The largest file has two row groups one with about 300MB data and the other 100MB, each has 1048576, 462367 lines. Each line is 80 np.float32 array. The example of the other file is only one row group with 9296 lines, which is about 1MB data.
 
-Each parquet file created from multiple CSV files roughly the same size (30MB). Each csv file contains device id, date, index, label, imu_x, imu_y, imu_z and GPS 2d speed. Per 20 lines, all the values are the same except imu_{x,y,z}, gps 2d speed and indices. For training, we only need imu_{x,y,z}, gps 2d speed. So, in parquet format, every 20 rows share the same device and date are presented as one line of {imu, gps} x 20, so 80 np.float32. All the csv files of the same device are combined into one parquet file. So, per device, there is one parquet file and multiple CSV file.
+Each parquet file created from multiple CSV files roughly the same size (30MB). Each csv file contains device id, date, index, label, imu_x, imu_y, imu_z and GPS 2d speed. Per 20 lines, all the values are the same except `imu_{x,y,z}`, gps 2d speed and indices. For training, we only need `imu_{x,y,z}`, gps 2d speed. So, in parquet format, every 20 rows share the same device and date are presented as one line of {imu, gps} x 20, so 80 np.float32. All the csv files of the same device are combined into one parquet file. So, per device, there is one parquet file and multiple CSV file.
 
 For example, device id 298 has several csv files with names like 298_0.csv, 298_1.csv, ...,298_n.csv​. These files are roughly the same size but different number of lines. They are combined to one single parquet file (e.g. 298.parquet ) and took every 20 lines and took column 4-7 and flatten them into 20x4=80 np.float32 numpy array. Here is the code (it lives in `exps/inspect_unlabeled_data.py`):
-
 
 ```
 def curate_data(df: pd.DataFrame):
@@ -80,7 +79,6 @@ if "__main__" == __name__:
 
 Currently we read the data in memory. There are roughtly 25 million data points, which is roughly 7.6GB data (25e6 (data points) x 80 (each line of data) x 4 (np.float32)). Here is the code to read the data in the memory.
 
-
 ```
 gimus = []
 parquet_files = cfg.data_path.glob("*.parquet")
@@ -144,9 +142,7 @@ train_loader = DataLoader(
 )
 ```
 
-
 We want to change my BirdDataset to be able to manage to have data not in the memory.
-
 
 We have few solutions:
 
@@ -613,9 +609,7 @@ if __name__ == "__main__":
         print(f"Batch {batch_idx}: {inputs.shape}")
 ```
 
-
 Solution 4: randomize the data and make own dataloader. Exxample in in nanochat (Karpathygit) using fineweb-edu, where each file (shard) is 100 MB.
-
 
 From solusion 1, 2, 3, the solution 2 is the best. The data can be pre-shuffled or custom sample such as below beused:
 
@@ -655,22 +649,23 @@ loader = DataLoader(
     persistent_workers=True,  # recommended
 ```
 
-It seems to me the solution 1, 2, 3 are not efficient. Solution 2 creates one huge mmap which is not practical, and solution 3 with per device mmap also requires many times opening of the same file because of the dataloader __getitem__, which is similar problem just using solution 1 with parqet format, though solution 3 is better than solution 1. Solution 4 seems the best way and then solution 2. 
-
+It seems to me the solution 1, 2, 3 are not efficient. Solution 2 creates one huge mmap which is not practical, and solution 3 with per device mmap also requires many times opening of the same file because of the dataloader __getitem__, which is similar problem just using solution 1 with parqet format, though solution 3 is better than solution 1. Solution 4 seems the best way and then solution 2.
 
 #### Some analysis
 
 I have:
-- file:  20K rows
+
+- file: 20K rows
 - files: 25M rows (1075 files)
-(25M rows) * (20 * 4 data) * (4 float32) ~= 8 GB
+  (25M rows) * (20 * 4 data) * (4 float32) ~= 8 GB
 
 Karpathy nanochat fineweb-edu-100b-shuffle data:
-- file:  53K rows, 100M file size
-- files: 97M rows, 171G file size  (1822 files)
+
+- file: 53K rows, 100M file size
+- files: 97M rows, 171G file size (1822 files)
 
 e.g 6210 contains 75 files each abot 20K rows combining gets 1510999 rows. If only take gimu float32 save as parquet, file size is 300M.
-1510999 * 80 * 4/(1024**2)=461M data.
+`1510999 * 80 * 4/(1024**2)=461M` data.
 
 ```python
 pf2 = pq.ParquetFile("/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet/6210.parquet", memory_map=True)

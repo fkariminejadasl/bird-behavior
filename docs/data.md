@@ -1,5 +1,6 @@
 # Example Times
-``` bash
+
+```bash
 >>> import pytz # pip install pytz
 >>> from datetime import datetime, timezone
 
@@ -24,8 +25,8 @@ datetime.datetime(2023, 11, 6, 14, 8, 11)
 <DstTzInfo 'CET' CET+1:00:00 STD>
 ```
 
-
 # Example Database Queries
+
 ```database format:
 # database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
 database_url = f"postgresql://{username}:{password}@pub.e-ecology.nl:5432/eecology"
@@ -71,7 +72,9 @@ from gps.ee_track_session_limited etsl
 ```
 
 # Get Some Statistics
+
 Just a short check to see if the whole data, training and validation set are balanced. The code snippet below generates these values.
+
 ```bash
 ((4394, 20, 4), (4365, 20, 4)) # gimus, gimus2
 ((3928, 3), (437, 3)) # tldts2, vldts2
@@ -108,7 +111,6 @@ for tkey, tval in tl2.items():
 		if tkey == vkey:
 			per_rel[tkey] = round(vval/tval,2)
 ```
-
 
 #### Remove other label
 

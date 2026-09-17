@@ -57,6 +57,11 @@ test = [
     "isort",
     "pyflakes",
     "pytest",
+    # markdown formatter for docs/. mdformat-gfm adds the GitHub syntax,
+    # including pipe-table alignment. Run it as:
+    #   mdformat --number --exclude docs/clustering.md docs/
+    "mdformat",
+    "mdformat-gfm",
     # "pytest-cov",
 ]
 
@@ -89,6 +94,7 @@ markers = [
 
 # For linters:
 # for i in app tests exps scripts behavior;do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i;done
+# mdformat --number --exclude docs/clustering.md docs/
 
 # Remove packages completely
 # pip-autoremove -y bird_behavior einops matplotlib numpy tqdm tensorboard psycopg2-binary timm torch torchvision scikit-learn pandas omegaconf 

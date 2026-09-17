@@ -6,8 +6,7 @@ data/model/script overview is in [docs/description](descriptions.md).
 
 ## `load_csv_pandas` timestamps are 1000x too small under pandas 3
 
-`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64")
-// 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
+`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64") // 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
 division yields seconds/1000 and every burst dates to 1970. The label, device
 and index columns of `ldts` are fine; only column 2 is wrong. Training does not
 read it, but anything naming a burst does, so `exps/plot_errors.py` takes the
@@ -21,10 +20,10 @@ the loader is shared with the training scripts.
 All three are lengths of an acceleration vector, so rotating the burst leaves
 them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
 
-| | valid acc | F1 balanced | SO(3) mean | rotation flip |
-|---|---|---|---|---|
-| exp196 | 92.69 | 0.83 | 92.03 | 5.37% |
-| exp197 | **94.52** | **0.90** | **93.66** | **1.72%** |
+|        | valid acc | F1 balanced | SO(3) mean | rotation flip |
+| ------ | --------- | ----------- | ---------- | ------------- |
+| exp196 | 92.69     | 0.83        | 92.03      | 5.37%         |
+| exp197 | **94.52** | **0.90**    | **93.66**  | **1.72%**     |
 
 - **Giving a model an invariant beats making it learn one.** exp196 spends
   capacity learning rotation-invariance from the augmentation and underfits
@@ -69,21 +68,21 @@ them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
 `exps/eval_labeled.py`, on the 3900/438 split of `starts.csv` (seed 32984).
 Accuracy, AP and loss reproduce each run's `app_loss_acc.txt` exactly.
 
-| | train acc | AP | loss | valid acc | AP | loss | valid F1 | F1 balanced |
-|---|---|---|---|---|---|---|---|---|
-| exp194 | 99.44 | 1.00 | 0.03 | **96.35** | 0.97 | 0.13 | 0.96 | 0.92 |
-| exp196 | 91.56 | 0.92 | 0.26 | 92.69 | 0.91 | 0.27 | 0.93 | 0.83 |
-| exp197 | 97.90 | 0.99 | 0.08 | 94.52 | 0.95 | 0.20 | 0.95 | 0.90 |
+|        | train acc | AP   | loss | valid acc | AP   | loss | valid F1 | F1 balanced |
+| ------ | --------- | ---- | ---- | --------- | ---- | ---- | -------- | ----------- |
+| exp194 | 99.44     | 1.00 | 0.03 | **96.35** | 0.97 | 0.13 | 0.96     | 0.92        |
+| exp196 | 91.56     | 0.92 | 0.26 | 92.69     | 0.91 | 0.27 | 0.93     | 0.83        |
+| exp197 | 97.90     | 0.99 | 0.08 | 94.52     | 0.95 | 0.20 | 0.95     | 0.90        |
 
 Same valid bursts, accelerometer frame perturbed:
 
-| valid under | exp194 | exp196 | exp197 |
-|---|---|---|---|
-| clean | **96.35** | 92.69 | 94.52 |
-| x/y swap | 71.46 | 93.15 | **94.52** |
-| pitch 20° | 82.88 | 92.24 | **94.29** |
-| pitch 70° | 2.05 | 91.55 | **93.61** |
-| random SO(3), mean of 20 | 13.05 | 92.03 | **93.66** |
+| valid under              | exp194    | exp196 | exp197    |
+| ------------------------ | --------- | ------ | --------- |
+| clean                    | **96.35** | 92.69  | 94.52     |
+| x/y swap                 | 71.46     | 93.15  | **94.52** |
+| pitch 20°                | 82.88     | 92.24  | **94.29** |
+| pitch 70°                | 2.05      | 91.55  | **93.61** |
+| random SO(3), mean of 20 | 13.05     | 92.03  | **93.66** |
 
 - **The headline accuracy is the least informative column.** exp194 wins it by
   3.7 pts and loses every other comparison here and in the unlabeled table below.
@@ -106,11 +105,11 @@ Same valid bursts, accelerometer frame perturbed:
 counting predictions that contradict something known independently of the model.
 On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`):
 
-| | mean conf | speed conflict | place conflict | any flip | unseen flip | rotation flip |
-|---|---|---|---|---|---|---|
-| exp194 | 0.89 | 1.45% | 1.18% | 17.7% | 6.7% | **82.8%** |
-| exp196 | 0.91 | **0.09%** | 1.45% | 16.1% | 4.9% | 5.4% |
-| exp197 | 0.95 | 0.11% | **1.09%** | **15.6%** | **4.0%** | **1.7%** |
+|        | mean conf | speed conflict | place conflict | any flip  | unseen flip | rotation flip |
+| ------ | --------- | -------------- | -------------- | --------- | ----------- | ------------- |
+| exp194 | 0.89      | 1.45%          | 1.18%          | 17.7%     | 6.7%        | **82.8%**     |
+| exp196 | 0.91      | **0.09%**      | 1.45%          | 16.1%     | 4.9%        | 5.4%          |
+| exp197 | 0.95      | 0.11%          | **1.09%**      | **15.6%** | **4.0%**    | **1.7%**      |
 
 - **Winner**: exp196 beats exp194 clearly — 16× fewer physically impossible
   predictions (0.09% vs 1.45%) — and exp197 beats exp196 on four of five checks,
@@ -223,23 +222,26 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   orientation-perturbed validation data inverts it
   (`exps/eval_labeled.py`):
 
-  | valid under | exp194 (no aug) | exp195 (rotation) |
-  |---|---|---|
-  | clean | **96.35** | 92.24 |
-  | x/y swap | 71.46 | **90.41** |
-  | pitch 20° / 70° | 82.88 / 2.05 | **90.87 / 90.64** |
-  | random SO(3), mean of 20 | 13.05 | **90.67** |
+  | valid under              | exp194 (no aug) | exp195 (rotation) |
+  | ------------------------ | --------------- | ----------------- |
+  | clean                    | **96.35**       | 92.24             |
+  | x/y swap                 | 71.46           | **90.41**         |
+  | pitch 20° / 70°          | 82.88 / 2.05    | **90.87 / 90.64** |
+  | random SO(3), mean of 20 | 13.05           | **90.67**         |
 
   Off-orientation exp194 is not uncertain, it is confidently wrong: 2.05% is well
   under the 11% chance rate, so no confidence threshold will catch it.
+
 - **The cost lands on the ground behaviours**, which need the gravity direction
   rotation scrambles: valid F1 TerLoco .97 -> .79, Pecking .94 -> .68. Balanced
   valid F1 0.92 -> 0.84, twice the accuracy drop
   (`exps/eval_labeled.py`). Plain and balanced numbers can disagree in
   sign on a rare class, so say which one a number came from.
+
 - **Rotation replaces overfitting with underfitting**: exp194 99.44/96.35 vs
   exp195 90.21 (unaugmented train) / 92.24. At 5,129 params the capacity goes into
   invariance, not memorization.
+
 - **A bigger receptive field did not pay for it**: BirdModel -> SmallDilated is
   +1.6 val without rotation (exp192 94.75 -> exp194 96.35) but +0.7 with
   (discarded trial 91.55 -> exp195 92.24).

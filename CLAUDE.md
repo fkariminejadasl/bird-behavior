@@ -58,7 +58,19 @@
 
   ```bash
   for i in behavior exps scripts app; do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i; done
+  mdformat --number --exclude docs/clustering.md docs/
   ```
+- `mdformat` formats the markdown in `docs/` and aligns the pipe tables
+  (`mdformat` plus `mdformat-gfm`, both in the `test` extra of
+  `pyproject.toml`). Both flags matter. Without `--number`, every ordered list
+  collapses to all `1.`. Without the exclude, `docs/clustering.md` is broken:
+  it is the only doc holding LaTeX math in `\(...\)` delimiters, which
+  CommonMark does not know, so the spans get rewritten into broken text and its
+  `---` rules become rows of underscores. Never run it on `presentation/`:
+  those are Marp decks where a slide must fit one page, measured in lines, so a
+  reflow silently cuts the bottom. If mdformat adds a backslash escape, the
+  markdown was ambiguous; put that filename or expression in backticks rather
+  than keep the escape.
 - Keep every document short: `descriptions.md`, `lesson_learned.md`,
   `experiments_log.md`, `presentation.md`. Prefer a table or a bullet to a
   paragraph, and when adding, look for something to cut. The Quick reference
