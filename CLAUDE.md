@@ -97,6 +97,20 @@
   example `settings.json`), never another repo's `.claude` in this VS Code
   workspace.
 
+## Reporting a result
+
+- After a run, say what ran, what changed outside the repo (and whether
+  anything was overwritten), and the commands used. The scripts take no
+  arguments, so name the config keys that changed.
+- Experiment numbers are global and are never reused: a rerun replaces the
+  checkpoint, the metrics and the tensorboard run of the old one.
+  `scripts/batch_train_supervised.py` refuses to start on a number that already
+  has results, unless `overwrite` is set. The highest number in use:
+
+  ```bash
+  ls /home/fatemeh/Downloads/bird/results | grep -oP "^\d+(?=_best\.pth$)" | sort -n | tail -1
+  ```
+
 ## Documentation
 
 Keep these current whenever the code they describe changes:

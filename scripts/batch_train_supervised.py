@@ -71,7 +71,34 @@ def split_from_file(cfg, device):
     return idx[~is_valid], idx[is_valid]
 
 
+def refuse_to_overwrite(cfg):
+    """Stop if this experiment number already has results.
+
+    Numbers are global, and a rerun replaces the checkpoint, the metrics and the
+    tensorboard run of the old one without warning. Set `overwrite` to True to
+    do it on purpose.
+    """
+    if cfg.overwrite:
+        return
+    taken = [
+        path
+        for path in (
+            cfg.save_path / f"{cfg.exp}_best.pth",
+            cfg.save_path / "failed" / f"{cfg.exp}_{Path(cfg.data_file).stem}",
+            cfg.save_path / "tensorboard" / str(cfg.exp),
+        )
+        if path.exists()
+    ]
+    if taken:
+        raise FileExistsError(
+            f"exp {cfg.exp} already has results: "
+            + ", ".join(str(path) for path in taken)
+            + ". Pick a free number, or set overwrite to True to replace them."
+        )
+
+
 def main(cfg):
+    refuse_to_overwrite(cfg)
     # Set seed and device
     bu.set_seed(cfg.seed)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -382,6 +409,7 @@ if __name__ == "__main__":
         "no_epochs": 4000,
         "save_every": 4000,
         "save_final": False,  # also keep the last epoch, not only the best one
+        "overwrite": False,  # True to replace the results of an experiment number
         # Data
         "train_per": 0.9,
         "data_per": 1.0,
@@ -446,7 +474,11 @@ if __name__ == "__main__":
         },
     ]
 
-    for cfg in iter_batch_configs(base_config, experiments):
+    configs = list(iter_batch_configs(base_config, experiments))
+    for cfg in configs:  # every number free before anything trains
+        refuse_to_overwrite(cfg)
+
+    for cfg in configs:
         print(f"Experiment {cfg.exp}: {cfg.model.name}, data={cfg.data_file}")
         # import wandb
         # wandb.init(project="small-bird", config=OmegaConf.to_container(cfg, resolve=True))

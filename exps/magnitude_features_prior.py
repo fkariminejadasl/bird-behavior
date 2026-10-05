@@ -5,8 +5,7 @@ relevant weakness (it cannot form sqrt(x^2+y^2+z^2) from per-axis statistics),
 runs in seconds, and answers whether the three magnitude channels carry anything
 once the accelerometer frame is scrambled.
 
-  /home/fatemeh/miniconda3/envs/bird/bin/python \
-    /home/fatemeh/Downloads/bird/claude/magnitude_feature_prior.py
+  /home/fatemeh/miniconda3/envs/bird/bin/python exps/magnitude_features_prior.py
 """
 
 import numpy as np
