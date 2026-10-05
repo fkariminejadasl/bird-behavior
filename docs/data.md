@@ -125,26 +125,26 @@ filtered_df.to_csv('/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others
 
 ## Description of Data and Model
 
-How rows from the database become the bursts the model sees, and how the model
-is trained.
+How raw data becomes the bursts the model sees, from the UvA-BiTS database
+and from Ornitela files, and how the model is trained.
 
 Words used below:
 
 - **fix**: one GPS record of one device, at one time in whole seconds.
-- **burst**: the accelerometer (IMU) samples recorded at a fix. Each sample has
-  the fix time and an `index`, its place in the burst. The labeled data is
-  sampled at 20 Hz.
-- **model input**: 20 consecutive samples (1 s) of IMU x, y, z, plus the GPS 2D
-  speed of the fix, copied to all 20.
+- **burst**: the accelerometer (IMU) samples recorded at a fix. In the database
+  each sample has the fix time and an `index`, its place in the burst. The
+  labeled data is sampled at 20 Hz.
+- **model input**: 20 consecutive samples (1 s) of IMU x, y, z in g, plus the
+  GPS 2D speed of the fix in m/s, copied to all 20.
 
-### Data
+### Database data (UvA-BiTS)
 
 Rules 1-6 run at download, in `behavior/data.py::get_data`. Rules 7-9 run when
-a CSV is loaded.
+a CSV is loaded, for this data and for the Ornitela data below.
 
-The Gulliver repository (`~/dev/gulliver-behavior-classifier/`) gets its data
-already downloaded and calibrated, with a timestamp per IMU sample instead of an
-index. *Gulliver* says what a rule becomes there.
+[Gulliver](https://github.com/fkariminejadasl/gulliver-behavior-classifier)
+gets this data already downloaded and calibrated, with a timestamp per IMU
+sample instead of an index. *Gulliver* says what a rule becomes there.
 
 At download:
 
@@ -174,14 +174,14 @@ At download:
    - *Gulliver*: the same.
 6. **GPS and IMU match.** A burst is kept only if a GPS fix has the same time,
    to the second. Its speed (and latitude, longitude, altitude, temperature) is
-   copied to every sample of the burst. If two fixes match, the first is used
-   (`match_gps_to_groups`).
+   copied to every sample of the burst. A fix even 1 s away is not used. If two
+   fixes match, the first is used (`match_gps_to_groups`).
    - *Gulliver*: match on the fix time. After rule 5 a burst can start after
      sample 0, so its first timestamp can be later than the fix.
 
 At load time (`behavior/data.py::load_csv_pandas` for training; the same lines
 are in `exps/inspect_unlabeled_data.py::curate_data` and
-`scripts/data/bird_behavior_app_data.py`):
+`scripts/data/bird_behavior_app_data.py::infer_save_app_data`):
 
 7. **GPS speed below 30 m/s.** Faster rows are dropped. All samples of a burst
    share one speed, so whole bursts go. Above 30 m/s the speed is sensor error:
@@ -198,14 +198,43 @@ Also to know:
 
 - `get_data` does not check the sampling rate. A burst at another rate passes
   every rule, but 20 samples are then not 1 s.
-- Units: IMU in g, GPS speed in m/s. Ornitela gives km/h (divide by 3.6) and
-  swaps x and y compared with the UvA-BiTS loggers of the labeled data; both
-  are undone in `scripts/data/bird_behavior_app_data.py`.
 - Labeled data: `get_data` runs once per labeled fix
   (`behavior/data_processing.py::get_s_j_w_m_data_from_database`). Each run of
   one label is then cut into bursts of 20 from its first labeled sample, as in
   rule 5 (`behavior/data_processing.py::slice_from_first_label`), giving
   `starts.csv`. The full pipeline is in `docs/descriptions.md`, Labeled data.
+
+### Ornitela data
+
+`scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data`. The input
+is one calibrated CSV, in time order, with GPS rows and IMU rows (`datatype`
+GPS or SENSORS). The IMU is already in g. There is no index. Usually a GPS row
+is followed by the IMU rows of one burst, 0-2 s later.
+
+1. **A burst is the IMU rows of one device with the same time.** Only whole
+   bursts of 20 are kept: 45 rows give 40 (two bursts), 15 rows give none. Rows
+   are indexed from 0. Without an index, a missing sample cannot be found.
+2. **Each burst takes the GPS row just above it in the file**: its speed,
+   latitude, longitude and altitude. The burst is dropped unless that GPS row
+   is:
+   - from the same device,
+   - at most 2 s before or after the burst,
+   - not at latitude 0 and longitude 0.
+3. **With several GPS rows close by, the one just above wins**, not the nearest
+   in time. Example, in file order: fixes at -2, -1 and 0 s, the burst, then
+   fixes at +1 and +2 s. The burst takes the fix at 0 s; the fixes after it are
+   never used for it. If the row just above is more than 2 s away, the burst
+   is dropped, even when an earlier fix is closer.
+4. **x and y are swapped**, to match the UvA-BiTS axes of the labeled data: the
+   model's x is Ornitela `y_g`, and its y is `x_g`.
+5. **Speed from km/h to m/s**: divide by 3.6.
+
+Rare case: one GPS row followed by two bursts. Both take it, and only the first
+is checked against the 2 s.
+
+Then rules 7-9 apply, as for the database data (`prepare_app_class_data`).
+`check_consecutive_gps_sensor_time_diff`, in the same script, prints how far
+apart each fix and the next SENSORS row are.
 
 ### Model
 
