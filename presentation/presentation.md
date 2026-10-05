@@ -160,10 +160,14 @@ another *(label co-occurrence within a fix)*. Everything else counts.
 
 The same speed rule, pointed at the *labels* instead of the predictions.
 
-- 10: SitStand, 5:Pecking, 6:TerLoco wrong
+- 10: SitStand, 5:Pecking, 11:TerLoco wrong
 - **26 of 4,338 bursts** contradict their own label
 - Clearest: a bird labelled "sitting still" moving at **13.7 m/s**
 - 16 of the 26 are one device in one 20-minute window — might be a **broken GPS**
+- Retrained without them: same accuracy, **impossible speed 2-3x rarer at every
+  seed tried** *(exp199-204, exps/eval_unlabeled.py)*
+- GPS speed both **flags** the labels and **judges** the fix, so we keep the raw
+  model *(exp197)*
 
 Mentioned in `behavior/data_processing.py::remove_label_noise`.
 
@@ -190,6 +194,8 @@ Nine times more experiments per day, for no change in the science.
 3. **You can measure a model without labels** — count predictions that break
    physics
 5. **Check the labels too.** Some of what we call error is bad ground truth
+6. **A cleaner dataset is not automatically a better model.** Ours removed the
+   only examples of *fast but not flying*, and the model then trusted speed more
 
 ---
 
@@ -224,3 +230,7 @@ Nine times more experiments per day, for no change in the science.
 ## Backup: numbers
 
 - Label-noise check: 26 bursts dropped, `starts_clean.csv` 4,312 bursts
+- Raw vs cleaned, 3 seeds each, same split and epoch: impossible speed
+  0.10/0.15/0.13 → 0.03/0.06/0.04, no overlap *(exp199-204)*
+- Everything else — accuracy, place, flicker, rotation — sits inside the seed
+  spread *(exps/eval_labeled.py, exps/eval_unlabeled.py)*

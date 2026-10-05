@@ -1068,6 +1068,22 @@ def load_csv_pandas(data_file, labels_to_use, glen=20):
     return igs, ldts[:, 0, :]
 
 
+def burst_keys(data_file, labels_to_use, glen=20):
+    """One (device id, datetime text, start index) per burst, in load order.
+
+    Reads the CSV exactly as `load_csv_pandas` does, so key i names burst i
+    there. The timestamp `load_csv_pandas` returns cannot do this job: under
+    pandas 3 it is 1000x too small (see docs/lesson_learned.md).
+
+    Used to carry one run's split over to another data file, and to compare two
+    files burst by burst.
+    """
+    df = pd.read_csv(data_file, header=None)
+    df = df[df[7] < 30.0]
+    df = df[df[3].isin(list(labels_to_use))].reset_index(drop=True)
+    return [tuple(row) for row in df.iloc[::glen][[0, 1, 2]].itertuples(index=False)]
+
+
 def load_csv(csv_file, g_len=20):
     """
     e.g. row: 757,2014-05-18 06:58:26,20,0,-0.09648467,-0.04426107,0.45049885,8.89139205

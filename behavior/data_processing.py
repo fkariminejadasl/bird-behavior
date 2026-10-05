@@ -389,7 +389,7 @@ def remove_label_noise(df, glen=20):
     bursts on 2014-06-07 are one continuous window and look like a GPS fault
     over that period rather than 16 separate annotation mistakes -- they are
     dropped for the same reason, not because the labels are known to be wrong.
-    10: SitStand, 5:Pecking, 6:TerLoco
+    10: SitStand, 5:Pecking, 11:TerLoco
     """
 
     # fmt: off

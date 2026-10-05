@@ -4,6 +4,67 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## Retraining on the cleaned labels (exp198-exp204)
+
+`starts_clean.csv` drops the 26 bursts whose GPS speed contradicts their label.
+Settled over three training seeds a side, split pinned with `split_seed` and all
+runs read at epoch 4000, so every run is scored on the same 437 bursts
+(exp199/201/202 raw, exp200/203/204 clean).
+
+| per seed     | speed conflict       | valid acc           | place            | rotation flip    |
+| ------------ | -------------------- | ------------------- | ---------------- | ---------------- |
+| raw `starts` | 0.10, 0.15, 0.13     | 93.82, 94.05, 94.05 | 1.12, 1.08, 1.00 | 1.57, 1.62, 1.34 |
+| clean        | **0.03, 0.06, 0.04** | 93.59, 93.36, 94.05 | 1.03, 1.07, 1.04 | 1.61, 1.53, 1.36 |
+
+- **A label fix shows where it was aimed, and nowhere else.** The 26 bursts came
+  from a GPS-speed rule, and the GPS-speed check is the one that moves: the two
+  ranges do not overlap, and at matched seeds the clean run is 2-3x lower
+  (`exps/eval_unlabeled.py`). Accuracy, place, flicker and rotation all sit
+  inside the seed spread. Accuracy could not move anyway — 26 bursts are 0.60%
+  of the data, and 25 sat in the **training** set, 1 in the valid split.
+- **One seed pair is not a result; the seed spread is the unit.** Read at one
+  seed, the cleaned model looked 0.23 points worse and slightly worse on three
+  checks. Across three seeds the best clean run ties the best raw run and the
+  three checks overlap. Nothing there survived.
+- **Compare runs at a fixed epoch, not at `<exp>_best.pth`.** That file is the
+  argmax of a ~435-burst valid split over 4000 epochs, so it rewards a lucky
+  epoch and lands somewhere different every run: 1996 for exp197 and exp199,
+  1544 for exp198, 3949 for exp200. A younger checkpoint is less confident and
+  flips more, so **the perturbation checks compare checkpoint ages** unless the
+  epoch is pinned. `save_final` keeps epoch 4000 for that.
+- **Pin the split too when the data changes.** `stratified_split` walks the
+  classes with **one** generator, so a class whose count changes re-randomizes
+  every class after it: dropping 26 bursts left Flap through Float identical and
+  reshuffled the rest, putting 177 of exp197's 438 valid bursts into exp198's
+  train set. `split_file` borrows one run's valid split for another and
+  `split_seed` holds it still while the training seed moves. Without them, two
+  runs on two data files cannot be compared at all.
+- **Cleaning one class can move an unrelated one, through a shared feature.**
+  Dropping land bursts (SitStand, TerLoco, Pecking) moved **ExFlap**, a flight
+  class. The link is GPS speed, not behaviour: ExFlap runs slow (median 1.39
+  m/s) and Flap fast (median 9.63), and the 26 dropped bursts were the only
+  fast-but-not-flying training examples there were, so dropping them sharpens
+  **fast -> Flap**. The only ExFlap valid bursts that ever flip are the two with
+  Flap-like speeds, 15.84 and 4.99 m/s; the two at 0.06 m/s never do. Sweeping
+  the GPS channel with the accelerometer held fixed shows it directly: a cleaned
+  model's P(ExFlap) falls 0.45 -> 0.06 from 0 to 20 m/s where the raw model
+  stays flat. **Ask which feature the dropped rows carried, not which class they
+  were labelled.**
+- **Class-balanced F1 magnifies a 4-burst class by 12.** It resamples every
+  class to ~49, so the 0.89 -> 0.83 that this pair showed at one seed is two
+  ExFlap bursts. Report the burst counts beside it or it reads as a regression.
+- **Still keep exp197, trained on the raw data, as the working model.** A
+  judgement, not a measurement, and it cuts against the table above. The whole
+  case for cleaning rests on the GPS-speed check, and GPS speed is also what
+  flagged the 26 bursts in the first place — the same signal stands on both
+  sides of the argument, so it cannot referee itself. GPS speed can be badly
+  wrong: 16 of the 26 flags are one device on one day, which reads as a device
+  fault rather than 16 annotation errors. A model that leans *less* on speed is
+  then the safer one, and the cleaning makes it lean *more* (see the ExFlap
+  entry above). The evidence on the other side is 4 ExFlap valid bursts, far
+  too few to overrule that. Revisit when a second logger, or more ExFlap data,
+  can settle it.
+
 ## `load_csv_pandas` timestamps are 1000x too small under pandas 3
 
 `bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64") // 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the

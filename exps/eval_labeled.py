@@ -24,6 +24,12 @@ recomputes from the checkpoints rather than reading those files, so it works for
 any model and any perturbation. It replaces the former
 `compare_per_class_metrics.py` and `eval_rotation_robustness.py`.
 
+Two runs compare only on bursts both held out, at the same epoch. `split_file`
+rebuilds the valid split a run borrowed from another data file, and
+`checkpoints` picks a fixed-epoch checkpoint; both mirror
+`scripts/batch_train_supervised.py`. Train accuracy stays each run's own and
+does not compare.
+
   /home/fatemeh/miniconda3/envs/bird/bin/python exps/eval_labeled.py
 """
 
@@ -66,6 +72,22 @@ def apply_rot(x, mat):
     return out
 
 
+def burst_keys(cfg, data_file):
+    """`bd.burst_keys` in this file's cfg-first calling convention."""
+    return bd.burst_keys(data_file, cfg.labels_to_use, cfg.glen)
+
+
+def valid_keys(cfg, data_file, device):
+    """The bursts another data file holds out, as keys of `burst_keys`."""
+    keys = burst_keys(cfg, data_file)
+    _, ldts = bd.load_csv_pandas(data_file, cfg.labels_to_use, glen=cfg.glen)
+    ldts = torch.tensor(ldts, device=device)
+    _, valid = bu.stratified_split(
+        ldts[:, 0], split_ratios=[cfg.train_per, 1 - cfg.train_per], seed=cfg.seed
+    )
+    return {keys[i] for i in valid.cpu().numpy()}
+
+
 def build_splits(cfg, device, in_channels=4):
     """The exact train/valid split of scripts/batch_train_supervised.py.
 
@@ -75,14 +97,32 @@ def build_splits(cfg, device, in_channels=4):
 
     `in_channels=7` appends the magnitude channels of `bd.add_magnitude_features`,
     for a model trained with `add_magnitudes`. The split itself does not change.
+
+    `cfg.split_file` mirrors the option of the same name in
+    `scripts/batch_train_supervised.py`: a run trained with it borrowed another
+    file's valid split, so this rebuilds that split instead of the stratified
+    one.
+
     """
+    # `.get`: callers that do not compare two data files, such as
+    # `exps/plot_errors.py`, do not carry the key at all.
+    split_file = cfg.get("split_file")
     bu.set_seed(cfg.seed)
     igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=cfg.glen)
     igs = torch.tensor(igs, device=device)
     ldts = torch.tensor(ldts, device=device)
-    splits = bu.stratified_split(
-        ldts[:, 0], split_ratios=[cfg.train_per, 1 - cfg.train_per], seed=cfg.seed
-    )
+    if split_file:
+        keys = burst_keys(cfg, cfg.data_file)
+        borrowed = valid_keys(cfg, split_file, device)
+        is_valid = torch.tensor(
+            [k in borrowed for k in keys], dtype=torch.bool, device=device
+        )
+        all_idx = torch.arange(len(keys), device=device)
+        splits = (all_idx[~is_valid], all_idx[is_valid])
+    else:
+        splits = bu.stratified_split(
+            ldts[:, 0], split_ratios=[cfg.train_per, 1 - cfg.train_per], seed=cfg.seed
+        )
     out = {}
     for name, idx in zip(("train", "valid"), splits):
         dataset = bd.BirdDataset(
@@ -105,11 +145,22 @@ def channels_of(cfg, exp):
     return int(cfg.in_channels.get(str(exp), 4))
 
 
+def checkpoint_of(cfg, exp):
+    """Checkpoint file for a run.
+
+    The best-validation one unless `checkpoints` names another. That argmax
+    lands at a different epoch in every run, so to compare two runs as models
+    rather than as checkpoint ages, point both at a fixed epoch instead --
+    `<exp>_4000.pth`, written when training runs with `save_final`.
+    """
+    return cfg.get("checkpoints", {}).get(str(exp), f"{exp}_best.pth")
+
+
 def load_model(cfg, exp, device):
     model = bm.BirdModelSmallDilated(
         channels_of(cfg, exp), 20, len(cfg.labels_to_use)
     ).to(device)
-    bm.load_model(f"{cfg.save_path}/{exp}_best.pth", model, device)
+    bm.load_model(f"{cfg.save_path}/{checkpoint_of(cfg, exp)}", model, device)
     model.eval()
     return model
 
@@ -256,7 +307,6 @@ def main(cfg):
         + ", ".join(f"exp{e} {channels_of(cfg, e)}" for e in cfg.model_exps)
         + "\n"
     )
-
     print("## Accuracy\n")
     print(as_markdown(accuracy_table(cfg, splits_by_ch, models, names)))
 
@@ -286,12 +336,18 @@ def main(cfg):
 
 if __name__ == "__main__":
     config = {
-        "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
+        "data_file": "/home/fatemeh/Downloads/bird/data/final/starts_clean.csv",
+        # Borrow this file's valid split instead of splitting data_file, for a
+        # run trained with the same option. None otherwise.
+        "split_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
         "save_path": "/home/fatemeh/Downloads/bird/results",
-        "model_exps": [194, 196, 197],  # baseline first, then the model of interest
+        "model_exps": [199, 200],  # baseline first, then the model of interest
         # Input width per checkpoint; 7 means it was trained with add_magnitudes.
         # Anything not listed is 4.
-        "in_channels": {"197": 7},
+        "in_channels": {"199": 7, "200": 7},
+        # Checkpoint per run; the default is <exp>_best.pth. A fixed epoch
+        # compares two runs as models, not as checkpoint ages.
+        "checkpoints": {"199": "199_4000.pth", "200": "200_4000.pth"},
         "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
         "seed": 32984,
         "train_per": 0.9,

@@ -40,7 +40,35 @@ def build_config(base_config, overrides=None):
     cfg_paths = OmegaConf.structured(PathConfig(save_path=Path(cfg.save_path)))
     cfg = OmegaConf.merge(cfg, cfg_paths)
     cfg.min_lr = cfg.max_lr / 10 if cfg.min_lr is None else cfg.min_lr
+    cfg.split_seed = cfg.seed if cfg.split_seed is None else cfg.split_seed
     return cfg
+
+
+def split_from_file(cfg, device):
+    """Take the valid split from `cfg.split_file`, matched burst by burst.
+
+    For an A/B where only the *data* changed. `stratified_split` walks the
+    classes with one generator, so any change in a class count reshuffles every
+    class after it and the two runs end up validating on different bursts (see
+    docs/lesson_learned.md). Pointing the second run at the split of the first
+    pins the valid set, and the only difference left is the rows the two files
+    differ by.
+
+    Valid = the bursts of `cfg.data_file` that `cfg.split_file` holds out.
+    Train = every other burst of `cfg.data_file`, so bursts `split_file` does
+    not contain are trained on.
+    """
+    keys = bd.burst_keys(cfg.data_file, cfg.labels_to_use, glen=20)
+    other_keys = bd.burst_keys(cfg.split_file, cfg.labels_to_use, glen=20)
+    _, ldts = bd.load_csv_pandas(cfg.split_file, cfg.labels_to_use, glen=20)
+    ldts = torch.tensor(ldts, device=device)
+    _, valid = bu.stratified_split(
+        ldts[:, 0], split_ratios=[cfg.train_per, 1 - cfg.train_per], seed=cfg.split_seed
+    )
+    keep = {other_keys[i] for i in valid.cpu().numpy()}
+    is_valid = torch.tensor([k in keep for k in keys], dtype=torch.bool, device=device)
+    idx = torch.arange(len(keys), device=device)
+    return idx[~is_valid], idx[is_valid]
 
 
 def main(cfg):
@@ -96,11 +124,14 @@ def main(cfg):
         igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=20)
         igs = torch.tensor(igs, device=device)
         ldts = torch.tensor(ldts, device=device)
-        split_ratios = [cfg.train_per, 1 - cfg.train_per]
-        splits = bu.stratified_split(
-            ldts[:, 0], split_ratios=split_ratios, seed=cfg.seed
-        )
-        idx1, idx2 = splits[0], splits[1]
+        if cfg.split_file is None:
+            split_ratios = [cfg.train_per, 1 - cfg.train_per]
+            splits = bu.stratified_split(
+                ldts[:, 0], split_ratios=split_ratios, seed=cfg.split_seed
+            )
+            idx1, idx2 = splits[0], splits[1]
+        else:
+            idx1, idx2 = split_from_file(cfg, device)
         igs_train = igs[idx1].cpu().numpy()
         igs_eval = igs[idx2].cpu().numpy()
         ldts_train = ldts[idx1].cpu().numpy()
@@ -258,9 +289,13 @@ def main(cfg):
                 )
                 print(f"Best model accuracy: {best_accuracy:.2f}% at epoch: {epoch}")
 
-    # Save the final model
-    # 1-based save for epoch
-    # bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
+    # Save the final model, as `<exp>_<epoch>.pth`. `<exp>_best.pth` is the
+    # argmax over every epoch of a small valid split, so it lands at a different
+    # epoch in every run and two runs compared through it compare checkpoint
+    # ages as much as models (see docs/lesson_learned.md). A fixed epoch does
+    # not. 1-based save for epoch.
+    if cfg.save_final:
+        bm.save_model(cfg.save_path, cfg.exp, epoch, model, optimizer, scheduler)
     # """
 
     bm.load_model(cfg.save_path / f"{cfg.exp}_best.pth", model, device)
@@ -333,12 +368,20 @@ if __name__ == "__main__":
         "data_file": "/home/fatemeh/Downloads/bird/data/final/starts.csv",
         "valid_file": None,
         "test_file": None,
+        # Reuse another data file's valid split instead of splitting this one.
+        # For an A/B where only the data changed; None for a normal run.
+        "split_file": None,
         # General
         "seed": 32984,
+        # Seed for the train/valid split only; defaults to `seed`. Set it to
+        # hold the split still while `seed` varies, to separate what a change
+        # does from what the training trajectory does.
+        "split_seed": None,
         "exp": 192,
         "num_workers": 1,
         "no_epochs": 4000,
         "save_every": 4000,
+        "save_final": False,  # also keep the last epoch, not only the best one
         # Data
         "train_per": 0.9,
         "data_per": 1.0,
@@ -385,21 +428,8 @@ if __name__ == "__main__":
     }
 
     # One entry per training run; each overrides base_config.
+    # Runs and findings are in docs/experiments_log.md.
     experiments = [
-        # {
-        #     "exp": 196,
-        #     "labels_to_use": all_labels,
-        #     "add_magnitudes": False,
-        #     "model": {
-        #         "name": "BirdModelSmallDilated",
-        #         "parameters": {
-        #             "in_channels": 4,
-        #             "mid_channels": 20,
-        #             "out_channels": len(all_labels),
-        #             "dropout": 0.15,
-        #         },
-        #     },
-        # },
         {
             "exp": 197,
             "labels_to_use": all_labels,

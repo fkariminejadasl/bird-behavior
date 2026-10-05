@@ -95,7 +95,10 @@ def predict(bursts, exp, cfg, device):
     x = torch.tensor(data, dtype=torch.float32, device=device).transpose(1, 2)
 
     model = bm.BirdModelSmallDilated(in_channels, 20, len(cfg.labels_to_use)).to(device)
-    bm.load_model(f"{cfg.save_path}/{exp}_best.pth", model, device)
+    # Best-validation checkpoint unless `checkpoints` names another, e.g. a
+    # fixed-epoch `<exp>_4000.pth`; see `exps/eval_labeled.py::checkpoint_of`.
+    ckpt = cfg.get("checkpoints", {}).get(str(exp), f"{exp}_best.pth")
+    bm.load_model(f"{cfg.save_path}/{ckpt}", model, device)
     model.eval()
 
     preds, confs = [], []
@@ -303,11 +306,17 @@ if __name__ == "__main__":
         ),
         "save_path": "/home/fatemeh/Downloads/bird/results",
         "out_dir": "/home/fatemeh/Downloads/bird/data/final",
-        "out_name": "unlabeled_triage_6004.csv",
-        "model_exps": [196, 197],  # baseline first, then the model of interest
+        "out_name": "unlabeled_triage_6004_200.csv",
+        # raw seeds then clean seeds, epoch 4000 (see docs/experiments_log.md)
+        "model_exps": [199, 201, 202, 200, 203, 204],
         # Input width per checkpoint; 7 means it was trained with add_magnitudes.
         # Anything not listed is 4.
-        "in_channels": {"197": 7},
+        "in_channels": {str(e): 7 for e in (199, 201, 202, 200, 203, 204)},
+        # Checkpoint per run; the default is <exp>_best.pth. A fixed epoch
+        # compares two runs as models, not as checkpoint ages.
+        "checkpoints": {
+            str(e): f"{e}_4000.pth" for e in (199, 201, 202, 200, 203, 204)
+        },
         "labels_to_use": [0, 1, 2, 3, 4, 5, 6, 8, 9],
         "gps_norm": 22.3012351755624,
         "glen": 20,

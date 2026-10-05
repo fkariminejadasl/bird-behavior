@@ -8,6 +8,102 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp201-204: three seeds a side, and the ExFlap question
+
+Four new runs: exp201/exp202 are exp199 (`starts.csv`) at seeds 1234 and 5678,
+exp203/exp204 are exp200 (`starts_clean.csv`) at the same two. With exp199 and
+exp200 at seed 32984 that is **3 raw runs (199, 201, 202) against 3 clean runs
+(200, 203, 204)** — every triple below is in that order. `split_seed` is held
+at 32984, so all six are scored on the same 437 bursts and the same 4 ExFlap
+ones, at epoch 4000; only the trajectory moves. hash:2e4bc39 plus the
+uncommitted changes. 4 runs, 5m each.
+
+- **Speed conflict is the one real effect, and it is clean.** raw 0.10/0.15/0.13
+  against clean 0.03/0.06/0.04 — the two ranges do not overlap, every clean run
+  beats every raw run (`exps/eval_unlabeled.py`).
+- **Every other check is inside the seed spread.** place 1.12/1.08/1.00 vs
+  1.03/1.07/1.04, unseen flip 4.09/3.97/3.46 vs 3.88/3.86/3.44, rotation flip
+  1.57/1.62/1.34 vs 1.61/1.53/1.36. Ranges overlap, no effect.
+- **The accuracy gap does not survive either.** valid 93.82/94.05/94.05 vs
+  93.59/93.36/94.05, means 93.97 and 93.67. The best clean seed ties the best
+  raw seed, so the 0.23 points exp199 vs exp200 showed was one seed pair.
+- **ExFlap: a shift in the odds, not a break.** On b0 (534, 2012-06-08
+  18:18:19, 15.84 m/s) raw is right 3 of 3, clean 1 of 3; on b3 (782,
+  2014-05-26 10:41:11, 4.99 m/s) raw 3 of 3, clean 2 of 3. But one clean seed
+  (exp204) gets all 4 at 0.79-0.93 confidence, and one raw seed holds b0 at only
+  0.41. Three seeds cannot carry more than a direction here.
+- **The mechanism is GPS speed, measured.** ExFlap runs slow (median 1.39 m/s,
+  p90 8.90) and Flap fast (median 9.63, p10 4.92). b0 at 15.84 and b3 at 4.99
+  are the two ExFlap bursts with Flap-like speeds; b1 and b2 at 0.06 m/s are
+  never wrong in any run. The 26 dropped bursts are the only fast-but-not-flying
+  training examples there were (3.24-17.78 m/s, all SitStand/TerLoco/Pecking),
+  so dropping them sharpens **fast -> Flap**. Sweeping the GPS channel with the
+  accelerometer held fixed: exp200 P(ExFlap) on b3 falls 0.45 -> 0.06 from 0 to
+  20 m/s where exp199 stays flat at 0.79 -> 0.44.
+- Conclusion: **clean the labels.** The fix lands where it was aimed, 2-3x
+  fewer physically impossible predictions, and costs nothing measurable else.
+  Cleaning a land class can still move a flight class, because the classes share
+  the GPS-speed feature, not because the behaviours are related.
+
+## exp199/exp200: the clean-label A/B, made comparable
+
+exp198 vs exp197 mixed three things: the cleaning, a reshuffled split and a
+best-validation checkpoint from a different epoch. This pair removes the last
+two. exp199 = exp197's config on `starts.csv`. exp200 = `starts_clean.csv` with
+`split_file` pointing at `starts.csv`, so it validates on **the same bursts**.
+Both keep epoch 4000 (`save_final`), and both are read there. exp197 untouched.
+hash:2e4bc39 plus the uncommitted changes. 3900/438 and 3875/437, 5m each.
+
+- **exp199 reproduces exp197**: best valid 94.52 at epoch 1996, same as exp197,
+  final 93.84, plateau 93.89. The pipeline is near-deterministic at one seed, so
+  what exp200 does differently is the data.
+- The only difference between the two training sets is the **25 noise bursts**
+  exp199 keeps (`exps/eval_labeled.py` prints this; the 26th is in the valid
+  split of both).
+- Labeled, epoch 4000, the same 437 bursts: valid **93.82 vs 93.59** — 1 burst.
+  Plain F1 0.94 both, every class within 0.03 except ExFlap.
+- **Orientation robustness is now level**, on both measures. Labeled SO(3)
+  accuracy 93.94 vs 93.90 (`exps/eval_labeled.py`), where exp197 vs exp198 on
+  their 260 shared bursts was 95.04 vs 94.31. Unlabeled rotation flip 1.57 vs
+  1.61 (`exps/eval_unlabeled.py`), where exp197 vs exp198 was 1.72 vs 2.00.
+  Two different measurements from two different scripts; both gaps fall to 0.04.
+- Unlabeled (device 6004): speed conflict **0.10 vs 0.03**, place **1.12 vs
+  1.03**, unseen flip **4.09 vs 3.88**, rotation flip 1.57 vs 1.61, mean
+  confidence 0.95 vs 0.96. Agree on 97.2%. exp200 is better or level on every
+  check — place and unseen flip **change sign** from the exp197/exp198 reading.
+- The ExFlap bursts and the accuracy gap are followed up in exp201-204; one
+  seed each settles neither.
+- Conclusion: cleaning the labels is neutral to positive. The earlier
+  regressions were the checkpoint, not the data.
+
+## exp198: exp197 retrained on starts_clean.csv
+
+exp197 with `data_file=starts_clean.csv`, the 26 label-noise bursts dropped.
+Model, seed, augmentation and schedule unchanged, so it is a clean A/B on the
+data. hash:2e4bc39 plus the uncommitted config change. 3877/435 split, 5m14s,
+best epoch 1544.
+
+- val **94.02** / train 95.98 vs exp197's 94.52 / 97.90. Valid F1 0.94 plain,
+  0.84 balanced (exp197 0.95 / 0.90).
+- The two runs do not share a valid split: dropping bursts reshuffles
+  `stratified_split`, so 177 of exp197's 438 valid bursts are in exp198's train
+  set. Neither number above is comparable; exp199/exp200 redo it properly.
+- The balanced F1 gap is 2 bursts: ExFlap 2 of 4 wrong, both called Flap, where
+  exp197 got 4 of 4. Every other class within 0.05 plain F1.
+- Unlabeled (device 6004, `exps/eval_unlabeled.py`): speed conflict **0.03 vs
+  0.11%**, place 1.16 vs 1.09, unseen flip 4.82 vs 4.04, rotation flip 2.00 vs
+  1.72. Agree on 96.8%.
+- **The 0.50 headline gap is checkpoint choice, not data.** Plateaus: exp197
+  93.96 mean over the last 500 epochs (93.61–94.29, final 93.84), exp198 flat
+  93.79. `<exp>_best.pth` is the best valid epoch — 1996 for exp197, 1544 for
+  exp198 — and at matched epochs exp198 fits train harder (97.76 vs 97.13 at
+  epoch 1996), so it is not the weaker run; its argmax landed earlier.
+- The perturbation gaps likely follow the same thing: exp198's checkpoint is
+  ~450 epochs younger and less confident (0.93 vs 0.95), and a less confident
+  model flips more. Untested — no fixed-epoch checkpoint was saved.
+- Conclusion: the same model, as expected. Plateaus differ by 0.17 points and
+  only the check the cleaning targets moves.
+
 ## exp197: rotation-invariant magnitude channels
 
 exp196 with `add_magnitudes=True`: input `[x, y, z, gps, mag, dyn_mag, jerk_mag]`, `BirdModelSmallDilated(7, 20, 9)`, 5,429 params. Data, seed, split,
@@ -60,6 +156,46 @@ transform differs.
   `exps/eval_labeled.py`.
 - Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss; balanced valid
   F1 0.92 -> 0.84 (`exps/eval_labeled.py`).
+
+## Configs for exp196-exp204
+
+Kept here because `scripts/batch_train_supervised.py` holds only the run in
+progress. Everything not listed comes from its `base_config`: seed 32984, 4000
+epochs, `train_per` 0.9, `batch_size` None (one full batch), AdamW, StepLR with
+`step_size` 2000 and `warmup_epochs` 1000, `max_lr` 3e-4, `weight_decay` 1e-2,
+labels `[0, 1, 2, 3, 4, 5, 6, 8, 9]`. Augmentation is
+`bau.BatchRandomRotation3D`, set in `main()`, train set only.
+
+All nine use the same model entry, `in_channels` 7 except exp196, which is 4:
+
+```python
+"model": {
+    "name": "BirdModelSmallDilated",
+    "parameters": {
+        "in_channels": 7,
+        "mid_channels": 20,
+        "out_channels": len(all_labels),
+        "dropout": 0.15,
+    },
+},
+```
+
+A dash means the key is not set, so the `base_config` default applies.
+`data_file` and `split_file` live in `/home/fatemeh/Downloads/bird/data/final/`.
+
+| exp | data_file        | add_magnitudes | split_file | seed  | split_seed | save_final |
+| --- | ---------------- | -------------- | ---------- | ----- | ---------- | ---------- |
+| 196 | starts.csv       | False          | -          | 32984 | -          | -          |
+| 197 | starts.csv       | True           | -          | 32984 | -          | -          |
+| 198 | starts_clean.csv | True           | -          | 32984 | -          | -          |
+| 199 | starts.csv       | True           | -          | 32984 | -          | True       |
+| 200 | starts_clean.csv | True           | starts.csv | 32984 | -          | True       |
+| 201 | starts.csv       | True           | -          | 1234  | 32984      | True       |
+| 202 | starts.csv       | True           | -          | 5678  | 32984      | True       |
+| 203 | starts_clean.csv | True           | starts.csv | 1234  | 32984      | True       |
+| 204 | starts_clean.csv | True           | starts.csv | 5678  | 32984      | True       |
+
+`split_seed` and `save_final` did not exist when exp196-exp198 ran.
 
 ## Reference
 
