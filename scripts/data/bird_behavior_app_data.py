@@ -190,9 +190,10 @@ def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
     """
     Reads calibrated GPS/SENSOR CSV data and converts it to the app input format.
     Each SENSOR row takes the valid GPS record of the same device that is nearest
-    in time, at most 2 seconds before or after. On a tie, the earlier GPS record
-    is used. All SENSOR rows of one burst share one timestamp, so they all get
-    the same GPS record. SENSOR rows without such a GPS record are discarded.
+    in time, at most 2 seconds before or after. If two GPS records are equally
+    near, the earlier one is used. All SENSOR rows of one burst share one
+    timestamp, so they all get the same GPS record. SENSOR rows without such a
+    GPS record are discarded.
     Finally, SENSOR rows are grouped by device_id and UTC_datetime,
     trimmed so each group size is divisible by 20, indexed from zero, and saved to a headerless CSV file.
 

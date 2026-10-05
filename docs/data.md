@@ -225,6 +225,7 @@ the IMU rows of one burst, 0-2 s later.
 5. **Speed from km/h to m/s**: divide by 3.6.
 
 Then rules 7-9 apply, as for the database data (`prepare_app_class_data`).
+`scripts/data/merge_simon_data.py::load_calibrated_rows` uses the same rules 1-5.
 `check_consecutive_gps_sensor_time_diff`, in the same script, prints how far
 apart each fix and the next SENSORS row are.
 

@@ -6,9 +6,10 @@ data/model/script overview is in [docs/description](descriptions.md).
 
 ## Ornitela GPS: match by nearest time, not by file position
 
-`scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` gave each
-burst the GPS row just above it in the file. It now takes the nearest valid fix
-of the same device within 2 s, the earlier one on a tie (`pd.merge_asof`).
+`scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` and
+`scripts/data/merge_simon_data.py::load_calibrated_rows` gave each burst the GPS
+row just above it in the file. Both now take the nearest valid fix of the same
+device within 2 s. If two fixes are equally near, the earlier one is used.
 
 - **The row above is not always the nearest.** A fix 2 s away won over one 1 s
   away, and a burst was dropped when the row above was invalid (more than 2 s
@@ -17,9 +18,13 @@ of the same device within 2 s, the earlier one on a tie (`pd.merge_asof`).
   bursts get another fix (speed change median 0.28 m/s, max 7.78), and 247
   dropped bursts come back. The IMU is unchanged. GPS rows nearly always sit
   right above their burst, which is why the bug was hidden.
-- **Files made before the fix keep the old rule.** `rose_data.csv` is
-  byte-identical to the old code's output; it and the `rose_gimu_behavior*.csv`
-  files made from it need a rerun.
+- **`merge_simon_data.py` also kept x and y unswapped.** It swaps them now, and
+  its output matches `rose_data.csv` exactly on every shared burst.
+- **Rerun:** `rose_data.csv`, `rose_gimu_behavior.csv` (exp125) and its
+  `_1223941_1620120` slice, plus `_197`. The June files also predated the
+  30 m/s cut and the clipping in `infer_save_app_data`, so the rerun also drops
+  6 bursts above 30 m/s and clips 4,621 IMU rows. 8 bursts change class in the
+  full file, none in the slice.
 
 ## Retraining on the cleaned labels (exp198-exp204)
 
