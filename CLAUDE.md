@@ -46,6 +46,8 @@
   the quotes, so a multi-paragraph message still works with one `-m`.
 - Ask for permission before running an experiment (training run). Running one
   costs GPU time and hours.
+- Never overwrite or delete a file outside the repo without asking first. Write
+  new outputs under a new name.
 - When reporting a path, give a full clickable path so it is easy to check.
   Name the exact function or class too, not "the training script".
 - Say which files were inspected before answering a question about the repo.
