@@ -189,11 +189,10 @@ def prepare_database_app_class_data(data_file, save_file, cfg):
 def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
     """
     Reads calibrated GPS/SENSOR CSV data and converts it to the app input format.
-    It keeps GPS records only when latitude and longitude are valid and
-    the next row is a SENSOR record from the same device
-    with an absolute timestamp difference of at most 2 seconds.
-    The valid GPS values are forward-filled to the following SENSOR rows from the same device.
-    SENSOR rows after invalid GPS records are discarded.
+    Each SENSOR row takes the valid GPS record of the same device that is nearest
+    in time, at most 2 seconds before or after. On a tie, the earlier GPS record
+    is used. All SENSOR rows of one burst share one timestamp, so they all get
+    the same GPS record. SENSOR rows without such a GPS record are discarded.
     Finally, SENSOR rows are grouped by device_id and UTC_datetime,
     trimmed so each group size is divisible by 20, indexed from zero, and saved to a headerless CSV file.
 
@@ -204,7 +203,8 @@ def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
       such as Latitude, Longitude, Altitude_m, and speed_km_h.
       SENSOR rows are identified by datatype == "SENSORS" and
       contain IMU acceleration fields x_g, y_g, and z_g. GPS rows
-      with both Latitude and Longitude equal to zero are treated as invalid and are not used.
+      with a missing Latitude or Longitude, or with both equal to zero, are
+      treated as invalid and are not used.
 
     The output file is a CSV file without a header.
     It contains only SENSOR rows that can be matched to a valid nearby GPS row. The output columns are:
@@ -231,43 +231,38 @@ def prepare_calibrated_app_data(data_file: Path, save_file: Path) -> None:
 
     df = pd.read_csv(data_file, usecols=cols)
     df["UTC_datetime"] = pd.to_datetime(df["UTC_datetime"])
+    # File order, to put the rows back after matching.
+    df["row"] = np.arange(len(df))
 
     is_gps = df["datatype"].eq("GPS")
     is_sensor = df["datatype"].eq("SENSORS")
 
-    gps_next_sensor = (
+    valid_gps = (
         is_gps
-        & df["datatype"].shift(-1).eq("SENSORS")
-        & df["device_id"].eq(df["device_id"].shift(-1))
+        & df["Latitude"].notna()
+        & df["Longitude"].notna()
         & ~(df["Latitude"].eq(0) & df["Longitude"].eq(0))
     )
 
-    time_diff = df["UTC_datetime"].shift(-1) - df["UTC_datetime"]
-
-    valid_gps = gps_next_sensor & (time_diff.abs() <= pd.Timedelta(seconds=2))
-
-    # The latest GPS row before each SENSOR row.
-    df["gps_datetime"] = df["UTC_datetime"].where(is_gps)
-    df["gps_datetime"] = df.groupby("device_id")["gps_datetime"].ffill()
-
-    # The latest valid GPS row before each SENSOR row.
-    df["valid_gps_datetime"] = df["UTC_datetime"].where(valid_gps)
-    df["valid_gps_datetime"] = df.groupby("device_id")["valid_gps_datetime"].ffill()
-
-    # Keep GPS values only from valid GPS rows, then forward-fill them.
     gps_cols = ["Latitude", "Longitude", "Altitude_m", "speed_km_h"]
+    gps = df.loc[valid_gps, ["device_id", "UTC_datetime"] + gps_cols]
+    sensors = df.loc[
+        is_sensor, ["row", "device_id", "UTC_datetime", "x_g", "y_g", "z_g"]
+    ]
 
-    for col in gps_cols:
-        df[col] = df[col].where(valid_gps)
-        df[col] = df.groupby("device_id")[col].ffill()
+    # The nearest valid GPS row of the same device, within 2 seconds. Both sides
+    # must be sorted by time; a stable sort keeps the sample order in a burst.
+    df_app = pd.merge_asof(
+        sensors.sort_values("UTC_datetime", kind="stable"),
+        gps.sort_values("UTC_datetime", kind="stable"),
+        on="UTC_datetime",
+        by="device_id",
+        direction="nearest",
+        tolerance=pd.Timedelta(seconds=2),
+    )
 
-    # Keep SENSOR rows only when the most recent GPS is valid.
-    df_app = df[
-        is_sensor
-        & df["gps_datetime"].eq(df["valid_gps_datetime"])
-        & df["Latitude"].notna()
-        & df["Longitude"].notna()
-    ].copy()
+    # Keep SENSOR rows only when a GPS row matched, in file order.
+    df_app = df_app[df_app["Latitude"].notna()].sort_values("row").copy()
 
     # Keep only rows up to a count divisible by 20 per device_id and SENSOR datetime.
     df_app["index"] = df_app.groupby(["device_id", "UTC_datetime"]).cumcount()

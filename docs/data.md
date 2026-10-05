@@ -207,30 +207,22 @@ Also to know:
 ### Ornitela data
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data`. The input
-is one calibrated CSV, in time order, with GPS rows and IMU rows (`datatype`
-GPS or SENSORS). The IMU is already in g. There is no index. Usually a GPS row
-is followed by the IMU rows of one burst, 0-2 s later.
+is one calibrated CSV with GPS rows and IMU rows (`datatype` GPS or SENSORS).
+The IMU is already in g. There is no index. Usually a GPS row is followed by
+the IMU rows of one burst, 0-2 s later.
 
 1. **A burst is the IMU rows of one device with the same time.** Only whole
    bursts of 20 are kept: 45 rows give 40 (two bursts), 15 rows give none. Rows
    are indexed from 0. Without an index, a missing sample cannot be found.
-2. **Each burst takes the GPS row just above it in the file**: its speed,
-   latitude, longitude and altitude. The burst is dropped unless that GPS row
-   is:
-   - from the same device,
-   - at most 2 s before or after the burst,
-   - not at latitude 0 and longitude 0.
-3. **With several GPS rows close by, the one just above wins**, not the nearest
-   in time. Example, in file order: fixes at -2, -1 and 0 s, the burst, then
-   fixes at +1 and +2 s. The burst takes the fix at 0 s; the fixes after it are
-   never used for it. If the row just above is more than 2 s away, the burst
-   is dropped, even when an earlier fix is closer.
+2. **Each burst takes the GPS fix nearest in time**, at most 2 s before or
+   after. It gets the fix's speed, latitude, longitude and altitude. Only fixes
+   of the same device count, and not fixes at latitude 0 and longitude 0. A
+   burst with no fix within 2 s is dropped.
+3. **Example.** With fixes at -2, -1, 0, +1 and +2 s, the burst takes the fix
+   at 0 s. With fixes only at -1 and +1 s, it takes the earlier one, at -1 s.
 4. **x and y are swapped**, to match the UvA-BiTS axes of the labeled data: the
    model's x is Ornitela `y_g`, and its y is `x_g`.
 5. **Speed from km/h to m/s**: divide by 3.6.
-
-Rare case: one GPS row followed by two bursts. Both take it, and only the first
-is checked against the 2 s.
 
 Then rules 7-9 apply, as for the database data (`prepare_app_class_data`).
 `check_consecutive_gps_sensor_time_diff`, in the same script, prints how far
