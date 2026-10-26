@@ -2,18 +2,19 @@
 
 ### List of Operations
 
-- general on dataframe or group: 
-    - `pd.DataFrame | pd.read_csv | .to_csv`
-    - `.iloc, .loc| .iat, .at | .drop`
-    - `.index | .sort_index() | .drop(index) | .reset_index(drop=True), .reset_index(name="something") |.some_operation(..., ignore_index=True) | .rename`
-    - `len(df), df.shape, df.size | .equals | pd.concat | .round(4) | .copy()`
-    - `sort_values`
-    - `.drop_duplicates(keep=False|"first"|"last")| .duplicated()`
-- group: 
-    - `.get_group | .groups | .groups.keys()`
-    - `apply | filter | .transform('size')`
+- general on dataframe or group:
+  - `pd.DataFrame | pd.read_csv | .to_csv`
+  - `.iloc, .loc| .iat, .at | .drop`
+  - `.index | .sort_index() | .drop(index) | .reset_index(drop=True), .reset_index(name="something") |.some_operation(..., ignore_index=True) | .rename`
+  - `len(df), df.shape, df.size | .equals | pd.concat | .round(4) | .copy()`
+  - `sort_values`
+  - `.drop_duplicates(keep=False|"first"|"last")| .duplicated()`
+- group:
+  - `.get_group | .groups | .groups.keys()`
+  - `apply | filter | .transform('size')`
 
 ### Read and Write
+
 ```python
 import pandas as pd
 
@@ -28,7 +29,6 @@ df.to_csv(save_file, index=False, header=None, float_format="%.6f")
 ```
 
 ### General Operations
-
 
 #### Get elements, subset/slicing, removing
 
@@ -140,6 +140,7 @@ df[~df[['id', 'ts']].apply(tuple, axis=1).isin(to_remove)]
 #### Sort
 
 Sort by columns 0 and then 1:
+
 ```python
 df2 = pd.DataFrame({0:[2,3,1,2,3,1],1:["2014-04-20 12:58:41","2012-05-15 03:10:11","2014-05-20 13:03:30","2014-05-20 12:58:41","2012-06-15 03:10:11","2014-06-20 13:03:30"], 2:[0,1,1,1,0,0]})
 df2.sort_values(by=[0,1], ignore_index=True)
@@ -148,7 +149,7 @@ df2.sort_values(by=[0,1]).reset_index(drop=True)
 
 #### Duplicates
 
-``` python
+```python
 df.drop_duplicated()
 ```
 
@@ -204,7 +205,7 @@ We group every 20 items. So first we add extra column of indexes, which the data
 
 Now we group based on the new column. We can also group by column 0 and 1 since they are the same values. Then we assert that the 3rd column is unique.
 
-``` python
+```python
 a[8] = a.index //20 # add extra column
 grouped = a.groupby([0,1,8]) # group by columns 0, 1, 8
 for n, g in grouped:
@@ -279,7 +280,7 @@ modified_df with reset_index
 
 Modify the indices (df[2]) to follow an increasing order instead of a fixed number. Currently, all groups have the same starting index (e.g., 20). After this change, the indices will follow an increasing order.
 
-``` python
+```python
 def modify_index(group):
     if len(group) == 20:
         # Get the starting value from the third column (df[2])
@@ -297,7 +298,7 @@ modified_df2 = (
 modified_df2.to_csv("s_data_modified.csv", index=False, header=None, float_format="%.6f")
 ```
 
-``` python
+```python
 >>> df
          0                    1   2  3         4         5         6         7
 0      533  2012-05-15 03:10:11  20  6 -0.327772 -0.255841  0.807911  0.020033
@@ -321,8 +322,8 @@ invalid_groups = grouped.filter(lambda x: len(x) != 20)
 invalid_indices = invalid_groups.index.tolist()
 invalid_rows = df.loc[invalid_indices]
 ```
-</details>
 
+</details>
 
 ### Example: find common and different rows
 
@@ -341,6 +342,7 @@ c[c==True].index.values
 ```
 
 ### Example: If there are duplicates in both DataFrames, common also contains duplicates
+
 ```python
 df1 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig.csv", header=None)
 df2 = pd.read_csv("/home/fatemeh/Downloads/bird/data/final/s_data_orig_with_index.csv", header=None)

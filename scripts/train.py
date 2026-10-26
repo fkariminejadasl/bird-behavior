@@ -308,15 +308,15 @@ def get_config():
 
 if __name__ == "__main__":
     # fmt: off
-    cfg.seed = 1234
-    cfg.train_per = 0.5
-    cfg.no_epochs = 2000
-    exclude = {2}  # {2}  # {1, 8}
-    all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
-    cfg.model.parameters.out_channels = len(cfg.labels_to_use)
-    cfg.exp = 137  # "181"
-    cfg.save_path = "/home/fatemeh/Downloads/bird/results/1discover_2"
+    # cfg.seed = 1234
+    # cfg.train_per = 0.5
+    # cfg.no_epochs = 2000
+    # exclude = {2}  # {2}  # {1, 8}
+    # all_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]  # [0, 2, 4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    # cfg.labels_to_use = sorted(set(all_labels) - set(exclude))
+    # cfg.model.parameters.out_channels = len(cfg.labels_to_use)
+    # cfg.exp = 137  # "181"
+    # cfg.save_path = "/home/fatemeh/Downloads/bird/results/1discover_2"
     main(cfg)
     # fmt: on
 

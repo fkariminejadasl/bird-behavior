@@ -11,9 +11,14 @@ converted to its numeric class ID in the merged output.
 header. The script reads ``device_id``, ``UTC_datetime``, ``datatype``,
 ``Latitude``, ``Longitude``, ``Altitude_m``, ``speed_km_h``, ``x_g``, ``y_g``,
 and ``z_g``. GPS rows are identified with ``datatype == "GPS"`` and SENSOR/IMU
-rows are identified with ``datatype == "SENSORS"``. In this file the GPS
-timestamp is one row earlier than the matching SENSOR/IMU timestamp, so each
-valid GPS location is attached to the next SENSOR rows for the same device.
+rows are identified with ``datatype == "SENSORS"``. A burst is the SENSOR rows
+of one device with one timestamp. Each burst takes the valid GPS fix of the
+same device that is nearest in time, at most 2 seconds before or after. If
+two fixes are equally near, the earlier one is used. A valid fix has a latitude
+and a longitude that are not both 0. This is the rule of
+``prepare_calibrated_app_data`` in
+``bird_behavior_app_data.py``. x and y are swapped, as Ornitela devices switch
+them.
 
 Output file
 -----------
@@ -27,6 +32,7 @@ behavior class. Missing ``None`` or ``NA`` values are written as empty strings.
 
 import argparse
 import csv
+from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict
 from datetime import datetime
 from math import isfinite
@@ -118,57 +124,88 @@ def is_zero(value: str) -> bool:
         return False
 
 
+def load_valid_gps(
+    rows: list[dict[str, str]],
+) -> dict[str, tuple[list[datetime], list[dict[str, str]]]]:
+    """Valid GPS fixes per device, as (times, fixes), sorted by time.
+
+    A fix is valid when it has a latitude and a longitude that are not both 0.
+    The sort is stable, so fixes with the same time keep the file order.
+    """
+    fixes_by_device = defaultdict(list)
+    for row in rows:
+        if clean(row["datatype"]) != "GPS":
+            continue
+        latitude = clean(row["Latitude"])
+        longitude = clean(row["Longitude"])
+        if not latitude or not longitude:
+            continue
+        if is_zero(latitude) and is_zero(longitude):
+            continue
+        fix = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude": clean(row["Altitude_m"]),
+            "speed_km_h": clean(row["speed_km_h"]),
+        }
+        time = parse_datetime(row["UTC_datetime"])
+        fixes_by_device[clean(row["device_id"])].append((time, fix))
+
+    gps_by_device = {}
+    for device_id, fixes in fixes_by_device.items():
+        fixes.sort(key=lambda item: item[0])
+        gps_by_device[device_id] = (
+            [time for time, _ in fixes],
+            [fix for _, fix in fixes],
+        )
+    return gps_by_device
+
+
+def nearest_gps(
+    times: list[datetime], fixes: list[dict[str, str]], time: datetime
+) -> Optional[dict[str, str]]:
+    """The fix nearest to `time`, at most MAX_GPS_SENSOR_TIME_DIFF_SECONDS away.
+
+    If two fixes are equally near, the earlier one. None when no fix is close
+    enough.
+    """
+    before = bisect_right(times, time) - 1  # the last fix at or before `time`
+    after = bisect_left(times, time)  # the first fix at or after `time`
+    nearest, nearest_diff = None, None
+    for i in (before, after):  # `before` first, so it wins when equally near
+        if 0 <= i < len(times):
+            diff = abs((times[i] - time).total_seconds())
+            if diff > MAX_GPS_SENSOR_TIME_DIFF_SECONDS:
+                continue
+            if nearest_diff is None or diff < nearest_diff:
+                nearest, nearest_diff = fixes[i], diff
+    return nearest
+
+
 def load_calibrated_rows(calibrated_file: Path) -> list[list[str]]:
     with calibrated_file.open("r", newline="") as f:
         rows = list(csv.DictReader(f))
 
-    latest_gps_by_device: dict[str, Optional[dict[str, str]]] = {}
+    gps_by_device = load_valid_gps(rows)
+    # All SENSOR rows of a burst share one timestamp, so they share one fix.
+    gps_by_burst: dict[tuple[str, str], Optional[dict[str, str]]] = {}
     grouped_rows: dict[tuple[str, str], list[list[str]]] = defaultdict(list)
     group_order: list[tuple[str, str]] = []
 
-    for row_index, row in enumerate(rows):
+    for row in rows:
+        if clean(row["datatype"]) != "SENSORS":
+            continue
+
         device_id = clean(row["device_id"])
-        datatype = clean(row["datatype"])
-
-        if datatype == "GPS":
-            latitude = clean(row["Latitude"])
-            longitude = clean(row["Longitude"])
-            next_row = rows[row_index + 1] if row_index + 1 < len(rows) else None
-            latest_gps_by_device[device_id] = None
-
-            if next_row is not None:
-                time_diff = parse_datetime(next_row["UTC_datetime"]) - parse_datetime(
-                    row["UTC_datetime"]
-                )
-                valid_gps = (
-                    clean(next_row["datatype"]) == "SENSORS"
-                    and clean(next_row["device_id"]) == device_id
-                    and latitude
-                    and longitude
-                    and not (is_zero(latitude) and is_zero(longitude))
-                    and abs(time_diff.total_seconds())
-                    <= MAX_GPS_SENSOR_TIME_DIFF_SECONDS
-                )
-                if valid_gps:
-                    latest_gps_by_device[device_id] = {
-                        "latitude": latitude,
-                        "longitude": longitude,
-                        "altitude": clean(row["Altitude_m"]),
-                        "speed_km_h": clean(row["speed_km_h"]),
-                    }
-            continue
-
-        if datatype != "SENSORS":
-            continue
-
-        gps = latest_gps_by_device.get(device_id)
-        if gps is None:
-            continue
-
         date_time = clean_datetime(row["UTC_datetime"])
         key = (device_id, date_time)
-        if key not in grouped_rows:
-            group_order.append(key)
+        if key not in gps_by_burst:
+            times, fixes = gps_by_device.get(device_id, ([], []))
+            time = parse_datetime(row["UTC_datetime"])
+            gps_by_burst[key] = nearest_gps(times, fixes, time)
+        gps = gps_by_burst[key]
+        if gps is None:
+            continue
 
         speed = clean(gps["speed_km_h"])
         x_g = format_imu(row["x_g"])
@@ -188,14 +225,16 @@ def load_calibrated_rows(calibrated_file: Path) -> list[list[str]]:
             continue
 
         altitude = gps["altitude"] if valid_number(gps["altitude"]) else "-1"
+        if key not in grouped_rows:
+            group_order.append(key)
         grouped_rows[key].append(
             [
                 device_id,
                 date_time,
                 "",
                 "-1",
+                y_g,  # In Ornitela devices x and y switched
                 x_g,
-                y_g,
                 z_g,
                 f"{float(speed) / 3.6:.6f}" if speed else "",
                 gps["latitude"],

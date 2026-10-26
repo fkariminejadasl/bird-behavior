@@ -239,6 +239,38 @@ def read_json_data(json_path: Union[Path, str]):
     return labels, label_ids, device_ids, time_stamps, all_measurements
 
 
+def add_magnitude_features(data: np.ndarray) -> np.ndarray:
+    """N x L x 4 (acc x, y, z, GPS speed) -> N x L x 7, three channels appended.
+
+    All three are norms of an acceleration vector, so all three are exactly
+    invariant under a rotation shared by the whole burst -- which is what
+    `RandomRotation3D` applies. The rotation augmentation therefore leaves them
+    alone, and they hand the model the invariant it would otherwise have to
+    learn from the augmentation. None of them is reconstructable by a 1-D conv
+    stack, which can only take linear combinations across channels.
+
+      mag      ||a_t||, total acceleration regardless of direction. ~1 g when
+               the bird is still, since only gravity is left.
+      dyn_mag  ||a_t - mean_t(a)||, motion after the static (gravity + posture)
+               component is removed. This is VeDBA (Vectorial Dynamic Body
+               Acceleration, the standard movement-intensity measure in
+               bio-logging) taken over the burst mean; a 20 sample burst is too
+               short for the running mean it is usually computed with.
+      jerk_mag ||a_t - a_{t-1}||, how abruptly the acceleration changes. Per
+               sample, not per second: multiply by 20 Hz for g/s.
+
+    `jerk_mag` is undefined at t=0 and gets the t=1 value. Padding it with zero
+    instead would put a "no motion" sample in every burst and pull the channel's
+    time mean and max down for exactly the classes it is meant to separate.
+    """
+    acc = data[:, :, :3]
+    mag = np.linalg.norm(acc, axis=2)
+    dyn_mag = np.linalg.norm(acc - acc.mean(axis=1, keepdims=True), axis=2)
+    jerk_mag = np.linalg.norm(np.diff(acc, axis=1), axis=2)  # L-1 long
+    jerk_mag = np.concatenate([jerk_mag[:, :1], jerk_mag], axis=1)  # edge-replicate
+    return np.concatenate([data, np.stack([mag, dyn_mag, jerk_mag], axis=2)], axis=2)
+
+
 class BirdDataset(Dataset):
     def __init__(
         self,
@@ -246,13 +278,18 @@ class BirdDataset(Dataset):
         ldts: np.ndarray = None,  # Nx3
         transform=None,
         channel_first=True,
+        add_magnitudes=False,
     ):
         """
         dtype: all_measurements np.float32
         dtype: ldts np.int64 or None (if no labels are provided)
         :param channel_first: If True, data is returned in CxL format (channel-first). Otherwise, LxC (channel-last).
+        :param add_magnitudes: If True, append the three rotation-invariant
+            channels of `add_magnitude_features`, giving 7 channels instead of 4.
         """
         self.data = all_measurements.copy()  # NxLxC C=4
+        if add_magnitudes:
+            self.data = add_magnitude_features(self.data)
         # normalize gps speed by max
         self.data[:, :, 3] = self.data[:, :, 3] / 22.3012351755624
         # mean  = self.data.mean(axis=(0,1))                      # [C]
@@ -288,6 +325,38 @@ class BirdDataset(Dataset):
             return data, ldt  # Return both data and label
         else:
             return data
+
+
+class GpuBatches:
+    """Keep a whole `BirdDataset` on the GPU and yield shuffled batches.
+
+    A drop-in for `DataLoader` in the training loop, which only iterates its
+    loader. It skips the per-sample `from_numpy`/transpose/collate work, and it
+    lets the augmentation run once per batch on the GPU instead of once per
+    sample on the CPU -- together worth roughly 10x an epoch on `starts.csv`.
+
+    `transform` must be a batched transform (the `Batch*` classes in
+    `data_augmentation`), since it receives a channel-first (N, C, T) batch.
+    """
+
+    def __init__(self, dataset, device, batch_size=None, transform=None):
+        data = torch.from_numpy(dataset.data).to(device)  # N x T x C, normalized
+        self.data = data.transpose(1, 2).contiguous()  # -> N x C x T
+        self.ldts = torch.from_numpy(dataset.ldts).long().to(device)
+        self.batch_size = len(dataset) if batch_size is None else batch_size
+        self.transform = transform
+
+    def __len__(self):
+        return (self.data.shape[0] + self.batch_size - 1) // self.batch_size
+
+    def __iter__(self):
+        indices = torch.randperm(self.data.shape[0], device=self.data.device)
+        for start in range(0, len(indices), self.batch_size):
+            selected = indices[start : start + self.batch_size]
+            data = self.data[selected]
+            if self.transform is not None:
+                data = self.transform(data)
+            yield data, self.ldts[selected]
 
 
 class BirdDatasetNoNorm(Dataset):
@@ -997,6 +1066,22 @@ def load_csv_pandas(data_file, labels_to_use, glen=20):
     igs = df[[4, 5, 6, 7]].values.reshape(-1, glen, 4)
     ldts = df[[3, 0, "ts", 2]].values.reshape(-1, glen, 4)
     return igs, ldts[:, 0, :]
+
+
+def burst_keys(data_file, labels_to_use, glen=20):
+    """One (device id, datetime text, start index) per burst, in load order.
+
+    Reads the CSV exactly as `load_csv_pandas` does, so key i names burst i
+    there. The timestamp `load_csv_pandas` returns cannot do this job: under
+    pandas 3 it is 1000x too small (see docs/lesson_learned.md).
+
+    Used to carry one run's split over to another data file, and to compare two
+    files burst by burst.
+    """
+    df = pd.read_csv(data_file, header=None)
+    df = df[df[7] < 30.0]
+    df = df[df[3].isin(list(labels_to_use))].reset_index(drop=True)
+    return [tuple(row) for row in df.iloc[::glen][[0, 1, 2]].itertuples(index=False)]
 
 
 def load_csv(csv_file, g_len=20):

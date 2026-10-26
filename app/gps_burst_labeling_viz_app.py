@@ -13,6 +13,11 @@ Notes:
     - Each burst is expected to contain 20 IMU rows.
     - The map shows one point per burst.
     - Relabeling writes a complete updated CSV to OUTPUT_FILE.
+
+Data is generated from scripts/data/bird_behavior_app_data.py.
+
+Example of how part the data is obtained by:
+    sed -n '1223941,1620120p' /home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior.csv > /home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv
 """
 
 import math
@@ -32,8 +37,8 @@ from dash import Dash, Input, Output, State, ctx, dcc, html, no_update
 # To run the app: python app/gps_burst_labeling_viz_app.py [input_csv_path] [port]
 GIMU_BEH_FILE = Path(
     # Change this path to your own CSV file.
-    "/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv"  # unlabeled Rose
-    # "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004.csv" # unlabeled database
+    # "/home/fatemeh/Downloads/bird/data/simon/rose_gimu_behavior_1223941_1620120.csv"  # unlabeled Rose
+    "/home/fatemeh/Downloads/bird/data/ssl/gimu_behavior/gull/6004_197.csv"  # unlabeled database
     # "/home/fatemeh/Downloads/bird/data/final/starts_gimu_behavior.csv" # labeled
 )
 GIMU_BEH_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else GIMU_BEH_FILE

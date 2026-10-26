@@ -275,42 +275,42 @@ def get_config():
         #     channel_first=True,  # False
         # ),
         model=dict(
-            name="moment",  # "small", "vit", "moment", "smallemb", "mae"
+            name="small",  # "small", "vit", "moment", "smallemb", "mae"
             channel_first=True,  # False
         ),
-        layer_name="emb",  # (avgpool, fc) small, (fc, norm) vit, moment (emb) no hook
+        layer_name="fc",  # (avgpool, fc) small, (fc, norm) vit, moment (emb) no hook
         save_path=Path("/home/fatemeh/Downloads/bird/results/embeddings_plot"),
         test_data_file=Path("/home/fatemeh/Downloads/bird/data/final/starts.csv"),
-        # model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
+        model_checkpoint=Path("/home/fatemeh/Downloads/bird/results/125_best.pth"),
         # model_checkpoint = Path(f"/home/fatemeh/Downloads/bird/results/1discover_2/{exp}_best.pth"),
         # model_checkpoint=Path("/home/fatemeh/Downloads/bird/snellius/p20_4_best.pth"),
         # model_checkpoint=Path(
         #     "/home/fatemeh/Downloads/bird/snellius/self_distill_1_best.pth"
         # ),
-        model_checkpoint=Path("/home/fatemeh/Downloads/bird/hipster/mpt_1_best.pth"),
+        # model_checkpoint=Path("/home/fatemeh/Downloads/bird/hipster/mpt_1_best.pth"),
         # exp=exp,
         # scp -r fkarimi@hipster.science.uva.nl:/home/fkarimi/dev/bird-behavior/scripts/moment_pretrain.py /home/fatemeh/Downloads/bird/hipster/
         # configs/ds.yaml, slurm/moment_test_hipster.slurm
         # model parameters
-        # # small model
-        # in_channel=4,
-        # mid_channel=30,
-        # out_channel=9,
-        # vit model
-        g_len=20,  # 60, 20
+        # small model
         in_channel=4,
-        out_channel=256,  # 6, 9 #len(cfg.trained_labels)
-        embed_dim=256,  # 256, 16
-        depth=6,  # 6, 1
-        num_heads=8,
-        decoder_embed_dim=256,  # 256, 16
-        decoder_depth=6,  # 6, 1
-        decoder_num_heads=8,
-        mlp_ratio=4,
-        drop=0.0,
-        layer_norm_eps=1e-6,
-        # moment model
-        seq_len=32,
+        mid_channel=30,
+        out_channel=9,
+        # # vit model
+        # g_len=20,  # 60, 20
+        # in_channel=4,
+        # out_channel=256,  # 6, 9 #len(cfg.trained_labels)
+        # embed_dim=256,  # 256, 16
+        # depth=6,  # 6, 1
+        # num_heads=8,
+        # decoder_embed_dim=256,  # 256, 16
+        # decoder_depth=6,  # 6, 1
+        # decoder_num_heads=8,
+        # mlp_ratio=4,
+        # drop=0.0,
+        # layer_norm_eps=1e-6,
+        # # moment model
+        # seq_len=32,
         # General
         seed=1234,
         num_workers=1,  # 17 (a_100), 15 (h_100)

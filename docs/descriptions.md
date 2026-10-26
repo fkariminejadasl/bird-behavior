@@ -1,4 +1,70 @@
+# Description
+
+Data, model, and script overview for the bird-behavior classifier. Companion
+docs: [docs/experiments_log.md](experiments_log.md) (per-run notebook) and
+[docs/lesson_learned.md](lesson_learned.md) (curated lessons).
+
+# Quick reference
+
 ## Data
+
+Labeled bursts: 20 samples at 20 Hz (1 s), 3 IMU axes + GPS speed. 9 classes.
+Optionally 7 channels: `data.py::add_magnitude_features` appends `mag`,
+`dyn_mag` and `jerk_mag`.
+
+| lab | name      | starts   | %    | starts_clean | %    | dropped |
+| --- | --------- | -------- | ---- | ------------ | ---- | ------- |
+| 0   | Flap      | 643      | 14.8 | 643          | 14.9 |         |
+| 1   | ExFlap    | 38       | 0.9  | 38           | 0.9  |         |
+| 2   | Soar      | 537      | 12.4 | 537          | 12.5 |         |
+| 3   | Boat      | 176      | 4.1  | 176          | 4.1  |         |
+| 4   | Float     | 729      | 16.8 | 729          | 16.9 |         |
+| 5   | SitStand  | 1502     | 34.6 | 1492         | 34.6 | **10**  |
+| 6   | TerLoco   | 337      | 7.8  | 326          | 7.6  | **11**  |
+| 8   | Manouvre  | 151      | 3.5  | 151          | 3.5  |         |
+| 9   | Pecking   | 225      | 5.2  | 220          | 5.1  | **5**   |
+|     | **total** | **4338** |      | **4312**     |      | **26**  |
+
+Same class names used as in "Shamoun-Baranes et al, 2016, Flap or soar? How a flight generalist responds to its aerial environment", with these changes:
+
+- SitStand==Stationary, Mauouvre==Mixed, Other is removed.
+
+```
+starts:       {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total 4338
+starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total 4312
+```
+
+- `scripts/data/prepare_labeled_data.py` — the whole labeled pipeline, ending in
+  `starts.csv` then `starts_clean.csv`
+- `exps/find_label_noise.py` — the 26 dropped bursts (GPS speed contradicts the label)
+- `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
+- `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
+
+## Model
+
+- `behavior/model.py::BirdModelSmallDilated` — `in_channels=4` **5,129 params**, `in_channels=7` **5,429 params**, receptive field 25
+  (three k=5 convs, dilation 1/2/3), the app and baseline model
+- `scripts/batch_train_supervised.py` — training; several configs in one run
+- `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
+
+## Eval
+
+- `exps/eval_labeled.py` — accuracy, per-class F1 (plain + balanced), orientation
+  robustness. Markdown ready for `lesson_learned.md`
+- `exps/eval_unlabeled.py` — no ground truth: impossible speed / place / flicker,
+  and rotation instability
+
+Visual:
+
+- `app/gps_burst_labeling_viz_app.py` — IMU trace + map + editable label
+- `exps/save_plots_gt.py` — one PNG per labeled burst, in
+  `/home/fatemeh/Downloads/bird/results/gt2_starts`
+- `exps/plot_errors.py` — one PNG per valid burst a model gets wrong, in
+  `/home/fatemeh/Downloads/bird/results/errors_exp<exp>`
+- `behavior/utils.py::plot_one` — a single burst
+- `scripts/embeddings_plot.py` — t-SNE of the learned features
+
+# Data
 
 ### Unlabeled data
 
@@ -19,7 +85,7 @@ For example, device ID 6210 contains 1,562,699 GPS timestamps and 1,510,999 IMU 
 
 The script first downloads the GPS timestamps, then downloads and filters the IMU and GPS data before saving them to files. For each device, the data is split into shards of 21,000 timestamps.
 
-The code to generate the data is located in `get_data_gull_20.py`.
+The code to generate the data is located in `get_data_gull_20.py`. The CSV shards are then curated (the `30 m/s` cut, the clipping and the normalization above) and written as one Parquet file per device by `exps/inspect_unlabeled_data.py`, which also plots the per-device distributions that motivate the curation.
 
 <details>
 <summary>[Device: number of GPS timestamps. Click to expand]</summary>
@@ -31,11 +97,13 @@ twice_in_ee_track_session_limited = [6009, 7001, 7021]
 
 gull_devices = [45, 50, 51, 52, 53, 54, 121, 130, 132, 133, 134, 135, 297, 298, 304, 311, 317, 319, 320, 324, 325, 326, 327, 329, 344, 355, 373, 533, 534, 535, 536, 537, 538, 540, 541, 542, 604, 606, 608, 752, 754, 757, 781, 782, 784, 798, 805, 806, 868, 870, 871, 1600, 5387, 5388, 5390, 5391, 5392, 5393, 5415, 5416, 5472, 5473, 5496, 5586, 5587, 5588, 5590, 5591, 5592, 5593, 5594, 5599, 5601, 5603, 5687, 5689, 5690, 5692, 5693, 5694, 5697, 5698, 5699, 5700, 5701, 5702, 5704, 5705, 5992, 5993, 5995, 5996, 5997, 5998, 5999, 6004, 6006, 6009, 6011, 6012, 6014, 6015, 6016, 6017, 6071, 6072, 6073, 6074, 6075, 6076, 6077, 6079, 6080, 6082, 6202, 6205, 6206, 6208, 6210, 6212, 6214, 6216, 6217, 6219, 6387, 6392, 6395, 6396, 6397, 6399, 6400, 6401, 6402, 6403, 6501, 6502, 6503, 6504, 6506, 6507, 6508, 6509, 6510, 6511, 6512, 6513, 6514, 6515, 6516, 6517, 6518, 6519, 6520, 6521, 7001, 7002, 7004, 7007, 7008, 7009, 7021, 7036, 7045, 7046, 7047, 7048, 7050, 7055, 7056, 7058, 7059, 7061, 7062, 7063, 7077, 7078, 7079, 7080, 7081, 7083, 7085, 7086, 7120, 7123, 7126, 7131, 7132, 7133, 7135, 7137, 7138, 7139, 7140, 7142, 7145, 7147, 7148, 7149, 7160, 7161, 7162]
 
-device_dates_counts = 
+device_dates_counts =
 {45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 188601, 5996: 73367, 5997: 111763, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6210: 1562699, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 349709, 6396: 251334, 6397: 118675, 6399: 140538, 6400: 22169, 6401: 86693, 6402: 234476, 6403: 60984, 6501: 100562, 6502: 87082, 6503: 98214, 6504: 116412, 6506: 121193, 6507: 258215, 6508: 179569, 6509: 199277, 6510: 186051, 6511: 36190, 6512: 46811, 6513: 22874, 6514: 76022, 6515: 93600, 6516: 108067, 6517: 109611, 6518: 98174, 6519: 3062, 6520: 51335, 6521: 106584, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 206719, 7045: 13362, 7046: 257212, 7047: 58469, 7048: 204935, 7050: 61365, 7055: 318181, 7056: 154, 7058: 40385, 7059: 109733, 7061: 220348, 7062: 168810, 7063: 69725, 7077: 4340, 7078: 34749, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 153063, 7132: 14299, 7133: 102538, 7135: 1259, 7137: 45824, 7138: 80940, 7139: 29756, 7140: 6120, 7142: 96598, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 108954, 7161: 46255, 7162: 37384}
+
 </details>
 
 #### 60-length data (Gull and Crab Plover, less data)
+
 This dataset contains 42,978,660 IMU items (716,311 data points of length 60, also known as bursts or fixes), totaling 3.1 GB (458 MB zipped), from CG_KREUPEL, LBBG_TEXEL, HG_TEXEL, and CP_OMAN. From `224` GPS timestamp files per device, only `63` had groups of length 60, based on my 10-attempt code (`available_60points.csv`). For each device, if at least one of the 10 GPS timestamp attempts returns data, I use that device.
 
 Of the 42,978,660 IMU items, 19,830,960 (CG_KREUPEL, LBBG_TEXEL, HG_TEXEL) are Gull data, and 23,147,700 are Crab Plover data (CP_OMAN).
@@ -46,8 +114,6 @@ The code to download the data is in `get_data_gull_cp_60.py`.
 <summary>[Device: number of GPS timestamps. Click to expand]</summary>
 {45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 128710, 5996: 73367, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 222193, 6396: 193394, 6397: 118675, 6400: 22169, 6401: 86693, 6402: 155329, 6403: 60984, 6501: 100562, 6502: 53395, 6503: 92919, 6504: 115164, 6506: 63602, 6507: 92191, 6508: 94375, 6509: 82911, 6510: 74843, 6511: 36190, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 163355, 7045: 13362, 7046: 208593, 7047: 58469, 7048: 181939, 7050: 61365, 7055: 240955, 7056: 154, 7058: 40385, 7059: 83582, 7061: 151258, 7062: 117698, 7063: 69725, 7077: 4340, 7078: 6766, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 133660, 7132: 14299, 7133: 77046, 7135: 1259, 7137: 45824, 7138: 36336, 7139: 7034, 7140: 6120, 7142: 16013, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 29507, 7161: 10593, 7162: 5596}
 </details>
-
-
 
 ### Labeled data
 
@@ -61,21 +127,25 @@ The pipeline used to prepare the final dataset is implemented in `scripts/data/p
 
 {45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 128710, 5996: 73367, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 222193, 6396: 193394, 6397: 118675, 6400: 22169, 6401: 86693, 6402: 155329, 6403: 60984, 6501: 100562, 6502: 53395, 6503: 92919, 6504: 115164, 6506: 63602, 6507: 92191, 6508: 94375, 6509: 82911, 6510: 74843, 6511: 36190, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 163355, 7045: 13362, 7046: 208593, 7047: 58469, 7048: 181939, 7050: 61365, 7055: 240955, 7056: 154, 7058: 40385, 7059: 83582, 7061: 151258, 7062: 117698, 7063: 69725, 7077: 4340, 7078: 6766, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 133660, 7132: 14299, 7133: 77046, 7135: 1259, 7137: 45824, 7138: 36336, 7139: 7034, 7140: 6120, 7142: 16013, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 29507, 7161: 10593, 7162: 5596}
 
-
-
 #### Individual Dataset Pipeline
 
 Steps:
 
 1. **format**: Convert data to CSV format with the following columns:
 
-   * `device_id`, `datetimes`, `indices`, `label`, `IMU_x`, `IMU_y`, `IMU_z` (acceleration in g), and `GPS_2D_speed` (in m/s).
-   * Missing labels or indices are represented by `-1`.
+   - `device_id`, `datetimes`, `indices`, `label`, `IMU_x`, `IMU_y`, `IMU_z` (acceleration in g), and `GPS_2D_speed` (in m/s).
+   - Missing labels or indices are represented by `-1`.
+
 2. **index**: Add indices from the database.
+
 3. **map0**: Apply a common, unified label mapping.
+
 4. **mistakes**: Correct mismatched labels.
+
 5. **map**: Merge some label classes and ignore others using `-1` as the label.
+
 6. **drop negatives**: Remove entries where all labels are `-1`.
+
 7. **complete**: Retrieve missing data (without labels) from the database.
 
 #### Combined Dataset Pipeline
@@ -85,7 +155,7 @@ Steps:
 1. **combine**: Merge all individual datasets into one.
 2. **shift**: Group data into sets of 20 items. Assign a common label to each group or drop the group based on length and labeling rules. **starts** can be used instead. In this case, it extracts a slice of n rows from the DataFrame, starting at the first row where a valid label (0-9) appears.
 3. **drop duplicates**: Perform a sanity check to ensure there are no duplicate groups of 20 items.
-
+4. **remove label noise**: Drop the 26 bursts whose GPS speed contradicts their label, found by `exps/find_label_noise.py` and hard-coded in `data_processing.remove_label_noise`. Reads `starts.csv` and writes `starts_clean.csv` (4312 bursts). This runs after `make_combined_data_pipeline` and can be rerun on its own, without the database steps above.
 
 #### These datasets are:
 
@@ -100,10 +170,10 @@ w_data: (Willem CSV)
 
 - The IMU and GPS are rounded and then saved with a precision of 1e-6.
 - It is possible to have the same IMU and GPS values. This issue is resolved by looking at three consecutive IMU and GPS items.
-- Data can start from the middle of a burst (index not divisible by 20). Since we take bursts of 20 items, there are several ways to account for that. The rules are defined in `get_rules`. 
-    - Shift each item by one and take 20 elements. This can also be implemented as data augmentation.
-    - Map all data to values divisible by 20. (Old version in `exp/prepare_labeled_data`)
-    - Other options: take the start of the signal (`slice_from_first_label`), a random part of the signal, or samples at regular intervals.
+- Data can start from the middle of a burst (index not divisible by 20). Since we take bursts of 20 items, there are several ways to account for that. The rules are defined in `get_rules`.
+  - Shift each item by one and take 20 elements. This can also be implemented as data augmentation.
+  - Map all data to values divisible by 20. (Old version in `exp/prepare_labeled_data`)
+  - Other options: take the start of the signal (`slice_from_first_label`), a random part of the signal, or samples at regular intervals.
 - j_data and m_data have extra classes. The Float_groyne and Handling_mussel classes are mapped to Float and Pecking, respectively; the other classes are removed.
 - j_data uses different IDs for the same labels (remap: s_map0).
 - j_data and s_data have 10 and 20 items per burst, respectively.
@@ -122,6 +192,7 @@ shift : {0: 161400, 1: 12040, 2: 113540, 3: 37760, 4: 168860, 5: 448760, 6: 8678
 # burst
 s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
 starts:  {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total: 4338
+starts_clean (label noise removed): {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total: 4312
 shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
@@ -208,7 +279,9 @@ The combination step in Method2 is the same as the current method in `scripts/pr
 
 Number of parameters:
 
-- Small Model: 6,309
+- BirdModel: 6,309
+- BirdModelSmallDilated: 5,129
+- BirdModelWideRF: ~6.9k
 - MaskedAutoencoderViT: 9,546,756
 - TransformerEncoderMAE: 4,748,297
 
@@ -224,19 +297,19 @@ f"{sum([p.numel() for p in model.parameters()]):,}"
 
 The bird model consists of three 1-D convolution layers, each with a kernel size of 3 and 30 channels. Each convolution layer is followed by batch normalization and a ReLU nonlinearity. The final projection layer is a linear layer that maps the average pooled embeddings to the number of classes. Cross-entropy loss is used as the classification loss. During training, dropout with a probability of 0.25 is applied after each convolution layer. The dataset for training consists of 3,505 labeled samples, each with 3 IMU accelerations and one GPS 2D speed for a sequence length of 20. There are 9 classes in total. AdamW is used for optimization with a learning rate of 3e-4 and a weight decay of 1e-2, with a maximum of 4,000 iterations. The learning rate scheduler is StepLR with a step size of 2,000, reducing the learning rate by a factor of 0.1. With this small dataset and model, the total training time is only 20 minutes using an NVIDIA GeForce RTX 3070 laptop GPU.
 
-
 ## List of scripts
 
 #### App
 
 - `app/gps_burst_labeling_viz_app.py`: Combines the IMU/behavior visualization app and the GPS locations app, with label editing added.
+  The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 - `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 - `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
 
-The data for these apps comes from `scripts/bird_behavior_viz.py`. The data format for these apps is:
+The data format for these apps is:
 
 ```bash
-device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,confidence,latitude,longitude
+device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,confidence,latitude,longitude,altitude(optional)
 298,2010-06-07 09:43:05,0,-1,-0.167287,-0.004737,1.014680,0.200996,5,0.986863,53.009282,4.717725
 ```
 
@@ -245,48 +318,94 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_km/h,label,co
 - `scripts/embeddings_plot.py`: Plot embeddings (currently t-SNE) for a given dataset and model.
 - `exps/save_plots_gt.py`: Save IMU plots for ground-truth data based on device IDs and starting times.
 - `exps/save_plots.py`: Save IMU plots for each label and run inference for the predictions.
+- `exps/plot_errors.py`: Plot the valid bursts a model gets wrong, one PNG per
+  burst, in `<true class>/<predicted class>,<device>,<datetime>,<start index>.png`.
+  Uses the split and predictions of `exps/eval_labeled.py`, so the plots are the
+  errors behind its per-class F1. Prints where each class went and what came in.
 - `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: Generate IMU plots for structured data (divisible by glen=20), such as `shift.csv`.
 - `exps/imu_3d_movie`: Make a movie from IMU data.
 - `exps/visualize`: old (I should remove)
 
-
 #### Training/Inference Scripts
 
-* `scripts/train.py`: Training script for supervised bird classification.
-* `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
-* `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
-* `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
-* `scripts/gcd_pipeline.py`: GCD pipeline.
-* `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the InfoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the InfoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotations of IMU data.
+- `scripts/train.py`: Training script for supervised bird classification.
+- `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
+- `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
+- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory.
+- `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
+- `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
+- `scripts/gcd_pipeline.py`: GCD pipeline.
+- `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the InfoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the InfoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotations of IMU data (now available as `RandomRotation3D`, see the Data augmentation section below).
 
-**Older scripts**: 
+**Older scripts**:
 
 - `exps/cluster_behavior.py`: Unsupervised clustering.
 - `exps/exps1`: Run inference and save the metrics.
 
-#### Helper Scripts
+#### Data augmentation
+
+`behavior/data_augmentation.py` holds the time-series augmentations, each a
+callable on a `(T, C)` tensor (T=20, C=4: IMU x, y, z and GPS 2D speed). They
+run per sample in `BirdDataset.__getitem__` before the channel-first transpose,
+so a transform receives `(20, 4)`. Most skip the GPS channel (column 3).
+
+- `RandomJitter`, `RandomScaling`: element-wise Gaussian noise / per-channel scaling.
+- `TimeWarp`, `MagnitudeWarp`: time- and magnitude-domain warping (torch and numpy versions).
+- `RandomRotation3D`: full random 3D rotation (SO(3)) of the three IMU
+  acceleration channels via `random_rotation_matrix` (uniform Haar measure from a
+  normalized-Gaussian unit quaternion); GPS untouched, per-timestep acceleration
+  magnitude preserved.
+
+Each also has a batched form — `BatchRandomJitter`, `BatchRandomScaling`,
+`BatchRandomRotation3D`, `BatchTimeWarp`, `BatchMagnitudeWarp` — taking a whole
+channel-first `(N, C, T)` batch on the GPU instead of one `(T, C)` sample, with
+the same semantics (channel 3 handled identically). They are what
+`data.GpuBatches` and `scripts/batch_train_supervised.py` use; running the
+augmentation once per batch rather than once per sample is worth ~10x an epoch.
+The two forms are not interchangeable — the shape differs.
+
+Which augmentation to use, and what each one costs or buys, is in
+[docs/lesson_learned.md](lesson_learned.md). Note the augmentation must be
+attached to the **train data only**: `prepare_train_valid_dataset` would
+otherwise apply the same transform object to the eval set too.
+
+#### Data Scripts / Helper Scripts
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
-- `scripts/data/bird_behavior_app_data.py`: Generate appp data (IMU, GPS, behavior classes by inference)
-- `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes.
+- `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/data.md](data.md)).
+- `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
 
-#### Data 
+#### Data
 
 - `create_five_balanced_data_and_unbalanced`: Create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
 
 #### Analysis and Debugging
 
+- `exps/eval_labeled.py`: Compare models on the **labeled** split: train/valid accuracy, valid F1 plain and class-balanced, per-class F1 side by side with a flag on any class moving by `flag_delta`, and an orientation-robustness sweep. Reports accuracy, average precision and loss on both splits. Recomputes from the checkpoints and reuses `behavior.utils.per_class_statistics{,_balanced}`, so every number matches the CSVs and `app_loss_acc.txt` that training writes. Replaces the former `compare_per_class_metrics.py` and `eval_rotation_robustness.py`. Prints markdown ready to paste into [docs/lesson_learned.md](lesson_learned.md), and lists valid bursts per class so a rare-class swing can be read for what it is. The `in_channels` config map (`{"197": 7}`) says which checkpoints take the 7-channel input, so models of different width compare in one table. `split_file` mirrors the training option of the same name, rebuilding the valid split a run borrowed from another data file, which is what makes two runs on two data files comparable at all. `checkpoints` maps a run to a checkpoint file other than `<exp>_best.pth`, such as a fixed-epoch `<exp>_4000.pth`.
+- `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app. `checkpoints` picks a checkpoint other than `<exp>_best.pth`, as in `exps/eval_labeled.py`.
+- `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
+- `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
 - `identify_mistakes`: Identify labeling mistakes by finding data points that are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.
 - `test_find_index_jumps`: Identify discontinuities in the indices. Determine whether the signal contains labeled segments separated by unlabeled intervals.
 - `test_issue_previous_m_data_format`: Check how impactful the bug is in the m_data format. The impact is not significant.
 - `check_batches`: Check that each batch with glen=20 meets certain conditions, such as consecutively increasing indices, unique values in columns 0, 1, 3, and 7, and unique batches.
 - `exps/panda_csv_python_read_data_in_memory`: Check the performance of pandas, the CSV library, and pure Python when reading large data into memory.
+- `exps/inspect_unlabeled_data.py`: Build and inspect the unlabeled 20-length dataset. `write_only_gimu_float32_norm_gps_batch` turns a device's CSV shards into one Parquet file of flat float32 `20 x 4` bursts after `curate_data` (drop GPS 2D speed >= `30 m/s`, clip IMU to [-2, 2], divide GPS by `22.3012351755624`); `plot_hist_scatter_plots` then writes, per device, a histogram of each channel and two scatter plots (imu_x vs GPS speed, imu_y vs imu_z), and `write_stats` the per-device min/max to `stats.txt`. The last run is in `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20` and is why the curation exists: raw GPS 2D speed reaches `521 m/s` and raw IMU `15.75 g`. Also holds commented-out one-offs for a min/max scan, line counts per device shard, and per-class counts from model inference. Run by editing the call blocks, not by a CLI.
 
 ## List of Functions
 
+- `data.py::GpuBatches`: Keeps a whole `BirdDataset` on the GPU and yields shuffled batches, applying a batched transform per batch. A drop-in for `DataLoader` in the training loop (`train_one_epoch` only iterates its loader), avoiding the per-sample `from_numpy`/transpose/collate work.
+- `data.py::add_magnitude_features`: `N x L x 4 -> N x L x 7`, appending `mag`
+  (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`,
+  edge-replicated at `t=0`). All three are unchanged by rotation, so they are
+  computed once at load time and `RandomRotation3D` needs no change.
+- `data.py::burst_keys`: one `(device id, datetime text, start index)` per burst, in
+  the load order of `load_csv_pandas`. Names a burst so a split can be carried from
+  one data file to another, or two files compared burst by burst. The timestamp of
+  `load_csv_pandas` cannot do this: under pandas 3 it is 1000x too small.
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling an equal number of groups from each specified class.
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.

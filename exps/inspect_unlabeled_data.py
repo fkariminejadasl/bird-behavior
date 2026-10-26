@@ -1,3 +1,36 @@
+"""Build and inspect the unlabeled 20-length dataset.
+
+Two jobs, both one-off and both driven by editing the commented call blocks
+below rather than by a CLI. The paths say `ssl` only for historical reasons —
+this data was first collected for self-supervised pretraining.
+
+1. **Convert.** The unlabeled data arrives as per-device CSV shards
+   (`<device>_<n>.csv`, columns `device_id, date_time, index, label, imu_x,
+   imu_y, imu_z, gps_2d_speed`). `write_only_gimu_float32_norm_gps_batch` keeps
+   only the four signal columns, curates them (`curate_data`: drop GPS speed
+   >= 30 m/s, clip IMU to [-2, 2], divide GPS by `gps_scale = 22.3012351755624`)
+   and writes one parquet per device, each row a flat float32 `20 x 4` burst.
+   This is the code behind the dataset described in `docs/descriptions.md`
+   ("Unlabeled data") and `docs/efficient_data_loading.md`.
+
+2. **Inspect.** `plot_hist_scatter_plots` walks those parquet files and, per
+   device, writes `<device>.png` (a histogram of each of imu_x, imu_y, imu_z and
+   GPS speed, de-normalized back to m/s) and `<device>_scatter.png` (imu_x vs
+   GPS speed, imu_y vs imu_z). `write_stats` appends the per-device min or max of
+   the four channels to `stats.txt`, with device `0` as the row over all devices.
+
+The last run went to `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20` (plots of
+the 186 devices plus `stats.txt`, max block then min block). It is what motivates
+the curation in step 1: the raw GPS 2D speed reaches `521 m/s` and the raw IMU
+reaches `15.75 g`, so the tail of the GPS channel is sensor error, not flight.
+
+The tail of the file holds further commented-out one-offs: a min/max scan over
+all parquet files, a line count per device shard, and a per-class count per
+device obtained by running a trained model over the unlabeled shards.
+
+  /home/fatemeh/miniconda3/envs/bird/bin/python exps/inspect_unlabeled_data.py
+"""
+
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -341,9 +374,16 @@ cfg = dict(
     checkpoint_file=Path(f"/home/fatemeh/Downloads/bird/results"),
     main_path=Path("/home/fatemeh/Downloads/bird/data/ssl/tmp"),
     save_path=Path("/home/fatemeh/Downloads/bird/data/ssl/stats"),
+    model_name="BirdModel",
+    model_parameters=dict(
+        in_channels=4,
+        mid_channels=30,
+        out_channels=None,
+    ),
 )
 cfg = OmegaConf.create(cfg)
 cfg.n_classes = len(cfg.labels_to_use)
+cfg.model_parameters.out_channels = cfg.n_classes
 cfg.checkpoint_file = cfg.checkpoint_file / f"{cfg.exp}_best.pth"
 
 if not cfg.save_path.exists():
@@ -359,7 +399,13 @@ with open(save_file, "w") as out_f:
         device_id = int(p.stem)
         df = pd.read_csv(p, header=None).sort_values([0, 1, 2])
         df = bmu.infer_update_classes(
-            df, cfg.glen, cfg.labels_to_use, cfg.checkpoint_file, cfg.n_classes
+            df,
+            cfg.glen,
+            cfg.labels_to_use,
+            cfg.checkpoint_file,
+            cfg.n_classes,
+            cfg.model_name,
+            cfg.model_parameters,
         )
         class_counts = dict(sorted(Counter(df[8]).items()))
         device_class_counts[device_id] = class_counts
