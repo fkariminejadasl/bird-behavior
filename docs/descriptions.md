@@ -39,6 +39,7 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 - `exps/find_label_noise.py` — the 26 dropped bursts (GPS speed contradicts the label)
 - `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
 - `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
+- `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
 
 ## Model
 
@@ -376,6 +377,7 @@ otherwise apply the same transform object to the eval set too.
 - `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/data.md](data.md)).
 - `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
+- `exps/check_imu_calibration.py`: Check `data.py::acc_calibrate` against the R output. Reads the raw `acc_x, acc_y, acc_z` of `all_devices_calibrated.csv` and the R parameters of `calibration_per_device_auto.csv`, and prints per device the Python and R scales, and the scale with `q_static` 0.10 against 0.85.
 
 #### Data
 
@@ -407,6 +409,7 @@ otherwise apply the same transform object to the eval set too.
   one data file to another, or two files compared burst by burst. The timestamp of
   `load_csv_pandas` cannot do this: under pandas 3 it is 1000x too small.
 - `data.py::create_balanced_data`: Creates a balanced dataset by sampling an equal number of groups from each specified class.
+- `data.py::acc_calibrate`: Estimate the IMU calibration of one device from its raw data, as `acc_g = (raw - b) / s` per axis. Translated from the R functions of Eldar Rakhimberdiev (`calibration_functions.R`), one Python function per R function: `detect_static`, `orientation_coverage`, `fit_scale_only`, `fit_diag_offset_bounded`, `acc_apply`. `get_data` calls it through `estimate_calibration` when the database has no calibration values. Rules in [docs/data.md](data.md), rule 1.
 - `utils::stratified_split`: Class-wise data split.
 - `utils::equal_dataframe`: Compare two data frames.
 - `map.py`: Visualize a map from latitude and longitude.
