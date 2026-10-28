@@ -1,129 +1,4 @@
-# Example Times
-
-```bash
->>> import pytz # pip install pytz
->>> from datetime import datetime, timezone
-
->>> dt_format = datetime.strptime('2023-11-06 14:08:11', "%Y-%m-%d %H:%M:%S")
-datetime.datetime(2023, 11, 6, 14, 8, 11)
->>> dt_format.strftime("%Y-%m-%d %H:%M:%S")
->>> datetime(2023, 11, 6, 14, 8, 11).strftime("%Y-%m-%d %H:%M:%S")
-'2023-11-06 14:08:11'
-
->>> datetime.strptime('2023-11-06 14:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").timestamp()
->>> datetime.strptime('2023-11-06 13:08:11.915636', "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=timezone.utc).timestamp()
-1699276091.915636
->>> datetime.fromtimestamp(1699276091.915636, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
-'2023-11-06 13:08:11.915636'
-
-# Specify timezone when running in cloud
->>> datetime.fromtimestamp(1416956654.0, pytz.timezone('CET')).strftime("%Y-%m-%d %H:%M:%S")
-'2014-11-26 00:04:14'
->>> datetime.fromtimestamp(1416956654.0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-'2014-11-25 23:04:14'
->>> pytz.timezone('CET')
-<DstTzInfo 'CET' CET+1:00:00 STD>
-```
-
-# Example Database Queries
-
-```database format:
-# database_url = f"postgresql://{username}:{password}@{host}:{port}/{database_name}"
-database_url = f"postgresql://{username}:{password}@pub.e-ecology.nl:5432/eecology"
-```
-
-```bash
-device_id = 805
-start_time = '2015-05-27 09:19:34' 
-end_time = '2015-05-27 09:20:34'
-
-# Get calibration imu values from database
-cal_query = f"""
-select *
-from gps.ee_tracker_limited
-where device_info_serial = {device_id}
-"""
-
-# speed_2d for gpd speed
-gps_query = f"""
-SELECT *
-FROM gps.ee_tracking_speed_limited
-WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-order by date_time
-"""
-
-# get imu
-imu_query = f"""
-SELECT *
-FROM gps.ee_acceleration_limited
-WHERE device_info_serial = {device_id} and date_time between '{start_time}' and '{end_time}'
-order by date_time, index
-"""
-
-device_query = """
-select device_info_serial 
-from gps.ee_tracker_limited
-"""
-
-device_start_end_query = """
-select device_info_serial, start_date, end_date 
-from gps.ee_track_session_limited etsl
-"""
-```
-
-# Get Some Statistics
-
-Just a short check to see if the whole data, training and validation set are balanced. The code snippet below generates these values.
-
-```bash
-((4394, 20, 4), (4365, 20, 4)) # gimus, gimus2
-((3928, 3), (437, 3)) # tldts2, vldts2
-[(7, 29), (1, 41), (8, 150), (3, 176), (6, 342), (9, 342), (2, 541), (4, 623), (0, 643), (5, 1507)] # ldts
-[(1, 41), (7, 150), (3, 176), (6, 342), (8, 342), (2, 541), (4, 623), (0, 643), (5, 1507)] # ldts2
-[(1, 37), (7, 133), (3, 150), (8, 304), (6, 316), (2, 496), (4, 560), (0, 585), (5, 1347)] # tld2
-[(1, 4), (7, 17), (3, 26), (6, 26), (8, 38), (2, 45), (0, 58), (4, 63), (5, 160)] # vl2
-[(1, 0.01), (7, 0.03), (3, 0.04), (8, 0.08), (6, 0.08), (2, 0.13), (4, 0.14), (0, 0.15), (5, 0.34)] # tper_abs
-[(1, 0.01), (7, 0.04), (3, 0.06), (6, 0.06), (8, 0.09), (2, 0.1), (0, 0.13), (4, 0.14), (5, 0.37)]  # vper_abs
-[(1, 0.11), (7, 0.13), (3, 0.17), (8, 0.12), (6, 0.08), (2, 0.09), (4, 0.11), (0, 0.1), (5, 0.12)]  # per_rel
-```
-
-```python
-from behavior import data as bd
-from collections import Counter
-import numpy as np
-target_labels = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-train_per, data_per = 0.9, 1.0
-gimus, ldts = bd.load_csv("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv")
-gimus2, ldts2 = bd.get_specific_labesl(gimus, ldts, target_labels)
-# sorted(dict(Counter(ldts[:,0])).items(), key=lambda x:x[1])
-# sorted(dict(Counter(ldts2[:,0])).items(), key=lambda x:x[1])
-n_trainings = int(gimus2.shape[0] * train_per * data_per)
-n_valid = gimus2.shape[0] - n_trainings
-tldts2 = ldts2[:n_trainings]
-vldts2 = ldts2[n_trainings : n_trainings + n_valid]
-tl2 = dict(sorted(dict(Counter(tldts2[:,0])).items(), key=lambda x:x[1]))
-vl2 = dict(sorted(dict(Counter(vldts2[:,0])).items(), key=lambda x:x[1]))
-vper_abs = {k:round(v/437,2) for k, v in vl2.items()}
-tper_abs = {k:round(v/3928,2) for k, v in tl2.items()}
-per_rel = dict()
-for tkey, tval in tl2.items():
-	for vkey, vval in vl2.items():
-		if tkey == vkey:
-			per_rel[tkey] = round(vval/tval,2)
-```
-
-#### Remove other label
-
-```python
-# {0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
-import pandaas as pd
-df = pd.read_csv(Path("/home/fatemeh/Downloads/bird/data/combined_s_w_m_j.csv"), header=None)
-filtered_df = df[df[3] != 7]
-filtered_df.loc[:, 3] = filtered_df[3].apply(lambda x: x if x < 7 else x-1)
-filtered_df.to_csv('/home/fatemeh/Downloads/bird/data/combined_s_w_m_j_no_others.csv', header=False, index=False)
-```
-
-## Description of Data and Model
+# Methods
 
 How raw data becomes the bursts the model sees, from the UvA-BiTS database
 and from Ornitela files, and how the model is trained.
@@ -137,7 +12,7 @@ Words used below:
 - **model input**: 20 consecutive samples (1 s) of IMU x, y, z in g, plus the
   GPS 2D speed of the fix in m/s, copied to all 20.
 
-### Database data (UvA-BiTS)
+## Database data (UvA-BiTS)
 
 Rules 1-6 run at download, in `behavior/data.py::get_data`. Rules 7-9 run when
 a CSV is loaded, for this data and for the Ornitela data below.
@@ -151,18 +26,22 @@ At download:
 1. **Calibration.** Each axis goes from raw counts to g:
    `(raw - offset) / sensitivity`, rounded to 8 decimals (`raw2meas`,
    `calibrate_imu_data`). The values come from `gps.ee_tracker_limited`
-   (`fetch_calibration_data`). A device with no values there, or a missing or
-   NaN value, is calibrated from its own IMU data in the requested time range
-   (`estimate_calibration`, a translation of Eldar Rakhimberdiev's R code):
-   - the static samples are found (`detect_static`, 2 s window);
-   - with at least 300 of them, one scale for all axes, or an offset and a
-     scale per axis if they cover enough postures (`acc_calibrate`). On a bird
-     they rarely do, so it is usually one scale (see Calibrating a tag off
-     the bird). 300 is the R default `min_static`, 15 s at 20 Hz. R gives no
-     reason for it, and it was not tested here;
-   - with fewer, as for a single burst, no offset and a scale of 1058.8, the
-     mean of 5 Ornitela tags. A scale fitted on one burst would set its own
-     magnitude to 1 g.
+   (`fetch_calibration_data`).
+   - A device with no values there, or a missing or NaN value, is calibrated
+     from its own IMU data in the requested time range (`estimate_calibration`,
+     a translation of Eldar Rakhimberdiev's R code):
+     - the static samples are found (`detect_static`, 2 s window);
+     - with at least 300 of them, one scale for all axes, or an offset and a
+       scale per axis if they cover enough postures (`acc_calibrate`). On a
+       bird they rarely do, so it is usually one scale (see Calibrating a tag
+       off the bird). 300 is the R default `min_static`, 15 s at 20 Hz. R
+       gives no reason for it, and it was not tested here;
+     - with fewer, as for a single burst, no offset and a scale of 1058.8, the
+       mean of 5 Ornitela tags. A scale fitted on one burst would set its own
+       magnitude to 1 g.
+     - For devices without stored calibration, `get_data` re-estimates it on
+       every call, so one bird can get different scales depending on the time
+       range asked.
    - *Gulliver*: already done.
 2. **No missing values.** A GPS fix without `speed_2d` is dropped
    (`fetch_gps_data`). An IMU sample with x, y or z missing is dropped
@@ -219,7 +98,7 @@ Also to know:
   rule 5 (`behavior/data_processing.py::slice_from_first_label`), giving
   `starts.csv`. The full pipeline is in `docs/descriptions.md`, Labeled data.
 
-#### Calibrating a tag off the bird
+### Calibrating a tag off the bird
 
 An offset and a scale per axis need the tag still in several orientations. A
 bird rests in too few, so this is best done before deployment. This is
@@ -241,7 +120,7 @@ reasoning, not something tested here.
   `x_o, x_s, y_o, y_s, z_o, z_s`. `get_data` then uses them and estimates
   nothing.
 
-### Ornitela data
+## Ornitela data
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data`. The input
 is one calibrated CSV with GPS rows and IMU rows (`datatype` GPS or SENSORS).
@@ -266,7 +145,7 @@ Then rules 7-9 apply, as for the database data (`prepare_app_class_data`).
 `check_consecutive_gps_sensor_time_diff`, in the same script, prints how far
 apart each fix and the next SENSORS row are.
 
-### Model
+## Model
 
 `behavior/model.py::BirdModelSmallDilated`. The working model is exp197.
 
@@ -286,7 +165,7 @@ apart each fix and the next SENSORS row are.
   classes.
 - 5,129 parameters with 4 channels, 5,429 with 7.
 
-### Training
+## Training
 
 `scripts/batch_train_supervised.py::main`. The settings are `base_config` and
 `experiments` under `if __name__ == "__main__":`.
