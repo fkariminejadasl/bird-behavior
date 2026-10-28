@@ -142,7 +142,7 @@ Words used below:
 Rules 1-6 run at download, in `behavior/data.py::get_data`. Rules 7-9 run when
 a CSV is loaded, for this data and for the Ornitela data below.
 
-[Gulliver](https://github.com/fkariminejadasl/gulliver-behavior-classifier)
+[Gulliver](https://github.com/fkariminejadasl/gulliver-behaviour-classifier)
 gets this data already downloaded and calibrated, with a timestamp per IMU
 sample instead of an index. *Gulliver* says what a rule becomes there.
 
@@ -157,7 +157,9 @@ At download:
    - the static samples are found (`detect_static`, 2 s window);
    - with at least 300 of them, one scale for all axes, or an offset and a
      scale per axis if they cover enough postures (`acc_calibrate`). On a bird
-     they rarely do, so it is usually one scale;
+     they rarely do, so it is usually one scale (see Calibrating a tag off
+     the bird). 300 is the R default `min_static`, 15 s at 20 Hz. R gives no
+     reason for it, and it was not tested here;
    - with fewer, as for a single burst, no offset and a scale of 1058.8, the
      mean of 5 Ornitela tags. A scale fitted on one burst would set its own
      magnitude to 1 g.
@@ -211,6 +213,28 @@ Also to know:
   (rule 4 below swaps those). Which one is a future decision. For now
   `get_data` does not swap them. The calibration does not depend on it: it
   works on the axes as stored.
+
+#### Calibrating a tag off the bird
+
+An offset and a scale per axis need the tag still in several orientations. A
+bird rests in too few, so this is best done before deployment. This is
+reasoning, not something tested here.
+
+- **Six positions:** each axis pointing down, then up, each held still for
+  about 10-30 s. The 2 s window drops the samples near each turn, and 300
+  still samples are needed in total.
+- **Per axis:** pointing up, it reads `b + s`; pointing down, `b - s` (or the
+  reverse, by the sign convention of the device). So `s = (up - down) / 2` and
+  `b = (up + down) / 2`. The other two axes read about their offset b (0 g).
+- **Exact positions are not needed.** The fit only asks for a length of 1 g at
+  every still moment, so clearly different orientations are enough. Six are
+  the easiest to do and to check.
+- **Example:** Tamar Lok's recording,
+  `~/Downloads/bird/screenshots/imu_calibration_plot.png`: about 40 minutes
+  still, then several turns.
+- **Store the six values** in `gps.ee_tracker_limited`, in the order
+  `x_o, x_s, y_o, y_s, z_o, z_s`. `get_data` then uses them and estimates
+  nothing.
 - Labeled data: `get_data` runs once per labeled fix
   (`behavior/data_processing.py::get_s_j_w_m_data_from_database`). Each run of
   one label is then cut into bursts of 20 from its first labeled sample, as in
