@@ -38,7 +38,7 @@ Rakhimberdiev's R code.
   the loss is very flat along the offsets.
 - **The Ornitela x/y swap is decided later.** Ornitela data will come either
   into the database already swapped, or as a file that is not. For now
-  `get_data` does not swap (`docs/data.md`, Database data).
+  `get_data` does not swap (`docs/methods.md`, Database data).
 
 ## Ornitela GPS: match by nearest time, not by file position
 

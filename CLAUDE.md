@@ -60,12 +60,12 @@
 
   ```bash
   for i in behavior exps scripts app; do echo $i; black $i -l 88; isort $i --profile black; pyflakes $i; done
-  mdformat --number --exclude docs/clustering.md docs/
+  mdformat --number --exclude docs/cheatsheets/clustering.md docs/
   ```
 - `mdformat` formats the markdown in `docs/` and aligns the pipe tables
   (`mdformat` plus `mdformat-gfm`, both in the `test` extra of
   `pyproject.toml`). Both flags matter. Without `--number`, every ordered list
-  collapses to all `1.`. Without the exclude, `docs/clustering.md` is broken:
+  collapses to all `1.`. Without the exclude, `docs/cheatsheets/clustering.md` is broken:
   it is the only doc holding LaTeX math in `\(...\)` delimiters, which
   CommonMark does not know, so the spans get rewritten into broken text and its
   `---` rules become rows of underscores. Never run it on `presentation/`:
@@ -123,6 +123,11 @@ Keep these current whenever the code they describe changes:
   behind each.
 - `docs/experiments_log.md`: terse per-run notebook. Held to a lower bar than
   the other two.
+- `docs/methods.md`: how raw data becomes the model input (the database and
+  Ornitela rules), the model and the training. Update it with the code it
+  describes.
+- `docs/cheatsheets/`: general how-to notes (pandas, OmegaConf configs,
+  database queries, clustering metrics). No findings here.
 - `presentation/presentation.md`: the talk. Highlights only, short and
   itemised. Where `lesson_learned.md` gives the reasoning, this gives the conclusion
   in one line. Keep a technical name in italic parentheses after the plain-language
