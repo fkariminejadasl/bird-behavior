@@ -26,21 +26,22 @@ At download:
 1. **Calibration.** Each axis goes from raw counts to g:
    `(raw - offset) / sensitivity`, rounded to 8 decimals (`raw2meas`,
    `calibrate_imu_data`). The values come from `gps.ee_tracker_limited`
-   (`fetch_calibration_data`). A device with no values there, or a missing or
-   NaN value, is calibrated from its own IMU data in the requested time range
-   (`estimate_calibration`, a translation of Eldar Rakhimberdiev's R code):
-   - the static samples are found (`detect_static`, 2 s window);
-   - with at least 300 of them, one scale for all axes, or an offset and a
-     scale per axis if they cover enough postures (`acc_calibrate`). On a bird
-     they rarely do, so it is usually one scale (see Calibrating a tag off
-     the bird). 300 is the R default `min_static`, 15 s at 20 Hz. R gives no
-     reason for it, and it was not tested here;
-   - with fewer, as for a single burst, no offset and a scale of 1058.8, the
-     mean of 5 Ornitela tags. A scale fitted on one burst would set its own
-     magnitude to 1 g.
-   - For devices without stored calibration, `get_data` re-estimates it on
-     every call, so one bird can get different scales depending on the time
-     range asked.
+   (`fetch_calibration_data`).
+   - A device with no values there, or a missing or NaN value, is calibrated
+     from its own IMU data in the requested time range (`estimate_calibration`,
+     a translation of Eldar Rakhimberdiev's R code):
+     - the static samples are found (`detect_static`, 2 s window);
+     - with at least 300 of them, one scale for all axes, or an offset and a
+       scale per axis if they cover enough postures (`acc_calibrate`). On a
+       bird they rarely do, so it is usually one scale (see Calibrating a tag
+       off the bird). 300 is the R default `min_static`, 15 s at 20 Hz. R
+       gives no reason for it, and it was not tested here;
+     - with fewer, as for a single burst, no offset and a scale of 1058.8, the
+       mean of 5 Ornitela tags. A scale fitted on one burst would set its own
+       magnitude to 1 g.
+     - For devices without stored calibration, `get_data` re-estimates it on
+       every call, so one bird can get different scales depending on the time
+       range asked.
    - *Gulliver*: already done.
 2. **No missing values.** A GPS fix without `speed_2d` is dropped
    (`fetch_gps_data`). An IMU sample with x, y or z missing is dropped
