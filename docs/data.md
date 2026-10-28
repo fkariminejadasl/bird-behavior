@@ -213,6 +213,11 @@ Also to know:
   (rule 4 below swaps those). Which one is a future decision. For now
   `get_data` does not swap them. The calibration does not depend on it: it
   works on the axes as stored.
+- Labeled data: `get_data` runs once per labeled fix
+  (`behavior/data_processing.py::get_s_j_w_m_data_from_database`). Each run of
+  one label is then cut into bursts of 20 from its first labeled sample, as in
+  rule 5 (`behavior/data_processing.py::slice_from_first_label`), giving
+  `starts.csv`. The full pipeline is in `docs/descriptions.md`, Labeled data.
 
 #### Calibrating a tag off the bird
 
@@ -235,11 +240,6 @@ reasoning, not something tested here.
 - **Store the six values** in `gps.ee_tracker_limited`, in the order
   `x_o, x_s, y_o, y_s, z_o, z_s`. `get_data` then uses them and estimates
   nothing.
-- Labeled data: `get_data` runs once per labeled fix
-  (`behavior/data_processing.py::get_s_j_w_m_data_from_database`). Each run of
-  one label is then cut into bursts of 20 from its first labeled sample, as in
-  rule 5 (`behavior/data_processing.py::slice_from_first_label`), giving
-  `starts.csv`. The full pipeline is in `docs/descriptions.md`, Labeled data.
 
 ### Ornitela data
 
