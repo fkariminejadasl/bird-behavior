@@ -38,6 +38,9 @@ At download:
    - with fewer, as for a single burst, no offset and a scale of 1058.8, the
      mean of 5 Ornitela tags. A scale fitted on one burst would set its own
      magnitude to 1 g.
+   - For devices without stored calibration, `get_data` re-estimates it on
+     every call, so one bird can get different scales depending on the time
+     range asked.
    - *Gulliver*: already done.
 2. **No missing values.** A GPS fix without `speed_2d` is dropped
    (`fetch_gps_data`). An IMU sample with x, y or z missing is dropped
