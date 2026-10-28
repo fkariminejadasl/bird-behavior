@@ -206,6 +206,11 @@ Also to know:
 
 - `get_data` does not check the sampling rate. A burst at another rate passes
   every rule, but 20 samples are then not 1 s.
+- **Ornitela x and y: decided later.** Ornitela data will come either into the
+  database, already swapped to the UvA-BiTS axes, or as a file, not swapped
+  (rule 4 below swaps those). Which one is a future decision. For now
+  `get_data` does not swap them. The calibration does not depend on it: it
+  works on the axes as stored.
 - Labeled data: `get_data` runs once per labeled fix
   (`behavior/data_processing.py::get_s_j_w_m_data_from_database`). Each run of
   one label is then cut into bursts of 20 from its first labeled sample, as in

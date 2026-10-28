@@ -14,7 +14,9 @@ Rakhimberdiev's R code.
 - **The translation matches R.** `exps/check_imu_calibration.py` reruns it on
   the raw data behind `calibration_per_device_auto.csv`: the 15 Ornitela scales
   agree within 4.5e-12. R was not installed, so this R output was the only
-  check. It used `q_static` 0.85, the value of the R example.
+  check. It used `q_static` 0.85, the value of the R example, and every row of
+  the file: GPS rows carry one IMU sample each, and only with them do the
+  scales match.
 - **On a bird it is one scale, not one per axis.** For all 15 tags, the resting
   samples cover too few postures (score 0.0006-0.012, cutoff 0.02), so `auto`
   falls back to one scale and no offset. The per-axis fit is only tested on
@@ -34,6 +36,9 @@ Rakhimberdiev's R code.
 - **Derivatives are numerical, as in R `optim`.** An exact gradient was tried.
   It stopped early under R's stopping rule, 0.36 counts off the minimum, because
   the loss is very flat along the offsets.
+- **The Ornitela x/y swap is decided later.** Ornitela data will come either
+  into the database already swapped, or as a file that is not. For now
+  `get_data` does not swap (`docs/data.md`, Database data).
 
 ## Ornitela GPS: match by nearest time, not by file position
 

@@ -9,7 +9,8 @@ they were found from.
 Per device, it prints the Python scale next to the R scale, and the scale with
 q_static 0.10 (the R default) next to 0.85 (the R example, and what the R output
 used). Only the scale is compared: on these on-bird tags R fell back to one
-scale and no offset for every device.
+scale and no offset for every device. Every row is used, GPS rows too: each
+carries one IMU sample, and the R output was made with them.
 """
 
 import numpy as np
