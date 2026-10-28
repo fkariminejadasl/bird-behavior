@@ -8,6 +8,33 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## Speed reliance of exp197-204 (no new run)
+
+Does a model trained on `starts_clean.csv` lean more on GPS speed? Only the
+speed is changed, the acceleration is kept. `exps/speed_reliance.py` on all
+4338 bursts of `starts.csv`. exp197 is read at its best checkpoint, the others
+at `<exp>_4000.pth`. hash:f6a0c49 plus the new script.
+
+| model  | labels | b3 P(ExFlap), 0/5/10/15/20 m/s | ExFlap mean P, 0 vs 20 m/s | changed, shuffled % | changed, speed 0 % |
+| ------ | ------ | ------------------------------ | -------------------------- | ------------------- | ------------------ |
+| exp197 | raw    | 0.67 0.60 0.51 0.42 0.34       | 0.79 vs 0.75               | 30.0                | 13.7               |
+| exp199 | raw    | 0.79 0.76 0.66 0.55 0.44       | 0.85 vs 0.83               | 29.5                | 13.2               |
+| exp201 | raw    | 0.47 0.67 0.66 0.43 0.19       | 0.81 vs 0.75               | 28.0                | 12.4               |
+| exp202 | raw    | 0.84 0.66 0.64 0.65 0.65       | 0.86 vs 0.85               | 27.8                | 12.0               |
+| exp200 | clean  | 0.45 0.32 0.16 0.08 0.06       | 0.83 vs 0.72               | 31.1                | 12.9               |
+| exp203 | clean  | 0.55 0.69 0.54 0.33 0.24       | 0.84 vs 0.77               | 30.6                | 13.0               |
+| exp204 | clean  | 0.84 0.80 0.71 0.58 0.52       | 0.87 vs 0.84               | 29.5                | 11.5               |
+
+- b3 is the ExFlap burst at 4.99 m/s (782, 2014-05-26 10:41:11, index 14).
+  Its sweep depends on the seed: raw exp201 falls about as far as clean exp203.
+- Shuffled speeds: raw 27.8-29.5%, clean 29.5-31.1%. About 2 points more for
+  clean, ranges touching. Speed set to 0: no difference.
+- Conclusion: clean models lean only a little more on speed. The exp199 vs
+  exp200 sweep below (0.45 -> 0.06 against 0.79 -> 0.44) was one seed pair.
+- Decision: keep exp197 as the working model, against the exp201-204
+  conclusion below. The reasons are in `lesson_learned.md`, Retraining on the
+  cleaned labels.
+
 ## exp201-204: three seeds a side, and the ExFlap question
 
 Four new runs: exp201/exp202 are exp199 (`starts.csv`) at seeds 1234 and 5678,

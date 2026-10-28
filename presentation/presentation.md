@@ -194,8 +194,8 @@ Nine times more experiments per day, for no change in the science.
 3. **You can measure a model without labels** — count predictions that break
    physics
 5. **Check the labels too.** Some of what we call error is bad ground truth
-6. **A cleaner dataset is not automatically a better model.** Ours removed the
-   only examples of *fast but not flying*, and the model then trusted speed more
+6. **A cleaner dataset is not automatically a better model.** Ours scored
+   better only on the speed rule that had picked the bursts to remove
 
 ---
 

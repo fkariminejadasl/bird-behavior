@@ -97,31 +97,35 @@ runs read at epoch 4000, so every run is scored on the same 437 bursts
   train set. `split_file` borrows one run's valid split for another and
   `split_seed` holds it still while the training seed moves. Without them, two
   runs on two data files cannot be compared at all.
-- **Cleaning one class can move an unrelated one, through a shared feature.**
-  Dropping land bursts (SitStand, TerLoco, Pecking) moved **ExFlap**, a flight
-  class. The link is GPS speed, not behaviour: ExFlap runs slow (median 1.39
-  m/s) and Flap fast (median 9.63), and the 26 dropped bursts were the only
-  fast-but-not-flying training examples there were, so dropping them sharpens
-  **fast -> Flap**. The only ExFlap valid bursts that ever flip are the two with
-  Flap-like speeds, 15.84 and 4.99 m/s; the two at 0.06 m/s never do. Sweeping
-  the GPS channel with the accelerometer held fixed shows it directly: a cleaned
-  model's P(ExFlap) falls 0.45 -> 0.06 from 0 to 20 m/s where the raw model
-  stays flat. **Ask which feature the dropped rows carried, not which class they
-  were labelled.**
+- **Cleaning one class can move another, through a shared input.** The 26
+  dropped bursts are land bursts (SitStand, TerLoco, Pecking) at 3.24-17.78
+  m/s. Without them, no land or water burst is faster than 4.72 m/s, so in
+  training, fast means flying. That moved **ExFlap**, a flight class: ExFlap is
+  usually slow (median 1.39 m/s, Flap 9.63), and the only ExFlap valid bursts
+  that ever flip to Flap are the two at Flap-like speeds, 15.84 and 4.99 m/s.
+  **Ask which input the dropped rows carried, not which class they had.**
+- **But the effect is small. One burst at one seed made it look large.** On
+  the 4.99 m/s burst, with the acceleration fixed and the speed raised from 0
+  to 20 m/s, P(ExFlap) fell 0.45 -> 0.06 for exp200 (clean) and 0.79 -> 0.44
+  for exp199 (raw). Other seeds blur this: raw exp201 falls 0.47 -> 0.19, clean
+  exp204 0.84 -> 0.52. Over all 4338 bursts, giving each burst another burst's
+  speed changes the class of 27.8-29.5% of bursts for the raw models and
+  29.5-31.1% for the clean ones: about 2 points more, and the ranges touch.
+  Both lean heavily on speed (`exps/speed_reliance.py`).
 - **Class-balanced F1 magnifies a 4-burst class by 12.** It resamples every
   class to ~49, so the 0.89 -> 0.83 that this pair showed at one seed is two
   ExFlap bursts. Report the burst counts beside it or it reads as a regression.
-- **Still keep exp197, trained on the raw data, as the working model.** A
-  judgement, not a measurement, and it cuts against the table above. The whole
-  case for cleaning rests on the GPS-speed check, and GPS speed is also what
-  flagged the 26 bursts in the first place — the same signal stands on both
-  sides of the argument, so it cannot referee itself. GPS speed can be badly
-  wrong: 16 of the 26 flags are one device on one day, which reads as a device
-  fault rather than 16 annotation errors. A model that leans *less* on speed is
-  then the safer one, and the cleaning makes it lean *more* (see the ExFlap
-  entry above). The evidence on the other side is 4 ExFlap valid bursts, far
-  too few to overrule that. Revisit when a second logger, or more ExFlap data,
-  can settle it.
+- **Still keep exp197, trained on the raw data, as the working model.** This
+  is a judgement, not a measurement, and it goes against the table above.
+  Revisit it when a second logger, or more ExFlap data, can settle it. Three
+  reasons:
+  - The only check where cleaning wins is the GPS-speed check. But GPS speed is
+    also what picked the 26 bursts, so that check cannot judge the change.
+  - GPS speed can be badly wrong in real data. 16 of the 26 bursts are one
+    device on one day, more likely a device fault than 16 labeling mistakes.
+    The model should see such bursts in training.
+  - Nothing else improves: accuracy, place, flicker and rotation stay inside
+    the seed spread, and reliance on speed barely changes (entry above).
 
 ## `load_csv_pandas` timestamps are 1000x too small under pandas 3
 
