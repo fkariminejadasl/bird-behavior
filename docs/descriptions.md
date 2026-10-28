@@ -13,22 +13,22 @@ Labeled bursts: 20 samples at 20 Hz (1 s), 3 IMU axes + GPS speed. 9 classes.
 Optionally 7 channels: `data.py::add_magnitude_features` appends `mag`,
 `dyn_mag` and `jerk_mag`.
 
-| lab | name      | starts   | %    | starts_clean | %    | dropped |
-| --- | --------- | -------- | ---- | ------------ | ---- | ------- |
-| 0   | Flap      | 643      | 14.8 | 643          | 14.9 |         |
-| 1   | ExFlap    | 38       | 0.9  | 38           | 0.9  |         |
-| 2   | Soar      | 537      | 12.4 | 537          | 12.5 |         |
-| 3   | Boat      | 176      | 4.1  | 176          | 4.1  |         |
-| 4   | Float     | 729      | 16.8 | 729          | 16.9 |         |
-| 5   | SitStand  | 1502     | 34.6 | 1492         | 34.6 | **10**  |
-| 6   | TerLoco   | 337      | 7.8  | 326          | 7.6  | **11**  |
-| 8   | Manouvre  | 151      | 3.5  | 151          | 3.5  |         |
-| 9   | Pecking   | 225      | 5.2  | 220          | 5.1  | **5**   |
-|     | **total** | **4338** |      | **4312**     |      | **26**  |
+| lab | name      | paper      | starts   | %    | starts_clean | %    | dropped |
+| --- | --------- | ---------- | -------- | ---- | ------------ | ---- | ------- |
+| 0   | Flap      | flap       | 643      | 14.8 | 643          | 14.9 |         |
+| 1   | ExFlap    | exflap     | 38       | 0.9  | 38           | 0.9  |         |
+| 2   | Soar      | soar       | 537      | 12.4 | 537          | 12.5 |         |
+| 3   | Boat      | boat       | 176      | 4.1  | 176          | 4.1  |         |
+| 4   | Float     | float      | 729      | 16.8 | 729          | 16.9 |         |
+| 5   | SitStand  | stationary | 1502     | 34.6 | 1492         | 34.6 | **10**  |
+| 6   | TerLoco   | walk       | 337      | 7.8  | 326          | 7.6  | **11**  |
+| 8   | Manouvre  | mixed      | 151      | 3.5  | 151          | 3.5  |         |
+| 9   | Pecking   | peck       | 225      | 5.2  | 220          | 5.1  | **5**   |
+|     | **total** |            | **4338** |      | **4312**     |      | **26**  |
 
-Same class names used as in "Shamoun-Baranes et al, 2016, Flap or soar? How a flight generalist responds to its aerial environment", with these changes:
+`name` is the class name in this repo. `paper` is the name in "Shamoun-Baranes et al, 2016, Flap or soar? How a flight generalist responds to its aerial environment", in lower case: use it in published data. Label 7, Other, is removed.
 
-- SitStand==Stationary, Mauouvre==Mixed, Other is removed.
+Tags per study, and how `starts.csv` matches the published Movebank data: Labeled data, Tags and the published data.
 
 ```
 starts:       {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total 4338
@@ -208,6 +208,15 @@ shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035
          0                    1  2  3         4         5         6         7
 0      608  2013-05-31 02:12:41 20  6 -1.020301 -0.305263  1.234586  0.186449
 ```
+
+#### Tags and the published data
+
+The 19 gulls in `starts.csv` are in two studies published on Movebank and Zenodo. Checked against each study's reference data on Zenodo (`HG_TEXEL-reference-data.csv`, `LBBG_TEXEL-reference-data.csv`): each tag has one deployment, and all labeled times fall inside it.
+
+- HG_TEXEL ([10.5281/zenodo.20706394](https://doi.org/10.5281/zenodo.20706394)), herring gull (*Larus argentatus*), 5 tags: 1600, 6011, 6016, 6080, 6210.
+- LBBG_TEXEL ([10.5281/zenodo.20706372](https://doi.org/10.5281/zenodo.20706372)), lesser black-backed gull (*Larus fuscus*), 14 tags: 533, 534, 537, 541, 606, 608, 754, 757, 781, 782, 798, 805, 806, 871.
+
+The values equal the published ones, up to the 1e-6 rounding. `IMU_x`, `IMU_y`, `IMU_z` are `tilt-x`, `tilt-y`, `tilt-z`, and `GPS_2D_speed` is `ground-speed`. `datetimes` is the GPS `timestamp` and the acceleration `start-timestamp`; the sample with index n is at `start-timestamp` + n × 50 ms. This was a one-off check on tag 6210 (all 2480 of its labeled samples, against the HG_TEXEL 2016 files); there is no script for it.
 
 ### Previous Data Preparation
 
