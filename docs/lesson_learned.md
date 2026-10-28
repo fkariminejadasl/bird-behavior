@@ -4,6 +4,42 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## IMU calibration from the data, for devices without calibration values
+
+`behavior/data.py::get_data` used to return nothing for a device without
+calibration values in the database. It now estimates them from the IMU data
+(`estimate_calibration`, `acc_calibrate`), translated from Eldar
+Rakhimberdiev's R code.
+
+- **The translation matches R.** `exps/check_imu_calibration.py` reruns it on
+  the raw data behind `calibration_per_device_auto.csv`: the 15 Ornitela scales
+  agree within 4.5e-12. R was not installed, so this R output was the only
+  check. It used `q_static` 0.85, the value of the R example, and every row of
+  the file: GPS rows carry one IMU sample each, and only with them do the
+  scales match.
+- **On a bird it is one scale, not one per axis.** For all 15 tags, the resting
+  samples cover too few postures (score 0.0006-0.012, cutoff 0.02), so `auto`
+  falls back to one scale and no offset. The per-axis fit is only tested on
+  synthetic data (`tests/test_data.py::test_acc_calibrate`): offsets within 1
+  count, scales within 0.2%.
+- **A short time range falls back to 1058.8.** With fewer than 300 static
+  samples, `estimate_calibration` uses no offset and the scale 1058.8. A scale
+  fitted on one burst is that burst's median magnitude, so dividing by it sets
+  the burst's magnitude to 1 g, even in flight. A 60-sample burst is far below
+  300 (`tests/test_data.py::test_acc_calibrate`).
+- **That default is not exact.** The 15 tag scales run 993.7-1060.1 (mean
+  1029.6), so 1058.8 makes the data of the lowest tag 6.1% too small. Calibrate
+  over a long range, as `scripts/data/get_data_gull_20.py` does.
+- **`q_static` matters little.** 0.10 (R default) against 0.85 moves the scale
+  by at most 0.39% (`exps/check_imu_calibration.py`). 0.85 is kept because it
+  gives the calibration of `all_devices_calibrated.csv`.
+- **Derivatives are numerical, as in R `optim`.** An exact gradient was tried.
+  It stopped early under R's stopping rule, 0.36 counts off the minimum, because
+  the loss is very flat along the offsets.
+- **The Ornitela x/y swap is decided later.** Ornitela data will come either
+  into the database already swapped, or as a file that is not. For now
+  `get_data` does not swap (`docs/data.md`, Database data).
+
 ## Ornitela GPS: match by nearest time, not by file position
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` and

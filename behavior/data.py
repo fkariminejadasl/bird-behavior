@@ -3,6 +3,7 @@ import gc
 import json
 import os
 import time
+import warnings
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -13,6 +14,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 import torch
+from scipy.optimize import minimize
 from torch.utils.data import DataLoader, Dataset, random_split
 
 """
@@ -601,9 +603,10 @@ def fetch_calibration_data(database_url, device_id):
 
     Returns
     -------
-    list[float]
+    list[float] or None
         Calibration values: [x_o, x_s, y_o, y_s, z_o, z_s].
         example: [124.8, 1275.7, 25.6, 1335.7, -14.1, 1331.9]
+        None if the device has no row, or a value is missing or NaN.
     """
     sql_query = f"""
     SELECT *
@@ -611,9 +614,12 @@ def fetch_calibration_data(database_url, device_id):
     WHERE device_info_serial = {device_id}
     """
     results = query_database_improved(database_url, sql_query)
-    if len(results) == 0:
-        raise ValueError("No calibration data found")
-    return [float(cell) for cell in results[0][5:11]]
+    if len(results) == 0 or any(cell is None for cell in results[0][5:11]):
+        return None
+    values = [float(cell) for cell in results[0][5:11]]
+    if not np.isfinite(values).all():
+        return None
+    return values
 
 
 def fetch_gps_data(database_url, device_id, start_time, end_time):
@@ -846,6 +852,364 @@ def calibrate_imu_data(imu_data, calibration_values):
     return data
 
 
+# Accelerometer calibration estimated from the data. Translated from the R
+# functions of Eldar Rakhimberdiev (calibration_functions.R, ver 0.1, 17.02.2026).
+# For a device without calibration values, e.g. Ornitela. Each axis goes to g as
+# acc_g = (raw - b) / s, with b and s chosen so that the magnitude is 1 g while
+# the tag is static.
+# ============================================================================
+
+ORNITELA_ACC_SCALE = 1058.8  # mean raw-to-g scale of 5 Ornitela tags (sd 11.9)
+
+
+def detect_static(x, y, z, fs=None, win_sec=2, win=None, q_static=0.10):
+    """
+    Find the moments the tag is static.
+
+    The standard deviation of the magnitude, and of its jerk, is taken over a
+    window centred on each sample. A sample is static when both are at or below
+    their q_static quantile.
+
+    Parameters
+    ----------
+    x, y, z : np.ndarray
+        Raw accelerations, one value per sample.
+    fs : float
+        Sampling rate in Hz. The window is round(fs * win_sec) samples.
+    win_sec : float
+        Window length in seconds.
+    win : int
+        Window length in samples, used instead of fs and win_sec.
+    q_static : float
+        The fraction of the samples expected to be static.
+
+    Returns
+    -------
+    np.ndarray of bool
+        True for a static sample.
+    """
+    if win is None:
+        if fs is None or not np.isfinite(fs) or fs <= 0:
+            raise ValueError(
+                "Provide either fs (sampling rate, Hz) or win (window length in samples)."
+            )
+        win = max(5, int(np.round(fs * win_sec)))
+    else:
+        win = max(5, int(win))
+
+    m = np.sqrt(x**2 + y**2 + z**2)
+    jerk = np.concatenate([[np.nan], np.abs(np.diff(m))])
+
+    # Centred as in R zoo::rollapply: an even window has one more sample after
+    # the centre than before it. NaN where the window does not fit.
+    sd_m = pd.Series(m).rolling(win).std().shift(-(win // 2)).to_numpy()
+    sd_j = pd.Series(jerk).rolling(win).std().shift(-(win // 2)).to_numpy()
+
+    is_static = np.zeros(len(m), dtype=bool)
+    if np.isfinite(sd_m).any() and np.isfinite(sd_j).any():
+        thr_m = np.nanquantile(sd_m, q_static)
+        thr_j = np.nanquantile(sd_j, q_static)
+        is_static = (sd_m <= thr_m) & (sd_j <= thr_j)  # NaN compares False
+    return is_static
+
+
+def orientation_coverage(x, y, z):
+    """
+    How many postures the static samples cover.
+
+    The score is the smallest eigenvalue of the covariance of the unit
+    acceleration vectors. Near 0, the samples are mostly one posture, and the
+    offsets b cannot be told apart from the scales s.
+
+    Returns
+    -------
+    tuple
+        The score, and the three eigenvalues from large to small. The score is 0
+        for fewer than 100 samples.
+    """
+    m = np.sqrt(x**2 + y**2 + z**2)
+    ok = np.isfinite(m) & (m > 0)
+    if ok.sum() < 100:
+        return 0.0, np.full(3, np.nan)
+
+    u = np.stack([x[ok], y[ok], z[ok]], axis=1) / m[ok, None]
+    eig = np.sort(np.linalg.eigvalsh(np.cov(u, rowvar=False)))[::-1]
+    return eig[2], eig
+
+
+def fit_scale_only(x, y, z):
+    """
+    One scale for all axes and no offset: the median magnitude.
+    """
+    m = np.sqrt(x**2 + y**2 + z**2)
+    m = m[np.isfinite(m)]
+    s = np.median(m) if len(m) > 0 else np.nan
+    return dict(
+        method="scale_only",
+        bx=0.0,
+        by=0.0,
+        bz=0.0,
+        sx=s,
+        sy=s,
+        sz=s,
+        converged=True,
+        msg="ok",
+    )
+
+
+def fit_diag_offset_bounded(
+    x, y, z, S0=None, scale_mult=(0.5, 2.0), bias_mult=0.5, lambda_s=10, lambda_b=1
+):
+    """
+    An offset b and a scale s per axis, so that the static magnitude is near 1 g.
+
+    The loss is a Huber loss on (magnitude - 1), plus two penalties: one keeps
+    each scale near S0 (on a log scale), the other keeps each offset small
+    relative to S0. Bounds: s in S0 * scale_mult, |b| <= bias_mult * S0.
+
+    Parameters
+    ----------
+    x, y, z : np.ndarray
+        Raw accelerations of the static samples.
+    S0 : float
+        Scale to stay near. Default: the median static magnitude.
+
+    Returns
+    -------
+    dict or None
+        bx, by, bz, sx, sy, sz, and the optimizer outcome. None if S0 is not a
+        positive number.
+    """
+    if S0 is None:
+        m = np.sqrt(x**2 + y**2 + z**2)
+        S0 = np.median(m[np.isfinite(m)])
+    if not np.isfinite(S0) or S0 <= 0:
+        return None
+
+    xyz = np.stack([x, y, z], axis=1)
+    k = 0.02  # Huber threshold, in g
+
+    # theta = (bx, by, bz, log sx, log sy, log sz)
+    def objective(theta):
+        b, log_s = theta[:3], theta[3:]
+        g = (xyz - b) / np.exp(log_s)
+        mg = np.sqrt((g**2).sum(axis=1))
+        r = mg - 1
+        a = np.abs(r)
+        loss = np.where(a <= k, 0.5 * r**2, k * (a - 0.5 * k)).sum()
+        loss += lambda_s * ((log_s - np.log(S0)) ** 2).sum()
+        loss += lambda_b * ((b / S0) ** 2).sum()
+        return loss
+
+    b_lim = bias_mult * S0
+    lo = [-b_lim] * 3 + [np.log(S0 * scale_mult[0])] * 3
+    hi = [b_lim] * 3 + [np.log(S0 * scale_mult[1])] * 3
+
+    # Start: the median of each axis, projected onto the bounds as R optim does
+    theta0 = np.concatenate([np.median(xyz, axis=0), [np.log(S0)] * 3])
+    theta0 = np.clip(theta0, lo, hi)
+
+    # R optim L-BFGS-B defaults: lmm=5, factr=1e7 (ftol here), pgtol=0.
+    # Derivatives are numerical, as in R.
+    opt = minimize(
+        objective,
+        theta0,
+        method="L-BFGS-B",
+        bounds=list(zip(lo, hi)),
+        options=dict(maxiter=2500, maxcor=5, ftol=1e7 * np.finfo(float).eps, gtol=0),
+    )
+    return dict(
+        method="diag_offset",
+        converged=bool(opt.success),
+        value=opt.fun,
+        bx=opt.x[0],
+        by=opt.x[1],
+        bz=opt.x[2],
+        sx=np.exp(opt.x[3]),
+        sy=np.exp(opt.x[4]),
+        sz=np.exp(opt.x[5]),
+        msg=opt.message,
+    )
+
+
+def acc_apply(x, y, z, params=None):
+    """
+    Convert raw accelerations to g with calibration parameters.
+
+    Parameters
+    ----------
+    x, y, z : np.ndarray
+        Raw accelerations.
+    params : dict
+        bx, by, bz, sx, sy, sz. If None, no offset and ORNITELA_ACC_SCALE.
+
+    Returns
+    -------
+    np.ndarray
+        N x 4: x_g, y_g, z_g and the magnitude m_g.
+    """
+    if params is None:
+        params = dict(bx=0, by=0, bz=0, sx=ORNITELA_ACC_SCALE)
+        params["sy"] = params["sz"] = ORNITELA_ACC_SCALE
+        warnings.warn(
+            f"No calibration parameters provided. Using {ORNITELA_ACC_SCALE} default."
+        )
+    p = params
+    xyz_g = raw2meas(x, y, z, p["bx"], p["sx"], p["by"], p["sy"], p["bz"], p["sz"])
+    xyz_g = np.stack(xyz_g, axis=1)
+    return np.column_stack([xyz_g, np.sqrt((xyz_g**2).sum(axis=1))])
+
+
+def acc_calibrate(
+    x,
+    y,
+    z,
+    fs=None,
+    win_sec=2,
+    win=None,
+    q_static=0.10,
+    method="auto",
+    min_static=300,
+    coverage_min=0.02,
+    scale_mult=(0.5, 2.0),
+    bias_mult=0.5,
+    lambda_s=10,
+    lambda_b=1,
+):
+    """
+    Estimate the calibration of one device from its raw accelerations.
+
+    The data must hold moments where the tag is static, even on the animal.
+
+    Parameters
+    ----------
+    x, y, z : np.ndarray
+        Raw accelerations of one device, in time order.
+    fs, win_sec, win, q_static
+        Static detection, see `detect_static`. The R example uses fs=20 and
+        q_static=0.85, for a tag that hardly moved.
+    method : str
+        - "scale_only": one scale for all axes, no offset.
+        - "diag_offset": an offset and a scale per axis.
+        - "auto": the same as "diag_offset". Both fall back to "scale_only"
+          when the static samples cover too few postures (coverage_min).
+        Any method falls back to "scale_only" with fewer than min_static static
+        samples, or when the optimizer fails.
+    scale_mult, bias_mult, lambda_s, lambda_b
+        Bounds and penalties, see `fit_diag_offset_bounded`.
+
+    Returns
+    -------
+    dict
+        - params: bx, by, bz, sx, sy, sz and the method used.
+        - diagnostics: number of static samples, their median raw magnitude,
+          orientation coverage, and the median and IQR (interquartile range)
+          of their calibrated magnitude.
+        - data: N x 4 calibrated x_g, y_g, z_g, m_g.
+        - is_static: N booleans.
+
+    Examples
+    --------
+    >>> res = acc_calibrate(acc_x, acc_y, acc_z, fs=20, q_static=0.85)
+    >>> res["params"]["sx"]
+    """
+    if method not in ("auto", "scale_only", "diag_offset"):
+        raise ValueError(f"Unknown method: {method}")
+    x, y, z = (np.asarray(v, dtype=np.float64) for v in (x, y, z))
+
+    is_static = detect_static(
+        x, y, z, fs=fs, win_sec=win_sec, win=win, q_static=q_static
+    )
+    st = is_static & np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    xs, ys, zs = x[st], y[st], z[st]
+    n_static = int(st.sum())
+
+    score, eig = orientation_coverage(xs, ys, zs)
+    S0 = np.median(np.sqrt(xs**2 + ys**2 + zs**2)) if n_static > 0 else np.nan
+
+    if method == "scale_only" or n_static < min_static:
+        p = fit_scale_only(xs, ys, zs)
+        if n_static < min_static:
+            p["method"] = f"scale_only (fallback: n_static<{min_static})"
+    elif not np.isfinite(score) or score < coverage_min:
+        p = fit_scale_only(xs, ys, zs)
+        reason = "auto" if method == "auto" else "fallback"
+        p["method"] = (
+            f"scale_only ({reason}: low orientation coverage={round(score, 4)})"
+        )
+    else:
+        p = fit_diag_offset_bounded(
+            xs,
+            ys,
+            zs,
+            S0=S0,
+            scale_mult=scale_mult,
+            bias_mult=bias_mult,
+            lambda_s=lambda_s,
+            lambda_b=lambda_b,
+        )
+        if p is None or not p["converged"]:
+            p = fit_scale_only(xs, ys, zs)
+            p["method"] = "scale_only (fallback: optimizer)"
+
+    data = acc_apply(x, y, z, p)
+    mg_st = data[is_static, 3]
+    mg_st = mg_st[np.isfinite(mg_st)]
+    has_mg = len(mg_st) > 0
+    diagnostics = dict(
+        n_static=n_static,
+        S0_static_median=S0,
+        orientation_coverage=score,
+        eig1=eig[0],
+        eig2=eig[1],
+        eig3=eig[2],
+        median_mg_static=np.median(mg_st) if has_mg else np.nan,
+        iqr_mg_static=(
+            np.subtract(*np.percentile(mg_st, [75, 25])) if has_mg else np.nan
+        ),
+    )
+    return dict(params=p, diagnostics=diagnostics, data=data, is_static=is_static)
+
+
+def estimate_calibration(imu_data, fs=20, q_static=0.85, min_static=300):
+    """
+    Estimate calibration values from raw IMU data, for a device without them.
+
+    Uses `acc_calibrate` with method "auto". With fewer than min_static static
+    samples, it uses no offset and ORNITELA_ACC_SCALE instead. A scale fitted on
+    a few bursts would set their own magnitude to 1 g, even in flight.
+
+    Parameters
+    ----------
+    imu_data : list[tuple]
+        Raw IMU data, as from `fetch_imu_data`. x, y, z are the last three.
+    fs : float
+        Sampling rate in Hz.
+    q_static : float
+        The fraction of the samples expected to be static. 0.85 is the value of
+        the R example, and gives the calibration of `all_devices_calibrated.csv`.
+    min_static : int
+        Fewest static samples to trust the estimate.
+
+    Returns
+    -------
+    list[float]
+        Calibration values: [x_o, x_s, y_o, y_s, z_o, z_s], as
+        `fetch_calibration_data`.
+    """
+    x, y, z = np.array([result[-3:] for result in imu_data], dtype=np.float64).T
+    res = acc_calibrate(x, y, z, fs=fs, q_static=q_static, min_static=min_static)
+    n_static = res["diagnostics"]["n_static"]
+    if n_static < min_static:
+        warnings.warn(
+            f"{n_static} static samples, fewer than {min_static}. "
+            f"Using {ORNITELA_ACC_SCALE} default calibration."
+        )
+        return [0.0, ORNITELA_ACC_SCALE] * 3
+    p = res["params"]
+    return [p["bx"], p["sx"], p["by"], p["sy"], p["bz"], p["sz"]]
+
+
 def combine_sensor_data(calibrated_imu_data, gps_data, device_id, glen):
     groups = identify_and_process_groups(calibrated_imu_data, glen)
 
@@ -903,11 +1267,16 @@ def get_data(database_url, device_id, start_time, end_time, glen=20):
     The function queries a database to retrieve calibration IMU values, 2D GPS speed,
     and IMU data for a specific device within a given time range. It processes this
     data and returns it in two structured numpy array format.
+
+    A device without calibration values is calibrated from its IMU data in this
+    time range (`estimate_calibration`). A longer range gives a better estimate.
     """
     calibration_values = fetch_calibration_data(database_url, device_id)
     gps_data = fetch_gps_data(database_url, device_id, start_time, end_time)
     imu_data = fetch_imu_data(database_url, device_id, start_time, end_time)
 
+    if calibration_values is None:
+        calibration_values = estimate_calibration(imu_data)
     cal_imu_data = calibrate_imu_data(imu_data, calibration_values)
 
     return combine_sensor_data(cal_imu_data, gps_data, device_id, glen)

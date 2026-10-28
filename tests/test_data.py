@@ -174,6 +174,34 @@ def test_identify_and_process_groups():
     np.testing.assert_equal(np.array(data)[22:42], np.array(processed_groups[1]))
 
 
+def test_acc_calibrate():
+    # A static tag in 12 postures of 75 s each, with known offsets and scales
+    rng = np.random.default_rng(0)
+    b, s = np.array([30.0, -20.0, 15.0]), np.array([1040.0, 1060.0, 1075.0])
+    g = rng.normal(size=(12, 3))
+    g /= np.linalg.norm(g, axis=1, keepdims=True)
+    noise = rng.normal(0, 4, (18000, 3))
+    xyz = np.round(np.repeat(g, 1500, axis=0) * s + b + noise)
+
+    p = bd.acc_calibrate(*xyz.T, fs=20, q_static=0.6)["params"]
+    assert p["method"] == "diag_offset"
+    np.testing.assert_allclose([p["bx"], p["by"], p["bz"]], b, atol=1)
+    # 0.2%: a penalty pulls each scale a little toward the median magnitude
+    np.testing.assert_allclose([p["sx"], p["sy"], p["sz"]], s, rtol=2e-3)
+
+    # One posture: offsets and scales cannot be told apart, so one scale
+    xyz = np.round(g[0] * s + b + noise)
+    p = bd.acc_calibrate(*xyz.T, fs=20, q_static=0.6)["params"]
+    assert p["method"].startswith("scale_only (auto: low orientation coverage")
+    assert p["bx"] == 0 and p["sx"] == p["sy"] == p["sz"]
+
+    # Too little data for an estimate: the Ornitela default
+    rows = [(1, None, i, *v) for i, v in enumerate(xyz[:60])]
+    with pytest.warns(UserWarning):
+        values = bd.estimate_calibration(rows)
+    assert values == [0.0, bd.ORNITELA_ACC_SCALE] * 3
+
+
 @pytest.mark.ignore
 def test_get_data():
     device_id = 534
