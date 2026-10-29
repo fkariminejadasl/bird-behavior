@@ -8,6 +8,38 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## Spoonbill data counts (no new run)
+
+`exps/spoonbill_data_stats.py` on the spoonbill data of Lok et al. Tables in
+`descriptions.md`, Spoonbill data; pitfalls in `lesson_learned.md`.
+
+- 4718 segments of 20 records, 4642 with no missing value. 13 behaviours, 8
+  birds, 20 Hz. 81% of the labeled records land in a segment; for-intake 24%.
+- Begging data of the second paper: 436 segments, 429 of them beg, all from
+  juvenile 6381.
+- Planned: train a spoonbill model as exp197 on both datasets combined, then
+  test the gull model on spoonbill data and the spoonbill model on gull data,
+  on what both share (flight, walking). Needs a label map between the two
+  species first. The second paper maps its labels onto the first
+  (`descriptions.md`, Begging data).
+
+Before the spoonbill run, still to do:
+
+1. Write a training file in the `starts.csv` format that
+   `data.py::load_csv_pandas` reads: no header, 8 columns (device, datetime,
+   index, label, x, y, z, speed), whole 20-record segments in order. Cut as
+   `spoonbill_data_stats.py::cut_segments`. New name, e.g.
+   `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`.
+2. Keep only complete segments. The 30 m/s filter drops a missing speed, but a
+   missing x, y or z goes into training.
+3. Labels: the video and soaring files with their codes; begging with the
+   second paper's map, beg as a new code 17 (`behaviours.csv` stops at 16).
+4. `batch_train_supervised.py::main` names classes with the gull
+   `bu.ind2name`: spoonbill codes 10-16 fail, 1-9 get gull names. Needs a
+   names map.
+5. The split is random per segment, as for the gulls. A split by bird is not
+   in the code: the `valid_file` path builds 4 channels, not the 7 of exp197.
+
 ## Speed reliance of exp197-204 (no new run)
 
 Does a model trained on `starts_clean.csv` lean more on GPS speed? Only the

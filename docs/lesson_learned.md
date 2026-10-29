@@ -4,6 +4,33 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## Spoonbill data: few birds per behaviour
+
+The spoonbill data has 4718 segments of 20 records, about as many as the gull
+`starts.csv` (4338), but each behaviour comes from few birds
+(`exps/spoonbill_data_stats.py`). Terms in `descriptions.md`, Terms.
+
+- **Soaring and bird are mixed up.** 51 of the 53 fly-soar segments come from
+  the three migration birds (6283, 6287, 6291), which have no other label. They
+  were labeled by eye from plots, not from video. A model can learn the tag,
+  not the soaring, and still score well on it.
+- **One bird holds most of a class.** for-search is 90% bird 760, stand-rest
+  94% bird 763, sit-alert 100% bird 584. A random split of segments puts the
+  same bird, often the same fix, in train and valid. Split by bird, or at least
+  by fix.
+- **Short behaviours are lost at 20 records.** 456 of 571 for-intake bouts are
+  shorter than 20 records, so 9459 records give 115 segments, 24% used.
+  for-handle keeps 35%. Over all labels, 857 of 2220 bouts are too short, and
+  with the ends of longer bouts only 81% of the records land in a segment.
+- **Begging is one bird, mostly labeled without video.** The begging data
+  adds 429 beg segments, all from juvenile 6381 over two days, so beg has the
+  same bird problem as soaring. 329 of them were labeled from the signal shape
+  alone, so a model scored on them is scored against an annotator's reading of
+  the signal, not against what the bird did.
+- **The second paper's `behaviour` column is model output.** In
+  `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
+  has no x, y, z. It is not training data.
+
 ## IMU calibration from the data, for devices without calibration values
 
 `behavior/data.py::get_data` used to return nothing for a device without
