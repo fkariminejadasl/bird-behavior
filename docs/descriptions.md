@@ -297,7 +297,7 @@ Begging is a chick walking after a parent and asking to be fed.
 - Paper: Lok et al. 2025, Eurasian Spoonbill chicks receive parental care up to several months after fledging, but not into migration, [10.1007/s00265-025-03649-6](https://doi.org/10.1007/s00265-025-03649-6).
 - Data and code: [zenodo.org/records/16961361](https://zenodo.org/records/16961361), a zip of release v1.0.0 of [github.com/tamarlok/postfledging_care](https://github.com/tamarlok/postfledging_care). The data files are in [data/raw](https://github.com/tamarlok/postfledging_care/tree/main/data/raw). The zip and GitHub `main` (commit 6c40d9b) hold the same data files, byte for byte.
 
-In `/home/fatemeh/Downloads/bird/data/spoonbill_postfledging`, apart from the first paper's data: the Zenodo zip, extracted as is into `tamarlok-postfledging_care-6c40d9b/`. The data is in its `data/raw/`:
+In `/home/fatemeh/Downloads/bird/data/spoonbill_postfledging`, apart from the first paper's data: only `tamarlok-postfledging_care-6c40d9b/data/raw/` of the Zenodo zip is kept; the R code is on GitHub. The data files:
 
 | file                                                                                                                       | what                                                                                                                                                                      |
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -306,7 +306,7 @@ In `/home/fatemeh/Downloads/bird/data/spoonbill_postfledging`, apart from the fi
 | `gps.data.csv`                                                                                                             | the same birds, GPS only                                                                                                                                                  |
 | `metadata.tagged.birds.csv`, `parent.offspring.data.csv`, `chick.biometrics.csv`, `feeding.observations.with.sex.info.csv` | tags, families, chick sizes, field observations                                                                                                                           |
 
-The raw IMU of the other birds is on Movebank, on request only (its README).
+The raw IMU of the other birds is on Movebank, on request only ([README](https://github.com/tamarlok/postfledging_care/blob/main/README.md)).
 
 Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_stats.py`; `video` and `graphical` split the segments by `annotation.method`.
 
@@ -324,7 +324,7 @@ Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_sta
 - 20 Hz: the R script divides record counts by 20 to get seconds.
 - 10 records lack z, 5 of them also y. Speed is never missing; at most 0.92 m/s.
 
-The paper already combines both datasets, in `2_analyses/1_classification_begging_behaviour.R`:
+The paper already combines both datasets, in [`2_analyses/1_classification_begging_behaviour.R`](https://github.com/tamarlok/postfledging_care/blob/main/2_analyses/1_classification_begging_behaviour.R):
 
 - Map: shake_feathers to stand-shake-feathers, preen_tag to stand-preen, beg_flap to beg.
 - Pool: sit-alert to sit; stand-alert, stand-other, stand-rest, stand-shake-feathers, stand-preen and drink to stand. It also scores five groups: forage, walk, fly, rest, beg.
