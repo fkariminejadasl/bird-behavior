@@ -11,6 +11,14 @@ The spoonbill data of Lok et al. 2023 (Eurasian spoonbill, UvA-BiTS tags,
 - `acc_data_migration_<bird>.csv`: three birds on migration, no labels.
 - `behaviours.csv`: label index to name.
 
+The begging data of Lok et al. 2025 (post-fledging care) sits in
+`~/Downloads/bird/data/spoonbill_postfledging`, as released on Zenodo. Only
+`data/raw/annotated.begging.data.csv` has labeled IMU records: one juvenile,
+text labels (beg, beg_flap, preen_tag, shake_feathers), each labeled from video
+or graphically, from the signal alone. Its other files hold GPS and the paper's
+model output, no IMU. It gets the same counts, and segments per annotation
+method.
+
 Terms, as in `docs/descriptions.md`, Terms:
 
 - record: one row, one IMU reading x, y, z, with the GPS speed of its fix.
@@ -155,6 +163,44 @@ def records_per_second(raw):
     return pd.Series(counts).value_counts().sort_index()
 
 
+def load_begging(path):
+    """The begging file in the gull column order, text labels as codes.
+
+    Returns the frame and {code: name}.
+    """
+    df = pd.read_csv(path)
+    names = dict(enumerate(sorted(df["behaviour"].unique())))
+    df["behaviour.index"] = df["behaviour"].map({v: k for k, v in names.items()})
+    return df.rename(columns=COLUMNS), names
+
+
+def begging_report(cfg):
+    """The same counts for the begging file, and segments per annotation method."""
+    beg, names = load_begging(Path(cfg.begging_dir) / cfg.begging_file)
+    print(f"\n# Begging data, {cfg.begging_file}\n")
+    print(as_markdown(pd.DataFrame([quality(cfg.begging_file, beg)])))
+    beg, dropped = drop_conflicts(beg)
+    print(f"\n{len(dropped)} records dropped: the same index twice in one fix")
+    lens = beg.groupby([0, 1]).size()
+    print(f"records per fix: median {lens.median():.0f}, max {lens.max()}")
+
+    print(f"\n## Segments of {cfg.glen} records per behaviour\n")
+    seg, bouts = cut_segments(beg, cfg.glen)
+    table = per_label(seg, bouts, cfg.glen)
+    table.insert(0, "name", [names.get(k, "") for k in table.index])
+    print(as_markdown(table.rename_axis("label"), index=True))
+
+    print("\n## Segments per behaviour and annotation method\n")
+    # a segment takes the method of its first record
+    method = beg[[0, 1, 2, "annotation.method"]]
+    method = method.rename(columns={0: "device", 1: "datetime", 2: "start"})
+    seg = seg.merge(method, on=["device", "datetime", "start"])
+    per_method = pd.crosstab(
+        seg["label"].map(names).rename("name"), seg["annotation.method"], margins=True
+    )
+    print(as_markdown(per_method, index=True))
+
+
 def main(cfg):
     data = Path(cfg.data_dir)
     names = pd.read_csv(data / cfg.names_file)
@@ -245,6 +291,8 @@ def main(cfg):
         )
     print(as_markdown(pd.DataFrame(rows)))
 
+    begging_report(cfg)
+
 
 if __name__ == "__main__":
     config = {
@@ -256,5 +304,9 @@ if __name__ == "__main__":
         "birds": [6283, 6287, 6291],  # one migration file per bird
         "soar_label": 9,  # fly-soar, the only label of soar_file
         "glen": 20,  # records per segment, as for the gull model
+        # Lok et al. 2025, the Zenodo release extracted as is
+        "begging_dir": "/home/fatemeh/Downloads/bird/data/spoonbill_postfledging/"
+        "tamarlok-postfledging_care-6c40d9b/data/raw",
+        "begging_file": "annotated.begging.data.csv",
     }
     main(OmegaConf.create(config))

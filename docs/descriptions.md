@@ -43,7 +43,7 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 - `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
 - `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
-- `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds. Spoonbill data, below
+- `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds; begging data: 436 segments, one bird. Spoonbill data, below
 
 ## Model
 
@@ -242,7 +242,7 @@ The values equal the published ones, up to the 1e-6 rounding. `IMU_x`, `IMU_y`, 
 Eurasian spoonbill data, in `/home/fatemeh/Downloads/bird/data/spoonbill`. Terms as in Terms, above.
 
 - Paper: Lok et al. 2023, Prey ingestion rates revealed by back-mounted accelerometers in Eurasian spoonbills, Animal Biotelemetry 11:5, [10.1186/s40317-022-00315-w](https://doi.org/10.1186/s40317-022-00315-w). Data: [doi.nioz.nl/dataset/7bbyd](https://doi.nioz.nl/dataset/7bbyd), with 10 videos left out here. Code: [zenodo.org/records/7541131](https://zenodo.org/records/7541131).
-- Begging paper: [10.1007/s00265-025-03649-6](https://doi.org/10.1007/s00265-025-03649-6), code at [github.com/tamarlok/postfledging_care](https://github.com/tamarlok/postfledging_care). Its data is not here.
+- A second paper adds begging: Begging data, below.
 
 One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix, one burst per fix. A fix is not 20 records: in the video file it holds up to 200 (10 s), so up to 10 segments.
 
@@ -289,6 +289,44 @@ Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `st
 - 5 records of fix 760, 2014-06-08 12:19:53 carry two labels (for-search and for-intake). Both copies are dropped.
 - 12 video fixes have no speed. Speed is one value per fix, so all their records lack it: 53 to 200 records per fix, 1620 in all, 73 segments. Most of the 76 incomplete segments are these.
 - 41 video records lack z, 20 of them also y. 248 are beyond 2 g, the gull clip.
+
+#### Begging data
+
+Begging is a chick walking after a parent and asking to be fed.
+
+- Paper: Lok et al. 2025, Eurasian Spoonbill chicks receive parental care up to several months after fledging, but not into migration, [10.1007/s00265-025-03649-6](https://doi.org/10.1007/s00265-025-03649-6).
+- Data and code: [zenodo.org/records/16961361](https://zenodo.org/records/16961361), a zip of release v1.0.0 of [github.com/tamarlok/postfledging_care](https://github.com/tamarlok/postfledging_care). The data files are in [data/raw](https://github.com/tamarlok/postfledging_care/tree/main/data/raw). The zip and GitHub `main` (commit 6c40d9b) hold the same data files, byte for byte.
+
+In `/home/fatemeh/Downloads/bird/data/spoonbill_postfledging`, apart from the first paper's data: the Zenodo zip, extracted as is into `tamarlok-postfledging_care-6c40d9b/`. The data is in its `data/raw/`:
+
+| file                                                                                                                       | what                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotated.begging.data.csv`                                                                                               | the only labeled IMU data: juvenile 6381, 2018-07-04 and 05, 58 fixes, 9040 records. Columns as above, but text labels, an `annotation.method` column, and `Index` from 1 |
+| `gps.behav.data.csv`                                                                                                       | 29 birds, a GPS fix every 10 min, with `behaviour` predicted by the paper's random forest, and ODBA (overall dynamic body acceleration). No x, y, z                       |
+| `gps.data.csv`                                                                                                             | the same birds, GPS only                                                                                                                                                  |
+| `metadata.tagged.birds.csv`, `parent.offspring.data.csv`, `chick.biometrics.csv`, `feeding.observations.with.sex.info.csv` | tags, families, chick sizes, field observations                                                                                                                           |
+
+The raw IMU of the other birds is on Movebank, on request only (its README).
+
+Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_stats.py`; `video` and `graphical` split the segments by `annotation.method`.
+
+| name           | records  | bouts  | bouts < 20 | segments | % records used | video   | graphical |
+| -------------- | -------- | ------ | ---------- | -------- | -------------- | ------- | --------- |
+| beg            | 8861     | 62     | 4          | 429      | 97             | 100     | 329       |
+| beg_flap       | 84       | 3      | 1          | 3        | 71             | 3       | 0         |
+| preen_tag      | 81       | 1      | 0          | 4        | 99             | 4       | 0         |
+| shake_feathers | 14       | 1      | 1          | 0        | 0              | 0       | 0         |
+| **total**      | **9040** | **67** | **6**      | **436**  | **96**         | **107** | **329**   |
+
+- `graphical`: labeled from the signal alone, with the parent seen nearby in the field. Only begging was labeled this way. The R script says the signals are so clear.
+- 20 Hz: the R script divides record counts by 20 to get seconds.
+- 10 records lack z, 5 of them also y. Speed is never missing; at most 0.92 m/s.
+
+The paper already combines both datasets, in `2_analyses/1_classification_begging_behaviour.R`:
+
+- Map: shake_feathers to stand-shake-feathers, preen_tag to stand-preen, beg_flap to beg.
+- Pool: sit-alert to sit; stand-alert, stand-other, stand-rest, stand-shake-feathers, stand-preen and drink to stand. It also scores five groups: forage, walk, fly, rest, beg.
+- Segments of 0.4, 0.8, 1.0 and 1.6 s; the final random forest uses 1.6 s.
 
 ### Previous Data Preparation
 

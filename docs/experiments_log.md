@@ -15,9 +15,13 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 
 - 4718 segments of 20 records, 4642 with no missing value. 13 behaviours, 8
   birds, 20 Hz. 81% of the labeled records land in a segment; for-intake 24%.
-- Planned: train a spoonbill model as exp197, then test the gull model on
-  spoonbill data and the spoonbill model on gull data, on what both share
-  (flight, walking). Needs a label map between the two species first.
+- Begging data of the second paper: 436 segments, 429 of them beg, all from
+  juvenile 6381.
+- Planned: train a spoonbill model as exp197 on both datasets combined, then
+  test the gull model on spoonbill data and the spoonbill model on gull data,
+  on what both share (flight, walking). Needs a label map between the two
+  species first. The second paper maps its labels onto the first
+  (`descriptions.md`, Begging data).
 
 ## Speed reliance of exp197-204 (no new run)
 

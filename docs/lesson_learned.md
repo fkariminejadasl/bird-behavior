@@ -22,6 +22,14 @@ The spoonbill data has 4718 segments of 20 records, about as many as the gull
   shorter than 20 records, so 9459 records give 115 segments, 24% used.
   for-handle keeps 35%. Over all labels, 857 of 2220 bouts are too short, and
   with the ends of longer bouts only 81% of the records land in a segment.
+- **Begging is one bird, mostly labeled without video.** The begging data
+  adds 429 beg segments, all from juvenile 6381 over two days, so beg has the
+  same bird problem as soaring. 329 of them were labeled from the signal shape
+  alone, so a model scored on them is scored against an annotator's reading of
+  the signal, not against what the bird did.
+- **The second paper's `behaviour` column is model output.** In
+  `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
+  has no x, y, z. It is not training data.
 
 ## IMU calibration from the data, for devices without calibration values
 
