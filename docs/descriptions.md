@@ -244,7 +244,9 @@ Eurasian spoonbill data, in `/home/fatemeh/Downloads/bird/data/spoonbill`. Terms
 - Paper: Lok et al. 2023, Prey ingestion rates revealed by back-mounted accelerometers in Eurasian spoonbills, Animal Biotelemetry 11:5, [10.1186/s40317-022-00315-w](https://doi.org/10.1186/s40317-022-00315-w). Data: [doi.nioz.nl/dataset/7bbyd](https://doi.nioz.nl/dataset/7bbyd), with 10 videos left out here. Code: [zenodo.org/records/7541131](https://zenodo.org/records/7541131).
 - Begging paper: [10.1007/s00265-025-03649-6](https://doi.org/10.1007/s00265-025-03649-6), code at [github.com/tamarlok/postfledging_care](https://github.com/tamarlok/postfledging_care). Its data is not here.
 
-One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix, one burst per fix. 20 Hz, as in the paper: every full second of video holds 20 records (`exps/spoonbill_data_stats.py`).
+One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix, one burst per fix. A fix is not 20 records: in the video file it holds up to 200 (10 s), so up to 10 segments.
+
+20 Hz, as in the paper. Checked on the video clock `time.on.video`, one value per second: count the records of a fix that share one second. The first and last second of a fix are cut off by the burst start and end, so they are skipped. All 4376 seconds left hold exactly 20 records (`exps/spoonbill_data_stats.py`).
 
 | file                                       | what                               | birds                    | fixes | records per fix  |
 | ------------------------------------------ | ---------------------------------- | ------------------------ | ----- | ---------------- |
@@ -255,31 +257,38 @@ One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`,
 
 The videos hold "very few data on passive (soaring/gliding) flight", so the paper labeled it from plots of the migration data of three birds. The soaring file is that labeled copy of 51 migration fixes: same rows, same values. The migration files give 3694 segments, the 51 soaring ones among them.
 
-Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `starts.csv` (`exps/spoonbill_data_stats.py`). `used %` is the share of a label's records inside a segment. `complete` has no missing x, y, z or speed. `main bird` is the bird with the most segments of that label.
+Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `starts.csv`: a bout of n records gives n // 20 segments. The table is the `Segments of 20 records per behaviour` output of `exps/spoonbill_data_stats.py`; `main bird` comes from its `Segments per behaviour and bird` output.
 
-| lab | name                 | segments | %    | used % | complete | birds | main bird  |
-| --- | -------------------- | -------- | ---- | ------ | -------- | ----- | ---------- |
-| 2   | stand-rest           | 1415     | 30.0 | 96     | 1357     | 3     | 763 (94%)  |
-| 4   | stand-preen          | 305      | 6.5  | 88     | 295      | 2     | 763 (91%)  |
-| 6   | sit-alert            | 62       | 1.3  | 99     | 62       | 1     | 584 (100%) |
-| 7   | stand-alert          | 416      | 8.8  | 87     | 416      | 4     | 763 (61%)  |
-| 8   | fly-flap             | 185      | 3.9  | 98     | 185      | 4     | 760 (50%)  |
-| 9   | fly-soar             | 53       | 1.1  | 62     | 52       | 4     | 6283 (42%) |
-| 10  | walk                 | 177      | 3.8  | 77     | 177      | 3     | 760 (69%)  |
-| 11  | for-search           | 1935     | 41.0 | 82     | 1929     | 3     | 760 (90%)  |
-| 12  | for-handle           | 14       | 0.3  | 35     | 14       | 2     | 760 (93%)  |
-| 13  | for-intake           | 115      | 2.4  | 24     | 115      | 3     | 760 (98%)  |
-| 14  | stand-other          | 16       | 0.3  | 57     | 15       | 1     | 763 (100%) |
-| 15  | stand-shake-feathers | 18       | 0.4  | 64     | 18       | 3     | 763 (72%)  |
-| 16  | drink                | 7        | 0.1  | 81     | 7        | 1     | 763 (100%) |
-|     | **total**            | **4718** |      | **81** | **4642** |       |            |
+- `records`, `bouts`, `segments`: counts per behaviour.
+- `bouts < 20`: bouts too short for one segment. All their records are lost.
+- `% of segments`: this behaviour's segments out of all 4718.
+- `% records used`: this behaviour's records that land in a segment. Records are lost in short bouts and at the end of longer ones: a 35-record bout gives 1 segment and leaves 15.
+- `complete`: segments with no missing x, y, z or speed.
+- `main bird`: the bird with the most segments of this behaviour, and its share.
 
-- Records are lost in bouts shorter than 20 (857 of 2220 bouts) and at the end of longer bouts.
+| lab | name                 | records    | bouts    | bouts < 20 | segments | % of segments | % records used | complete | main bird  |
+| --- | -------------------- | ---------- | -------- | ---------- | -------- | ------------- | -------------- | -------- | ---------- |
+| 2   | stand-rest           | 29540      | 200      | 1          | 1415     | 30.0          | 96             | 1357     | 763 (94%)  |
+| 4   | stand-preen          | 6959       | 96       | 13         | 305      | 6.5           | 88             | 295      | 763 (91%)  |
+| 6   | sit-alert            | 1249       | 8        | 0          | 62       | 1.3           | 99             | 62       | 584 (100%) |
+| 7   | stand-alert          | 9529       | 138      | 26         | 416      | 8.8           | 87             | 416      | 763 (61%)  |
+| 8   | fly-flap             | 3794       | 27       | 1          | 185      | 3.9           | 98             | 185      | 760 (50%)  |
+| 9   | fly-soar             | 1722       | 56       | 4          | 53       | 1.1           | 62             | 52       | 6283 (42%) |
+| 10  | walk                 | 4574       | 101      | 36         | 177      | 3.8           | 77             | 177      | 760 (69%)  |
+| 11  | for-search           | 47264      | 933      | 267        | 1935     | 41.0          | 82             | 1929     | 760 (90%)  |
+| 12  | for-handle           | 797        | 42       | 31         | 14       | 0.3           | 35             | 14       | 760 (93%)  |
+| 13  | for-intake           | 9459       | 571      | 456        | 115      | 2.4           | 24             | 115      | 760 (98%)  |
+| 14  | stand-other          | 566        | 21       | 9          | 16       | 0.3           | 57             | 15       | 763 (100%) |
+| 15  | stand-shake-feathers | 559        | 23       | 13         | 18       | 0.4           | 64             | 18       | 763 (72%)  |
+| 16  | drink                | 173        | 4        | 0          | 7        | 0.1           | 81             | 7        | 763 (100%) |
+|     | **total**            | **116185** | **2220** | **857**    | **4718** | **100**       | **81**         | **4642** |            |
+
 - sit-rest, sit-preen and washing (1, 3, 5) have no records.
 - fly-soar: 2 segments from video, 51 from the soaring file.
 - Stride-1 segments inside one bout, like the gull `shift`, give 78,842.
 - 5 records of fix 760, 2014-06-08 12:19:53 carry two labels (for-search and for-intake). Both copies are dropped.
-- 12 video fixes have no speed, so all their 1620 records lack it. 41 video records lack z, 20 of them also y. 248 are beyond 2 g, the gull clip.
+- 12 video fixes have no speed. Speed is one value per fix, so all their records lack it: 53 to 200 records per fix, 1620 in all, 73 segments. Most of the 76 incomplete segments are these.
+- 41 video records lack z, 20 of them also y. 248 are beyond 2 g, the gull clip.
 
 ### Previous Data Preparation
 

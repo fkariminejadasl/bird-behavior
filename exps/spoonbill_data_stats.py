@@ -22,7 +22,8 @@ Terms, as in `docs/descriptions.md`, Terms:
 Segments are cut as `data_processing.slice_from_first_label` cuts `starts.csv`:
 a bout of n records gives `n // 20` non-overlapping segments, from its first
 record. A bout shorter than 20 gives none, and a longer bout leaves its last
-`n % 20` records unused; `used %` is the share of records inside a segment.
+`n % 20` records unused; `% records used` is the share of records inside a
+segment, `% of segments` the share of all segments.
 `sliding` counts every stride-1 segment inside a bout instead, an upper bound
 like the gull `shift`. `complete` segments have a value in all of x, y, z and
 speed.
@@ -113,9 +114,10 @@ def per_label(segments, bouts, glen):
     out["complete"] = by_label["complete"].sum()
     out = out.fillna(0).astype(int)
     out.loc["total"] = out.sum()
-    out["%"] = 100 * out["segments"] / out.loc["total", "segments"]
-    out["used %"] = 100 * glen * out["segments"] / out["records"]
-    cols = ["records", "bouts", "short", "segments", "%", "used %", "complete"]
+    out["% of segments"] = 100 * out["segments"] / out.loc["total", "segments"]
+    out["% records used"] = 100 * glen * out["segments"] / out["records"]
+    cols = ["records", "bouts", "short", "segments", "% of segments"]
+    cols += ["% records used", "complete"]
     return out[cols + ["sliding"]].rename(columns={"short": f"bouts < {glen}"})
 
 
@@ -177,7 +179,11 @@ def main(cfg):
     print(dropped.groupby([0, 1, 2])[3].apply(list).to_string())
 
     per_sec = records_per_second(raw_video)
-    print(f"\nRecords per inner second of video: {per_sec.to_dict()} (n seconds)")
+    counts = ", ".join(f"{v} seconds hold {k} records" for k, v in per_sec.items())
+    print(
+        f"\nVideo seconds, first and last of each fix skipped: {counts} "
+        f"(20 records a second is 20 Hz)"
+    )
 
     # The soaring file should be a labeled copy of the migration records.
     copy = migr[[0, 1, 2] + SIGNAL].rename(columns={c: f"m{c}" for c in SIGNAL})
