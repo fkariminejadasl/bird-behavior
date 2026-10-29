@@ -8,6 +8,17 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## Spoonbill data counts (no new run)
+
+`exps/spoonbill_data_stats.py` on the spoonbill data of Lok et al. Tables in
+`descriptions.md`, Spoonbill data; pitfalls in `lesson_learned.md`.
+
+- 4718 windows of 20 samples, 4642 with no missing value. 13 behaviours, 8
+  birds, 20 Hz.
+- Planned: train a spoonbill model as exp197, then test the gull model on
+  spoonbill data and the spoonbill model on gull data, on what both share
+  (flight, walking). Needs a label map between the two species first.
+
 ## Speed reliance of exp197-204 (no new run)
 
 Does a model trained on `starts_clean.csv` lean more on GPS speed? Only the

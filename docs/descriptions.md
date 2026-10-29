@@ -41,6 +41,7 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 - `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
 - `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
+- `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 windows, 13 behaviours, 8 birds. Spoonbill data, below
 
 ## Model
 
@@ -219,6 +220,44 @@ The 19 gulls in `starts.csv` are in two studies published on Movebank and Zenodo
 - LBBG_TEXEL ([10.5281/zenodo.20706372](https://doi.org/10.5281/zenodo.20706372)), lesser black-backed gull (*Larus fuscus*), 14 tags: 533, 534, 537, 541, 606, 608, 754, 757, 781, 782, 798, 805, 806, 871.
 
 The values equal the published ones, up to the 1e-6 rounding. `IMU_x`, `IMU_y`, `IMU_z` are `tilt-x`, `tilt-y`, `tilt-z`, and `GPS_2D_speed` is `ground-speed`. `datetimes` is the GPS `timestamp` and the acceleration `start-timestamp`; the sample with index n is at `start-timestamp` + n × 50 ms. This was a one-off check on tag 6210 (all 2480 of its labeled samples, against the HG_TEXEL 2016 files); there is no script for it.
+
+### Spoonbill data
+
+Eurasian spoonbill data from Tamar Lok and coauthors, in `/home/fatemeh/Downloads/bird/data/spoonbill`. One row per sample, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix. 20 Hz: every full second of video holds 20 samples (`exps/spoonbill_data_stats.py`).
+
+| file                                       | what                               | birds                    | fixes | samples per fix  |
+| ------------------------------------------ | ---------------------------------- | ------------------------ | ----- | ---------------- |
+| `video_annotated_data.csv`                 | labeled from video, one per sample | 584, 656, 760, 763, 1608 | 690   | median 200, 10 s |
+| `visual_annotated_passive_flight_data.csv` | fly-soar only, labeled by eye      | 6283, 6287, 6291         | 51    | 32               |
+| `acc_data_migration_<bird>.csv`            | migration, no labels               | 6283, 6287, 6291         | 3872  | mostly 32        |
+| `behaviours.csv`                           | label index to name, 16 labels     |                          |       |                  |
+
+The soaring file is a labeled copy of 51 migration fixes: same rows, same values. The migration files give 3694 windows, the 51 soaring ones among them.
+
+Windows of 20 samples, cut as `data_processing.slice_from_first_label` cuts `starts.csv` (`exps/spoonbill_data_stats.py`). `complete` has no missing x, y, z or speed. `main bird` is the bird with the most windows of that label.
+
+| lab | name                 | windows  | %    | complete | birds | main bird  |
+| --- | -------------------- | -------- | ---- | -------- | ----- | ---------- |
+| 2   | stand-rest           | 1415     | 30.0 | 1357     | 3     | 763 (94%)  |
+| 4   | stand-preen          | 305      | 6.5  | 295      | 2     | 763 (91%)  |
+| 6   | sit-alert            | 62       | 1.3  | 62       | 1     | 584 (100%) |
+| 7   | stand-alert          | 416      | 8.8  | 416      | 4     | 763 (61%)  |
+| 8   | fly-flap             | 185      | 3.9  | 185      | 4     | 760 (50%)  |
+| 9   | fly-soar             | 53       | 1.1  | 52       | 4     | 6283 (42%) |
+| 10  | walk                 | 177      | 3.8  | 177      | 3     | 760 (69%)  |
+| 11  | for-search           | 1935     | 41.0 | 1929     | 3     | 760 (90%)  |
+| 12  | for-handle           | 14       | 0.3  | 14       | 2     | 760 (93%)  |
+| 13  | for-intake           | 115      | 2.4  | 115      | 3     | 760 (98%)  |
+| 14  | stand-other          | 16       | 0.3  | 15       | 1     | 763 (100%) |
+| 15  | stand-shake-feathers | 18       | 0.4  | 18       | 3     | 763 (72%)  |
+| 16  | drink                | 7        | 0.1  | 7        | 1     | 763 (100%) |
+|     | **total**            | **4718** |      | **4642** |       |            |
+
+- sit-rest, sit-preen and washing (1, 3, 5) have no samples.
+- fly-soar: 2 windows from video, 51 from the soaring file.
+- Stride-1 windows inside one label, like the gull `shift`, give 78,842.
+- 5 samples of fix 760, 2014-06-08 12:19:53 carry two labels (for-search and for-intake). Both copies are dropped.
+- 12 video fixes have no speed. 248 video samples are beyond 2 g, the gull clip.
 
 ### Previous Data Preparation
 
@@ -401,6 +440,7 @@ otherwise apply the same transform object to the eval set too.
 - `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app. `checkpoints` picks a checkpoint other than `<exp>_best.pth`, as in `exps/eval_labeled.py`.
 - `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
 - `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
+- `exps/spoonbill_data_stats.py`: Count the spoonbill data (`/home/fatemeh/Downloads/bird/data/spoonbill`): samples, fixes and data quality per file, the 20 Hz check against the video clock, and 20-sample windows per behaviour and per bird, cut as `data_processing.slice_from_first_label` cuts `starts.csv`. Checks that the soaring file is a copy of migration rows. Prints only. Tables in Spoonbill data, above.
 - `exps/speed_reliance.py`: Measure how much a model relies on **GPS speed**, to compare models trained on `starts.csv` and `starts_clean.csv`. Keeps each burst's acceleration and changes only its speed: one burst with the speed swept from 0 to 20 m/s, one class at 0 and at 20 m/s, all speeds shuffled between bursts, and all speeds set to 0. Reports the class probabilities and the share of bursts whose class changes. Builds the input through `bd.BirdDataset`, so the speed scaling and magnitude channels are those of training, and loads models with `exps/eval_labeled.py`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
 - `identify_mistakes`: Identify labeling mistakes by finding data points that are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.

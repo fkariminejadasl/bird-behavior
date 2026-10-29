@@ -4,6 +4,23 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## Spoonbill data: few birds per behaviour
+
+The spoonbill data has 4718 windows of 20 samples, about as many as the gull
+`starts.csv` (4338), but each behaviour comes from few birds
+(`exps/spoonbill_data_stats.py`).
+
+- **Soaring and bird are mixed up.** 51 of the 53 fly-soar windows come from
+  the three migration birds (6283, 6287, 6291), which have no other label. A
+  model can learn the tag, not the soaring, and still score well on it.
+- **One bird holds most of a class.** for-search is 90% bird 760, stand-rest
+  94% bird 763, sit-alert 100% bird 584. A random split of windows puts the
+  same bird, often the same fix, in train and valid. Split by bird, or at least
+  by fix.
+- **Short behaviours are lost at 20 samples.** 456 of 571 for-intake runs are
+  shorter than 20 samples, so 9459 samples give 115 windows. Over all video
+  labels, 857 of 2169 runs are shorter than 20, 10% of the samples.
+
 ## IMU calibration from the data, for devices without calibration values
 
 `behavior/data.py::get_data` used to return nothing for a device without
