@@ -318,6 +318,8 @@ Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_sta
 | shake_feathers | 14       | 1      | 1          | 0        | 0              | 0       | 0         |
 | **total**      | **9040** | **67** | **6**      | **436**  | **96**         | **107** | **329**   |
 
+- 58 fixes give 67 bouts: 5 fixes change label inside. One fix is beg, shake_feathers, beg: 3 bouts.
+- 436 segments, not 9040 / 20 = 452: a segment stays inside one bout. 320 records are lost, 82 in the 6 short bouts and 238 at the ends of longer bouts.
 - `graphical`: labeled from the signal alone, with the parent seen nearby in the field. Only begging was labeled this way. The R script says the signals are so clear.
 - 20 Hz: the R script divides record counts by 20 to get seconds.
 - 10 records lack z, 5 of them also y. Speed is never missing; at most 0.92 m/s.

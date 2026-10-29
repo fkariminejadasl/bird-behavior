@@ -11,10 +11,12 @@
   instead.
 - Before returning a result, check it. Re-run what was changed and verify every
   number and claim against the source file or a computation, rather than
-  assuming it followed from the previous step.
+  assuming it followed from the previous step. Say so when a claim is a guess.
 - Explain short, in chat and in the docs. Plain words, short sentences, no
   clever phrasing. Spell out an acronym the first time (VeDBA, ODBA).
-  If a sentence needs re-reading, rewrite it.
+  If a sentence needs re-reading, rewrite it. Name the unit of every count and
+  table column (records, fixes, segments), so two numbers are never compared
+  across units.
 - Answer from this repository only. The other repos in this VS Code workspace
   (hedge-seg, ...) are not context unless I say so. That includes skills: use
   only this project's, in `~/dev/bird-behavior/.claude/skills`, because the
@@ -95,6 +97,8 @@
   (which is wiped on shutdown). Clean up whatever is not worth keeping.
 - Images worth keeping (figures for a presentation, screenshots): save to
   `/home/fatemeh/Downloads/bird/screenshots`.
+- New datasets: one folder per source under `/home/fatemeh/Downloads/bird/data`,
+  kept as released. Note the links in `docs/descriptions.md`.
 - Settings/config for this project live in `~/dev/bird-behavior/.claude` (for
   example `settings.json`), never another repo's `.claude` in this VS Code
   workspace.

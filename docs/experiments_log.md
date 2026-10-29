@@ -23,6 +23,23 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
   species first. The second paper maps its labels onto the first
   (`descriptions.md`, Begging data).
 
+Before the spoonbill run, still to do:
+
+1. Write a training file in the `starts.csv` format that
+   `data.py::load_csv_pandas` reads: no header, 8 columns (device, datetime,
+   index, label, x, y, z, speed), whole 20-record segments in order. Cut as
+   `spoonbill_data_stats.py::cut_segments`. New name, e.g.
+   `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`.
+2. Keep only complete segments. The 30 m/s filter drops a missing speed, but a
+   missing x, y or z goes into training.
+3. Labels: the video and soaring files with their codes; begging with the
+   second paper's map, beg as a new code 17 (`behaviours.csv` stops at 16).
+4. `batch_train_supervised.py::main` names classes with the gull
+   `bu.ind2name`: spoonbill codes 10-16 fail, 1-9 get gull names. Needs a
+   names map.
+5. The split is random per segment, as for the gulls. A split by bird is not
+   in the code: the `valid_file` path builds 4 channels, not the 7 of exp197.
+
 ## Speed reliance of exp197-204 (no new run)
 
 Does a model trained on `starts_clean.csv` lean more on GPS speed? Only the
