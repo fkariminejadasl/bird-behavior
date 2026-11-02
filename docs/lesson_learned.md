@@ -4,6 +4,27 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
+## Spoonbill: rotation and the split (exp205-exp207)
+
+The exp197 recipe on the spoonbill data (`scripts/batch_train_supervised.py`,
+numbers in `experiments_log.md`).
+
+- **Rotation costs spoonbills far more than gulls.** With rotation the model
+  underfits: train 83.37, valid 85.74, and sit-alert 0 of 61 right even in
+  training. Without it: 95.19 and 94.85, sit-alert 61 of 61. On gulls rotation
+  cost 4 points. The spoonbill resting and alert classes differ by posture,
+  sitting or standing, and posture is the gravity direction rotation scrambles.
+- **The price is the same as for gulls.** Without rotation a model can also
+  learn the tag's mounting. Train and valid hold the same birds, so 94.85 says
+  nothing about a new bird or a tag mounted another way.
+- **Split by fix when a fix holds several segments.** A spoonbill fix holds up
+  to 10 consecutive 1 s segments. Split per segment, 502 of 514 valid segments
+  had a train segment from the same fix. `split_by` fix keeps each fix whole.
+  By bird is not possible: four classes come from one bird.
+- **Balanced F1 needs every class in valid.** With no drink segment in valid,
+  `behavior/utils.py::per_class_statistics_balanced` divides by 0 and the whole
+  table is NaN.
+
 ## Spoonbill data: few birds per behaviour
 
 The spoonbill data has 4718 segments of 20 records, about as many as the gull

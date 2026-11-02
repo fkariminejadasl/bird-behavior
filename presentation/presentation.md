@@ -186,6 +186,21 @@ Nine times more experiments per day, for no change in the science.
 
 ---
 
+## A second species: spoonbills
+
+Same model on spoonbill data *(Lok et al. 2023, 2025)*: 5,080 labelled
+seconds, 14 behaviours, 9 birds
+
+- Tested on whole recordings: none is in both training and test *(split by fix)*
+- With rotation: **85.7%**. Sitting and standing alert are called resting
+  *(exp206, scripts/batch_train_supervised.py)*
+- Without rotation: **94.9%**. Sitting alert 61 of 61 instead of 0 *(exp207)*
+- Here behaviours differ by **posture**, sitting or standing, which is exactly
+  what rotating destroys
+- Not yet tested on a new bird: test birds are also in training
+
+---
+
 ## What we learned
 
 1. **A high score on your own test split can hide a total failure.** Ours could
@@ -234,3 +249,6 @@ Nine times more experiments per day, for no change in the science.
   0.10/0.15/0.13 → 0.03/0.06/0.04, no overlap *(exp199-204)*
 - Everything else — accuracy, place, flicker, rotation — sits inside the seed
   spread *(exps/eval_labeled.py, exps/eval_unlabeled.py)*
+- Spoonbill, split by fix, 4,575/505 segments: rotation 85.74 valid / 83.37
+  train, none 94.85 / 95.19; last-500-epoch means 84.41 vs 94.12
+  *(exp206-207, scripts/batch_train_supervised.py)*

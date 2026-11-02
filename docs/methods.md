@@ -202,5 +202,7 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
 - About 5 minutes on the laptop GPU (exp197: 4m56s).
 - exp197: valid accuracy 94.52%, F1 0.95, class-balanced F1 0.90
   (`exps/eval_labeled.py`).
-- Spoonbill, exp205: the same recipe on `spoonbill_starts.csv`, 14 classes,
-  4,566 train and 514 valid segments. `label_names` gives the class names.
+- Spoonbill, exp205-207: the same recipe on `spoonbill_starts.csv`, 14
+  classes. `label_names` gives the class names. exp206 and exp207 split by fix
+  (`split_by`), so a fix is all train or all valid: 4,575 train and 505 valid
+  segments. exp207 has no augmentation (`augment` False): valid 94.85%.

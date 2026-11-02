@@ -8,6 +8,35 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp206/exp207: split by fix, rotation against none
+
+exp206 = exp205 with `split_by` fix: every fix whole in train or valid, 0
+shared, 4575/505 segments, 79 valid fixes. exp207 = exp206 with `augment`
+False. Only the augmentation differs between the two. hash:5367360 plus the
+uncommitted changes. 5m11s and 5m03s.
+
+| exp | rotation | val (best epoch) | train | last 500 epochs     | F1 plain |
+| --- | -------- | ---------------- | ----- | ------------------- | -------- |
+| 206 | yes      | 85.74 (1460)     | 83.37 | 84.41 (83.76-84.95) | 0.86     |
+| 207 | no       | **94.85** (946)  | 95.19 | 94.12 (93.86-94.65) | **0.95** |
+
+- Valid F1 per class, 206 -> 207 (valid segments): stand-alert 0.58 -> 0.87
+  (41), walk 0.40 -> 0.83 (19), stand-preen 0.71 -> 0.83 (30), stand-rest 0.92
+  -> 0.99 (136), for-search 0.91 -> 0.98 (193), beg 0.86 -> 0.93 (44),
+  for-intake 0.91 -> 0.88 (11), fly-soar 0.91 both (6).
+- sit-alert, train recall: 0 of 61 -> 61 of 61. Only 1 valid segment.
+- The posture guess of exp205 holds: rotation is what made the model underfit
+  the resting and alert classes. One seed each, but the plateaus are 10 points
+  apart; the gull seed spread is under 1 point.
+- Still the same birds in train and valid. Without rotation the model can also
+  learn each tag's mounting, and on gulls a model without rotation fell to 13%
+  at a random orientation (exp194). Not tested on a new bird.
+- Balanced F1 is NaN for both: drink has no valid segment, and
+  `utils.py::per_class_statistics_balanced` divides by the class count.
+- exp205 (random split) scored 83.07 and exp206 (fix split) 85.74, but on
+  different valid sets: sit-alert has 7 valid segments in exp205, 1 here. The
+  gap does not measure the leak.
+
 ## exp205: first spoonbill model
 
 The exp197 recipe on `spoonbill_starts.csv`
@@ -36,8 +65,8 @@ per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
 - Guess, untested: rotation augmentation removes the posture, the main cue
   between sit-alert, stand-alert and stand-rest. On gulls it cost the ground
   classes the same way (exp195 in `lesson_learned.md`).
-- Next: exp205 without rotation (`transforms` None), and a split by fix or by
-  bird.
+- Next: exp205 without rotation, and a split by fix or by bird. Done:
+  exp206/207, above.
 
 ## Spoonbill data counts (no new run)
 
@@ -53,9 +82,9 @@ per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
   and the spoonbill model on gull data, on what both share (flight, walking).
   Needs a label map between the two species first. The second paper maps its
   labels onto the first (`descriptions.md`, Begging data).
-- Still open from the prep list: the split is random per segment, as for the
-  gulls. A split by bird is not in the code: the `valid_file` path builds 4
-  channels, not the 7 of exp197.
+- The split by fix is in the code now (`split_by`, exp206). A split by bird
+  cannot keep sit-alert, stand-other, drink and beg in both train and valid:
+  each comes from one bird.
 
 ## Speed reliance of exp197-204 (no new run)
 
