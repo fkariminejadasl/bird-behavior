@@ -145,6 +145,22 @@ Then rules 7-9 apply, as for the database data (`prepare_app_class_data`).
 `check_consecutive_gps_sensor_time_diff`, in the same script, prints how far
 apart each fix and the next SENSORS row are.
 
+## Spoonbill data
+
+`scripts/data/prepare_spoonbill_data.py`. The input is the released spoonbill
+data of two papers, already in g and m/s, with an index per sample
+(`docs/descriptions.md`, Spoonbill data).
+
+1. **Labels are mapped first.** Begging labels get the second paper's map, beg
+   the new code 17. Then a run of one label is cut into bursts of 20 from its
+   first sample, as in rule 5.
+2. **A sample listed twice in one fix is dropped**, both copies.
+3. **Only complete bursts are kept**: no missing x, y, z or speed.
+4. **Indices start at 0.** The begging file starts at 1, so its index is
+   lowered by 1.
+
+Then rules 7-9 apply when the CSV is loaded, as for the database data.
+
 ## Model
 
 `behavior/model.py::BirdModelSmallDilated`. The working model is exp197.
@@ -186,3 +202,5 @@ apart each fix and the next SENSORS row are.
 - About 5 minutes on the laptop GPU (exp197: 4m56s).
 - exp197: valid accuracy 94.52%, F1 0.95, class-balanced F1 0.90
   (`exps/eval_labeled.py`).
+- Spoonbill, exp205: the same recipe on `spoonbill_starts.csv`, 14 classes,
+  4,566 train and 514 valid segments. `label_names` gives the class names.

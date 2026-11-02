@@ -27,6 +27,10 @@ The spoonbill data has 4718 segments of 20 records, about as many as the gull
   same bird problem as soaring. 329 of them were labeled from the signal shape
   alone, so a model scored on them is scored against an annotator's reading of
   the signal, not against what the bird did.
+- **Map labels before cutting segments.** The second paper maps beg_flap to
+  beg. Mapped first, a beg_flap bout joins the beg bout next to it, and the
+  records at the label change land in a segment instead of being cut off: 440
+  begging segments instead of 436 (`scripts/data/prepare_spoonbill_data.py`).
 - **The second paper's `behaviour` column is model output.** In
   `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
   has no x, y, z. It is not training data.

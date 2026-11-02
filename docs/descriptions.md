@@ -44,6 +44,7 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 - `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
 - `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds; begging data: 436 segments, one bird. Spoonbill data, below
+- `scripts/data/prepare_spoonbill_data.py` — the spoonbill training file, `spoonbill_starts.csv`: 5080 complete segments, 14 labels. Spoonbill data, Training file
 
 ## Model
 
@@ -330,6 +331,16 @@ The paper already combines both datasets, in [`2_analyses/1_classification_beggi
 - Pool: sit-alert to sit; stand-alert, stand-other, stand-rest, stand-shake-feathers, stand-preen and drink to stand. It also scores five groups: forage, walk, fly, rest, beg.
 - Segments of 0.4, 0.8, 1.0 and 1.6 s; the final random forest uses 1.6 s.
 
+#### Training file
+
+`scripts/data/prepare_spoonbill_data.py` writes both datasets as one file in the `starts.csv` format: `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`, 5080 segments, 101,600 records.
+
+- Labels: the codes of `behaviours.csv`. Begging gets the second paper's map, and beg the new code 17. 14 labels, no pooling.
+- The labels are mapped before the segments are cut, so a beg_flap bout joins the beg bout next to it: 440 begging segments, not 436.
+- Only complete segments: 4642 from the first paper, 438 from begging.
+- Begging `Index` is written from 0, as in the other files.
+- Segments per label and bird: the script's output. Per label they equal the `complete` column of the table above, plus 434 beg and 4 stand-preen from begging.
+
 ### Previous Data Preparation
 
 #### There were some issues with the previous version:
@@ -454,7 +465,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 - `scripts/train.py`: Training script for supervised bird classification.
 - `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
 - `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory.
+- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory. `cfg.label_names`, a `{label: name}` map, names the classes in the confusion matrix and metrics; None means the gull `bu.ind2name`. The spoonbill run sets it, because the spoonbill codes differ.
 - `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 - `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 - `scripts/gcd_pipeline.py`: GCD pipeline.
@@ -496,6 +507,7 @@ otherwise apply the same transform object to the eval set too.
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
+- `scripts/data/prepare_spoonbill_data.py`: Write the spoonbill training file from both spoonbill datasets, in the `starts.csv` format. Cuts segments with `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones. Prints segments per label and bird, and reads the file back with `load_csv_pandas`. Refuses to overwrite an existing file. See Spoonbill data, Training file.
 - `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/methods.md](methods.md)).
 - `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.

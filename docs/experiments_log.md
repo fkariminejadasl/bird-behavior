@@ -8,6 +8,37 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp205: first spoonbill model
+
+The exp197 recipe on `spoonbill_starts.csv`
+(`scripts/data/prepare_spoonbill_data.py`): 5080 segments, 14 labels, no
+pooling. Config: exp197's model entry with `out_channels` 14,
+`add_magnitudes` True, `save_final` True, seed 32984, rotation augmentation,
+`labels_to_use` the 14 codes, `label_names` the spoonbill names. Random split
+per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
+5m20s, best epoch 3731.
+
+- val **83.07** / train 86.95 (gulls, exp197: 94.52 / 97.90). Plateau over the
+  last 500 epochs 82.46 (81.52-83.07), final 82.88. Valid F1 0.83 plain, 0.52
+  balanced.
+- Valid F1 per class: fly-soar 1.00 (6 segments), fly-flap 0.97, for-search
+  0.90, stand-rest 0.88, for-intake 0.81, beg 0.80, stand-preen 0.73, walk
+  0.59, stand-alert 0.54. None right of sit-alert, for-handle, stand-other,
+  stand-shake-feathers, drink (7, 2, 2, 2, 1 valid segments).
+- Where they go (`confusion_matrix_valid.png`): sit-alert 7 of 7 and
+  stand-alert 20 of 42 to stand-rest; stand-preen 8 of 30 and walk 7 of 18 to
+  for-search; for-search 9 of 193 to beg.
+- Underfit, not overfit: train 86.95 is close to valid, and sit-alert is
+  missed in train too (recall 0.09, 5 of 55).
+- The valid number is optimistic: 502 of 514 valid segments share a 10 s fix
+  with train segments
+  (`/home/fatemeh/Downloads/bird/claude/exp205_split_leak.py`, one-off).
+- Guess, untested: rotation augmentation removes the posture, the main cue
+  between sit-alert, stand-alert and stand-rest. On gulls it cost the ground
+  classes the same way (exp195 in `lesson_learned.md`).
+- Next: exp205 without rotation (`transforms` None), and a split by fix or by
+  bird.
+
 ## Spoonbill data counts (no new run)
 
 `exps/spoonbill_data_stats.py` on the spoonbill data of Lok et al. Tables in
@@ -17,28 +48,14 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
   birds, 20 Hz. 81% of the labeled records land in a segment; for-intake 24%.
 - Begging data of the second paper: 436 segments, 429 of them beg, all from
   juvenile 6381.
-- Planned: train a spoonbill model as exp197 on both datasets combined, then
-  test the gull model on spoonbill data and the spoonbill model on gull data,
-  on what both share (flight, walking). Needs a label map between the two
-  species first. The second paper maps its labels onto the first
-  (`descriptions.md`, Begging data).
-
-Before the spoonbill run, still to do:
-
-1. Write a training file in the `starts.csv` format that
-   `data.py::load_csv_pandas` reads: no header, 8 columns (device, datetime,
-   index, label, x, y, z, speed), whole 20-record segments in order. Cut as
-   `spoonbill_data_stats.py::cut_segments`. New name, e.g.
-   `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`.
-2. Keep only complete segments. The 30 m/s filter drops a missing speed, but a
-   missing x, y or z goes into training.
-3. Labels: the video and soaring files with their codes; begging with the
-   second paper's map, beg as a new code 17 (`behaviours.csv` stops at 16).
-4. `batch_train_supervised.py::main` names classes with the gull
-   `bu.ind2name`: spoonbill codes 10-16 fail, 1-9 get gull names. Needs a
-   names map.
-5. The split is random per segment, as for the gulls. A split by bird is not
-   in the code: the `valid_file` path builds 4 channels, not the 7 of exp197.
+- Planned: train a spoonbill model with the exp197 recipe on both datasets
+  combined (done: exp205, above), then test the gull model on spoonbill data
+  and the spoonbill model on gull data, on what both share (flight, walking).
+  Needs a label map between the two species first. The second paper maps its
+  labels onto the first (`descriptions.md`, Begging data).
+- Still open from the prep list: the split is random per segment, as for the
+  gulls. A split by bird is not in the code: the `valid_file` path builds 4
+  channels, not the 7 of exp197.
 
 ## Speed reliance of exp197-204 (no new run)
 

@@ -361,7 +361,8 @@ def main(cfg):
             num_workers=cfg.num_workers,
             drop_last=False,
         )
-        label_names = [bu.ind2name[i] for i in cfg.labels_to_use]
+        ind2name = bu.ind2name if cfg.label_names is None else cfg.label_names
+        label_names = [ind2name[i] for i in cfg.labels_to_use]
         data, ldts = next(iter(loader))
         probs, preds, labels, loss, accuracy = bu.evaluate(
             data, ldts, model, criterion, device
@@ -415,6 +416,10 @@ if __name__ == "__main__":
         "data_per": 1.0,
         "batch_size": None,
         "labels_to_use": all_labels,
+        # {label: name} for the confusion matrix and metrics; None is the gull
+        # bu.ind2name. labels_to_use must be sorted, as load_csv_pandas numbers
+        # the labels in sorted order.
+        "label_names": None,
         "add_magnitudes": False,  # True -> 7 channels, see bd.add_magnitude_features
         # Training
         "warmup_epochs": 1000,
@@ -455,19 +460,44 @@ if __name__ == "__main__":
         },
     }
 
+    # Spoonbill labels: codes of behaviours.csv, plus beg (17) from the begging
+    # data. Written by scripts/data/prepare_spoonbill_data.py.
+    spoonbill_names = {
+        2: "stand-rest",
+        4: "stand-preen",
+        6: "sit-alert",
+        7: "stand-alert",
+        8: "fly-flap",
+        9: "fly-soar",
+        10: "walk",
+        11: "for-search",
+        12: "for-handle",
+        13: "for-intake",
+        14: "stand-other",
+        15: "stand-shake-feathers",
+        16: "drink",
+        17: "beg",
+    }
+    spoonbill_labels = sorted(spoonbill_names)
+
     # One entry per training run; each overrides base_config.
     # Runs and findings are in docs/experiments_log.md.
+    # exp205: the exp197 model and recipe on the spoonbill data, all 14 labels.
     experiments = [
         {
-            "exp": 197,
-            "labels_to_use": all_labels,
+            "exp": 205,
+            "data_file": "/home/fatemeh/Downloads/bird/data/spoonbill_final/"
+            "spoonbill_starts.csv",
+            "labels_to_use": spoonbill_labels,
+            "label_names": spoonbill_names,
             "add_magnitudes": True,
+            "save_final": True,
             "model": {
                 "name": "BirdModelSmallDilated",
                 "parameters": {
                     "in_channels": 7,
                     "mid_channels": 20,
-                    "out_channels": len(all_labels),
+                    "out_channels": len(spoonbill_labels),
                     "dropout": 0.15,
                 },
             },
