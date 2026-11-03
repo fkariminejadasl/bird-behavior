@@ -206,15 +206,15 @@ Only 24% of prey-ingestion records fit in a whole 1 s segment
 
 ## Spoonbills: how the test set is chosen
 
-The tag records up to 10 s of a bird at a time *(one fix)*: up to 10 segments
-of 1 s in a row, and seconds next to each other look almost the same.
+A fix: one GPS time of one bird, with up to 200 records (10 s). We cut it into
+segments of 20 records (1 s), one model input each.
 
-- **Per segment** *(papers, our exp205)*: each 1 s segment is drawn on its own,
-  so most of its neighbours sit in training. **502 of 514** test segments had
-  one *(exps/eval_spoonbill.py)*
-- **Per recording** *(exp206-211)*: the whole 10 s is drawn at once. 79 of the
-  781 recordings are the test set, 505 segments
-- Same birds in training and test: new recordings, not new birds
+- **Split per segment** *(papers, our exp205)*: each segment goes to train or
+  test on its own. **502 of the 514** test segments had a segment of the same
+  fix in training *(exps/eval_spoonbill.py)*
+- **Split per fix** *(exp206-211)*: all segments of a fix go to one side.
+  Test: 505 segments from 79 fixes. Train: 4,575 segments from 702 fixes
+- Same birds in train and test: new fixes, not new birds
 
 ---
 
@@ -236,11 +236,27 @@ of 1 s in a row, and seconds next to each other look almost the same.
 
 ---
 
+## Spoonbills: two ways to score the same test fixes
+
+- **Segments** *(our training)*: cut where a behaviour starts, so each holds
+  one behaviour. 505 test segments; a bout under 20 records gives none
+- **Windows** *(the papers)*: cut every 20 records from the start of the fix,
+  whatever the labels. 602 test windows, 133 hold two behaviours
+
+One answer per window, checked against each of its 20 records
+*(exp207, exps/eval_spoonbill.py)*:
+
+| a test window's 20 records | model says | records right |
+|---|---|---|
+| 7 prey ingestion, then 13 search | search | 13 of 20 |
+| 11 search, then 9 prey ingestion | prey ingestion | 9 of 20 |
+
+---
+
 ## Spoonbills: against the published model
 
-Scored as the papers score: each test recording is cut into 1 s windows, and
-a window's one answer is checked against each of its 20 records. F1 0–1, ours
-the mean of 3 seeds *(exps/eval_spoonbill.py)*
+Scored on windows, as the papers score: F1 0–1 per record. Ours: without
+rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 
 | F1 | forage | walk | fly | rest | beg |
 |---|---|---|---|---|---|
@@ -248,8 +264,8 @@ the mean of 3 seeds *(exps/eval_spoonbill.py)*
 | ours *(1 s, no rotation)* | 0.98 | **0.74** | 0.97 | **1.00** | **0.92** |
 
 - Lok et al. 2023: walk 0.65 → **0.81**, search 0.91 → 0.90, prey ingestion
-  *(for-intake)* **worse**, 0.73 → 0.59 *(their best at 0.4 s)*
-- Their split shares recordings between training and test; ours does not
+  *(for-intake)* 0.73 → 0.59: **worse, with rotation too** (0.51)
+- Their split shares fixes between train and test; ours does not
 
 ---
 

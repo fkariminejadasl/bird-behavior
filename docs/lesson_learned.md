@@ -13,7 +13,7 @@ Our model scored against the random forest of Lok et al. 2023 and 2025
 - **Score the way the paper scores, or the comparison means nothing.** The
   same model gets prey ingestion F1 0.92 on our valid segments and 0.59 on
   records the papers' way. Our segments are whole 1 s bouts of one behaviour.
-  The papers cut each recording into 1 s windows whatever the labels, so a
+  The papers cut each fix into 1 s windows whatever the labels, so a
   window can hold two behaviours, for example 11 records of searching then 9
   of ingesting. The model still gets 20 records and gives one answer, and each
   record is scored against its own label: answering ingest there gets 9 of 20

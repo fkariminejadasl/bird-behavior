@@ -92,7 +92,8 @@ def split_by_fix(cfg, labels, device):
     )
     train, valid = next(folds.split(np.zeros(len(labels)), labels, groups))
     assert not {groups[i] for i in train} & {groups[i] for i in valid}
-    print(f"Split by fix: {len({groups[i] for i in valid})} valid fixes")
+    n_train, n_valid = len({groups[i] for i in train}), len({groups[i] for i in valid})
+    print(f"Split by fix: {n_train} train fixes, {n_valid} valid fixes")
     return torch.as_tensor(train, device=device), torch.as_tensor(valid, device=device)
 
 

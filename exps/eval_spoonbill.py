@@ -29,7 +29,7 @@ Two scorings:
   one behaviour each, so only bouts of 1 s or longer.
 
 What still differs from the papers: they use a random forest, a 70/30 split
-drawn per segment (so a recording can be in train and test) and the mean of
+drawn per segment (so one fix can be in train and test) and the mean of
 100 runs. Ours is one split by fix (no fix in train and valid), 505 segments,
 training seeds varied with the split held still. Both have the same birds in
 train and test.
@@ -43,6 +43,7 @@ per segment (exp205) share a fix with train.
   /home/fatemeh/miniconda3/envs/bird/bin/python exps/eval_spoonbill.py
 """
 
+import itertools
 import re
 import sys
 from pathlib import Path
@@ -197,6 +198,27 @@ def record_windows(cfg, fixes):
     return torch.from_numpy(data.data).permute(0, 2, 1), df[["window", 3]]
 
 
+def mixed_examples(records, pred_w, names, label_names, label, n=2):
+    """The first `n` windows that hold `label` and another behaviour.
+
+    One line each: the labels of its 20 records in order, the one answer the
+    model gives for the window, and how many records that answer gets right.
+    """
+    lines = []
+    for w, grp in records.groupby("window"):
+        labs = [label_names[int(c)] for c in grp[3]]
+        if label not in labs or len(set(labs)) == 1:
+            continue
+        runs = [(k, len(list(g))) for k, g in itertools.groupby(labs)]
+        said = names[pred_w[w]]
+        right = sum(lab == said for lab in labs)
+        order = ", then ".join(f"{count} {k}" for k, count in runs)
+        lines.append(f"- {order}: model says {said}, {right} of {len(labs)} right")
+        if len(lines) == n:
+            break
+    return lines
+
+
 @torch.no_grad()
 def predict(cfg, checkpoint, x, device):
     model = bts.models[cfg.model.name](**cfg.model.parameters).to(device)
@@ -298,7 +320,14 @@ def main(cfg):
             f["seg14"][exp], n["seg14"] = group_f1(
                 true_seg, guess_seg, {k: [k] for k in names}
             )
+            if exp == cfg.arms["no rotation"][0]:
+                examples = mixed_examples(
+                    records, pred_w, names, cfg.label_names, "for-intake"
+                )
+                example_exp = exp
     print(as_markdown(pd.DataFrame(rows)))
+    print(f"\nTest windows with for-intake and another behaviour, exp{example_exp}:")
+    print("\n".join(examples))
 
     arms = {arm: list(exps) for arm, exps in cfg.arms.items()}
     note = f"F1, 0-1, mean (min-max) over {len(arms['rotation'])} seeds"
