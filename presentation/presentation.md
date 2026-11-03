@@ -204,17 +204,17 @@ Only 24% of prey-ingestion records fit in a whole 1 s segment
 
 ---
 
-## Spoonbills: test on recordings the model never saw
+## Spoonbills: how the test set is chosen
 
-One recording *(fix)* is up to 10 s of one bird: up to 10 segments in a row
-that look alike.
+The tag records up to 10 s of a bird at a time *(one fix)*: up to 10 segments
+of 1 s in a row, and seconds next to each other look almost the same.
 
-- Split per segment: **502 of 514** test segments had a neighbour from the
-  same recording in training *(exp205, exps/eval_spoonbill.py)*
-- Now each recording is all training or all test: 505 test segments from 79
-  recordings *(split by fix, scripts/batch_train_supervised.py)*
-- Not by bird: begging, sitting and drinking each come from one bird
-- Both papers split per segment, like our first try
+- **Per segment** *(papers, our exp205)*: each 1 s segment is drawn on its own,
+  so most of its neighbours sit in training. **502 of 514** test segments had
+  one *(exps/eval_spoonbill.py)*
+- **Per recording** *(exp206-211)*: the whole 10 s is drawn at once. 79 of the
+  781 recordings are the test set, 505 segments
+- Same birds in training and test: new recordings, not new birds
 
 ---
 
@@ -238,16 +238,17 @@ that look alike.
 
 ## Spoonbills: against the published model
 
-F1 0–1 on every record of the 79 test recordings, scored as the papers
-score; ours is the mean of 3 seeds *(exps/eval_spoonbill.py)*
+Scored as the papers score: each test recording is cut into 1 s windows, and
+a window's one answer is checked against each of its 20 records. F1 0–1, ours
+the mean of 3 seeds *(exps/eval_spoonbill.py)*
 
 | F1 | forage | walk | fly | rest | beg |
 |---|---|---|---|---|---|
 | Lok et al. 2025 *(random forest, 1.6 s)* | 0.96 | 0.61 | 0.98 | 0.95 | 0.89 |
 | ours *(1 s, no rotation)* | 0.98 | **0.74** | 0.97 | **1.00** | **0.92** |
 
-- Against Lok et al. 2023: walk 0.65 → **0.81**, search 0.91 → 0.90, but prey
-  ingestion is **worse**, 0.73 → 0.59: it lasts under 1 s; their best used 0.4 s
+- Lok et al. 2023: walk 0.65 → **0.81**, search 0.91 → 0.90, prey ingestion
+  *(for-intake)* **worse**, 0.73 → 0.59 *(their best at 0.4 s)*
 - Their split shares recordings between training and test; ours does not
 
 ---

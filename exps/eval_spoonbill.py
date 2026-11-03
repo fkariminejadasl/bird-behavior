@@ -19,8 +19,10 @@ Two scorings:
 - **Records, as the papers score.** Every valid fix is cut into 1 s windows
   of 20 records from its first record, whatever the labels in them, as
   `create.fixed.segments` of the 2023 code does. Each window is predicted, and
-  each of its records is scored against its own label. So seconds with two
-  behaviours and bouts shorter than 1 s are tested too. Windows with a missing
+  each of its records is scored against its own label. So a window can hold
+  two behaviours, and a bout shorter than 1 s is scored inside the window that
+  holds it: the model still sees 20 records and gives one answer for all of
+  them. Windows with a missing
   value, fewer than 20 records or a speed of 30 m/s or more are skipped, as
   the papers skip short segments and the loader skips fast ones.
 - **Segments, as training scores.** The valid segments of the training file:

@@ -41,7 +41,8 @@ each. Accuracy in % of the 505 valid segments.
   0.89 against > 0.90 (6 windows).
 - With rotation we are below the papers on walk, beg, search and ingest.
 - Same model, ingest on segments 0.92, on records 0.59. The record test adds
-  bouts shorter than 1 s and seconds with two behaviours.
+  windows with two behaviours, where the short bouts sit; one answer per
+  window is scored against each of its 20 records.
 - Conclusion: better than the papers on walking, resting and begging, level
   on flight and searching, worse on prey ingestion. The papers' split shares
   fixes between train and test; ours shares none.

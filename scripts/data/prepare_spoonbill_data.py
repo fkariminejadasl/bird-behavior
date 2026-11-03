@@ -66,15 +66,24 @@ def complete_segments(df, glen):
     return out[list(range(8))], len(dropped)
 
 
-def main(cfg):
+def load_sources(cfg):
+    """{file name: its records in the gull column order}, labels as codes.
+
+    Records listed twice are still in; `complete_segments` drops them.
+    """
     data = Path(cfg.data_dir)
-    sources = {
+    return {
         cfg.video_file: pd.read_csv(data / cfg.video_file).rename(columns=sds.COLUMNS),
         cfg.soar_file: sds.load(data / cfg.soar_file),
         cfg.begging_file: load_begging(
             Path(cfg.begging_dir) / cfg.begging_file, cfg.begging_map
         ),
     }
+
+
+def main(cfg):
+    data = Path(cfg.data_dir)
+    sources = load_sources(cfg)
     parts = []
     for name, df in sources.items():
         part, n_dropped = complete_segments(df, cfg.glen)

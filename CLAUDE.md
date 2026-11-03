@@ -17,6 +17,11 @@
   If a sentence needs re-reading, rewrite it. Name the unit of every count and
   table column (records, fixes, segments), so two numbers are never compared
   across units.
+- Name the metric of every score, and what it was scored on: accuracy in %,
+  or F1 on 0-1 (per class or pooled, plain or class-balanced), over which
+  items (segments or records) and which split. A bare 0.91 cannot be compared
+  with a paper's number. On a slide, put the metric in the table header or on
+  the line itself.
 - Answer from this repository only. The other repos in this VS Code workspace
   (hedge-seg, ...) are not context unless I say so. That includes skills: use
   only this project's, in `~/dev/bird-behavior/.claude/skills`, because the
@@ -89,7 +94,8 @@
 - **Name that script wherever the number appears.** In `lesson_learned.md` and
   `descriptions.md` write the path in the sentence; in `presentation.md` put it
   in italic parentheses at the end of the line, for example
-  `*(exp 196-197, exps/eval_unlabeled.py)*`.
+  `*(exp 196-197, exps/eval_unlabeled.py)*`. The script is the one that
+  printed the number, not the one that trained the model.
 
 ## Workspace
 

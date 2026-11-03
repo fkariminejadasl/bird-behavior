@@ -250,7 +250,7 @@ Eurasian spoonbill data, in `/home/fatemeh/Downloads/bird/data/spoonbill`. Terms
 
 One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix, one burst per fix. A fix is not 20 records: in the video file it holds up to 200 (10 s), so up to 10 segments.
 
-20 Hz, as in the paper. Checked on the video clock `time.on.video`, one value per second: count the records of a fix that share one second. The first and last second of a fix are cut off by the burst start and end, so they are skipped. All 4376 seconds left hold exactly 20 records (`exps/spoonbill_data_stats.py`).
+20 Hz, as in the paper. Checked on the video clock `time.on.video`, one value per second: count the records of a fix that share one second. The first and last second of a fix are cut off by the burst start and end, so they are skipped. All 4376 seconds of video left hold exactly 20 records (`exps/spoonbill_data_stats.py`). 4376 counts seconds of video for this check only, not segments.
 
 | file                                       | what                               | birds                    | fixes | records per fix  |
 | ------------------------------------------ | ---------------------------------- | ------------------------ | ----- | ---------------- |
@@ -259,7 +259,7 @@ One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`,
 | `acc_data_migration_<bird>.csv`            | migration, no labels               | 6283, 6287, 6291         | 3872  | mostly 32        |
 | `behaviours.csv`                           | label index to name, 16 labels     |                          |       |                  |
 
-The videos hold "very few data on passive (soaring/gliding) flight", so the paper labeled it from plots of the migration data of three birds. The soaring file is that labeled copy of 51 migration fixes: same rows, same values. The migration files give 3694 segments, the 51 soaring ones among them.
+The videos hold "very few data on passive (soaring/gliding) flight", so the paper labeled it from plots of the migration data of three birds. The soaring file is that labeled copy of 51 migration fixes: same rows, same values. A soaring fix holds 32 records, so it gives one segment: 51 fixes, 51 segments. The migration files give 3694 segments, unlabeled and not used for training; the 51 soaring ones are among them.
 
 Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `starts.csv`: a bout of n records gives n // 20 segments. The table is the `Segments of 20 records per behaviour` output of `exps/spoonbill_data_stats.py`; `main bird` comes from its `Segments per behaviour and bird` output.
 
@@ -288,7 +288,7 @@ Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `st
 |     | **total**            | **116185** | **2220** | **857**    | **4718** | **100**       | **81**         | **4642** |            |
 
 - sit-rest, sit-preen and washing (1, 3, 5) have no records.
-- fly-soar: 2 segments from video, 51 from the soaring file.
+- fly-soar: 53 segments, 2 from video and 51 from the soaring file; 52 complete.
 - Stride-1 segments inside one bout, like the gull `shift`, give 78,842.
 - 5 records of fix 760, 2014-06-08 12:19:53 carry two labels (for-search and for-intake). Both copies are dropped.
 - 12 video fixes have no speed. Speed is one value per fix, so all their records lack it: 53 to 200 records per fix, 1620 in all, 73 segments. Most of the 76 incomplete segments are these.
@@ -322,6 +322,7 @@ Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_sta
 | shake_feathers | 14       | 1      | 1          | 0        | 0              | 0       | 0         |
 | **total**      | **9040** | **67** | **6**      | **436**  | **96**         | **107** | **329**   |
 
+- The table is the labels as released, before the second paper's map, and counts incomplete segments too: 436 segments, 434 complete (the script's `complete` column). The training file has 438 begging segments (Training file, below).
 - 58 fixes give 67 bouts: 5 fixes change label inside. One fix is beg, shake_feathers, beg: 3 bouts.
 - 436 segments, not 9040 / 20 = 452: a segment stays inside one bout. 320 records are lost, 82 in the 6 short bouts and 238 at the ends of longer bouts.
 - `graphical`: labeled from the signal alone, with the parent seen nearby in the field. Only begging was labeled this way. The R script says the signals are so clear.
@@ -348,17 +349,28 @@ Both papers use the same method, from the code of the first ([zenodo.org/records
 | 2023  | 9: stand, sit, fly-active, fly-passive, walk, search, handle, ingest, drink | text: best over segment lengths 0.2-2.0 s; per length only in Fig. 3 |
 | 2025  | 5 groups: forage, walk, fly, rest, beg                                      | Table S2 of the supplement: 0.4, 0.8 and 1.6 s                       |
 
+Their names for our labels: search is `for-search`, handle `for-handle`, ingest (prey ingestion) `for-intake`, fly-active `fly-flap`, fly-passive `fly-soar`, sit `sit-alert`. Their stand is our five `stand-*` labels. In 2025, forage is search, handle and ingest, and rest is sit, stand and drink.
+
 The values are in `exps/eval_spoonbill.py`, beside ours. Local copies: `/home/fatemeh/Downloads/bird/papers/Lok2023_spoonbill_prey_ingestion.pdf` (from [edepot.wur.nl/587821](https://edepot.wur.nl/587821)) and `Lok2025_spoonbill_postfledging_supplement.pdf` (Table S2).
 
 #### Training file
 
 `scripts/data/prepare_spoonbill_data.py` writes both datasets as one file in the `starts.csv` format: `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`, 5080 segments, 101,600 records.
 
+How the segment counts above add up to 5080, all in segments of 20 records:
+
+| source                         | segments, tables above | complete, tables above | in the training file |
+| ------------------------------ | ---------------------- | ---------------------- | -------------------- |
+| first paper: video and soaring | 4718                   | 4642                   | 4642                 |
+| begging                        | 436                    | 434                    | 438                  |
+| **total**                      | **5154**               | **5076**               | **5080**             |
+
+- Only complete segments go in: no missing x, y, z or speed.
+- Begging has 4 more than its 434: the labels are mapped before the segments are cut, so a beg_flap bout joins the beg bout next to it and leftover records make new segments.
+- Training splits the 5080: 4566 train and 514 valid segments, split per segment (exp205); 4575 and 505, split by fix (exp206 onward).
 - Labels: the codes of `behaviours.csv`. Begging gets the second paper's map, and beg the new code 17. 14 labels, no pooling.
-- The labels are mapped before the segments are cut, so a beg_flap bout joins the beg bout next to it: 440 begging segments, not 436.
-- Only complete segments: 4642 from the first paper, 438 from begging.
 - Begging `Index` is written from 0, as in the other files.
-- Segments per label and bird: the script's output. Per label they equal the `complete` column of the table above, plus 434 beg and 4 stand-preen from begging.
+- Segments per label and bird: the script's output. Per label they equal the `complete` column of the first table, plus 434 beg and 4 stand-preen from begging.
 
 ### Previous Data Preparation
 

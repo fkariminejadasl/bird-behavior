@@ -13,8 +13,11 @@ Our model scored against the random forest of Lok et al. 2023 and 2025
 - **Score the way the paper scores, or the comparison means nothing.** The
   same model gets prey ingestion F1 0.92 on our valid segments and 0.59 on
   records the papers' way. Our segments are whole 1 s bouts of one behaviour.
-  The papers score every record of fixed 1 s windows, so seconds with two
-  behaviours and bouts shorter than 1 s count too.
+  The papers cut each recording into 1 s windows whatever the labels, so a
+  window can hold two behaviours, for example 11 records of searching then 9
+  of ingesting. The model still gets 20 records and gives one answer, and each
+  record is scored against its own label: answering ingest there gets 9 of 20
+  right. A bout shorter than 1 s is scored this way, inside its window.
 - **Scored their way, we are better on walking, resting and begging.** walk
   0.74 against 0.61, rest 1.00 against 0.95, beg 0.92 against 0.89 (2025, 1.6
   s); walk 0.81 against 0.65 (2023). Flight and searching are level.
@@ -74,8 +77,9 @@ The spoonbill data has 4718 segments of 20 records, about as many as the gull
   the signal, not against what the bird did.
 - **Map labels before cutting segments.** The second paper maps beg_flap to
   beg. Mapped first, a beg_flap bout joins the beg bout next to it, and the
-  records at the label change land in a segment instead of being cut off: 440
-  begging segments instead of 436 (`scripts/data/prepare_spoonbill_data.py`).
+  records at the label change land in a segment instead of being cut off: 438
+  complete begging segments instead of 434 (`scripts/data/prepare_spoonbill_data.py`
+  against `exps/spoonbill_data_stats.py`).
 - **The second paper's `behaviour` column is model output.** In
   `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
   has no x, y, z. It is not training data.
