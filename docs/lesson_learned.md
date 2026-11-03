@@ -4,18 +4,42 @@ Curated lessons from the bird-behavior classification experiments. Terser,
 per-run notes live in [docs/experiment log](experiments_log.md); the
 data/model/script overview is in [docs/description](descriptions.md).
 
-## Spoonbill: rotation and the split (exp205-exp207)
+## Spoonbill: against the two published papers (exp206-exp211)
+
+Our model scored against the random forest of Lok et al. 2023 and 2025
+(`exps/eval_spoonbill.py`; how the papers score in `descriptions.md`). F1 on
+0-1, mean of 3 seeds, no rotation.
+
+- **Score the way the paper scores, or the comparison means nothing.** The
+  same model gets prey ingestion F1 0.92 on our valid segments and 0.59 on
+  records the papers' way. Our segments are whole 1 s bouts of one behaviour.
+  The papers score every record of fixed 1 s windows, so seconds with two
+  behaviours and bouts shorter than 1 s count too.
+- **Scored their way, we are better on walking, resting and begging.** walk
+  0.74 against 0.61, rest 1.00 against 0.95, beg 0.92 against 0.89 (2025, 1.6
+  s); walk 0.81 against 0.65 (2023). Flight and searching are level.
+- **Prey ingestion is worse: 0.59 against 0.73.** Ingesting is short: 456 of
+  571 bouts are under 20 records, and the training file keeps only the 115
+  segments from longer bouts. The paper's best is at 0.4 s. A shorter input,
+  or training on windows with two behaviours, is the way in.
+- **Their test is the easier one.** Their 70/30 split is drawn per segment, so
+  fixes are shared between train and test; ours shares none. But theirs is the
+  mean of 100 splits, ours one split of 79 fixes, and both test the training
+  birds.
+
+## Spoonbill: rotation and the split (exp205-exp211)
 
 The exp197 recipe on the spoonbill data (`scripts/batch_train_supervised.py`,
 numbers in `experiments_log.md`).
 
 - **Rotation costs spoonbills far more than gulls.** With rotation the model
-  underfits: train 83.37, valid 85.74, and sit-alert 0 of 61 right even in
-  training. Without it: 95.19 and 94.85, sit-alert 61 of 61. On gulls rotation
-  cost 4 points. The spoonbill resting and alert classes differ by posture,
-  sitting or standing, and posture is the gravity direction rotation scrambles.
+  underfits: valid 83.96-84.55 at epoch 4000 over 3 seeds, and sit-alert 0 of
+  61 right even in training (exp206). Without it: 93.27-94.65, sit-alert 61 of
+  61 (exp207). On gulls rotation cost 4 points. The spoonbill resting and
+  alert classes differ by posture, sitting or standing, and posture is the
+  gravity direction rotation scrambles.
 - **The price is the same as for gulls.** Without rotation a model can also
-  learn the tag's mounting. Train and valid hold the same birds, so 94.85 says
+  learn the tag's mounting. Train and valid hold the same birds, so 94% says
   nothing about a new bird or a tag mounted another way.
 - **Split by fix when a fix holds several segments.** A spoonbill fix holds up
   to 10 consecutive 1 s segments. Split per segment, 502 of 514 valid segments

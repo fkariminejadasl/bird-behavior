@@ -61,6 +61,9 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
   and rotation instability
 - `exps/speed_reliance.py` — how much a model relies on GPS speed: speed swept,
   shuffled or set to 0, acceleration kept
+- `exps/eval_spoonbill.py` — spoonbill models against the two spoonbill
+  papers: F1 per pooled behaviour, scored on records as the papers do, and on
+  segments
 
 Visual:
 
@@ -331,6 +334,22 @@ The paper already combines both datasets, in [`2_analyses/1_classification_beggi
 - Pool: sit-alert to sit; stand-alert, stand-other, stand-rest, stand-shake-feathers, stand-preen and drink to stand. It also scores five groups: forage, walk, fly, rest, beg.
 - Segments of 0.4, 0.8, 1.0 and 1.6 s; the final random forest uses 1.6 s.
 
+#### How the papers score
+
+Both papers use the same method, from the code of the first ([zenodo.org/records/7541131](https://zenodo.org/records/7541131), `functions.R`):
+
+- Random forest on 31 summary statistics per segment (mean, min, max, trend, ODBA, ...) plus GPS speed. ODBA is overall dynamic body acceleration.
+- Segments cut on a fixed grid from the first record of a fix, whatever the labels in them; a segment takes its most frequent label.
+- Split 70/30 at random **per segment**, so one fix can be in train and test. 100 runs, mean reported.
+- Scored **per record**: each record of a test segment is compared with its own label. The F-measure is F1, on 0 to 1.
+
+| paper | classes                                                                     | where the numbers are                                                |
+| ----- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 2023  | 9: stand, sit, fly-active, fly-passive, walk, search, handle, ingest, drink | text: best over segment lengths 0.2-2.0 s; per length only in Fig. 3 |
+| 2025  | 5 groups: forage, walk, fly, rest, beg                                      | Table S2 of the supplement: 0.4, 0.8 and 1.6 s                       |
+
+The values are in `exps/eval_spoonbill.py`, beside ours. Local copies: `/home/fatemeh/Downloads/bird/papers/Lok2023_spoonbill_prey_ingestion.pdf` (from [edepot.wur.nl/587821](https://edepot.wur.nl/587821)) and `Lok2025_spoonbill_postfledging_supplement.pdf` (Table S2).
+
 #### Training file
 
 `scripts/data/prepare_spoonbill_data.py` writes both datasets as one file in the `starts.csv` format: `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`, 5080 segments, 101,600 records.
@@ -507,7 +526,7 @@ otherwise apply the same transform object to the eval set too.
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
-- `scripts/data/prepare_spoonbill_data.py`: Write the spoonbill training file from both spoonbill datasets, in the `starts.csv` format. Cuts segments with `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones. Prints segments per label and bird, and reads the file back with `load_csv_pandas`. Refuses to overwrite an existing file. See Spoonbill data, Training file.
+- `scripts/data/prepare_spoonbill_data.py`: Write the spoonbill training file from both spoonbill datasets, in the `starts.csv` format. Cuts segments with `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones. Prints segments per label and bird, and reads the file back with `load_csv_pandas`. Refuses to overwrite an existing file. `load_sources` reads the three labeled files with labels as codes; `exps/eval_spoonbill.py` reuses it. See Spoonbill data, Training file.
 - `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/methods.md](methods.md)).
 - `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
@@ -523,6 +542,7 @@ otherwise apply the same transform object to the eval set too.
 - `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app. `checkpoints` picks a checkpoint other than `<exp>_best.pth`, as in `exps/eval_labeled.py`.
 - `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
 - `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
+- `exps/eval_spoonbill.py`: Compare the spoonbill models with the two spoonbill papers (How the papers score, above). Pools our 14 labels into the classes of each paper and prints F1 (0 to 1) per class, mean and range over the runs of each arm in `arms`, beside the paper values. Scores twice: on records, as the papers do (each valid fix cut into 1 s windows from its first record, every record scored against its own label), and on the valid segments of training. Rebuilds the split with `split_by_fix` and checks each run's best checkpoint reproduces its `app_loss_acc.txt`; reads `<exp>_4000.pth`. Also prints how many valid segments of the random split of exp205 share a fix with train.
 - `exps/spoonbill_data_stats.py`: Count the spoonbill data (`/home/fatemeh/Downloads/bird/data/spoonbill`): records, fixes and data quality per file, the 20 Hz check against the video clock, and 20-record segments per behaviour and per bird, cut as `data_processing.slice_from_first_label` cuts `starts.csv`, with the bouts too short for one and the share of records used. Checks that the soaring file is a copy of migration records. Prints only. Tables in Spoonbill data, above.
 - `exps/speed_reliance.py`: Measure how much a model relies on **GPS speed**, to compare models trained on `starts.csv` and `starts_clean.csv`. Keeps each burst's acceleration and changes only its speed: one burst with the speed swept from 0 to 20 m/s, one class at 0 and at 20 m/s, all speeds shuffled between bursts, and all speeds set to 0. Reports the class probabilities and the share of bursts whose class changes. Builds the input through `bd.BirdDataset`, so the speed scaling and magnitude channels are those of training, and loads models with `exps/eval_labeled.py`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).

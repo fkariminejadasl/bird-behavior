@@ -8,6 +8,44 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp208-211: three seeds a side, and the two spoonbill papers
+
+exp208/209 = exp206 (rotation) at seeds 1234 and 5678, exp210/211 = exp207
+(no rotation) at the same two. `split_seed` 32984, so all six share exp206's
+505 valid segments. hash:864b6c1 plus the uncommitted changes. 5m03s-5m28s
+each. Accuracy in % of the 505 valid segments.
+
+| exp | seed  | rotation | best (epoch) | epoch 4000 | last 500 epochs     |
+| --- | ----- | -------- | ------------ | ---------- | ------------------- |
+| 206 | 32984 | yes      | 85.74 (1460) | 84.55      | 84.41 (83.76-84.95) |
+| 208 | 1234  | yes      | 85.54 (1575) | 84.55      | 84.26 (83.76-84.95) |
+| 209 | 5678  | yes      | 85.15 (1696) | 83.96      | 83.99 (83.17-85.15) |
+| 207 | 32984 | no       | 94.85 (946)  | 94.26      | 94.12 (93.86-94.65) |
+| 210 | 1234  | no       | 93.66 (1982) | 93.27      | 93.44 (93.27-93.47) |
+| 211 | 5678  | no       | 95.05 (1399) | 94.65      | 94.68 (94.65-94.85) |
+
+- Rotation against none holds over seeds: 83.96-84.55 against 93.27-94.65 at
+  epoch 4000, 8.7 points apart. Seed spread at most 1.4 points.
+- F1 on segments, mean of 3 (`exps/eval_spoonbill.py`): stand-alert 0.49 ->
+  0.87, walk 0.42 -> 0.78, stand-preen 0.70 -> 0.79, stand-rest 0.90 -> 0.98.
+- Against the papers, scored on records as they score: the 79 valid fixes cut
+  into 1 s windows from the first record, 12,040 of 12,519 records in 602 full
+  windows, 133 windows mixed. No rotation, F1 mean (range), ours against Lok
+  et al. 2025 at 0.8 / 1.6 s: forage 0.98 against 0.96 / 0.96, walk 0.74
+  (0.71-0.75) against 0.60 / 0.61, fly 0.97 (0.96-0.98) against 0.97 / 0.98,
+  rest 1.00 (0.99-1.00) against 0.96 / 0.95, beg 0.92 (0.91-0.93) against 0.86
+  / 0.89.
+- Against Lok et al. 2023 (best segment length): walk 0.81 (0.78-0.83)
+  against 0.65, search 0.90 against 0.91, ingest 0.59 (0.56-0.63) against
+  0.73, handle 0.23 (0.00-0.38) where the paper never predicts it. fly-passive
+  0.89 against > 0.90 (6 windows).
+- With rotation we are below the papers on walk, beg, search and ingest.
+- Same model, ingest on segments 0.92, on records 0.59. The record test adds
+  bouts shorter than 1 s and seconds with two behaviours.
+- Conclusion: better than the papers on walking, resting and begging, level
+  on flight and searching, worse on prey ingestion. The papers' split shares
+  fixes between train and test; ours shares none.
+
 ## exp206/exp207: split by fix, rotation against none
 
 exp206 = exp205 with `split_by` fix: every fix whole in train or valid, 0
@@ -60,8 +98,7 @@ per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
 - Underfit, not overfit: train 86.95 is close to valid, and sit-alert is
   missed in train too (recall 0.09, 5 of 55).
 - The valid number is optimistic: 502 of 514 valid segments share a 10 s fix
-  with train segments
-  (`/home/fatemeh/Downloads/bird/claude/exp205_split_leak.py`, one-off).
+  with train segments (`exps/eval_spoonbill.py`, first line).
 - Guess, untested: rotation augmentation removes the posture, the main cue
   between sit-alert, stand-alert and stand-rest. On gulls it cost the ground
   classes the same way (exp195 in `lesson_learned.md`).

@@ -186,18 +186,69 @@ Nine times more experiments per day, for no change in the science.
 
 ---
 
-## A second species: spoonbills
+## A second species: spoonbill data
 
-Same model on spoonbill data *(Lok et al. 2023, 2025)*: 5,080 labelled
-seconds, 14 behaviours, 9 birds
+Two published datasets *(Lok et al. 2023, 2025)*: 5,080 labelled 1 s
+segments, 14 behaviours, 9 birds *(exps/eval_spoonbill.py)*
 
-- Tested on whole recordings: none is in both training and test *(split by fix)*
-- With rotation: **85.7%**. Sitting and standing alert are called resting
+| group: behaviours | segments | birds | share of the top bird |
+|---|---|---|---|
+| rest: stand, sit, preen, drink | 2,174 | 6 | 84% |
+| forage: search, handle, ingest prey | 2,058 | 3 | 91% |
+| beg: a chick asks to be fed | 434 | 1 | 100% |
+| fly: flap, soar | 237 | 7 | 40% |
+| walk | 177 | 3 | 69% |
+
+Only 24% of prey-ingestion records fit in a whole 1 s segment
+*(exps/spoonbill_data_stats.py)*
+
+---
+
+## Spoonbills: test on recordings the model never saw
+
+One recording *(fix)* is up to 10 s of one bird: up to 10 segments in a row
+that look alike.
+
+- Split per segment: **502 of 514** test segments had a neighbour from the
+  same recording in training *(exp205, exps/eval_spoonbill.py)*
+- Now each recording is all training or all test: 505 test segments from 79
+  recordings *(split by fix, scripts/batch_train_supervised.py)*
+- Not by bird: begging, sitting and drinking each come from one bird
+- Both papers split per segment, like our first try
+
+---
+
+## Spoonbills: rotation hides posture
+
+505 test segments, 3 seeds each, F1 the mean of the 3
+*(exp206-211, exps/eval_spoonbill.py)*
+
+| | with rotation | without rotation |
+|---|---|---|
+| accuracy, %, range | 83.96–84.55 | **93.27–94.65** |
+| standing alert, F1 0–1 | 0.49 | **0.87** |
+| walking, F1 0–1 | 0.42 | **0.78** |
+
+- Rotated, sitting alert is 0 of 61 right, even in training
   *(exp206, scripts/batch_train_supervised.py)*
-- Without rotation: **94.9%**. Sitting alert 61 of 61 instead of 0 *(exp207)*
-- Here behaviours differ by **posture**, sitting or standing, which is exactly
-  what rotating destroys
-- Not yet tested on a new bird: test birds are also in training
+- Behaviours differ by **posture**, the gravity direction rotating destroys
+- The price: not robust to how the tag sits. Not tested on a new bird
+
+---
+
+## Spoonbills: against the published model
+
+F1 0–1 on every record of the 79 test recordings, scored as the papers
+score; ours is the mean of 3 seeds *(exps/eval_spoonbill.py)*
+
+| F1 | forage | walk | fly | rest | beg |
+|---|---|---|---|---|---|
+| Lok et al. 2025 *(random forest, 1.6 s)* | 0.96 | 0.61 | 0.98 | 0.95 | 0.89 |
+| ours *(1 s, no rotation)* | 0.98 | **0.74** | 0.97 | **1.00** | **0.92** |
+
+- Against Lok et al. 2023: walk 0.65 → **0.81**, search 0.91 → 0.90, but prey
+  ingestion is **worse**, 0.73 → 0.59: it lasts under 1 s; their best used 0.4 s
+- Their split shares recordings between training and test; ours does not
 
 ---
 
@@ -249,6 +300,9 @@ seconds, 14 behaviours, 9 birds
   0.10/0.15/0.13 → 0.03/0.06/0.04, no overlap *(exp199-204)*
 - Everything else — accuracy, place, flicker, rotation — sits inside the seed
   spread *(exps/eval_labeled.py, exps/eval_unlabeled.py)*
-- Spoonbill, split by fix, 4,575/505 segments: rotation 85.74 valid / 83.37
-  train, none 94.85 / 95.19; last-500-epoch means 84.41 vs 94.12
-  *(exp206-207, scripts/batch_train_supervised.py)*
+- Spoonbill, split by fix, 4,575/505 segments, accuracy % at epoch 4000:
+  rotation 84.55 / 84.55 / 83.96, none 94.26 / 93.27 / 94.65
+  *(exp206-211, exps/eval_spoonbill.py)*
+- Spoonbill F1 0–1 on records, ranges over 3 seeds, no rotation: walk
+  0.71–0.75, beg 0.91–0.93, ingest 0.56–0.63; paper 2025 at 0.8 s: walk 0.60,
+  beg 0.86 *(exps/eval_spoonbill.py)*

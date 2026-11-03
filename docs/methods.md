@@ -206,3 +206,5 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
   classes. `label_names` gives the class names. exp206 and exp207 split by fix
   (`split_by`), so a fix is all train or all valid: 4,575 train and 505 valid
   segments. exp207 has no augmentation (`augment` False): valid 94.85%.
+  exp208-211 repeat exp206 and exp207 at seeds 1234 and 5678, the split held
+  still (`split_seed` 32984).

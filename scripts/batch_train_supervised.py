@@ -519,6 +519,8 @@ if __name__ == "__main__":
     # Runs and findings are in docs/experiments_log.md.
     # exp206: exp205 (the exp197 recipe on the spoonbill data, 14 labels) with
     # every fix whole in train or valid. exp207: exp206 without rotation.
+    # exp208/209: exp206 at seeds 1234 and 5678; exp210/211: exp207 at the
+    # same two. split_seed stays 32984, so all six share one valid split.
     spoonbill = {
         "data_file": "/home/fatemeh/Downloads/bird/data/spoonbill_final/"
         "spoonbill_starts.csv",
@@ -537,9 +539,12 @@ if __name__ == "__main__":
             },
         },
     }
+    seeds = {"split_seed": 32984}
     experiments = [
-        {**spoonbill, "exp": 206},
-        {**spoonbill, "exp": 207, "augment": False},
+        {**spoonbill, **seeds, "exp": 208, "seed": 1234},
+        {**spoonbill, **seeds, "exp": 209, "seed": 5678},
+        {**spoonbill, **seeds, "exp": 210, "seed": 1234, "augment": False},
+        {**spoonbill, **seeds, "exp": 211, "seed": 5678, "augment": False},
     ]
 
     configs = list(iter_batch_configs(base_config, experiments))
