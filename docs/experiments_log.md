@@ -13,7 +13,8 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 exp208/209 = exp206 (rotation) at seeds 1234 and 5678, exp210/211 = exp207
 (no rotation) at the same two. `split_seed` 32984, so all six share exp206's
 505 valid segments. hash:864b6c1 plus the uncommitted changes. 5m03s-5m28s
-each. Accuracy in % of the 505 valid segments.
+each, stdout of all four in `tensorboard/208_211.txt`. Accuracy in % of the
+505 valid segments.
 
 | exp | seed  | rotation | best (epoch) | epoch 4000 | last 500 epochs     |
 | --- | ----- | -------- | ------------ | ---------- | ------------------- |
@@ -46,13 +47,20 @@ each. Accuracy in % of the 505 valid segments.
 - Conclusion: better than the papers on walking, resting and begging, level
   on flight and searching, worse on prey ingestion. The papers' split shares
   fixes between train and test; ours shares none.
+- Planned, not run: (1) the orientation test of `exps/eval_labeled.py` on the
+  no-rotation runs, to see how much robustness to the tag's mounting they
+  gave up; (2) for-intake with shorter inputs (the 2023 paper's best is 0.4
+  s) or training on windows with two behaviours; (3) balanced F1 that skips a
+  class with no valid segment. `exps/eval_labeled.py` does not know
+  `split_by` or the spoonbill names yet, so (1) needs that first.
 
 ## exp206/exp207: split by fix, rotation against none
 
 exp206 = exp205 with `split_by` fix: every fix whole in train or valid, 0
 shared, 4575/505 segments, 79 valid fixes. exp207 = exp206 with `augment`
 False. Only the augmentation differs between the two. hash:5367360 plus the
-uncommitted changes. 5m11s and 5m03s.
+uncommitted changes. 5m11s and 5m03s, stdout of both in
+`tensorboard/206_207.txt`.
 
 | exp | rotation | val (best epoch) | train | last 500 epochs     | F1 plain |
 | --- | -------- | ---------------- | ----- | ------------------- | -------- |
@@ -84,7 +92,7 @@ pooling. Config: exp197's model entry with `out_channels` 14,
 `add_magnitudes` True, `save_final` True, seed 32984, rotation augmentation,
 `labels_to_use` the 14 codes, `label_names` the spoonbill names. Random split
 per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
-5m20s, best epoch 3731.
+5m20s, best epoch 3731, stdout in `tensorboard/205.txt`.
 
 - val **83.07** / train 86.95 (gulls, exp197: 94.52 / 97.90). Plateau over the
   last 500 epochs 82.46 (81.52-83.07), final 82.88. Valid F1 0.83 plain, 0.52
