@@ -85,8 +85,8 @@
   `lesson_learned.md`, `experiments_log.md`, `presentation.md`. Prefer a table
   or a bullet to a paragraph, and when adding, look for something to cut. The
   Quick reference in `descriptions.md` is the shortest of all — an index, one
-  line per entry, detail further down. New `lesson_learned` and
-  `experiments_log` entries go at the top.
+  line per entry, detail further down. New `experiments_log` entries go at the
+  top; a new lesson goes at the top of its group in `lesson_learned.md`.
 - Always call python by its full path: `/home/fatemeh/miniconda3/envs/bird/bin/python`.
   Not bare `python`, not `conda run -n bird`. VS Code puts one env's `bin` at the
   front of `PATH` for every tool call, and conda does not know it is there, so

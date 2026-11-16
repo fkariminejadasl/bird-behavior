@@ -1,58 +1,21 @@
 # Lessons learned
 
-Curated lessons from the bird-behavior classification experiments. Terser,
-per-run notes live in [docs/experiment log](experiments_log.md); the
-data/model/script overview is in [docs/description](descriptions.md).
+Lessons that generalize, each with its reason, its number and the script that
+printed it. The numbers of each run are in
+[experiments_log.md](experiments_log.md); the results tables, and how each
+number is measured, in [status.md](status.md); the data, model and scripts in
+[descriptions.md](descriptions.md). A new lesson goes at the top of its group.
 
-## Spoonbill: against the two published papers (exp206-exp211)
+- **Data and labels**: spoonbill data, label noise and cleaning, IMU
+  calibration, Ornitela GPS.
+- **Model and training**: rotation, the magnitude channels, model size.
+- **Measuring**: how to score and compare models, with and without labels.
+- **Engineering pitfalls**: traps in the code.
+- **Early runs**: exp15-exp133, from the training logs of old scripts.
 
-Our model scored against the random forest of Lok et al. 2023 and 2025
-(`exps/eval_spoonbill.py`; how the papers score in `descriptions.md`). F1 on
-0-1, mean of 3 seeds, no rotation.
+## Data and labels
 
-- **Score the way the paper scores, or the comparison means nothing.** The
-  same model gets prey ingestion F1 0.92 on our valid segments and 0.59 on
-  records the papers' way. Our segments are whole 1 s bouts of one behaviour.
-  The papers cut each fix into 1 s windows whatever the labels, so a
-  window can hold two behaviours, for example 11 records of searching then 9
-  of ingesting. The model still gets 20 records and gives one answer, and each
-  record is scored against its own label: answering ingest there gets 9 of 20
-  right. A bout shorter than 1 s is scored this way, inside its window.
-- **Scored their way, we are better on walking, resting and begging.** walk
-  0.74 against 0.61, rest 1.00 against 0.95, beg 0.92 against 0.89 (2025, 1.6
-  s); walk 0.81 against 0.65 (2023). Flight and searching are level.
-- **Prey ingestion is worse: 0.59 against 0.73.** Ingesting is short: 456 of
-  571 bouts are under 20 records, and the training file keeps only the 115
-  segments from longer bouts. The paper's best is at 0.4 s. A shorter input,
-  or training on windows with two behaviours, is the way in.
-- **Their test is the easier one.** Their 70/30 split is drawn per segment, so
-  fixes are shared between train and test; ours shares none. But theirs is the
-  mean of 100 splits, ours one split of 79 fixes, and both test the training
-  birds.
-
-## Spoonbill: rotation and the split (exp205-exp211)
-
-The exp197 recipe on the spoonbill data (`scripts/batch_train_supervised.py`,
-numbers in `experiments_log.md`).
-
-- **Rotation costs spoonbills far more than gulls.** With rotation the model
-  underfits: valid 83.96-84.55 at epoch 4000 over 3 seeds, and sit-alert 0 of
-  61 right even in training (exp206). Without it: 93.27-94.65, sit-alert 61 of
-  61 (exp207). On gulls rotation cost 4 points. The spoonbill resting and
-  alert classes differ by posture, sitting or standing, and posture is the
-  gravity direction rotation scrambles.
-- **The price is the same as for gulls.** Without rotation a model can also
-  learn the tag's mounting. Train and valid hold the same birds, so 94% says
-  nothing about a new bird or a tag mounted another way.
-- **Split by fix when a fix holds several segments.** A spoonbill fix holds up
-  to 10 consecutive 1 s segments. Split per segment, 502 of 514 valid segments
-  had a train segment from the same fix. `split_by` fix keeps each fix whole.
-  By bird is not possible: four classes come from one bird.
-- **Balanced F1 needs every class in valid.** With no drink segment in valid,
-  `behavior/utils.py::per_class_statistics_balanced` divides by 0 and the whole
-  table is NaN.
-
-## Spoonbill data: few birds per behaviour
+### Spoonbill data: few birds per behaviour
 
 The spoonbill data has 4718 segments of 20 records, about as many as the gull
 `starts.csv` (4338), but each behaviour comes from few birds
@@ -84,7 +47,7 @@ The spoonbill data has 4718 segments of 20 records, about as many as the gull
   `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
   has no x, y, z. It is not training data.
 
-## IMU calibration from the data, for devices without calibration values
+### IMU calibration from the data, for devices without calibration values
 
 `behavior/data.py::get_data` used to return nothing for a device without
 calibration values in the database. It now estimates them from the IMU data
@@ -120,7 +83,7 @@ Rakhimberdiev's R code.
   into the database already swapped, or as a file that is not. For now
   `get_data` does not swap (`docs/methods.md`, Database data).
 
-## Ornitela GPS: match by nearest time, not by file position
+### Ornitela GPS: match by nearest time, not by file position
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` and
 `scripts/data/merge_simon_data.py::load_calibrated_rows` gave each burst the GPS
@@ -142,17 +105,12 @@ device within 2 s. If two fixes are equally near, the earlier one is used.
   6 bursts above 30 m/s and clips 4,621 IMU rows. 8 bursts change class in the
   full file, none in the slice.
 
-## Retraining on the cleaned labels (exp198-exp204)
+### Retraining on the cleaned labels (exp198-exp204)
 
 `starts_clean.csv` drops the 26 bursts whose GPS speed contradicts their label.
-Settled over three training seeds a side, split pinned with `split_seed` and all
-runs read at epoch 4000, so every run is scored on the same 437 bursts
-(exp199/201/202 raw, exp200/203/204 clean).
-
-| per seed     | speed conflict       | valid acc           | place            | rotation flip    |
-| ------------ | -------------------- | ------------------- | ---------------- | ---------------- |
-| raw `starts` | 0.10, 0.15, 0.13     | 93.82, 94.05, 94.05 | 1.12, 1.08, 1.00 | 1.57, 1.62, 1.34 |
-| clean        | **0.03, 0.06, 0.04** | 93.59, 93.36, 94.05 | 1.03, 1.07, 1.04 | 1.61, 1.53, 1.36 |
+Three training seeds a side, the split held still, and every run read at the
+same epoch, 4000. The numbers are in `status.md`, Gulls, raw against cleaned
+labels.
 
 - **A label fix shows where it was aimed, and nowhere else.** The 26 bursts came
   from a GPS-speed rule, and the GPS-speed check is the one that moves: the two
@@ -160,23 +118,6 @@ runs read at epoch 4000, so every run is scored on the same 437 bursts
   (`exps/eval_unlabeled.py`). Accuracy, place, flicker and rotation all sit
   inside the seed spread. Accuracy could not move anyway — 26 bursts are 0.60%
   of the data, and 25 sat in the **training** set, 1 in the valid split.
-- **One seed pair is not a result; the seed spread is the unit.** Read at one
-  seed, the cleaned model looked 0.23 points worse and slightly worse on three
-  checks. Across three seeds the best clean run ties the best raw run and the
-  three checks overlap. Nothing there survived.
-- **Compare runs at a fixed epoch, not at `<exp>_best.pth`.** That file is the
-  argmax of a ~435-burst valid split over 4000 epochs, so it rewards a lucky
-  epoch and lands somewhere different every run: 1996 for exp197 and exp199,
-  1544 for exp198, 3949 for exp200. A younger checkpoint is less confident and
-  flips more, so **the perturbation checks compare checkpoint ages** unless the
-  epoch is pinned. `save_final` keeps epoch 4000 for that.
-- **Pin the split too when the data changes.** `stratified_split` walks the
-  classes with **one** generator, so a class whose count changes re-randomizes
-  every class after it: dropping 26 bursts left Flap through Float identical and
-  reshuffled the rest, putting 177 of exp197's 438 valid bursts into exp198's
-  train set. `split_file` borrows one run's valid split for another and
-  `split_seed` holds it still while the training seed moves. Without them, two
-  runs on two data files cannot be compared at all.
 - **Cleaning one class can move another, through a shared input.** The 26
   dropped bursts are land bursts (SitStand, TerLoco, Pecking) at 3.24-17.78
   m/s. Without them, no land or water burst is faster than 4.72 m/s, so in
@@ -192,11 +133,9 @@ runs read at epoch 4000, so every run is scored on the same 437 bursts
   speed changes the class of 27.8-29.5% of bursts for the raw models and
   29.5-31.1% for the clean ones: about 2 points more, and the ranges touch.
   Both lean heavily on speed (`exps/speed_reliance.py`).
-- **Class-balanced F1 magnifies a 4-burst class by 12.** It resamples every
-  class to ~49, so the 0.89 -> 0.83 that this pair showed at one seed is two
-  ExFlap bursts. Report the burst counts beside it or it reads as a regression.
 - **Still keep exp197, trained on the raw data, as the working model.** This
-  is a judgement, not a measurement, and it goes against the table above.
+  is a judgement, not a measurement, and it goes against the numbers in
+  `status.md`.
   Revisit it when a second logger, or more ExFlap data, can settle it. Three
   reasons:
   - The only check where cleaning wins is the GPS-speed check. But GPS speed is
@@ -207,16 +146,64 @@ runs read at epoch 4000, so every run is scored on the same 437 bursts
   - Nothing else improves: accuracy, place, flicker and rotation stay inside
     the seed spread, and reliance on speed barely changes (entry above).
 
-## `load_csv_pandas` timestamps are 1000x too small under pandas 3
+### Label noise
 
-`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64") // 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
-division yields seconds/1000 and every burst dates to 1970. The label, device
-and index columns of `ldts` are fine; only column 2 is wrong. Training does not
-read it, but anything naming a burst does, so `exps/plot_errors.py` takes the
-datetime as text from `find_label_noise.load_bursts` instead. Not fixed yet:
-the loader is shared with the training scripts.
+`exps/find_label_noise.py` flags bursts whose **GPS speed** contradicts their own
+label's definition in Table S1 of the Judy supplement
+(`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). **26 of 4338
+bursts (0.60%)**, listed in
+`/home/fatemeh/Downloads/bird/data/final/label_noise_candidates.csv`. They are
+dropped by `data_processing.remove_label_noise`, the last step of
+`scripts/data/prepare_labeled_data.py`, giving **`starts_clean.csv` (4312
+bursts)** beside `starts.csv`.
 
-## Rotation-invariant input channels (exp197)
+- **Only the speed half of each definition is usable. Accelerometer-shape rules
+  were tried and all had to be dropped**, after checking them against the plots
+  in `~/Downloads/bird/results/gt2_starts/all`. An ODBA rule ("Stationary means
+  constant on all 3 axes") flagged sitting birds that shifted once mid-burst, and
+  a spectral rule ("Soar means no wing beat") flagged smooth glides — the FFT
+  removes the mean but not the trend, so a glide's slow drift lands in the low
+  bins and imitates a beat over 20 samples. Speed is a hard physical constraint;
+  shape is a description, and a description has a legitimate tail.
+- **Extreme for its class is not the same as mislabeled.** Every dropped rule was
+  thresholded outside its class's 99th percentile and still produced false
+  positives. That test finds the tail of a real distribution, not errors.
+- **Never let the label under test train the judge.** exp194 reaches ~99.4% train
+  accuracy by memorising the bad labels too: it predicts TerLoco at 0.92
+  confidence for a burst moving 17.8 m/s. Use the rotation-augmented exp196
+  instead — it underfits, so it never memorised, and its opinion is independent
+  of the label being checked.
+- **Compare a model's disagreement against its own base rate.** exp196 disagrees
+  with 85% of flagged bursts, which reads as strong corroboration until you see
+  it also disagrees with 8.3% of *all* bursts (exp194: 0.9%). The script prints
+  both numbers together for that reason.
+- **Check whether flags cluster by device and day before calling them label
+  errors.** 16 of the 26 are device 805 on 2014-06-07. A run of flags in one
+  window is more likely a GPS or device fault over that period than that many
+  independent annotation mistakes.
+- **A constant IMU plus high speed is ambiguous.** Sitting on a fast vessel and
+  gliding both give a smooth signal at speed; only the GPS track or altitude
+  separates them. The four device-806 bursts (SitStand at 9.4–13.7 m/s) are the
+  clearest mislabels found, but that caveat stands.
+
+## Model and training
+
+### Spoonbill: rotation (exp205-exp211)
+
+The exp197 recipe on the spoonbill data (`scripts/batch_train_supervised.py`,
+numbers in `experiments_log.md`).
+
+- **Rotation costs spoonbills far more than gulls.** With rotation the model
+  underfits: valid 83.96-84.55 at epoch 4000 over 3 seeds, and sit-alert 0 of
+  61 right even in training (exp206). Without it: 93.27-94.65, sit-alert 61 of
+  61 (exp207). On gulls rotation cost 4 points. The spoonbill resting and
+  alert classes differ by posture, sitting or standing, and posture is the
+  gravity direction rotation scrambles.
+- **The price is the same as for gulls.** Without rotation a model can also
+  learn the tag's mounting. Train and valid hold the same birds, so 94% says
+  nothing about a new bird or a tag mounted another way.
+
+### Rotation-invariant input channels (exp197)
 
 `data.add_magnitude_features` appends three channels to the 4 inputs: `mag`
 (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`).
@@ -266,154 +253,7 @@ them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
 - Untested: these channels **without** rotation augmentation (an exp194
   counterpart). The forest says that arm gains ~0.2, but that is a proxy.
 
-## Evaluating on labeled data
-
-`exps/eval_labeled.py`, on the 3900/438 split of `starts.csv` (seed 32984).
-Accuracy, AP and loss reproduce each run's `app_loss_acc.txt` exactly.
-
-|        | train acc | AP   | loss | valid acc | AP   | loss | valid F1 | F1 balanced |
-| ------ | --------- | ---- | ---- | --------- | ---- | ---- | -------- | ----------- |
-| exp194 | 99.44     | 1.00 | 0.03 | **96.35** | 0.97 | 0.13 | 0.96     | 0.92        |
-| exp196 | 91.56     | 0.92 | 0.26 | 92.69     | 0.91 | 0.27 | 0.93     | 0.83        |
-| exp197 | 97.90     | 0.99 | 0.08 | 94.52     | 0.95 | 0.20 | 0.95     | 0.90        |
-
-Same valid bursts, accelerometer frame perturbed:
-
-| valid under              | exp194    | exp196 | exp197    |
-| ------------------------ | --------- | ------ | --------- |
-| clean                    | **96.35** | 92.69  | 94.52     |
-| x/y swap                 | 71.46     | 93.15  | **94.52** |
-| pitch 20°                | 82.88     | 92.24  | **94.29** |
-| pitch 70°                | 2.05      | 91.55  | **93.61** |
-| random SO(3), mean of 20 | 13.05     | 92.03  | **93.66** |
-
-- **The headline accuracy is the least informative column.** exp194 wins it by
-  3.7 pts and loses every other comparison here and in the unlabeled table below.
-- **Train-valid gap says which regime you are in.** exp194 99.44/96.35 memorises;
-  exp196 91.56/92.69 underfits, valid above train. Same model, same data — the
-  augmentation sets the regime, not the parameter count.
-- **Report plain and class-balanced F1 together.** exp196 is 0.93 plain but 0.83
-  balanced: the loss is concentrated in rare classes. Per-class valid F1
-  exp194 -> exp196: TerLoco .97 -> .89, Manouvre .84 -> .67, Pecking .94 -> .68,
-  everything else within 0.03. With 16 Manouvre and 4 ExFlap valid bursts, one
-  sample moves an F1 by 0.06, so the script prints the per-class counts too.
-- **Rebuild the split on the same device as training.** `stratified_split` seeds
-  a `torch.Generator(device=...)`, so passing a CPU label tensor gives a
-  different split and silently scores the model on bursts it trained on — which
-  showed up here as a suspiciously perfect 99.5% "valid" accuracy for exp194.
-
-## Evaluating on unlabeled data
-
-`exps/eval_unlabeled.py` compares models on data with no ground truth, by
-counting predictions that contradict something known independently of the model.
-On device 6004 (115,266 bursts, `~/Downloads/bird/data/ssl/gimu_behavior/gull/`):
-
-|        | mean conf | speed conflict | place conflict | any flip  | unseen flip | rotation flip |
-| ------ | --------- | -------------- | -------------- | --------- | ----------- | ------------- |
-| exp194 | 0.89      | 1.45%          | 1.18%          | 17.7%     | 6.7%        | **82.8%**     |
-| exp196 | 0.91      | **0.09%**      | 1.45%          | 16.1%     | 4.9%        | 5.4%          |
-| exp197 | 0.95      | 0.11%          | **1.09%**      | **15.6%** | **4.0%**    | **1.7%**      |
-
-- **Winner**: exp196 beats exp194 clearly — 16× fewer physically impossible
-  predictions (0.09% vs 1.45%) — and exp197 beats exp196 on four of five checks,
-  most sharply on rotation flip (1.7% vs 5.4%). exp197's speed conflict is
-  marginally worse (0.11% vs 0.09%). They agree on 93.0% of bursts.
-- **Softmax confidence cannot compare models.** It rates the two within 0.02 of
-  each other while exp194 makes 16x more physically impossible predictions. On
-  the labeled set the same failure is measurable: under rotation exp194 holds
-  0.735 mean confidence at 13% accuracy. Confidence is only good for *ranking*
-  which bursts to inspect (AUROC 0.89 within one dataset), never for "is this
-  model healthy here".
-- **Contradiction counting gives a real error rate without labels.** A predicted
-  SitStand at 13 m/s, or a predicted TerLoco a kilometre out to sea, is wrong on
-  physical grounds. No annotation needed.
-- **Prediction stability under rotation is the sharpest discriminator here**
-  (82.8% vs 5.4%), and it confirms on real unlabeled data what the labeled
-  orientation table showed.
-- **A raw change-rate is not an error rate; subtract what the labels allow.**
-  Counting every prediction change inside a fix: **17.7% and 16.1%** — the two
-  models look the same. Counting only transitions never seen between labeled
-  behaviours: **6.7% and 4.9%**, and the triage list drops from 13,396 bursts to
-  4,995. `exps/label_cooccurrence.py` supplies the seen set from the labeled
-  data — only **10 of 36** possible pairs occur, led by SitStand+Pecking (31),
-  TerLoco+Pecking (23), SitStand+TerLoco (19). It reproduces the counts recorded
-  in `test_labels_comes_together` exactly, and prints the fixes behind each rare
-  pair (ExFlap+SitStand happens once: device 782, 2014-05-31 22:43:03).
-- **Not every check discriminates.** exp196 is slightly *worse* on
-  `place_conflict`, because it predicts more TerLoco (4.2% vs 2.4%), a land
-  class. Report checks that tie or disagree, do not quietly drop them.
-- **Coastline resolution limits the place check.** `global_land_mask` is 1/100
-  deg (~1.1 km), so bursts within `coast_margin_deg` (0.02, ~2 km) of a
-  coastline are skipped, leaving only the 53% clearly inland or offshore to be
-  scored; a gull on a beach or pier is genuinely ambiguous at that scale.
-- **Validate the pipeline against stored predictions.** The app CSVs already
-  carry the generating model's output, so recomputing it is a free correctness
-  check — 99.98% agreement here before any of the numbers above were trusted.
-
-## Label noise
-
-`exps/find_label_noise.py` flags bursts whose **GPS speed** contradicts their own
-label's definition in Table S1 of the Judy supplement
-(`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). **26 of 4338
-bursts (0.60%)**, listed in
-`/home/fatemeh/Downloads/bird/data/final/label_noise_candidates.csv`. They are
-dropped by `data_processing.remove_label_noise`, the last step of
-`scripts/data/prepare_labeled_data.py`, giving **`starts_clean.csv` (4312
-bursts)** beside `starts.csv`.
-
-- **Only the speed half of each definition is usable. Accelerometer-shape rules
-  were tried and all had to be dropped**, after checking them against the plots
-  in `~/Downloads/bird/results/gt2_starts/all`. An ODBA rule ("Stationary means
-  constant on all 3 axes") flagged sitting birds that shifted once mid-burst, and
-  a spectral rule ("Soar means no wing beat") flagged smooth glides — the FFT
-  removes the mean but not the trend, so a glide's slow drift lands in the low
-  bins and imitates a beat over 20 samples. Speed is a hard physical constraint;
-  shape is a description, and a description has a legitimate tail.
-- **Extreme for its class is not the same as mislabeled.** Every dropped rule was
-  thresholded outside its class's 99th percentile and still produced false
-  positives. That test finds the tail of a real distribution, not errors.
-- **Never let the label under test train the judge.** exp194 reaches ~99.4% train
-  accuracy by memorising the bad labels too: it predicts TerLoco at 0.92
-  confidence for a burst moving 17.8 m/s. Use the rotation-augmented exp196
-  instead — it underfits, so it never memorised, and its opinion is independent
-  of the label being checked.
-- **Compare a model's disagreement against its own base rate.** exp196 disagrees
-  with 85% of flagged bursts, which reads as strong corroboration until you see
-  it also disagrees with 8.3% of *all* bursts (exp194: 0.9%). The script prints
-  both numbers together for that reason.
-- **Check whether flags cluster by device and day before calling them label
-  errors.** 16 of the 26 are device 805 on 2014-06-07. A run of flags in one
-  window is more likely a GPS or device fault over that period than that many
-  independent annotation mistakes.
-- **A constant IMU plus high speed is ambiguous.** Sitting on a fast vessel and
-  gliding both give a smooth signal at speed; only the GPS track or altitude
-  separates them. The four device-806 bursts (SitStand at 9.4–13.7 m/s) are the
-  clearest mislabels found, but that caveat stands.
-
-## Batched augmentation on the GPU
-
-Per-sample transforms run inside `BirdDataset.__getitem__`, one Python call per
-sample per epoch. On the 3900-sample full batch `RandomRotation3D` alone cost
-~370 ms/epoch — that is why exp195 took 47 min against exp194's 12. The `Batch*`
-transforms in `behavior/data_augmentation.py` build all N at once, and
-`bd.GpuBatches` keeps the split on the GPU and applies them once per batch:
-**the same exp195 config now runs in ~5.5 min**, below the un-augmented baseline.
-
-- **Verify equivalence, not just speed.** exp196 is exp195 rerun through the new
-  path: val 92.69 vs 92.24, valid F1 within ±0.01 on 7 of 9 classes, same
-  orientation robustness — in 5m03s against 47m31s. The RNG stream differs, so
-  reruns are not bit-identical; expect seed-level noise, not equality.
-- `train_one_epoch` only iterates its loader, so any iterable works and
-  `behavior/model.py` needed no change at all.
-- Augmentation now lives on the train **loader**, not the dataset, which removes
-  the shared-transform footgun described under "Rotation augmentation
-  (background)" below.
-- Batched transforms take channel-first `(N, C, T)`; the per-sample ones take
-  `(T, C)`. They are not interchangeable, and the other scripts
-  (`train.py`, `train_sup_contrastive.py`, `train_self_distill.py`, `simGCD.py`)
-  still use the per-sample ones.
-
-## Rotation augmentation (exp195)
+### Rotation augmentation (exp195)
 
 Full SO(3) rotation of the IMU acc channels, train set only (`RandomRotation3D`).
 The labeled data is one logger type mounted much the same way on every bird, so
@@ -449,24 +289,28 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   +1.6 val without rotation (exp192 94.75 -> exp194 96.35) but +0.7 with
   (discarded trial 91.55 -> exp195 92.24).
 
-## Training recipe
+### Rotation augmentation (background)
 
-- **AdamW with defaults is already the best.** The small 3-conv model trains
-  best with AdamW, lr=3e-4, weight decay 1e-2, StepLR (step 2000, γ=0.1). SGD
-  is ~5 points worse (exp42 90% vs exp45 95.4%).
-- **Weight decay barely matters** at this scale: wd from 1e-3 to 3e-1 all land
-  within noise of exp45 (exp53, exp54).
-- **Dropout stabilizes training and prevents overfitting** (exp46 overfits
-  after ~1000 epochs without it). But dropout lowers model capacity, so it can
-  make train accuracy *lower* than validation (dropout is off in `model.eval()`);
-  see the MAE note below.
-- **Cosine annealing did not beat StepLR** on accuracy. It reduces overfitting
-  (exp55 almost none) but going 3e-4 -> 2.5e-4 with cosine did not prevent the
-  overfitting that motivated it.
-- **Batch size**: smaller batches converge faster down to ~bs=25; bs=6 is worse
-  and very slow. There is no accuracy gain from large batches here.
+- The accelerometer reading mixes logger orientation, logger position on the bird
+  (neck, back, wing), bird movement, external forces (wind, water, collision) and
+  gravity. Only bird movement is the label. Known per-manufacturer conventions are
+  a coordinate relabel, not an augmentation problem — Ornitela swaps x and y,
+  undone in `scripts/data/bird_behavior_app_data.py`.
+- **Static classes survive rotation, their members do not.** In the discarded
+  BirdModel + rotation trial (val 91.55%) the orientation-dependent static classes
+  held (val F1 SitStand .97, Float .97, Boat .92): a static behavior has |acc|≈1 g
+  with near-zero temporal variance whatever the orientation, so rotation-invariant
+  statistics still separate it. The loss went to the rare dynamic classes
+  (Pecking .57, Manoeuvre .77, ExFlap .57 — prose record only, that run was not
+  kept). exp195's bigger receptive field fixed exactly those three and the cost
+  moved to TerLoco/Pecking instead.
+- **Only augment the training set.** `prepare_train_valid_dataset` passes one
+  transform object to both the train and eval `BirdDataset`s, which would rotate
+  the evaluation data too — still a hazard for any script using it.
+  `batch_train_supervised.py` no longer can: the transform is held by the
+  `GpuBatches` train loader, and the eval `BirdDataset` has none.
 
-## Model size
+### Model size
 
 - **Bigger is worse on this small dataset.** Wider (30 -> 96 channels, 6.3k ->
   58k params) drops 94.5 -> 93.7 with clear overfitting (exp67). Deeper (3 -> 4
@@ -491,7 +335,214 @@ model for a new logger, whose tilt and position on the bird are both unknown.
 - The compact models overfit far harder than BirdModel (train ~99.5 vs ~96), so
   only the validation number is comparable between them.
 
-## Data
+## Measuring
+
+How each number is defined, with its unit, is in `status.md`, How the numbers
+are measured.
+
+### Score the way the paper scores, or the comparison means nothing
+
+The same spoonbill model (no rotation, mean of 3 seeds) gets prey ingestion F1
+0.92 on our valid segments and 0.59 on records, the papers' way
+(`exps/eval_spoonbill.py`).
+
+- Our segments are whole 1 s bouts of one behaviour. The papers cut each fix
+  into 1 s windows whatever the labels, so a window can hold two behaviours, for
+  example 11 records of searching then 9 of ingesting. The model gives one
+  answer for the 20 records, and each record is scored against its own label:
+  answering ingest there gets 9 of 20 right.
+- Prey ingestion suffers most because its bouts are short: see "Short
+  behaviours are lost at 20 records" above.
+- Their test is easier in one way: they split per segment, so train and test
+  share fixes; ours share none. But theirs is the mean of 100 splits, ours one
+  split of 79 fixes, and both test the training birds.
+
+### Keep a fix whole when it holds several segments
+
+A spoonbill fix holds up to 10 consecutive 1 s segments. Split per segment, 502
+of 514 valid segments had a train segment from the same fix (exp205,
+`exps/eval_spoonbill.py`). `split_by` fix keeps each fix whole. A split by bird
+is not possible: sit-alert, stand-other, drink and beg each come from one bird
+(`exps/spoonbill_data_stats.py`).
+
+### The highest accuracy can hide a total failure
+
+exp194 has the highest valid accuracy, 96.35%, and falls to 13.05% when the tag
+is turned at random. exp197 is 1.83 points lower and holds 93.66%
+(`exps/eval_labeled.py`). The labeled data is one logger type, mounted much the
+same way on every bird, so the valid split cannot see a change of mounting.
+Test the orientation too.
+
+### The train-valid gap tells overfitting from underfitting
+
+exp194 reaches 99.44% train and 96.35% valid accuracy: it memorises. exp196,
+the same model trained with rotation, reaches 91.56% train and 92.69% valid: it
+underfits. The augmentation decides which, not the parameter count
+(`exps/eval_labeled.py`).
+
+### Give plain and class-balanced F1 together, with the bursts per class
+
+- exp196 has a pooled plain F1 of 0.93 and a pooled class-balanced F1 of 0.83:
+  the errors are in the rare classes. Per class, exp194 to exp196: TerLoco 0.97
+  to 0.89, Manouvre 0.84 to 0.67, Pecking 0.94 to 0.68; every other class moves
+  0.03 or less (`exps/eval_labeled.py`).
+- Small classes swing. One of the 16 Manouvre valid bursts moves Manouvre
+  recall by 0.06. One of the 4 ExFlap bursts moves ExFlap recall by 0.25, and so
+  the pooled class-balanced F1, the mean recall over 9 classes, by 0.03.
+  `exps/eval_labeled.py` prints the bursts per class for this reason.
+- Class-balanced F1 needs every class in valid. With no drink segment in the
+  spoonbill valid split, `behavior/utils.py::per_class_statistics_balanced`
+  divides by 0 and the whole table is NaN.
+
+### One seed is not a result; compare the seed spread
+
+At one seed, the clean-label model (exp200) was 0.23 points below the raw one
+(exp199). Over three seeds a side the ranges overlap: 93.36-94.05% against
+93.82-94.05% (`exps/eval_labeled.py`). Only a difference whose ranges do not
+overlap counts. Of all the checks, only speed conflict passed (`status.md`,
+Gulls, raw against cleaned labels).
+
+### Compare runs at a fixed epoch, not at `<exp>_best.pth`
+
+`<exp>_best.pth` is the best of 4000 epochs on about 438 valid bursts, so it
+rewards a lucky epoch, and it lands somewhere else in each run: epoch 1870 for
+exp197, 1227 for exp198, 1888 for exp199 and 3947 for exp200 (stored in each
+checkpoint, printed by `scripts/batch_train_supervised.py`). Two runs read at
+their best epochs differ in checkpoint age as well as in the change being
+tested. `save_final` keeps epoch 4000; compare there.
+
+### Pin the split when the data changes
+
+`behavior/utils.py::stratified_split` draws every class from one random
+generator, in class order. When one class changes size, every class after it is
+reshuffled. Dropping the 26 noise bursts (SitStand, TerLoco, Pecking) left Flap
+to Float as they were and reshuffled the rest. `split_file` borrows another data
+file's valid split, and `split_seed` holds the split while `seed` moves the
+training. Without them, two runs on two data files are not scored on the same
+bursts.
+
+### Softmax confidence cannot compare models
+
+On device 6004, exp194 and exp196 differ by 0.02 in mean confidence (0.89 and
+0.91), while exp194 has 16 times more speed conflicts: 1.45% against 0.09% of
+bursts (`exps/eval_unlabeled.py`). Confidence can at most rank which bursts to
+look at. It cannot say whether a model works on a new bird.
+
+### Count predictions that cannot be true
+
+- Without labels, a prediction that contradicts something known without the
+  model is wrong on physical grounds: SitStand at 13 m/s, TerLoco a kilometre
+  out to sea. The four checks are defined in `status.md`.
+- Rotation flip separates the models most: 82.76% for exp194 against 5.37% for
+  exp196 (`exps/eval_unlabeled.py`).
+- Not every check separates them, so report them all. exp196 is worse on place
+  conflict, 1.45% against 1.18%, because it predicts more TerLoco, a land class:
+  4.2% of bursts against 2.4%.
+- Place conflict can only score the 53% of bursts clearly inland or offshore.
+  The land mask has a cell of 1/100 degree (about 1.1 km), so bursts within
+  about 2 km of a coast are skipped; a gull on a beach is ambiguous at that
+  scale.
+
+### A raw change rate is not an error rate
+
+Counting every class change between consecutive bursts of a fix, exp194 and
+exp196 look the same: 17.65% and 16.14% of pairs. Counting only changes never
+seen between labeled behaviours: 6.66% and 4.92% (`exps/eval_unlabeled.py`).
+In the labeled data only 10 of 36 behaviour pairs ever follow one another in a
+fix, led by Soar-Manouvre (37 transitions), SitStand-Pecking (31) and
+TerLoco-Pecking (23) (`exps/label_cooccurrence.py`, its
+`label_transitions.csv`).
+
+### Check a new evaluation against stored predictions
+
+The app CSVs hold the predictions of the model that made them, so recomputing
+them is a free check of new evaluation code. It was done once for
+`exps/eval_unlabeled.py`; that code was not kept.
+
+## Engineering pitfalls
+
+### `load_csv_pandas` timestamps are 1000x too small under pandas 3
+
+`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64") // 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
+division yields seconds/1000 and every burst dates to 1970. The label, device
+and index columns of `ldts` are fine; only column 2 is wrong. Training does not
+read it, but anything naming a burst does, so `exps/plot_errors.py` takes the
+datetime as text from `find_label_noise.load_bursts` instead. Not fixed yet:
+the loader is shared with the training scripts.
+
+### Rebuild the split on the same device as training
+
+- **Rebuild the split on the same device as training.** `stratified_split` seeds
+  a `torch.Generator(device=...)`, so passing a CPU label tensor gives a
+  different split and silently scores the model on bursts it trained on — which
+  showed up here as a suspiciously perfect 99.5% "valid" accuracy for exp194.
+
+### Batched augmentation on the GPU
+
+Per-sample transforms run inside `BirdDataset.__getitem__`, one Python call per
+sample per epoch. On the 3900-sample full batch `RandomRotation3D` alone cost
+~370 ms/epoch — that is why exp195 took 47 min against exp194's 12. The `Batch*`
+transforms in `behavior/data_augmentation.py` build all N at once, and
+`bd.GpuBatches` keeps the split on the GPU and applies them once per batch:
+**the same exp195 config now runs in ~5.5 min**, below the un-augmented baseline.
+
+- **Verify equivalence, not just speed.** exp196 is exp195 rerun through the new
+  path: val 92.69 vs 92.24, valid F1 within ±0.01 on 7 of 9 classes, same
+  orientation robustness — in 5m03s against 47m31s. The RNG stream differs, so
+  reruns are not bit-identical; expect seed-level noise, not equality.
+- `train_one_epoch` only iterates its loader, so any iterable works and
+  `behavior/model.py` needed no change at all.
+- Augmentation now lives on the train **loader**, not the dataset, which removes
+  the shared-transform footgun described under "Rotation augmentation
+  (background)" above.
+- Batched transforms take channel-first `(N, C, T)`; the per-sample ones take
+  `(T, C)`. They are not interchangeable, and the other scripts
+  (`train.py`, `train_sup_contrastive.py`, `train_self_distill.py`, `simGCD.py`)
+  still use the per-sample ones.
+
+### Reproducibility / infrastructure bugs
+
+- **BatchNorm caused a large train/val divergence** early on; fixed with
+  `track_running_stats=False` (exp15 -> exp22/exp23). Per-conv BatchNorm layouts
+  also shifted results (exp30/exp34).
+- **Low batch size made runs non-reproducible** (exp29/exp31 could not reproduce
+  earlier numbers until reverting to commit ed7d9a389). Pin the commit hash with
+  each reported run.
+- **`drop_last=True` breaks length-based accuracy**: accumulate the sample count
+  per batch instead of using `len(loader.dataset)` (fixed in the train/eval
+  loops of the contrastive scripts).
+- A rounding subtlety in the old ÷20 mapping: Python rounds half to even (2.5 ->
+  2.0), which shifted a few indices. Minor, but it explains small dataset diffs.
+- **Recorded parameter counts go stale silently.** `MaskedAutoencoderViT` was
+  logged at 9,546,756; the current code gives 9,557,508 at img_size=20, the gap
+  being two 21x256 position embeddings that became learnable. `ResNet18_1D` was
+  logged at 60,964 and now gives 61,289. Nothing errors — the number just stops
+  being true. Recompute a count before quoting it, and say which constructor
+  arguments produced it.
+
+## Early runs (exp15-exp133)
+
+From the training logs of old scripts; no script in the repo reruns them.
+The run details are in `experiments_log.md`.
+
+### Training recipe
+
+- **AdamW with defaults is already the best.** The small 3-conv model trains
+  best with AdamW, lr=3e-4, weight decay 1e-2, StepLR (step 2000, γ=0.1). SGD
+  is ~5 points worse (exp42 90% vs exp45 95.4%).
+- **Weight decay barely matters** at this scale: wd from 1e-3 to 3e-1 all land
+  within noise of exp45 (exp53, exp54).
+- **Dropout stabilizes training and prevents overfitting** (exp46 overfits
+  after ~1000 epochs without it). But dropout lowers model capacity, so it can
+  make train accuracy *lower* than validation (dropout is off in `model.eval()`);
+  see the MAE note below.
+- **Cosine annealing did not beat StepLR** on accuracy. It reduces overfitting
+  (exp55 almost none) but going 3e-4 -> 2.5e-4 with cosine did not prevent the
+  overfitting that motivated it.
+- **Batch size**: smaller batches converge faster down to ~bs=25; bs=6 is worse
+  and very slow. There is no accuracy gain from large batches here.
+
+### Data
 
 - **The tail of the raw GPS 2D speed is sensor error, not flight.** Over the 186
   unlabeled devices the max reaches `521 m/s` (and raw IMU `15.75 g`) — see
@@ -525,28 +576,7 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   fixed seed (32984) and be wary of reading small val differences as real.
 - **Peck labels are noisy**; treat Pecking results with caution.
 
-## Rotation augmentation (background)
-
-- The accelerometer reading mixes logger orientation, logger position on the bird
-  (neck, back, wing), bird movement, external forces (wind, water, collision) and
-  gravity. Only bird movement is the label. Known per-manufacturer conventions are
-  a coordinate relabel, not an augmentation problem — Ornitela swaps x and y,
-  undone in `scripts/data/bird_behavior_app_data.py`.
-- **Static classes survive rotation, their members do not.** In the discarded
-  BirdModel + rotation trial (val 91.55%) the orientation-dependent static classes
-  held (val F1 SitStand .97, Float .97, Boat .92): a static behavior has |acc|≈1 g
-  with near-zero temporal variance whatever the orientation, so rotation-invariant
-  statistics still separate it. The loss went to the rare dynamic classes
-  (Pecking .57, Manoeuvre .77, ExFlap .57 — prose record only, that run was not
-  kept). exp195's bigger receptive field fixed exactly those three and the cost
-  moved to TerLoco/Pecking instead.
-- **Only augment the training set.** `prepare_train_valid_dataset` passes one
-  transform object to both the train and eval `BirdDataset`s, which would rotate
-  the evaluation data too — still a hazard for any script using it.
-  `batch_train_supervised.py` no longer can: the transform is held by the
-  `GpuBatches` train loader, and the eval `BirdDataset` has none.
-
-## Contrastive and clustering
+### Contrastive and clustering
 
 - **Supervised contrastive loss** slightly improves the t-SNE structure and
   tracks the plain classifier (con1/con2 ≈ exp125).
@@ -555,7 +585,7 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   general (weights or resampling) trades overall accuracy for rare-class recall
   (exp28, exp34, exp127).
 
-## MAE pretrain / finetune
+### MAE pretrain / finetune
 
 - **Average-pool without a class token is the best MAE head** (exp96, 91.08 /
   train 94.55), beating class-token slicing and the ImageBind head. LayerNorm
@@ -567,23 +597,3 @@ model for a new logger, whose tilt and position on the bird are both unknown.
   size 10/30/50% (exp91/93/94): behavior unchanged.
 - Finetuning the whole network beats training only the class head by a wide
   margin (f1 48.6 vs f2/f3 ~83).
-
-## Reproducibility / infrastructure bugs
-
-- **BatchNorm caused a large train/val divergence** early on; fixed with
-  `track_running_stats=False` (exp15 -> exp22/exp23). Per-conv BatchNorm layouts
-  also shifted results (exp30/exp34).
-- **Low batch size made runs non-reproducible** (exp29/exp31 could not reproduce
-  earlier numbers until reverting to commit ed7d9a389). Pin the commit hash with
-  each reported run.
-- **`drop_last=True` breaks length-based accuracy**: accumulate the sample count
-  per batch instead of using `len(loader.dataset)` (fixed in the train/eval
-  loops of the contrastive scripts).
-- A rounding subtlety in the old ÷20 mapping: Python rounds half to even (2.5 ->
-  2.0), which shifted a few indices. Minor, but it explains small dataset diffs.
-- **Recorded parameter counts go stale silently.** `MaskedAutoencoderViT` was
-  logged at 9,546,756; the current code gives 9,557,508 at img_size=20, the gap
-  being two 21x256 position embeddings that became learnable. `ResNet18_1D` was
-  logged at 60,964 and now gives 61,289. Nothing errors — the number just stops
-  being true. Recompute a count before quoting it, and say which constructor
-  arguments produced it.
