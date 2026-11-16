@@ -7,7 +7,7 @@ number is measured, in [status.md](status.md); the data, model and scripts in
 [descriptions.md](descriptions.md). A new lesson goes at the top of its group.
 
 - **Data and labels**: spoonbill data, label noise and cleaning, IMU
-  calibration, Ornitela GPS.
+  calibration, Ornitela GPS, the GPS speed cut.
 - **Model and training**: rotation, the magnitude channels, model size.
 - **Measuring**: how to score and compare models, with and without labels.
 - **Engineering pitfalls**: traps in the code.
@@ -17,31 +17,27 @@ number is measured, in [status.md](status.md); the data, model and scripts in
 
 ### Spoonbill data: few birds per behaviour
 
-The spoonbill data has 4718 segments of 20 records, about as many as the gull
-`starts.csv` (4338), but each behaviour comes from few birds
-(`exps/spoonbill_data_stats.py`). Terms in `descriptions.md`, Terms.
+The spoonbill data has 4718 segments of 20 records, about as many as the 4338
+bursts of the gull `starts.csv`, but each behaviour comes from few birds
+(`exps/spoonbill_data_stats.py`; terms in `descriptions.md`, Terms).
 
-- **Soaring and bird are mixed up.** 51 of the 53 fly-soar segments come from
-  the three migration birds (6283, 6287, 6291), which have no other label. They
-  were labeled by eye from plots, not from video. A model can learn the tag,
-  not the soaring, and still score well on it.
-- **One bird holds most of a class.** for-search is 90% bird 760, stand-rest
-  94% bird 763, sit-alert 100% bird 584. A random split of segments puts the
-  same bird, often the same fix, in train and valid. Split by bird, or at least
-  by fix.
+- **A class can be one bird, so a model can learn the bird.** for-search is 90%
+  bird 760, stand-rest 94% bird 763, sit-alert 100% bird 584. 51 of the 53
+  fly-soar segments come from the three migration birds (6283, 6287, 6291),
+  which have no other label. Split by fix at least (Measuring, "Keep a fix
+  whole").
+- **Labels made by eye are a weaker test.** Those 51 soaring segments were
+  labeled from plots, not from video. Of the 429 beg segments, all from juvenile
+  6381, 329 were labeled from the signal alone. A model scored on them is scored
+  against an annotator's reading of the signal, not against what the bird did.
 - **Short behaviours are lost at 20 records.** 456 of 571 for-intake bouts are
-  shorter than 20 records, so 9459 records give 115 segments, 24% used.
-  for-handle keeps 35%. Over all labels, 857 of 2220 bouts are too short, and
-  with the ends of longer bouts only 81% of the records land in a segment.
-- **Begging is one bird, mostly labeled without video.** The begging data
-  adds 429 beg segments, all from juvenile 6381 over two days, so beg has the
-  same bird problem as soaring. 329 of them were labeled from the signal shape
-  alone, so a model scored on them is scored against an annotator's reading of
-  the signal, not against what the bird did.
-- **Map labels before cutting segments.** The second paper maps beg_flap to
-  beg. Mapped first, a beg_flap bout joins the beg bout next to it, and the
-  records at the label change land in a segment instead of being cut off: 438
-  complete begging segments instead of 434 (`scripts/data/prepare_spoonbill_data.py`
+  shorter than 20 records, so its 9459 records give 115 segments: 24% of the
+  records used. for-handle keeps 35%. Over all labels, 857 of 2220 bouts are too
+  short, and 81% of the records land in a segment.
+- **Map labels before cutting segments.** The second paper maps beg_flap to beg.
+  Mapped first, a beg_flap bout joins the beg bout next to it, so the records at
+  the label change land in a segment instead of being cut off: 438 complete
+  begging segments instead of 434 (`scripts/data/prepare_spoonbill_data.py`
   against `exps/spoonbill_data_stats.py`).
 - **The second paper's `behaviour` column is model output.** In
   `gps.behav.data.csv` it is the paper's random-forest prediction, and the file
@@ -51,140 +47,133 @@ The spoonbill data has 4718 segments of 20 records, about as many as the gull
 
 `behavior/data.py::get_data` used to return nothing for a device without
 calibration values in the database. It now estimates them from the IMU data
-(`estimate_calibration`, `acc_calibrate`), translated from Eldar
-Rakhimberdiev's R code.
+(`estimate_calibration`, `acc_calibrate`), translated from Eldar Rakhimberdiev's
+R code; the rules are in `docs/methods.md`, rule 1. The numbers below are from
+`exps/check_imu_calibration.py`, on 15 Ornitela tags.
 
-- **The translation matches R.** `exps/check_imu_calibration.py` reruns it on
-  the raw data behind `calibration_per_device_auto.csv`: the 15 Ornitela scales
-  agree within 4.5e-12. R was not installed, so this R output was the only
-  check. It used `q_static` 0.85, the value of the R example, and every row of
-  the file: GPS rows carry one IMU sample each, and only with them do the
-  scales match.
-- **On a bird it is one scale, not one per axis.** For all 15 tags, the resting
-  samples cover too few postures (score 0.0006-0.012, cutoff 0.02), so `auto`
-  falls back to one scale and no offset. The per-axis fit is only tested on
-  synthetic data (`tests/test_data.py::test_acc_calibrate`): offsets within 1
-  count, scales within 0.2%.
-- **A short time range falls back to 1058.8.** With fewer than 300 static
-  samples, `estimate_calibration` uses no offset and the scale 1058.8. A scale
-  fitted on one burst is that burst's median magnitude, so dividing by it sets
-  the burst's magnitude to 1 g, even in flight. A 60-sample burst is far below
-  300 (`tests/test_data.py::test_acc_calibrate`).
-- **That default is not exact.** The 15 tag scales run 993.7-1060.1 (mean
-  1029.6), so 1058.8 makes the data of the lowest tag 6.1% too small. Calibrate
-  over a long range, as `scripts/data/get_data_gull_20.py` does.
-- **`q_static` matters little.** 0.10 (R default) against 0.85 moves the scale
-  by at most 0.39% (`exps/check_imu_calibration.py`). 0.85 is kept because it
-  gives the calibration of `all_devices_calibrated.csv`.
+- **The translation matches R.** On the raw data behind
+  `calibration_per_device_auto.csv`, the 15 scales agree within 4.5e-12. R was
+  not installed, so this R output is the only check. It needs `q_static` 0.85,
+  the value of the R example, and every row of the file, GPS rows too: each
+  carries one IMU sample.
+- **On a bird it is one scale, not one per axis.** The resting samples of all
+  15 tags cover too few postures (coverage 0.0006-0.0119, cutoff 0.02), so
+  `auto` falls back to one scale and no offset. The per-axis fit is tested only
+  on synthetic data (`tests/test_data.py::test_acc_calibrate`: offsets within 1
+  count, scales within 0.2%). For a per-axis fit, calibrate the tag before
+  deployment (`docs/methods.md`, Calibrating a tag off the bird).
+- **A short time range falls back to 1058.8, which is not exact.** With fewer
+  than 300 static samples (a 60-sample burst is far below that),
+  `estimate_calibration` uses no offset and the scale 1058.8. A scale fitted on
+  one burst would set that burst's magnitude to 1 g, even in flight. But the 15
+  tag scales run 993.7-1060.1 (mean 1029.6), so 1058.8 makes the data of the
+  lowest tag 6.1% too small. Calibrate over a long range, as
+  `scripts/data/get_data_gull_20.py` does.
+- **`q_static` matters little.** 0.10 (the R default) against 0.85 moves the
+  scale by at most 0.39%. 0.85 is kept because it reproduces
+  `all_devices_calibrated.csv`.
 - **Derivatives are numerical, as in R `optim`.** An exact gradient was tried.
-  It stopped early under R's stopping rule, 0.36 counts off the minimum, because
-  the loss is very flat along the offsets.
-- **The Ornitela x/y swap is decided later.** Ornitela data will come either
-  into the database already swapped, or as a file that is not. For now
-  `get_data` does not swap (`docs/methods.md`, Database data).
+  It stopped early under R's stopping rule, because the loss is very flat along
+  the offsets.
 
 ### Ornitela GPS: match by nearest time, not by file position
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` and
 `scripts/data/merge_simon_data.py::load_calibrated_rows` gave each burst the GPS
 row just above it in the file. Both now take the nearest valid fix of the same
-device within 2 s. If two fixes are equally near, the earlier one is used.
+device within 2 s (`docs/methods.md`, Ornitela data).
 
 - **The row above is not always the nearest.** A fix 2 s away won over one 1 s
   away, and a burst was dropped when the row above was invalid (more than 2 s
   away, or at latitude and longitude 0), even with a good fix close by.
-- **Small on this data.** On `all_devices_calibrated.csv`, 287 of 659,409
-  bursts get another fix (speed change median 0.28 m/s, max 7.78), and 247
-  dropped bursts come back. The IMU is unchanged. GPS rows nearly always sit
-  right above their burst, which is why the bug was hidden.
+- **A bug that rarely fires stays hidden.** GPS rows nearly always sit right
+  above their burst, so few bursts changed (`experiments_log.md`, Ornitela GPS
+  by nearest fix).
 - **`merge_simon_data.py` also kept x and y unswapped.** It swaps them now, and
   its output matches `rose_data.csv` exactly on every shared burst.
-- **Rerun:** `rose_data.csv`, `rose_gimu_behavior.csv` (exp125) and its
-  `_1223941_1620120` slice, plus `_197`. The June files also predated the
-  30 m/s cut and the clipping in `infer_save_app_data`, so the rerun also drops
-  6 bursts above 30 m/s and clips 4,621 IMU rows. 8 bursts change class in the
-  full file, none in the slice.
 
 ### Retraining on the cleaned labels (exp198-exp204)
 
-`starts_clean.csv` drops the 26 bursts whose GPS speed contradicts their label.
-Three training seeds a side, the split held still, and every run read at the
-same epoch, 4000. The numbers are in `status.md`, Gulls, raw against cleaned
-labels.
+`starts_clean.csv` drops the 26 bursts whose GPS speed contradicts their label
+(next lesson). Three training seeds a side, the split held still, and every run
+read at the same epoch, 4000. The numbers are in `status.md`, Gulls, raw against
+cleaned labels.
 
 - **A label fix shows where it was aimed, and nowhere else.** The 26 bursts came
-  from a GPS-speed rule, and the GPS-speed check is the one that moves: the two
-  ranges do not overlap, and at matched seeds the clean run is 2-3x lower
-  (`exps/eval_unlabeled.py`). Accuracy, place, flicker and rotation all sit
-  inside the seed spread. Accuracy could not move anyway — 26 bursts are 0.60%
-  of the data, and 25 sat in the **training** set, 1 in the valid split.
+  from a GPS-speed rule, and speed conflict is the only check that moves: 2.5 to
+  3.3 times lower at matched seeds, and the two ranges do not overlap
+  (`exps/eval_unlabeled.py`). Accuracy could not move anyway: the 26 bursts are
+  0.60% of the data, and 25 of them were in the train split, 1 in valid (3,900
+  train and 438 valid bursts before, 3,875 and 437 after;
+  `exps/eval_labeled.py`).
 - **Cleaning one class can move another, through a shared input.** The 26
-  dropped bursts are land bursts (SitStand, TerLoco, Pecking) at 3.24-17.78
-  m/s. Without them, no land or water burst is faster than 4.72 m/s, so in
-  training, fast means flying. That moved **ExFlap**, a flight class: ExFlap is
-  usually slow (median 1.39 m/s, Flap 9.63), and the only ExFlap valid bursts
-  that ever flip to Flap are the two at Flap-like speeds, 15.84 and 4.99 m/s.
-  **Ask which input the dropped rows carried, not which class they had.**
-- **But the effect is small. One burst at one seed made it look large.** On
-  the 4.99 m/s burst, with the acceleration fixed and the speed raised from 0
-  to 20 m/s, P(ExFlap) fell 0.45 -> 0.06 for exp200 (clean) and 0.79 -> 0.44
-  for exp199 (raw). Other seeds blur this: raw exp201 falls 0.47 -> 0.19, clean
-  exp204 0.84 -> 0.52. Over all 4338 bursts, giving each burst another burst's
-  speed changes the class of 27.8-29.5% of bursts for the raw models and
-  29.5-31.1% for the clean ones: about 2 points more, and the ranges touch.
-  Both lean heavily on speed (`exps/speed_reliance.py`).
-- **Still keep exp197, trained on the raw data, as the working model.** This
-  is a judgement, not a measurement, and it goes against the numbers in
-  `status.md`.
-  Revisit it when a second logger, or more ExFlap data, can settle it. Three
-  reasons:
-  - The only check where cleaning wins is the GPS-speed check. But GPS speed is
-    also what picked the 26 bursts, so that check cannot judge the change.
+  dropped bursts are land bursts (SitStand, TerLoco, Pecking) at 3.24-17.78 m/s
+  (`exps/find_label_noise.py`). Without them, fast means flying in training.
+  That moves ExFlap, a flight class that is usually slow. Ask which input the
+  dropped rows carried, not which class they had.
+- **But the effect is small, and one seed made it look large.** On the ExFlap
+  burst at 4.99 m/s, with its acceleration kept and its speed raised from 0 to
+  20 m/s, P(ExFlap) fell from 0.45 to 0.06 for clean exp200 and from 0.79 to
+  0.44 for raw exp199. Other seeds blur this: raw exp201 falls from 0.47 to
+  0.19, clean exp204 from 0.84 to 0.52. Giving each of the 4338 bursts another
+  burst's speed changes the class of 27.8-29.5% of bursts for the raw models and
+  29.5-31.1% for the clean ones: about 2 points more, and the ranges touch
+  (`exps/speed_reliance.py`).
+- **Still keep exp197, trained on the raw data, as the working model.** This is
+  a judgement, not a measurement, and it goes against the speed-conflict
+  numbers. Revisit it when a second logger, or more ExFlap data, can settle it
+  (TODO in `status.md`). Three reasons:
+  - The only check where cleaning wins is speed conflict. But GPS speed also
+    picked the 26 bursts, so that check cannot judge the change.
   - GPS speed can be badly wrong in real data. 16 of the 26 bursts are one
-    device on one day, more likely a device fault than 16 labeling mistakes.
-    The model should see such bursts in training.
-  - Nothing else improves: accuracy, place, flicker and rotation stay inside
-    the seed spread, and reliance on speed barely changes (entry above).
+    device on one day, more likely a device fault than 16 labeling mistakes
+    (`exps/find_label_noise.py`). The model should see such bursts in training.
+  - Nothing else improves: accuracy, place, flicker and rotation stay inside the
+    seed spread, and reliance on speed barely changes.
 
-### Label noise
+### Label noise: trust only the speed half of a label's definition
 
-`exps/find_label_noise.py` flags bursts whose **GPS speed** contradicts their own
+`exps/find_label_noise.py` flags bursts whose GPS speed contradicts their own
 label's definition in Table S1 of the Judy supplement
-(`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). **26 of 4338
-bursts (0.60%)**, listed in
-`/home/fatemeh/Downloads/bird/data/final/label_noise_candidates.csv`. They are
-dropped by `data_processing.remove_label_noise`, the last step of
-`scripts/data/prepare_labeled_data.py`, giving **`starts_clean.csv` (4312
-bursts)** beside `starts.csv`.
+(`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`): 26 of 4338
+bursts, 0.60%. They are listed in `label_noise_candidates.csv` and dropped by
+`data_processing.remove_label_noise`, giving `starts_clean.csv`, 4312 bursts.
 
-- **Only the speed half of each definition is usable. Accelerometer-shape rules
-  were tried and all had to be dropped**, after checking them against the plots
-  in `~/Downloads/bird/results/gt2_starts/all`. An ODBA rule ("Stationary means
-  constant on all 3 axes") flagged sitting birds that shifted once mid-burst, and
-  a spectral rule ("Soar means no wing beat") flagged smooth glides — the FFT
-  removes the mean but not the trend, so a glide's slow drift lands in the low
-  bins and imitates a beat over 20 samples. Speed is a hard physical constraint;
-  shape is a description, and a description has a legitimate tail.
-- **Extreme for its class is not the same as mislabeled.** Every dropped rule was
-  thresholded outside its class's 99th percentile and still produced false
-  positives. That test finds the tail of a real distribution, not errors.
-- **Never let the label under test train the judge.** exp194 reaches ~99.4% train
-  accuracy by memorising the bad labels too: it predicts TerLoco at 0.92
-  confidence for a burst moving 17.8 m/s. Use the rotation-augmented exp196
-  instead — it underfits, so it never memorised, and its opinion is independent
-  of the label being checked.
-- **Compare a model's disagreement against its own base rate.** exp196 disagrees
-  with 85% of flagged bursts, which reads as strong corroboration until you see
-  it also disagrees with 8.3% of *all* bursts (exp194: 0.9%). The script prints
-  both numbers together for that reason.
-- **Check whether flags cluster by device and day before calling them label
-  errors.** 16 of the 26 are device 805 on 2014-06-07. A run of flags in one
-  window is more likely a GPS or device fault over that period than that many
-  independent annotation mistakes.
-- **A constant IMU plus high speed is ambiguous.** Sitting on a fast vessel and
+- **Only the speed half of a definition is usable.** Rules on the accelerometer
+  shape were tried and all dropped, after checking them against the plots in
+  `~/Downloads/bird/results/gt2_starts/all`. An ODBA (overall dynamic body
+  acceleration) rule, "Stationary means constant on all 3 axes", flagged sitting
+  birds that shifted once mid-burst. A spectral rule, "Soar means no wing beat",
+  flagged smooth glides: the FFT removes the mean but not the trend, so a
+  glide's slow drift looks like a beat over 20 samples. Speed is a hard physical
+  limit; shape is a description, and a description has a real tail.
+- **Extreme for its class is not mislabeled.** Every dropped rule was set
+  outside its class's 99th percentile and still flagged good bursts. That test
+  finds the tail of a real distribution, not errors.
+- **Never let the label under test train the judge.** exp194 reaches 99.44%
+  train accuracy by learning the bad labels too: it predicts TerLoco at 0.92
+  confidence for the burst labeled TerLoco at 17.78 m/s. exp196, trained with
+  rotation, underfits, so it did not learn the labels by heart
+  (`exps/find_label_noise.py`).
+- **Compare a model's disagreement with its base rate.** exp196 disagrees with
+  85% of the flagged bursts, which looks like strong support until you see it
+  also disagrees with 8.3% of all bursts (exp194: 15% and 0.9%). The script
+  prints both for that reason.
+- **Check whether flags cluster by device and day.** 16 of the 26 are device
+  805 on 2014-06-07: more likely a GPS or device fault than 16 separate labeling
+  mistakes.
+- **A constant signal at high speed is ambiguous.** Sitting on a fast boat and
   gliding both give a smooth signal at speed; only the GPS track or altitude
-  separates them. The four device-806 bursts (SitStand at 9.4–13.7 m/s) are the
-  clearest mislabels found, but that caveat stands.
+  tells them apart. The four device-806 bursts, labeled SitStand at 9.4 and 13.7
+  m/s, are the clearest mislabels, with that caveat.
+
+### Read GPS speed as truth only after the 30 m/s cut
+
+Raw GPS speed has a tail of sensor errors: on the unlabeled gull data it reaches
+521 m/s (`exps/inspect_unlabeled_data.py`, its `stats.txt` in
+`/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20`). So speeds of 30 m/s and
+above are dropped first (`docs/methods.md`, rule 7). Any rule that reads GPS
+speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
@@ -544,13 +533,6 @@ The run details are in `experiments_log.md`.
 
 ### Data
 
-- **The tail of the raw GPS 2D speed is sensor error, not flight.** Over the 186
-  unlabeled devices the max reaches `521 m/s` (and raw IMU `15.75 g`) — see
-  `stats.txt` and the per-device histograms in
-  `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20`, made by
-  `exps/inspect_unlabeled_data.py`. That is the reason the unlabeled data drops speeds
-  above `30 m/s` before anything else. Any rule that reads GPS speed as truth
-  (e.g. `exps/find_label_noise.py`) has to assume this cut was applied.
 - **No augmentation gave the best supervised results.** exp125 (no augmentation,
   no sampling) is 96.94/95.36. Jitter/scaling (exp126), time/magnitude warp
   (exp129), and warping GPS all made things worse; holding GPS fixed during
@@ -566,8 +548,6 @@ The run details are in `experiments_log.md`.
 - **GPS speed is needed for some classes**, mainly Boat and SitStand
   (IMU-only exp131 vs exp125; consistent with Judy's paper). Normalizing GPS by
   its max was a large early win (25% -> 53%, exp19).
-- **Clip IMU to [-2, 2]** (exp190): only 782 of 86,760 rows were outside, so the
-  effect is small, but it bounds outliers.
 - **Less data, larger drop**: 100% -> 20% of the data costs ~6 points
   (95.5 -> 89.4). More data past exp45 (exp78, +25%) did not help, so the
   dataset is near saturation for this model.

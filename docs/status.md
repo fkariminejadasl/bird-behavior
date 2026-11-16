@@ -197,6 +197,8 @@ Gulls:
 - **Run the place and flicker checks on every new deployment.**
 - **The other sources of variation**: where the tag sits on the bird, wind,
   water impact.
+- **Decide the Ornitela x/y swap** for data that comes through the database
+  (`docs/methods.md`, Also to know). `get_data` does not swap for now.
 
 Bugs not fixed yet:
 
