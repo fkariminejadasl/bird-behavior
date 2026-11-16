@@ -87,8 +87,9 @@ device within 2 s (`docs/methods.md`, Ornitela data).
   away, and a burst was dropped when the row above was invalid (more than 2 s
   away, or at latitude and longitude 0), even with a good fix close by.
 - **A bug that rarely fires stays hidden.** GPS rows nearly always sit right
-  above their burst, so few bursts changed (`experiments_log.md`, Ornitela GPS
-  by nearest fix).
+  above their burst, so only 287 of 659,409 bursts got another fix, and 247
+  dropped bursts came back (`exps/recompute_doc_numbers.py`; details in
+  `experiments_log.md`, Ornitela GPS by nearest fix).
 - **`merge_simon_data.py` also kept x and y unswapped.** It swaps them now, and
   its output matches `rose_data.csv` exactly on every shared burst.
 
@@ -108,9 +109,13 @@ cleaned labels.
   `exps/eval_labeled.py`).
 - **Cleaning one class can move another, through a shared input.** The 26
   dropped bursts are land bursts (SitStand, TerLoco, Pecking) at 3.24-17.78 m/s
-  (`exps/find_label_noise.py`). Without them, fast means flying in training.
-  That moves ExFlap, a flight class that is usually slow. Ask which input the
-  dropped rows carried, not which class they had.
+  (`exps/find_label_noise.py`). Without them, no land or water burst is faster
+  than 4.72 m/s, so in training, fast means flying. That moves ExFlap, a flight
+  class that is usually slow (median 1.39 m/s, against 9.63 for Flap): the only
+  ExFlap valid bursts that ever flip to Flap are the two at Flap-like speeds,
+  15.84 and 4.99 m/s, and only in clean-label runs
+  (`exps/recompute_doc_numbers.py`). Ask which input the dropped rows carried,
+  not which class they had.
 - **But the effect is small, and one seed made it look large.** On the ExFlap
   burst at 4.99 m/s, with its acceleration kept and its speed raised from 0 to
   20 m/s, P(ExFlap) fell from 0.45 to 0.06 for clean exp200 and from 0.79 to
@@ -405,10 +410,11 @@ tested. `save_final` keeps epoch 4000; compare there.
 `behavior/utils.py::stratified_split` draws every class from one random
 generator, in class order. When one class changes size, every class after it is
 reshuffled. Dropping the 26 noise bursts (SitStand, TerLoco, Pecking) left Flap
-to Float as they were and reshuffled the rest. `split_file` borrows another data
-file's valid split, and `split_seed` holds the split while `seed` moves the
-training. Without them, two runs on two data files are not scored on the same
-bursts.
+to Float as they were and reshuffled the rest: 177 of exp197's 438 valid bursts
+fell in exp198's train split (`exps/recompute_doc_numbers.py`). `split_file`
+borrows another data file's valid split, and `split_seed` holds the split while
+`seed` moves the training. Without them, two runs on two data files are not
+scored on the same bursts.
 
 ### Softmax confidence cannot compare models
 

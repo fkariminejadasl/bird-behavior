@@ -160,16 +160,21 @@ at `<exp>_4000.pth`. hash:f6a0c49 plus the new script.
 Documented in commit a71729f, 2026-10-05.
 `prepare_calibrated_app_data` and `load_calibrated_rows` now give each burst
 the nearest GPS fix within 2 s (`lesson_learned.md`, Ornitela GPS). The counts
-below come from a one-off comparison; its code was not kept.
+below are from `exps/recompute_doc_numbers.py`, in bursts of 20 samples.
 
-- On `all_devices_calibrated.csv`, 287 of 659,409 bursts get another fix (speed
-  change median 0.28 m/s, max 7.78), and 247 dropped bursts come back. The IMU
+- On `all_devices_calibrated.csv`, 287 of 659,409 bursts (160 fixes) get
+  another fix, and 247 dropped bursts come back. For the 113 fixes whose speed
+  changed, the change has a median of 0.28 m/s and a maximum of 7.78. The IMU
   is unchanged.
 - Rerun: `rose_data.csv`, `rose_gimu_behavior.csv` (exp125) and its
   `_1223941_1620120` slice, plus `_197`. The June files also predated the 30 m/s
   cut and the clipping in `infer_save_app_data`, so the rerun also drops 6
-  bursts above 30 m/s and clips 4,621 IMU rows. 8 bursts change class in the
-  full file, none in the slice.
+  bursts at 30 m/s or faster and clips 4,621 IMU rows (counted in
+  `rose_data_old.csv`).
+- The class changes of the rerun cannot be recomputed. The old full
+  `rose_gimu_behavior.csv` was overwritten, and the old slice
+  (`_1223941_1620120_old.csv`) differs from the new one in its IMU values too,
+  by up to 3.3 g.
 
 ## exp201-204: three seeds a side, and the ExFlap question
 
