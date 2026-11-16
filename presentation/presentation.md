@@ -186,6 +186,89 @@ Nine times more experiments per day, for no change in the science.
 
 ---
 
+## A second species: spoonbill data
+
+Two published datasets *(Lok et al. 2023, 2025)*: 5,080 labelled 1 s
+segments, 14 behaviours, 9 birds *(exps/eval_spoonbill.py)*
+
+| group: behaviours | segments | birds | share of the top bird |
+|---|---|---|---|
+| rest: stand, sit, preen, drink | 2,174 | 6 | 84% |
+| forage: search, handle, ingest prey | 2,058 | 3 | 91% |
+| beg: a chick asks to be fed | 434 | 1 | 100% |
+| fly: flap, soar | 237 | 7 | 40% |
+| walk | 177 | 3 | 69% |
+
+Only 24% of prey-ingestion records fit in a whole 1 s segment
+*(exps/spoonbill_data_stats.py)*
+
+---
+
+## Spoonbills: how the test set is chosen
+
+A fix: one GPS time of one bird, with up to 200 records (10 s). We cut it into
+segments of 20 records (1 s), one model input each.
+
+- **Split per segment** *(papers, our exp205)*: each segment goes to train or
+  test on its own. **502 of the 514** test segments had a segment of the same
+  fix in training *(exps/eval_spoonbill.py)*
+- **Split per fix** *(exp206-211)*: all segments of a fix go to one side.
+  Test: 505 segments from 79 fixes. Train: 4,575 segments from 702 fixes
+- Same birds in train and test: new fixes, not new birds
+
+---
+
+## Spoonbills: rotation hides posture
+
+505 test segments, 3 seeds each, F1 the mean of the 3
+*(exp206-211, exps/eval_spoonbill.py)*
+
+| | with rotation | without rotation |
+|---|---|---|
+| accuracy, %, range | 83.96–84.55 | **93.27–94.65** |
+| standing alert, F1 0–1 | 0.49 | **0.87** |
+| walking, F1 0–1 | 0.42 | **0.78** |
+
+- Rotated, sitting alert is 0 of 61 right, even in training
+  *(exp206, scripts/batch_train_supervised.py)*
+- Behaviours differ by **posture**, the gravity direction rotating destroys
+- The price: not robust to how the tag sits. Not tested on a new bird
+
+---
+
+## Spoonbills: two ways to score the same test fixes
+
+- **Segments** *(our training)*: cut where a behaviour starts, so each holds
+  one behaviour. 505 test segments; a bout under 20 records gives none
+- **Windows** *(the papers)*: cut every 20 records from the start of the fix,
+  whatever the labels. 602 test windows, 133 hold two behaviours
+
+One answer per window, checked against each of its 20 records
+*(exp207, exps/eval_spoonbill.py)*:
+
+| a test window's 20 records | model says | records right |
+|---|---|---|
+| 7 prey ingestion, then 13 search | search | 13 of 20 |
+| 11 search, then 9 prey ingestion | prey ingestion | 9 of 20 |
+
+---
+
+## Spoonbills: against the published model
+
+Scored on windows, as the papers score: F1 0–1 per record. Ours: without
+rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
+
+| F1 | forage | walk | fly | rest | beg |
+|---|---|---|---|---|---|
+| Lok et al. 2025 *(random forest, 1.6 s)* | 0.96 | 0.61 | 0.98 | 0.95 | 0.89 |
+| ours *(1 s, no rotation)* | 0.98 | **0.74** | 0.97 | **1.00** | **0.92** |
+
+- Lok et al. 2023: walk 0.65 → **0.81**, search 0.91 → 0.90, prey ingestion
+  *(for-intake)* 0.73 → 0.59: **worse, with rotation too** (0.51)
+- Their split shares fixes between train and test; ours does not
+
+---
+
 ## What we learned
 
 1. **A high score on your own test split can hide a total failure.** Ours could
@@ -234,3 +317,9 @@ Nine times more experiments per day, for no change in the science.
   0.10/0.15/0.13 → 0.03/0.06/0.04, no overlap *(exp199-204)*
 - Everything else — accuracy, place, flicker, rotation — sits inside the seed
   spread *(exps/eval_labeled.py, exps/eval_unlabeled.py)*
+- Spoonbill, split by fix, 4,575/505 segments, accuracy % at epoch 4000:
+  rotation 84.55 / 84.55 / 83.96, none 94.26 / 93.27 / 94.65
+  *(exp206-211, exps/eval_spoonbill.py)*
+- Spoonbill F1 0–1 on records, ranges over 3 seeds, no rotation: walk
+  0.71–0.75, beg 0.91–0.93, ingest 0.56–0.63; paper 2025 at 0.8 s: walk 0.60,
+  beg 0.86 *(exps/eval_spoonbill.py)*

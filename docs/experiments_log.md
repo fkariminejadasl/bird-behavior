@@ -8,6 +8,112 @@ Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
 (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp208-211: three seeds a side, and the two spoonbill papers
+
+exp208/209 = exp206 (rotation) at seeds 1234 and 5678, exp210/211 = exp207
+(no rotation) at the same two. `split_seed` 32984, so all six share exp206's
+505 valid segments. hash:864b6c1 plus the uncommitted changes. 5m03s-5m28s
+each, stdout of all four in `tensorboard/208_211.txt`. Accuracy in % of the
+505 valid segments.
+
+| exp | seed  | rotation | best (epoch) | epoch 4000 | last 500 epochs     |
+| --- | ----- | -------- | ------------ | ---------- | ------------------- |
+| 206 | 32984 | yes      | 85.74 (1460) | 84.55      | 84.41 (83.76-84.95) |
+| 208 | 1234  | yes      | 85.54 (1575) | 84.55      | 84.26 (83.76-84.95) |
+| 209 | 5678  | yes      | 85.15 (1696) | 83.96      | 83.99 (83.17-85.15) |
+| 207 | 32984 | no       | 94.85 (946)  | 94.26      | 94.12 (93.86-94.65) |
+| 210 | 1234  | no       | 93.66 (1982) | 93.27      | 93.44 (93.27-93.47) |
+| 211 | 5678  | no       | 95.05 (1399) | 94.65      | 94.68 (94.65-94.85) |
+
+- Rotation against none holds over seeds: 83.96-84.55 against 93.27-94.65 at
+  epoch 4000, 8.7 points apart. Seed spread at most 1.4 points.
+- F1 on segments, mean of 3 (`exps/eval_spoonbill.py`): stand-alert 0.49 ->
+  0.87, walk 0.42 -> 0.78, stand-preen 0.70 -> 0.79, stand-rest 0.90 -> 0.98.
+- Against the papers, scored on records as they score: the 79 valid fixes cut
+  into 1 s windows from the first record, 12,040 of 12,519 records in 602 full
+  windows, 133 windows mixed. No rotation, F1 mean (range), ours against Lok
+  et al. 2025 at 0.8 / 1.6 s: forage 0.98 against 0.96 / 0.96, walk 0.74
+  (0.71-0.75) against 0.60 / 0.61, fly 0.97 (0.96-0.98) against 0.97 / 0.98,
+  rest 1.00 (0.99-1.00) against 0.96 / 0.95, beg 0.92 (0.91-0.93) against 0.86
+  / 0.89.
+- Against Lok et al. 2023 (best segment length): walk 0.81 (0.78-0.83)
+  against 0.65, search 0.90 against 0.91, ingest 0.59 (0.56-0.63) against
+  0.73, handle 0.23 (0.00-0.38) where the paper never predicts it. fly-passive
+  0.89 against > 0.90 (6 windows).
+- With rotation we are below the papers on walk, beg, search and ingest.
+- Same model, ingest on segments 0.92, on records 0.59. The record test adds
+  windows with two behaviours, where the short bouts sit; one answer per
+  window is scored against each of its 20 records.
+- Conclusion: better than the papers on walking, resting and begging, level
+  on flight and searching, worse on prey ingestion. The papers' split shares
+  fixes between train and test; ours shares none.
+- Planned, not run: (1) the orientation test of `exps/eval_labeled.py` on the
+  no-rotation runs, to see how much robustness to the tag's mounting they
+  gave up; (2) for-intake with shorter inputs (the 2023 paper's best is 0.4
+  s) or training on windows with two behaviours; (3) balanced F1 that skips a
+  class with no valid segment. `exps/eval_labeled.py` does not know
+  `split_by` or the spoonbill names yet, so (1) needs that first.
+
+## exp206/exp207: split by fix, rotation against none
+
+exp206 = exp205 with `split_by` fix: every fix whole in train or valid, 0
+shared, 4575/505 segments, 79 valid fixes. exp207 = exp206 with `augment`
+False. Only the augmentation differs between the two. hash:5367360 plus the
+uncommitted changes. 5m11s and 5m03s, stdout of both in
+`tensorboard/206_207.txt`.
+
+| exp | rotation | val (best epoch) | train | last 500 epochs     | F1 plain |
+| --- | -------- | ---------------- | ----- | ------------------- | -------- |
+| 206 | yes      | 85.74 (1460)     | 83.37 | 84.41 (83.76-84.95) | 0.86     |
+| 207 | no       | **94.85** (946)  | 95.19 | 94.12 (93.86-94.65) | **0.95** |
+
+- Valid F1 per class, 206 -> 207 (valid segments): stand-alert 0.58 -> 0.87
+  (41), walk 0.40 -> 0.83 (19), stand-preen 0.71 -> 0.83 (30), stand-rest 0.92
+  -> 0.99 (136), for-search 0.91 -> 0.98 (193), beg 0.86 -> 0.93 (44),
+  for-intake 0.91 -> 0.88 (11), fly-soar 0.91 both (6).
+- sit-alert, train recall: 0 of 61 -> 61 of 61. Only 1 valid segment.
+- The posture guess of exp205 holds: rotation is what made the model underfit
+  the resting and alert classes. One seed each, but the plateaus are 10 points
+  apart; the gull seed spread is under 1 point.
+- Still the same birds in train and valid. Without rotation the model can also
+  learn each tag's mounting, and on gulls a model without rotation fell to 13%
+  at a random orientation (exp194). Not tested on a new bird.
+- Balanced F1 is NaN for both: drink has no valid segment, and
+  `utils.py::per_class_statistics_balanced` divides by the class count.
+- exp205 (random split) scored 83.07 and exp206 (fix split) 85.74, but on
+  different valid sets: sit-alert has 7 valid segments in exp205, 1 here. The
+  gap does not measure the leak.
+
+## exp205: first spoonbill model
+
+The exp197 recipe on `spoonbill_starts.csv`
+(`scripts/data/prepare_spoonbill_data.py`): 5080 segments, 14 labels, no
+pooling. Config: exp197's model entry with `out_channels` 14,
+`add_magnitudes` True, `save_final` True, seed 32984, rotation augmentation,
+`labels_to_use` the 14 codes, `label_names` the spoonbill names. Random split
+per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
+5m20s, best epoch 3731, stdout in `tensorboard/205.txt`.
+
+- val **83.07** / train 86.95 (gulls, exp197: 94.52 / 97.90). Plateau over the
+  last 500 epochs 82.46 (81.52-83.07), final 82.88. Valid F1 0.83 plain, 0.52
+  balanced.
+- Valid F1 per class: fly-soar 1.00 (6 segments), fly-flap 0.97, for-search
+  0.90, stand-rest 0.88, for-intake 0.81, beg 0.80, stand-preen 0.73, walk
+  0.59, stand-alert 0.54. None right of sit-alert, for-handle, stand-other,
+  stand-shake-feathers, drink (7, 2, 2, 2, 1 valid segments).
+- Where they go (`confusion_matrix_valid.png`): sit-alert 7 of 7 and
+  stand-alert 20 of 42 to stand-rest; stand-preen 8 of 30 and walk 7 of 18 to
+  for-search; for-search 9 of 193 to beg.
+- Underfit, not overfit: train 86.95 is close to valid, and sit-alert is
+  missed in train too (recall 0.09, 5 of 55).
+- The valid number is optimistic: 502 of 514 valid segments share a 10 s fix
+  with train segments (`exps/eval_spoonbill.py`, first line).
+- Guess, untested: rotation augmentation removes the posture, the main cue
+  between sit-alert, stand-alert and stand-rest. On gulls it cost the ground
+  classes the same way (exp195 in `lesson_learned.md`).
+- Next: exp205 without rotation, and a split by fix or by bird. Done:
+  exp206/207, above.
+
 ## Spoonbill data counts (no new run)
 
 `exps/spoonbill_data_stats.py` on the spoonbill data of Lok et al. Tables in
@@ -17,28 +123,14 @@ trailing `hash:...` is the git commit the run was made at. Numbering has gaps
   birds, 20 Hz. 81% of the labeled records land in a segment; for-intake 24%.
 - Begging data of the second paper: 436 segments, 429 of them beg, all from
   juvenile 6381.
-- Planned: train a spoonbill model as exp197 on both datasets combined, then
-  test the gull model on spoonbill data and the spoonbill model on gull data,
-  on what both share (flight, walking). Needs a label map between the two
-  species first. The second paper maps its labels onto the first
-  (`descriptions.md`, Begging data).
-
-Before the spoonbill run, still to do:
-
-1. Write a training file in the `starts.csv` format that
-   `data.py::load_csv_pandas` reads: no header, 8 columns (device, datetime,
-   index, label, x, y, z, speed), whole 20-record segments in order. Cut as
-   `spoonbill_data_stats.py::cut_segments`. New name, e.g.
-   `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`.
-2. Keep only complete segments. The 30 m/s filter drops a missing speed, but a
-   missing x, y or z goes into training.
-3. Labels: the video and soaring files with their codes; begging with the
-   second paper's map, beg as a new code 17 (`behaviours.csv` stops at 16).
-4. `batch_train_supervised.py::main` names classes with the gull
-   `bu.ind2name`: spoonbill codes 10-16 fail, 1-9 get gull names. Needs a
-   names map.
-5. The split is random per segment, as for the gulls. A split by bird is not
-   in the code: the `valid_file` path builds 4 channels, not the 7 of exp197.
+- Planned: train a spoonbill model with the exp197 recipe on both datasets
+  combined (done: exp205, above), then test the gull model on spoonbill data
+  and the spoonbill model on gull data, on what both share (flight, walking).
+  Needs a label map between the two species first. The second paper maps its
+  labels onto the first (`descriptions.md`, Begging data).
+- The split by fix is in the code now (`split_by`, exp206). A split by bird
+  cannot keep sit-alert, stand-other, drink and beg in both train and valid:
+  each comes from one bird.
 
 ## Speed reliance of exp197-204 (no new run)
 

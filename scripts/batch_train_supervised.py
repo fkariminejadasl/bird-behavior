@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import torch
 import tqdm
 from omegaconf import OmegaConf
+from sklearn.model_selection import StratifiedGroupKFold
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision.transforms import v2 as tvt2
@@ -71,6 +73,30 @@ def split_from_file(cfg, device):
     return idx[~is_valid], idx[is_valid]
 
 
+def split_by_fix(cfg, labels, device):
+    """Train and valid indices with every fix whole on one side.
+
+    A fix is one GPS time of one bird; a spoonbill fix holds up to 10
+    segments. A random split per segment puts segments of one fix in both
+    train and valid, so valid partly scores memory: 502 of 514 for exp205 (see
+    docs/experiments_log.md). Here a fix goes to train or to valid whole.
+    `StratifiedGroupKFold` keeps the class shares near those of the data; of
+    its 1 / (1 - train_per) folds, the first is valid. `labels` are the
+    segment labels, in load order.
+    """
+    keys = bd.burst_keys(cfg.data_file, cfg.labels_to_use, glen=20)
+    groups = [f"{bird}_{dt}" for bird, dt, _ in keys]
+    n_splits = round(1 / (1 - cfg.train_per))
+    folds = StratifiedGroupKFold(
+        n_splits=n_splits, shuffle=True, random_state=cfg.split_seed
+    )
+    train, valid = next(folds.split(np.zeros(len(labels)), labels, groups))
+    assert not {groups[i] for i in train} & {groups[i] for i in valid}
+    n_train, n_valid = len({groups[i] for i in train}), len({groups[i] for i in valid})
+    print(f"Split by fix: {n_train} train fixes, {n_valid} valid fixes")
+    return torch.as_tensor(train, device=device), torch.as_tensor(valid, device=device)
+
+
 def refuse_to_overwrite(cfg):
     """Stop if this experiment number already has results.
 
@@ -123,7 +149,8 @@ def main(cfg):
             # bau.BatchMagnitudeWarp(sigma=0.05, knot=4),
         ]
     )
-    # transforms = None  # set to None to disable augmentation
+    if not cfg.augment:
+        transforms = None
 
     # Prepare datasets
     if cfg.valid_file is not None:
@@ -151,14 +178,18 @@ def main(cfg):
         igs, ldts = bd.load_csv_pandas(cfg.data_file, cfg.labels_to_use, glen=20)
         igs = torch.tensor(igs, device=device)
         ldts = torch.tensor(ldts, device=device)
-        if cfg.split_file is None:
+        if cfg.split_by not in (None, "fix"):
+            raise ValueError(f"Unknown split_by: {cfg.split_by}")
+        if cfg.split_file is not None:
+            idx1, idx2 = split_from_file(cfg, device)
+        elif cfg.split_by == "fix":
+            idx1, idx2 = split_by_fix(cfg, ldts[:, 0].cpu().numpy(), device)
+        else:
             split_ratios = [cfg.train_per, 1 - cfg.train_per]
             splits = bu.stratified_split(
                 ldts[:, 0], split_ratios=split_ratios, seed=cfg.split_seed
             )
             idx1, idx2 = splits[0], splits[1]
-        else:
-            idx1, idx2 = split_from_file(cfg, device)
         igs_train = igs[idx1].cpu().numpy()
         igs_eval = igs[idx2].cpu().numpy()
         ldts_train = ldts[idx1].cpu().numpy()
@@ -361,7 +392,8 @@ def main(cfg):
             num_workers=cfg.num_workers,
             drop_last=False,
         )
-        label_names = [bu.ind2name[i] for i in cfg.labels_to_use]
+        ind2name = bu.ind2name if cfg.label_names is None else cfg.label_names
+        label_names = [ind2name[i] for i in cfg.labels_to_use]
         data, ldts = next(iter(loader))
         probs, preds, labels, loss, accuracy = bu.evaluate(
             data, ldts, model, criterion, device
@@ -404,6 +436,10 @@ if __name__ == "__main__":
         # hold the split still while `seed` varies, to separate what a change
         # does from what the training trajectory does.
         "split_seed": None,
+        # None splits per segment. "fix" keeps every fix (one GPS time of one
+        # bird) whole, in train or in valid; see split_by_fix. Not used with
+        # split_file.
+        "split_by": None,
         "exp": 192,
         "num_workers": 1,
         "no_epochs": 4000,
@@ -415,7 +451,12 @@ if __name__ == "__main__":
         "data_per": 1.0,
         "batch_size": None,
         "labels_to_use": all_labels,
+        # {label: name} for the confusion matrix and metrics; None is the gull
+        # bu.ind2name. labels_to_use must be sorted, as load_csv_pandas numbers
+        # the labels in sorted order.
+        "label_names": None,
         "add_magnitudes": False,  # True -> 7 channels, see bd.add_magnitude_features
+        "augment": True,  # False -> no augmentation; which one is set in main()
         # Training
         "warmup_epochs": 1000,
         "step_size": 2000,
@@ -455,23 +496,56 @@ if __name__ == "__main__":
         },
     }
 
+    # Spoonbill labels: codes of behaviours.csv, plus beg (17) from the begging
+    # data. Written by scripts/data/prepare_spoonbill_data.py.
+    spoonbill_names = {
+        2: "stand-rest",
+        4: "stand-preen",
+        6: "sit-alert",
+        7: "stand-alert",
+        8: "fly-flap",
+        9: "fly-soar",
+        10: "walk",
+        11: "for-search",
+        12: "for-handle",
+        13: "for-intake",
+        14: "stand-other",
+        15: "stand-shake-feathers",
+        16: "drink",
+        17: "beg",
+    }
+    spoonbill_labels = sorted(spoonbill_names)
+
     # One entry per training run; each overrides base_config.
     # Runs and findings are in docs/experiments_log.md.
-    experiments = [
-        {
-            "exp": 197,
-            "labels_to_use": all_labels,
-            "add_magnitudes": True,
-            "model": {
-                "name": "BirdModelSmallDilated",
-                "parameters": {
-                    "in_channels": 7,
-                    "mid_channels": 20,
-                    "out_channels": len(all_labels),
-                    "dropout": 0.15,
-                },
+    # exp206: exp205 (the exp197 recipe on the spoonbill data, 14 labels) with
+    # every fix whole in train or valid. exp207: exp206 without rotation.
+    # exp208/209: exp206 at seeds 1234 and 5678; exp210/211: exp207 at the
+    # same two. split_seed stays 32984, so all six share one valid split.
+    spoonbill = {
+        "data_file": "/home/fatemeh/Downloads/bird/data/spoonbill_final/"
+        "spoonbill_starts.csv",
+        "labels_to_use": spoonbill_labels,
+        "label_names": spoonbill_names,
+        "add_magnitudes": True,
+        "save_final": True,
+        "split_by": "fix",
+        "model": {
+            "name": "BirdModelSmallDilated",
+            "parameters": {
+                "in_channels": 7,
+                "mid_channels": 20,
+                "out_channels": len(spoonbill_labels),
+                "dropout": 0.15,
             },
         },
+    }
+    seeds = {"split_seed": 32984}
+    experiments = [
+        {**spoonbill, **seeds, "exp": 208, "seed": 1234},
+        {**spoonbill, **seeds, "exp": 209, "seed": 5678},
+        {**spoonbill, **seeds, "exp": 210, "seed": 1234, "augment": False},
+        {**spoonbill, **seeds, "exp": 211, "seed": 5678, "augment": False},
     ]
 
     configs = list(iter_batch_configs(base_config, experiments))

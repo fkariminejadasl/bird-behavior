@@ -44,6 +44,7 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
 - `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
 - `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds; begging data: 436 segments, one bird. Spoonbill data, below
+- `scripts/data/prepare_spoonbill_data.py` — the spoonbill training file, `spoonbill_starts.csv`: 5080 complete segments, 14 labels. Spoonbill data, Training file
 
 ## Model
 
@@ -60,6 +61,9 @@ starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9
   and rotation instability
 - `exps/speed_reliance.py` — how much a model relies on GPS speed: speed swept,
   shuffled or set to 0, acceleration kept
+- `exps/eval_spoonbill.py` — spoonbill models against the two spoonbill
+  papers: F1 per pooled behaviour, scored on records as the papers do, and on
+  segments
 
 Visual:
 
@@ -84,8 +88,9 @@ The spoonbill text uses these. The gull text is older: there a *burst* is a segm
 | burst   | the records measured with one fix                               | 1                     |
 | bout    | consecutive records of one fix with one label                   | 1                     |
 | segment | 20 consecutive records with one label, the model input, 1 s     | 3                     |
+| window  | 20 consecutive records from the start of a fix, any labels      | 3                     |
 
-Lok et al. 2023 (Spoonbill data) also call the model input a segment, and a burst "a sample of 20 Hz tri-axial acceleration data". *Window* is the machine-learning word for a segment. *Sample* is avoided: in signal processing it means one reading.
+Lok et al. 2023 (Spoonbill data) also call the model input a segment, and a burst "a sample of 20 Hz tri-axial acceleration data". In machine learning *window* often means a segment; here it means only the cut on a fixed grid that the spoonbill papers score on (Spoonbill data, How the papers score). It can hold two behaviours, a segment cannot. *Sample* is avoided: in signal processing it means one reading.
 
 ### Unlabeled data
 
@@ -246,7 +251,7 @@ Eurasian spoonbill data, in `/home/fatemeh/Downloads/bird/data/spoonbill`. Terms
 
 One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`, one speed per fix, one burst per fix. A fix is not 20 records: in the video file it holds up to 200 (10 s), so up to 10 segments.
 
-20 Hz, as in the paper. Checked on the video clock `time.on.video`, one value per second: count the records of a fix that share one second. The first and last second of a fix are cut off by the burst start and end, so they are skipped. All 4376 seconds left hold exactly 20 records (`exps/spoonbill_data_stats.py`).
+20 Hz, as in the paper. Checked on the video clock `time.on.video`, one value per second: count the records of a fix that share one second. The first and last second of a fix are cut off by the burst start and end, so they are skipped. All 4376 seconds of video left hold exactly 20 records (`exps/spoonbill_data_stats.py`). 4376 counts seconds of video for this check only, not segments.
 
 | file                                       | what                               | birds                    | fixes | records per fix  |
 | ------------------------------------------ | ---------------------------------- | ------------------------ | ----- | ---------------- |
@@ -255,7 +260,7 @@ One row per record, as for the gulls: IMU `x`, `y`, `z` in g and GPS `speed_2d`,
 | `acc_data_migration_<bird>.csv`            | migration, no labels               | 6283, 6287, 6291         | 3872  | mostly 32        |
 | `behaviours.csv`                           | label index to name, 16 labels     |                          |       |                  |
 
-The videos hold "very few data on passive (soaring/gliding) flight", so the paper labeled it from plots of the migration data of three birds. The soaring file is that labeled copy of 51 migration fixes: same rows, same values. The migration files give 3694 segments, the 51 soaring ones among them.
+The videos hold "very few data on passive (soaring/gliding) flight", so the paper labeled it from plots of the migration data of three birds. The soaring file is that labeled copy of 51 migration fixes: same rows, same values. A soaring fix holds 32 records, so it gives one segment: 51 fixes, 51 segments. The migration files give 3694 segments, unlabeled and not used for training; the 51 soaring ones are among them.
 
 Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `starts.csv`: a bout of n records gives n // 20 segments. The table is the `Segments of 20 records per behaviour` output of `exps/spoonbill_data_stats.py`; `main bird` comes from its `Segments per behaviour and bird` output.
 
@@ -284,7 +289,7 @@ Segments of 20 records, cut as `data_processing.slice_from_first_label` cuts `st
 |     | **total**            | **116185** | **2220** | **857**    | **4718** | **100**       | **81**         | **4642** |            |
 
 - sit-rest, sit-preen and washing (1, 3, 5) have no records.
-- fly-soar: 2 segments from video, 51 from the soaring file.
+- fly-soar: 53 segments, 2 from video and 51 from the soaring file; 52 complete.
 - Stride-1 segments inside one bout, like the gull `shift`, give 78,842.
 - 5 records of fix 760, 2014-06-08 12:19:53 carry two labels (for-search and for-intake). Both copies are dropped.
 - 12 video fixes have no speed. Speed is one value per fix, so all their records lack it: 53 to 200 records per fix, 1620 in all, 73 segments. Most of the 76 incomplete segments are these.
@@ -318,6 +323,7 @@ Segments, as above. From the `# Begging data` output of `exps/spoonbill_data_sta
 | shake_feathers | 14       | 1      | 1          | 0        | 0              | 0       | 0         |
 | **total**      | **9040** | **67** | **6**      | **436**  | **96**         | **107** | **329**   |
 
+- The table is the labels as released, before the second paper's map, and counts incomplete segments too: 436 segments, 434 complete (the script's `complete` column). The training file has 438 begging segments (Training file, below).
 - 58 fixes give 67 bouts: 5 fixes change label inside. One fix is beg, shake_feathers, beg: 3 bouts.
 - 436 segments, not 9040 / 20 = 452: a segment stays inside one bout. 320 records are lost, 82 in the 6 short bouts and 238 at the ends of longer bouts.
 - `graphical`: labeled from the signal alone, with the parent seen nearby in the field. Only begging was labeled this way. The R script says the signals are so clear.
@@ -329,6 +335,43 @@ The paper already combines both datasets, in [`2_analyses/1_classification_beggi
 - Map: shake_feathers to stand-shake-feathers, preen_tag to stand-preen, beg_flap to beg.
 - Pool: sit-alert to sit; stand-alert, stand-other, stand-rest, stand-shake-feathers, stand-preen and drink to stand. It also scores five groups: forage, walk, fly, rest, beg.
 - Segments of 0.4, 0.8, 1.0 and 1.6 s; the final random forest uses 1.6 s.
+
+#### How the papers score
+
+Both papers use the same method, from the code of the first ([zenodo.org/records/7541131](https://zenodo.org/records/7541131), `functions.R`):
+
+- Random forest on 31 summary statistics per segment (mean, min, max, trend, ODBA, ...) plus GPS speed. ODBA is overall dynamic body acceleration.
+- Segments cut on a fixed grid from the first record of a fix, whatever the labels in them; a segment takes its most frequent label.
+- Split 70/30 at random **per segment**, so one fix can be in train and test. 100 runs, mean reported.
+- Scored **per record**: each record of a test segment is compared with its own label. The F-measure is F1, on 0 to 1.
+
+| paper | classes                                                                     | where the numbers are                                                |
+| ----- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 2023  | 9: stand, sit, fly-active, fly-passive, walk, search, handle, ingest, drink | text: best over segment lengths 0.2-2.0 s; per length only in Fig. 3 |
+| 2025  | 5 groups: forage, walk, fly, rest, beg                                      | Table S2 of the supplement: 0.4, 0.8 and 1.6 s                       |
+
+Their names for our labels: search is `for-search`, handle `for-handle`, ingest (prey ingestion) `for-intake`, fly-active `fly-flap`, fly-passive `fly-soar`, sit `sit-alert`. Their stand is our five `stand-*` labels. In 2025, forage is search, handle and ingest, and rest is sit, stand and drink.
+
+The values are in `exps/eval_spoonbill.py`, beside ours. Local copies: `/home/fatemeh/Downloads/bird/papers/Lok2023_spoonbill_prey_ingestion.pdf` (from [edepot.wur.nl/587821](https://edepot.wur.nl/587821)) and `Lok2025_spoonbill_postfledging_supplement.pdf` (Table S2).
+
+#### Training file
+
+`scripts/data/prepare_spoonbill_data.py` writes both datasets as one file in the `starts.csv` format: `/home/fatemeh/Downloads/bird/data/spoonbill_final/spoonbill_starts.csv`, 5080 segments, 101,600 records.
+
+How the segment counts above add up to 5080, all in segments of 20 records:
+
+| source                         | segments, tables above | complete, tables above | in the training file |
+| ------------------------------ | ---------------------- | ---------------------- | -------------------- |
+| first paper: video and soaring | 4718                   | 4642                   | 4642                 |
+| begging                        | 436                    | 434                    | 438                  |
+| **total**                      | **5154**               | **5076**               | **5080**             |
+
+- Only complete segments go in: no missing x, y, z or speed.
+- Begging has 4 more than its 434: the labels are mapped before the segments are cut, so a beg_flap bout joins the beg bout next to it and leftover records make new segments.
+- Training splits the 5080: 4566 train and 514 valid segments, split per segment (exp205); 4575 and 505, split by fix (exp206 onward). Split by fix, the 505 valid segments come from 79 fixes and the 4575 train segments from the other 702 (`split_by_fix` prints both).
+- Labels: the codes of `behaviours.csv`. Begging gets the second paper's map, and beg the new code 17. 14 labels, no pooling.
+- Begging `Index` is written from 0, as in the other files.
+- Segments per label and bird: the script's output. Per label they equal the `complete` column of the first table, plus 434 beg and 4 stand-preen from begging.
 
 ### Previous Data Preparation
 
@@ -454,7 +497,7 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 - `scripts/train.py`: Training script for supervised bird classification.
 - `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
 - `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory.
+- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. In the `Combined` row of `per_class_metrics_{train,valid}.csv`, each wrong answer counts once as FP (for the class predicted) and once as FN (for the true class), so TP + FP is the number of segments, not TP + FP + FN: for exp206, 3814 + 761 = 4575 train and 433 + 72 = 505 valid. Its precision, recall and F1 all equal the accuracy. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory. `cfg.label_names`, a `{label: name}` map, names the classes in the confusion matrix and metrics; None means the gull `bu.ind2name`. The spoonbill run sets it, because the spoonbill codes differ. `cfg.augment` False turns the augmentation off. `cfg.split_by` set to `fix` keeps every fix whole, in train or in valid (`split_by_fix`, with scikit-learn `StratifiedGroupKFold`). A spoonbill fix holds up to 10 segments, and a split per segment puts most valid segments next to train segments of the same fix. `exps/eval_labeled.py` does not know `split_by` yet.
 - `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
 - `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
 - `scripts/gcd_pipeline.py`: GCD pipeline.
@@ -496,6 +539,7 @@ otherwise apply the same transform object to the eval set too.
 
 - `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
 - `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
+- `scripts/data/prepare_spoonbill_data.py`: Write the spoonbill training file from both spoonbill datasets, in the `starts.csv` format. Cuts segments with `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones. Prints segments per label and bird, and reads the file back with `load_csv_pandas`. Refuses to overwrite an existing file. `load_sources` reads the three labeled files with labels as codes; `exps/eval_spoonbill.py` reuses it. See Spoonbill data, Training file.
 - `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/methods.md](methods.md)).
 - `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
 - `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
@@ -511,6 +555,7 @@ otherwise apply the same transform object to the eval set too.
 - `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app. `checkpoints` picks a checkpoint other than `<exp>_best.pth`, as in `exps/eval_labeled.py`.
 - `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
 - `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
+- `exps/eval_spoonbill.py`: Compare the spoonbill models with the two spoonbill papers (How the papers score, above). Pools our 14 labels into the classes of each paper and prints F1 (0 to 1) per class, mean and range over the runs of each arm in `arms`, beside the paper values. Scores twice: on records, as the papers do (each valid fix cut into 1 s windows from its first record, every record scored against its own label), and on the valid segments of training. Rebuilds the split with `split_by_fix` and checks each run's best checkpoint reproduces its `app_loss_acc.txt`; reads `<exp>_4000.pth`. Also prints how many valid segments of the random split of exp205 share a fix with train, and two valid windows that hold for-intake and another behaviour, with the model's answer. A window is not a segment: a segment starts where a behaviour starts and holds one behaviour; a window starts every 20 records from the start of the fix, whatever the labels. So the 79 valid fixes give 505 segments but 602 windows, 133 of them with two behaviours.
 - `exps/spoonbill_data_stats.py`: Count the spoonbill data (`/home/fatemeh/Downloads/bird/data/spoonbill`): records, fixes and data quality per file, the 20 Hz check against the video clock, and 20-record segments per behaviour and per bird, cut as `data_processing.slice_from_first_label` cuts `starts.csv`, with the bouts too short for one and the share of records used. Checks that the soaring file is a copy of migration records. Prints only. Tables in Spoonbill data, above.
 - `exps/speed_reliance.py`: Measure how much a model relies on **GPS speed**, to compare models trained on `starts.csv` and `starts_clean.csv`. Keeps each burst's acceleration and changes only its speed: one burst with the speed swept from 0 to 20 m/s, one class at 0 and at 20 m/s, all speeds shuffled between bursts, and all speeds set to 0. Reports the class probabilities and the share of bursts whose class changes. Builds the input through `bd.BirdDataset`, so the speed scaling and magnitude channels are those of training, and loads models with `exps/eval_labeled.py`.
 - `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).

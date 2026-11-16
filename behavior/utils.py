@@ -124,13 +124,18 @@ def plot_confusion_matrix(confusion_matrix, true_labels=None, pred_labels=None):
     if pred_labels is None:
         pred_labels = true_labels
 
+    # A label rotated 45 degrees is centred on its tick by default, so a long
+    # name spreads left and looks like the label of a column further left.
+    # ha="right" with rotation_mode="anchor" puts the end of each name on its
+    # own tick.
+    tick_style = dict(rotation=45, ha="right", rotation_mode="anchor")
     if true_labels is not None:
         num_classes = len(true_labels)
         num_clusters = len(pred_labels)
-        plt.xticks(np.arange(num_clusters), pred_labels, rotation=45)
+        plt.xticks(np.arange(num_clusters), pred_labels, **tick_style)
         plt.yticks(np.arange(num_classes), true_labels)
     else:
-        plt.xticks(np.arange(n_cols), rotation=45)
+        plt.xticks(np.arange(n_cols), **tick_style)
         plt.yticks(np.arange(n_rows))
 
     plt.ylabel("True label")
