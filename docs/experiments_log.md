@@ -2,7 +2,9 @@
 
 Raw notebook of individual runs, terse style. Held to a lower bar than
 [docs/lesson_learned.md](lesson_learned.md) (curated lessons) and
-[docs/descriptions.md](descriptions.md) (data/model/script overview).
+[docs/descriptions.md](descriptions.md) (data/model/script overview). The
+results tables, and how each number is measured, are in
+[docs/status.md](status.md).
 
 Accuracies are validation unless noted; `tr-val` gives train then valid. A
 trailing `hash:...` is the git commit the run was made at. Numbering has gaps
@@ -47,12 +49,7 @@ each, stdout of all four in `tensorboard/208_211.txt`. Accuracy in % of the
 - Conclusion: better than the papers on walking, resting and begging, level
   on flight and searching, worse on prey ingestion. The papers' split shares
   fixes between train and test; ours shares none.
-- Planned, not run: (1) the orientation test of `exps/eval_labeled.py` on the
-  no-rotation runs, to see how much robustness to the tag's mounting they
-  gave up; (2) for-intake with shorter inputs (the 2023 paper's best is 0.4
-  s) or training on windows with two behaviours; (3) balanced F1 that skips a
-  class with no valid segment. `exps/eval_labeled.py` does not know
-  `split_by` or the spoonbill names yet, so (1) needs that first.
+- Planned next: `status.md`, TODO, Spoonbills.
 
 ## exp206/exp207: split by fix, rotation against none
 
@@ -124,10 +121,9 @@ per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
 - Begging data of the second paper: 436 segments, 429 of them beg, all from
   juvenile 6381.
 - Planned: train a spoonbill model with the exp197 recipe on both datasets
-  combined (done: exp205, above), then test the gull model on spoonbill data
-  and the spoonbill model on gull data, on what both share (flight, walking).
-  Needs a label map between the two species first. The second paper maps its
-  labels onto the first (`descriptions.md`, Begging data).
+  combined (done: exp205, above), then a test across the two species
+  (`status.md`, TODO, Spoonbills). The second paper maps its labels onto the
+  first (`descriptions.md`, Begging data).
 - The split by fix is in the code now (`split_by`, exp206). A split by bird
   cannot keep sit-alert, stand-other, drink and beg in both train and valid:
   each comes from one bird.

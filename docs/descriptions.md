@@ -1,7 +1,8 @@
 # Description
 
 Data, model, and script overview for the bird-behavior classifier. Companion
-docs: [docs/experiments_log.md](experiments_log.md) (per-run notebook),
+docs: [docs/status.md](status.md) (where the project stands, results tables),
+[docs/experiments_log.md](experiments_log.md) (per-run notebook),
 [docs/lesson_learned.md](lesson_learned.md) (curated lessons) and
 [docs/methods.md](methods.md) (data rules, model and training).
 

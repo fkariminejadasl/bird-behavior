@@ -2,10 +2,11 @@
 
 ## Rules
 
-- At the start of a session, read `docs/descriptions.md` (the Quick reference
-  section first), `docs/lesson_learned.md` and `docs/experiments_log.md` before
-  proposing or running anything. They are not loaded automatically, and they
-  hold what has already been tried, measured and ruled out.
+- At the start of a session, read `docs/status.md`, `docs/descriptions.md` (the
+  Quick reference section first), `docs/lesson_learned.md` and
+  `docs/experiments_log.md` before proposing or running anything. They are not
+  loaded automatically, and they hold what has already been tried, measured and
+  ruled out.
 - Change only what was asked. Leave unrelated code, formatting, files and
   wording alone, even when something nearby looks improvable — mention it
   instead.
@@ -80,21 +81,21 @@
   reflow silently cuts the bottom. If mdformat adds a backslash escape, the
   markdown was ambiguous; put that filename or expression in backticks rather
   than keep the escape.
-- Keep every document short: `descriptions.md`, `lesson_learned.md`,
-  `experiments_log.md`, `presentation.md`. Prefer a table or a bullet to a
-  paragraph, and when adding, look for something to cut. The Quick reference
-  in `descriptions.md` is the shortest of all — an index, one line per entry,
-  detail further down. New `lesson_learned` and `experiments_log` entries go
-  at the top.
+- Keep every document short: `status.md`, `descriptions.md`,
+  `lesson_learned.md`, `experiments_log.md`, `presentation.md`. Prefer a table
+  or a bullet to a paragraph, and when adding, look for something to cut. The
+  Quick reference in `descriptions.md` is the shortest of all — an index, one
+  line per entry, detail further down. New `lesson_learned` and
+  `experiments_log` entries go at the top.
 - Always call python by its full path: `/home/fatemeh/miniconda3/envs/bird/bin/python`.
   Not bare `python`, not `conda run -n bird`. VS Code puts one env's `bin` at the
   front of `PATH` for every tool call, and conda does not know it is there, so
   `conda run` and `conda activate` can silently run the wrong env. A full path
   cannot be shadowed.
-- **Name that script wherever the number appears.** In `lesson_learned.md` and
-  `descriptions.md` write the path in the sentence; in `presentation.md` put it
-  in italic parentheses at the end of the line, for example
-  `*(exp 196-197, exps/eval_unlabeled.py)*`. The script is the one that
+- **Name that script wherever the number appears.** In `status.md`,
+  `lesson_learned.md` and `descriptions.md` write the path in the sentence; in
+  `presentation.md` put it in italic parentheses at the end of the line, for
+  example `*(exp 196-197, exps/eval_unlabeled.py)*`. The script is the one that
   printed the number, not the one that trained the model.
 
 ## Workspace
@@ -127,6 +128,8 @@
 
 Keep these current whenever the code they describe changes:
 
+- `docs/status.md`: where the project stands. The working models, how the
+  numbers are measured, the results tables, Done, TODO and Dropped.
 - `docs/descriptions.md`: overview of the data, models, and every script. Keep it
   polished.
 - `docs/lesson_learned.md`: curated lessons that generalize, with the reason
@@ -150,9 +153,15 @@ Keep these current whenever the code they describe changes:
 - `presentation/README.md`: which figures the talk uses, what each set shows,
   and the exact steps to remake them. No findings here, only mechanics.
 
+Each result is written in full in one place only: the details of a run in
+`experiments_log.md`, the results tables in `status.md`. Other docs name the
+result and point there, so two copies cannot drift apart. The talk is the
+exception: it repeats numbers, each with its measure and its script.
+
 After a change: update the script's top docstring and `docs/descriptions.md` for
 new or changed behavior; add to `docs/lesson_learned.md` for a bug, surprise, or
 design decision (with the reason); add to `docs/experiments_log.md` for a
-finished or planned run. When a number the talk quotes changes, update
+finished or planned run, and update the results tables, Done and TODO in
+`docs/status.md`. When a number the talk quotes changes, update
 `presentation/presentation.md` in the same change — it goes stale silently,
 because nothing breaks when it is wrong.
