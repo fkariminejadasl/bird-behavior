@@ -209,3 +209,17 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
   segments. exp207 has no augmentation (`augment` False).
   exp208-211 repeat exp206 and exp207 at seeds 1234 and 5678, the split held
   still (`split_seed` 32984).
+- Both species, exp212-213: `scripts/train_joint.py`, the same recipe on
+  gulls and spoonbills together, 8,475 train segments in one batch. The model
+  has 18 joint classes, and each species label is the set of joint classes it
+  can be. The loss is minus the log of the probability summed over that set,
+  so inside the set the model chooses freely. Each species keeps its own
+  split. About 40 s per run.
+- The set loss, by example. A gull SitStand burst has the set stand-rest,
+  sit-alert, stand-alert, drink, and its loss is -log(p(stand-rest) +
+  p(sit-alert) + p(stand-alert) + p(drink)). stand-rest 0.9 gives the same
+  loss as stand-rest 0.5 and stand-alert 0.4: the sum is 0.9 both times. So
+  the loss only pushes the burst away from classes outside the set; the
+  spoonbill segments, labeled stand-rest or stand-alert, decide which one
+  wins. A set of one class, such as gull Flap, is the usual cross-entropy,
+  -log p(Flap).

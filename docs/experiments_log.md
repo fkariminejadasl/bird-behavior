@@ -10,6 +10,44 @@ Accuracies are valid accuracy in %, unless noted; `tr-val` gives train then
 valid. A trailing `hash:...` is the git commit the run was made at. Numbering
 has gaps (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp212-213: one model for both species
+
+`scripts/train_joint.py`: the exp197 recipe (7 channels, full batch, 4000
+epochs, seed 32984) on gulls and spoonbills together, 3900 + 4575 = 8475 train
+segments. 18 joint classes; each label is the set of joint classes it can be,
+from the ecologist's map; the loss sums the probability over the set. Each
+species keeps its own split: 438 gull, 505 spoonbill valid. exp212 with
+rotation, exp213 without. hash:b5331a4 plus the new scripts. About 40 s each,
+stdout in `tensorboard/212_213.txt`. Accuracy in %.
+
+| exp | rotation | gull, epoch 4000 | spoonbill, epoch 4000 | best epoch | gull, spoonbill at best |
+| --- | -------- | ---------------- | --------------------- | ---------- | ----------------------- |
+| 212 | yes      | 89.27            | 84.16                 | 2473       | 89.95, 84.75            |
+| 213 | no       | 91.32            | 92.08                 | 1703       | 91.55, 92.67            |
+
+- Against the single-species models at epoch 4000 (`exps/eval_joint.py`):
+  gull 2.5 (exp213) and 4.6 (exp212) points below exp199, 201, 202
+  (93.84-94.06). Spoonbill: exp212 inside the rotation range (83.96-84.55),
+  exp213 1.2 points below the lowest run without rotation (93.27).
+- Gull F1 that falls: Pecking 0.71-0.75 to 0.50 (exp212) and 0.67 (exp213),
+  TerLoco 0.80 in exp212 (0.85-0.90), Boat 0.80 in exp213 (0.88-0.94).
+  Spoonbill, exp213: stand-preen 0.61 (0.75-0.84).
+- Gull SitStand, all 1502: exp213 952 stand-rest, 62 sit-alert, 443
+  stand-alert, 45 outside the set; exp212 819, 0, 606, 77. The two runs
+  disagree. SitStand F1 0.96 and 0.95 cannot show it.
+- Gull Pecking, all 225: for-intake 181 (exp213) and 110 (exp212), never
+  for-handle. Outside the set 44 and 115, most often walk (15) and for-search
+  (61).
+- Spoonbill fly-flap, all 185: 155-160 Flap, 22-27 ExFlap, never Manouvre.
+- Spoonbill stand-alert valid F1 0.87 in exp213, as alone (0.84-0.88): rest
+  and alert stay apart in spoonbills.
+- exp212, with rotation, cannot tell rest from alert in spoonbills either: of
+  the train segments, sit-alert 61 of 61 and stand-alert 206 of 375 go to
+  stand-rest (`failed/212_joint/counts_final_train.csv` of
+  `scripts/train_joint.py`). Its gull SitStand split means little; read
+  exp213's.
+- Next: `status.md`, TODO, Both species.
+
 ## Across species: exp197 on spoonbills, exp206-211 on gulls (no new run)
 
 `exps/eval_cross_species.py` on all 5080 spoonbill segments and all 4338 gull

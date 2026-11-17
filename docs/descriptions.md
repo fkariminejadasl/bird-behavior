@@ -49,6 +49,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
 - `behavior/model.py::BirdModelSmallDilated` — `in_channels=4` **5,129 params**, `in_channels=7` **5,429 params**, receptive field 25
   (three k=5 convs, dilation 1/2/3), the app and baseline model
 - `scripts/batch_train_supervised.py` — training; several configs in one run
+- `scripts/train_joint.py` — one model on gulls and spoonbills, 18 joint classes, each label a set of them
 - `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
 
 ## Eval
@@ -63,6 +64,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
   papers: F1 per pooled behaviour, scored on records as the papers do, and on
   segments
 - `exps/eval_cross_species.py` — each species' model on the other's data, scored by the label map
+- `exps/eval_joint.py` — the joint models beside the single-species ones, on the same valid splits
 
 Visual:
 
@@ -575,6 +577,18 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
   - `save_final`: also keep the last epoch, `<exp>_<epoch>.pth`.
   - `label_names`: class names for other label codes, as for the spoonbills;
     None means the gull names.
+- `scripts/train_joint.py`: one model on gulls and spoonbills together
+  (exp212-213). 18 joint classes, the finer of the two species where they
+  differ. Each species label is the set of joint classes it can be
+  (`GULL_TO_JOINT`, `SPOONBILL_TO_JOINT`, from Spoonbill to gull labels,
+  above), and the loss is minus the log of the probability summed over that
+  set. Each species keeps the split of its own models, checked by reproducing
+  the valid accuracy of exp197 and exp207. Writes the checkpoints, tensorboard
+  and, in `failed/<exp>_joint/`, accuracy per species, counts per label and
+  joint class, each also drawn as a confusion matrix
+  (`counts_<checkpoint>_<split>.png`, `plot_counts`: an orange box marks the
+  label's set), and F1 per label. A new map needs new constant names, so that
+  `exps/eval_joint.py` still reads exp212-213 right.
 - `scripts/train.py`: the older supervised training script.
 - `scripts/train_sup_contrastive.py`: supervised classification plus a
   supervised contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the
@@ -705,6 +719,10 @@ What each costs or buys, and why augmentation must stay on the train data:
   the same general activity; the spoonbill models with the map read backwards.
   Prints a count table of where each class goes, the mean x, y and z per class
   of both species, and each model's accuracy on its own species as a check.
+- `exps/eval_joint.py`: the joint models (exp212-213) beside the
+  single-species models, on the same valid segments, at epoch 4000: accuracy
+  and F1 per label for each species, and where the joint models put gull
+  SitStand, gull Pecking and spoonbill fly-flap among their joint classes.
 - `exps/spoonbill_data_stats.py`: counts the spoonbill data: records, fixes and
   data quality per file, the 20 Hz check, and segments per behaviour and per
   bird, with the bouts too short for one segment. Prints only; tables in

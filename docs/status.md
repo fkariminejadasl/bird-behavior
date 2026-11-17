@@ -88,6 +88,11 @@ to gull labels); the spoonbill models are scored with it read backwards.
   expects.
 - **% expected or alternative**: or the class it gives as the alternative.
 
+Both species in one model (`exps/eval_joint.py`): each species on the valid
+split of its own models, 438 gull bursts and 505 spoonbill segments. A joint
+prediction is right when it is in the set of joint classes the label can be
+(`scripts/train_joint.py`).
+
 ## Results
 
 ### Gulls, labeled
@@ -187,6 +192,20 @@ three seeds: exp207, 210, 211 without rotation, exp206, 208, 209 with
 | Pecking        | 225    | for-search, for-handle, for-intake (drink)                                       | 63.6 (60.4-66.7)        | 63.6 (60.4-66.7)                       | 68.1 (63.1-74.2)     | 68.1 (63.1-74.2)                    |
 | **all scored** | 3433   |                                                                                  | 61.8 (60.7-63.5)        | 66.7 (65.8-67.4)                       | 69.6 (65.6-74.9)     | 79.6 (75.5-84.7)                    |
 
+### Both species in one model
+
+Valid accuracy %, epoch 4000 (`exps/eval_joint.py`). Single-species models:
+mean (min-max) of 3 seeds. Joint models: one seed each, 32984.
+
+| species, valid split    | single species, rotation              | single species, no rotation           | joint, rotation, exp212 | joint, no rotation, exp213 |
+| ----------------------- | ------------------------------------- | ------------------------------------- | ----------------------- | -------------------------- |
+| gull, 438 bursts        | 93.99 (93.84-94.06), exp199, 201, 202 | -                                     | 89.27                   | 91.32                      |
+| spoonbill, 505 segments | 84.36 (83.96-84.55), exp206, 208, 209 | 94.06 (93.27-94.65), exp207, 210, 211 | 84.16                   | 92.08                      |
+
+The joint models split the 1502 gull SitStand bursts (train and valid) into
+stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213, 819, 0 and
+606 for exp212 (`exps/eval_joint.py`). No gull label says which is right.
+
 ## Done
 
 - Labeled data: one pipeline, `starts.csv`, 4,338 bursts
@@ -207,6 +226,8 @@ three seeds: exp207, 210, 211 without rotation, exp206, 208, 209 with
   two papers.
 - Across species: exp197 on spoonbill data, exp206-211 on gull data, scored
   with an ecologist's label map (`exps/eval_cross_species.py`).
+- Both species in one model, on joint classes: exp212-213
+  (`scripts/train_joint.py`).
 
 ## TODO
 
@@ -229,10 +250,15 @@ Spoonbills:
   behaviours.
 - **Class-balanced F1 without a class.** It is NaN when a class has no valid
   segment (drink). Skip such a class instead.
-- **One model for both species**, next on branch `spoonbill_gull_training`.
-  Train on gull and spoonbill data together and predict combined classes, as
-  the label map says (`descriptions.md`, Spoonbill to gull labels). The
-  ecologist hopes it splits gull SitStand into rest and alert.
+
+Both species, in one model (exp212-213):
+
+- **More seeds.** Rerun both at seeds 1234 and 5678 before trusting how they
+  split gull SitStand: the two runs disagree.
+- **Gull Pecking as for-search too.** The map leaves for-search out of gull
+  Pecking, and exp212 sends 61 of 225 gull Pecking bursts there anyway.
+- **Check the gull rest and alert split.** Ask the ecologist whether some gull
+  SitStand bursts can be labeled rest or alert, the only way to score it.
 
 Gulls:
 

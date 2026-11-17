@@ -183,6 +183,26 @@ speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
+### Set labels leave the split open: gull SitStand differs by run (exp212-213)
+
+One model on both species, each label a set of joint classes
+(`scripts/train_joint.py`; numbers in `experiments_log.md`, exp212-213).
+
+- **Inside a set, the choice is not trained.** Any class of the set gives the
+  same loss, so the split comes from what the model learned of the other
+  species. exp213 calls 443 of 1502 gull SitStand bursts stand-alert and 62
+  sit-alert; exp212, which differs only in rotation, 606 and 0
+  (`exps/eval_joint.py`).
+- **Accuracy cannot see that split.** Gull SitStand F1 is 0.96 for exp213
+  and 0.95 for exp212, whatever the split. Read a split inside a set over
+  several runs, and check it on a few labeled bursts.
+- **Keep species-only classes out of a set.** A gull-only SitStand class next
+  to stand-rest and stand-alert would take every gull resting burst at no
+  cost, and nothing would carry over. A design choice, not tested.
+- **One model for two species costs accuracy.** At one seed, exp213 is 2.5
+  points below the gull models (93.84-94.06%) and 1.2 below the spoonbill
+  models (93.27-94.65%) on their own valid splits (`exps/eval_joint.py`).
+
 ### Spoonbill models trained with rotation do better on gulls (exp206-211)
 
 Each spoonbill model on all 4338 gull bursts, scored by an ecologist's label
