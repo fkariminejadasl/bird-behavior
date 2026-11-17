@@ -8,7 +8,8 @@ number is measured, in [status.md](status.md); the data, model and scripts in
 
 - **Data and labels**: spoonbill data, label noise and cleaning, IMU
   calibration, Ornitela GPS, the GPS speed cut.
-- **Model and training**: rotation, the magnitude channels, model size.
+- **Model and training**: rotation, the magnitude channels, the receptive
+  field.
 - **Measuring**: how to score and compare models, with and without labels.
 - **Engineering pitfalls**: traps in the code.
 - **Early runs**: exp15-exp133, from the training logs of old scripts.
@@ -182,152 +183,109 @@ speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
-### Spoonbill: rotation (exp205-exp211)
+### Spoonbill: training with rotation lowers valid accuracy by about 10 points (exp205-exp211)
 
-The exp197 recipe on the spoonbill data (`scripts/batch_train_supervised.py`,
-numbers in `experiments_log.md`).
+The exp197 recipe on the spoonbill data: 505 valid segments, 3 seeds a side
+(`status.md`, Spoonbills).
 
 - **Rotation costs spoonbills far more than gulls.** With rotation the model
-  underfits: valid 83.96-84.55 at epoch 4000 over 3 seeds, and sit-alert 0 of
-  61 right even in training (exp206). Without it: 93.27-94.65, sit-alert 61 of
-  61 (exp207). On gulls rotation cost 4 points. The spoonbill resting and
-  alert classes differ by posture, sitting or standing, and posture is the
-  gravity direction rotation scrambles.
+  underfits: 83.96-84.55% valid accuracy at epoch 4000
+  (`exps/eval_spoonbill.py`), and sit-alert is 0 of 61 right even in training
+  (exp206, `per_class_metrics_train.csv` of
+  `scripts/batch_train_supervised.py`). Without rotation: 93.27-94.65%, and
+  sit-alert 61 of 61 (exp207). On gulls rotation cost 4.11 points (exp194
+  against exp195). The spoonbill resting and alert classes differ by posture,
+  sitting or standing, and posture is the gravity direction that rotation
+  scrambles.
 - **The price is the same as for gulls.** Without rotation a model can also
   learn the tag's mounting. Train and valid hold the same birds, so 94% says
   nothing about a new bird or a tag mounted another way.
 
-### Rotation-invariant input channels (exp197)
+### Three magnitude channels win back half the accuracy that rotation costs (exp197)
 
-`data.add_magnitude_features` appends three channels to the 4 inputs: `mag`
-(`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`).
-All three are lengths of an acceleration vector, so rotating the burst leaves
-them unchanged. exp197 = exp196 + these three, +300 params (5,129 -> 5,429):
+`behavior/data.py::add_magnitude_features` appends three channels to the 4
+inputs: `mag` (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag`
+(`||a_t - a_{t-1}||`). Each is the length of an acceleration vector, so a
+rotation leaves it unchanged. exp197 is exp196 plus these three: 5,429
+parameters instead of 5,129. The results are in `status.md`, Gulls.
 
-|        | valid acc | F1 balanced | SO(3) mean | rotation flip |
-| ------ | --------- | ----------- | ---------- | ------------- |
-| exp196 | 92.69     | 0.83        | 92.03      | 5.37%         |
-| exp197 | **94.52** | **0.90**    | **93.66**  | **1.72%**     |
-
-- **Giving a model an invariant beats making it learn one.** exp196 spends
-  capacity learning rotation-invariance from the augmentation and underfits
-  (train 91.56 < valid 92.69). exp197 flips regime, train 97.90 / valid 94.52,
-  and recovers half the accuracy rotation cost — but only half: exp194 is still
-  96.35, and it collapses to 13.05 under rotation.
-- **A conv stack cannot build these itself.** It only takes linear combinations
-  across channels, and `sqrt(x^2+y^2+z^2)` is not one.
-- **Lengths cannot restore directions, and TerLoco proves it.** Rotation costs
-  the *direction* of gravity, i.e. posture. Valid F1 exp196 -> exp197: Manouvre
-  +0.12, Pecking +0.08, Boat +0.06, but **TerLoco does not move** (0.89 both,
-  against .97 for exp194). Walking is separated by which way small movements
-  point relative to gravity, so no invariant channel can reach it.
-- **Only an orientation estimate can bring walking back.** Pecking and Manouvre
-  are bursts of movement, so a size channel carries much of what marks them, and
-  both win part of the rotation cost back: valid F1 .68 -> .76 and .67 -> .79
-  (exp194 has .94 and .84, `exps/eval_labeled.py`). Walking is a posture plus a
-  small rhythm — the body upright, the steps shaking it sideways. Both of those
-  are directions relative to gravity, which every invariant channel throws away,
-  so TerLoco stays at .89 however many such channels we add. The way in is to
-  put the frame back: estimate the gravity direction per burst (the low-pass
-  part of the acceleration), rotate the burst so it points down, and train on
-  the aligned axes. Untested.
-- **`mag` carries the gain, `jerk_mag` almost none.** Measured before training,
-  by adding one channel at a time to a random forest on burst summaries and
-  scoring it on randomly rotated data: `mag` +1.7 points, `dyn_mag` +0.6,
-  `jerk_mag` +0.04, all three +2.3. `dyn_mag` and `jerk_mag` correlate at 0.96,
-  so they are nearly one feature. In the *un*rotated frame all three together
-  give +0.2 — the raw axes already separate these behaviours, so the channels
-  buy invariance, not discrimination.
-- **Compute them once at load time, before augmentation.** Being invariant they
+- **Giving a model an invariant beats making it learn one.** exp196 spends its
+  capacity on ignoring the rotation and underfits: 91.56% train, 92.69% valid
+  accuracy. exp197 reaches 97.90% train and 94.52% valid, and so wins back half
+  of what rotation cost: exp194, without rotation, has 96.35%
+  (`exps/eval_labeled.py`).
+- **The network cannot compute them exactly.** Each convolution mixes the
+  channels linearly before its nonlinearity, and a vector length is not a linear
+  mix.
+- **Lengths cannot restore directions, and TerLoco shows it.** From exp196 to
+  exp197, per-class valid F1 rises for Manouvre (0.67 to 0.79), Pecking (0.68 to
+  0.76) and Boat (0.88 to 0.94), but TerLoco stays at 0.89, against 0.97 without
+  rotation (exp194, `exps/eval_labeled.py`). Pecking and Manouvre are bursts of
+  movement, so a length carries much of what marks them. Walking is a posture
+  plus a small rhythm: the body upright, the steps shaking it sideways. Both are
+  directions relative to gravity, which every length throws away. Putting the
+  frame back is a TODO in `status.md`.
+- **`mag` carries most of the gain.** In a random forest on burst summaries,
+  scored on randomly rotated data, adding one channel at a time raises valid
+  accuracy by 1.69 points for `mag`, 0.59 for `dyn_mag` and 0.04 for
+  `jerk_mag`, and all three by 2.33 (mean of 5 draws). `dyn_mag` and `jerk_mag`
+  correlate at 0.96, so they are nearly one feature. On unrotated data all three
+  add 0.18 points: the raw axes already separate the behaviours, so the channels
+  buy invariance, not new information (`exps/magnitude_features_prior.py`).
+- **Compute them once at load time, before augmentation.** Being invariant, they
   stay correct whatever rotation follows. Jitter, scaling and warp would break
-  that and would have to be recomputed per batch.
-- **`jerk_mag` is undefined at t=0; edge-replicate, do not zero-pad.** A zero is
-  a "no motion" sample in every burst, and the model pools mean/max/std over
-  time, so it biases the channel down for the high-jerk classes.
-- Untested: these channels **without** rotation augmentation (an exp194
-  counterpart). The forest says that arm gains ~0.2, but that is a proxy.
+  that, and the channels would have to be recomputed per batch.
+- **Edge-replicate `jerk_mag` at t=0; do not zero-pad.** A zero is a "no motion"
+  sample in every burst, and the model pools the mean, max and standard
+  deviation over time, so a zero pulls the channel down for the classes that
+  move most.
 
-### Rotation augmentation (exp195)
+### Rotation augmentation keeps accuracy at any tag orientation, and costs 4 points on the standard split (exp195)
 
-Full SO(3) rotation of the IMU acc channels, train set only (`RandomRotation3D`).
-The labeled data is one logger type mounted much the same way on every bird, so
-the standard split holds no orientation variation at all. Full 3D is the realistic
-model for a new logger, whose tilt and position on the bird are both unknown.
+Each training burst gets a random 3D rotation of its acceleration, new every
+epoch; the valid split is not turned. The accelerometer reading mixes the
+logger's tilt, its place on the bird (neck, back, wing), the bird's movement,
+external forces (wind, water, a collision) and gravity; only the movement is the
+label. The labeled data is one logger type mounted much the same way on every
+bird, so the valid split holds no change of mounting at all. A full 3D rotation
+stands in for a new logger whose tilt and place are unknown. A known convention,
+such as the Ornitela x/y swap, is a relabeling of the axes
+(`scripts/data/bird_behavior_app_data.py`), not something to augment.
 
-- **A standard-split A/B only measures the cost.** exp195 92.24 val vs exp194
-  96.35 (-4.1) reads as "augmentation hurt". Re-evaluating both checkpoints on
-  orientation-perturbed validation data inverts it
-  (`exps/eval_labeled.py`):
+- **A test on the standard split only shows the cost.** exp195 has 92.24% valid
+  accuracy against 96.35% for exp194, which reads as "augmentation hurt". Turned
+  at random, exp194 falls to 13.05% and exp195 holds 90.67% (`status.md`, Gulls,
+  labeled). exp194 is not unsure there, it is wrong: at a 70 degree tilt it
+  scores 2.05%, far below the 11% of guessing among 9 classes
+  (`exps/eval_labeled.py`).
+- **The cost lands on the ground behaviours,** which need the gravity direction
+  that rotation scrambles. Per-class valid F1 from exp194 to exp195: TerLoco
+  0.97 to 0.79, Pecking 0.94 to 0.68. The pooled class-balanced F1 falls from
+  0.92 to 0.84, twice the accuracy drop (`exps/eval_labeled.py`).
+- **Static classes survive it.** With rotation, SitStand, Float and Boat keep a
+  valid F1 of 0.98, 0.94 and 0.88, against 0.99, 0.97 and 0.91 without
+  (`exps/eval_labeled.py`). A still bird reads about 1 g with almost no change
+  over time, whatever the orientation, so lengths and spreads still separate it.
 
-  | valid under              | exp194 (no aug) | exp195 (rotation) |
-  | ------------------------ | --------------- | ----------------- |
-  | clean                    | **96.35**       | 92.24             |
-  | x/y swap                 | 71.46           | **90.41**         |
-  | pitch 20° / 70°          | 82.88 / 2.05    | **90.87 / 90.64** |
-  | random SO(3), mean of 20 | 13.05           | **90.67**         |
+### A receptive field over the whole burst raises accuracy, most for Pecking (exp192-exp194)
 
-  Off-orientation exp194 is not uncertain, it is confidently wrong: 2.05% is well
-  under the 11% chance rate, so no confidence threshold will catch it.
-
-- **The cost lands on the ground behaviours**, which need the gravity direction
-  rotation scrambles: valid F1 TerLoco .97 -> .79, Pecking .94 -> .68. Balanced
-  valid F1 0.92 -> 0.84, twice the accuracy drop
-  (`exps/eval_labeled.py`). Plain and balanced numbers can disagree in
-  sign on a rare class, so say which one a number came from.
-
-- **Rotation replaces overfitting with underfitting**: exp194 99.44/96.35 vs
-  exp195 90.21 (unaugmented train) / 92.24. At 5,129 params the capacity goes into
-  invariance, not memorization.
-
-- **A bigger receptive field did not pay for it**: BirdModel -> SmallDilated is
-  +1.6 val without rotation (exp192 94.75 -> exp194 96.35) but +0.7 with
-  (discarded trial 91.55 -> exp195 92.24).
-
-### Rotation augmentation (background)
-
-- The accelerometer reading mixes logger orientation, logger position on the bird
-  (neck, back, wing), bird movement, external forces (wind, water, collision) and
-  gravity. Only bird movement is the label. Known per-manufacturer conventions are
-  a coordinate relabel, not an augmentation problem — Ornitela swaps x and y,
-  undone in `scripts/data/bird_behavior_app_data.py`.
-- **Static classes survive rotation, their members do not.** In the discarded
-  BirdModel + rotation trial (val 91.55%) the orientation-dependent static classes
-  held (val F1 SitStand .97, Float .97, Boat .92): a static behavior has |acc|≈1 g
-  with near-zero temporal variance whatever the orientation, so rotation-invariant
-  statistics still separate it. The loss went to the rare dynamic classes
-  (Pecking .57, Manoeuvre .77, ExFlap .57 — prose record only, that run was not
-  kept). exp195's bigger receptive field fixed exactly those three and the cost
-  moved to TerLoco/Pecking instead.
-- **Only augment the training set.** `prepare_train_valid_dataset` passes one
-  transform object to both the train and eval `BirdDataset`s, which would rotate
-  the evaluation data too — still a hazard for any script using it.
-  `batch_train_supervised.py` no longer can: the transform is held by the
-  `GpuBatches` train loader, and the eval `BirdDataset` has none.
-
-### Model size
-
-- **Bigger is worse on this small dataset.** Wider (30 -> 96 channels, 6.3k ->
-  58k params) drops 94.5 -> 93.7 with clear overfitting (exp67). Deeper (3 -> 4
-  layers) drops 94.5 -> 94.0 (exp70); a residual connection recovers most of it
-  (exp71, 94.8).
-- **Receptive field buys more than capacity does.** `BirdModelSmallDilated` is
-  *smaller* than the 3-conv `BirdModel` (5,129 vs 6,309 params) yet gives the
-  best `starts.csv` result so far: exp194 96.35 val, against 94.75 for BirdModel
-  on the same data (exp192). The difference is the dilated k=5 stack — RF 25
-  spans the whole 20-sample burst, where BirdModel's RF 7 sees only a third of
-  it and cannot resolve the global flap sine-wave. Spend the budget on context,
-  not channels. Widening the RF with plain k=7 convs instead of dilation
-  (`BirdModelWideRF`, RF 19) costs 1.1 pts (exp193).
-- **Multi-head attention helped** the transformer variants (exp85–87).
-- The 3-conv small model (~6.3k params) is the historical reference and trains in
-  ~20 min on a laptop RTX 3070; `BirdModelSmallDilated` has replaced it as the
-  app inference model and the supervised baseline.
-- **Compare parameter counts at the same class count.** `BirdModel(4,30,·)` is
-  6,309 at 9 classes and 6,340 at 10, and the old notes quote the 10-class
-  numbers throughout (their width pair 6,340 -> 58,282 is 10-class on both
-  sides). Reading one against the other invents differences that are not there.
-- The compact models overfit far harder than BirdModel (train ~99.5 vs ~96), so
-  only the validation number is comparable between them.
+- `BirdModelSmallDilated` is smaller than the 3-layer `BirdModel` (5,129 against
+  6,309 parameters, 9 classes) and scores higher on `starts.csv`, both without
+  augmentation: 96.35% valid accuracy (exp194) against 94.75% (exp192). The
+  difference is the receptive field. Three kernel-5 convolutions with dilation
+  1, 2 and 3 see 25 samples, the whole 20-sample burst; the three kernel-3
+  convolutions of `BirdModel` see 7.
+- Per-class valid F1, exp192 to exp194: Pecking 0.79 to 0.94, Boat 0.82 to 0.91,
+  Manouvre 0.81 to 0.84. Flap was already high, 0.98 to 1.00, and Soar falls,
+  0.94 to 0.91. The switch was made after a `BirdModel` run (exp125) read a
+  clear wing beat as Manouvre in the app.
+- Widening the receptive field with plain kernel-7 convolutions instead
+  (`BirdModelWideRF`: receptive field 19, 6,889 parameters) gives 95.21%, 1.14
+  points below (exp193).
+- Both compact models fit their train split almost fully (99.44% and 99.67%
+  train accuracy) where `BirdModel` reaches 95.95%, so compare them on valid
+  only. All numbers here are in each run's `app_loss_acc.txt` and
+  `per_class_metrics_valid.csv`, written by `scripts/batch_train_supervised.py`.
 
 ## Measuring
 
@@ -488,12 +446,27 @@ transforms in `behavior/data_augmentation.py` build all N at once, and
 - `train_one_epoch` only iterates its loader, so any iterable works and
   `behavior/model.py` needed no change at all.
 - Augmentation now lives on the train **loader**, not the dataset, which removes
-  the shared-transform footgun described under "Rotation augmentation
-  (background)" above.
+  the shared-transform footgun described under "Only augment the training
+  set" below.
 - Batched transforms take channel-first `(N, C, T)`; the per-sample ones take
   `(T, C)`. They are not interchangeable, and the other scripts
   (`train.py`, `train_sup_contrastive.py`, `train_self_distill.py`, `simGCD.py`)
   still use the per-sample ones.
+
+### Only augment the training set
+
+- **Only augment the training set.** `prepare_train_valid_dataset` passes one
+  transform object to both the train and eval `BirdDataset`s, which would rotate
+  the evaluation data too — still a hazard for any script using it.
+  `batch_train_supervised.py` no longer can: the transform is held by the
+  `GpuBatches` train loader, and the eval `BirdDataset` has none.
+
+### Compare parameter counts at the same class count
+
+- **Compare parameter counts at the same class count.** `BirdModel(4,30,·)` is
+  6,309 at 9 classes and 6,340 at 10, and the old notes quote the 10-class
+  numbers throughout (their width pair 6,340 -> 58,282 is 10-class on both
+  sides). Reading one against the other invents differences that are not there.
 
 ### Reproducibility / infrastructure bugs
 
@@ -536,6 +509,14 @@ The run details are in `experiments_log.md`.
   overfitting that motivated it.
 - **Batch size**: smaller batches converge faster down to ~bs=25; bs=6 is worse
   and very slow. There is no accuracy gain from large batches here.
+
+### Model size
+
+- **Bigger is worse on this small dataset.** Wider (30 -> 96 channels, 6.3k ->
+  58k params) drops 94.5 -> 93.7 with clear overfitting (exp67). Deeper (3 -> 4
+  layers) drops 94.5 -> 94.0 (exp70); a residual connection recovers most of it
+  (exp71, 94.8).
+- **Multi-head attention helped** the transformer variants (exp85–87).
 
 ### Data
 
