@@ -6,9 +6,9 @@ Raw notebook of individual runs, terse style. Held to a lower bar than
 results tables, and how each number is measured, are in
 [docs/status.md](status.md).
 
-Accuracies are validation unless noted; `tr-val` gives train then valid. A
-trailing `hash:...` is the git commit the run was made at. Numbering has gaps
-(runs that were abandoned or folded elsewhere). Newest entries first.
+Accuracies are valid accuracy in %, unless noted; `tr-val` gives train then
+valid. A trailing `hash:...` is the git commit the run was made at. Numbering
+has gaps (runs that were abandoned or folded elsewhere). Newest entries first.
 
 ## exp208-211: three seeds a side, and the two spoonbill papers
 
@@ -202,8 +202,9 @@ uncommitted changes. 4 runs, 5m each.
   (exp204) gets all 4 at 0.79-0.93 confidence, and one raw seed holds b0 at only
   0.41. Three seeds cannot carry more than a direction here.
 - **The mechanism is GPS speed, measured.** ExFlap runs slow (median 1.39 m/s,
-  p90 8.90) and Flap fast (median 9.63, p10 4.92). b0 at 15.84 and b3 at 4.99
-  are the two ExFlap bursts with Flap-like speeds; b1 and b2 at 0.06 m/s are
+  p90 8.90) and Flap fast (median 9.63, p10 4.92;
+  `exps/recompute_doc_numbers.py`). b0 at 15.84 and b3 at 4.99 are the two
+  ExFlap bursts with Flap-like speeds; b1 and b2 at 0.06 m/s are
   never wrong in any run. The 26 dropped bursts are the only fast-but-not-flying
   training examples there were (3.24-17.78 m/s, all SitStand/TerLoco/Pecking),
   so dropping them sharpens **fast -> Flap**. Sweeping the GPS channel with the
@@ -223,12 +224,12 @@ two. exp199 = exp197's config on `starts.csv`. exp200 = `starts_clean.csv` with
 Both keep epoch 4000 (`save_final`), and both are read there. exp197 untouched.
 hash:2e4bc39 plus the uncommitted changes. 3900/438 and 3875/437, 5m each.
 
-- **exp199 reproduces exp197**: best valid 94.52 at epoch 1996, same as exp197,
-  final 93.84, plateau 93.89. The pipeline is near-deterministic at one seed, so
-  what exp200 does differently is the data.
+- **exp199 reproduces exp197**: best valid 94.52, as exp197 (at epoch 1888;
+  exp197 at 1870), final 93.84, plateau 93.89. The pipeline is
+  near-deterministic at one seed, so what exp200 does differently is the data.
 - The only difference between the two training sets is the **25 noise bursts**
-  exp199 keeps (`exps/eval_labeled.py` prints this; the 26th is in the valid
-  split of both).
+  exp199 keeps: 3,900 against 3,875 train bursts (`exps/eval_labeled.py`); the
+  26th is in the valid split of both.
 - Labeled, epoch 4000, the same 437 bursts: valid **93.82 vs 93.59** — 1 burst.
   Plain F1 0.94 both, every class within 0.03 except ExFlap.
 - **Orientation robustness is now level**, on both measures. Labeled SO(3)
@@ -250,13 +251,14 @@ hash:2e4bc39 plus the uncommitted changes. 3900/438 and 3875/437, 5m each.
 exp197 with `data_file=starts_clean.csv`, the 26 label-noise bursts dropped.
 Model, seed, augmentation and schedule unchanged, so it is a clean A/B on the
 data. hash:2e4bc39 plus the uncommitted config change. 3877/435 split, 5m14s,
-best epoch 1544.
+best epoch 1227.
 
 - val **94.02** / train 95.98 vs exp197's 94.52 / 97.90. Valid F1 0.94 plain,
   0.84 balanced (exp197 0.95 / 0.90).
 - The two runs do not share a valid split: dropping bursts reshuffles
   `stratified_split`, so 177 of exp197's 438 valid bursts are in exp198's train
-  set. Neither number above is comparable; exp199/exp200 redo it properly.
+  set (`exps/recompute_doc_numbers.py`). Neither number above is comparable;
+  exp199/exp200 redo it properly.
 - The balanced F1 gap is 2 bursts: ExFlap 2 of 4 wrong, both called Flap, where
   exp197 got 4 of 4. Every other class within 0.05 plain F1.
 - Unlabeled (device 6004, `exps/eval_unlabeled.py`): speed conflict **0.03 vs
@@ -264,11 +266,12 @@ best epoch 1544.
   1.72. Agree on 96.8%.
 - **The 0.50 headline gap is checkpoint choice, not data.** Plateaus: exp197
   93.96 mean over the last 500 epochs (93.61–94.29, final 93.84), exp198 flat
-  93.79. `<exp>_best.pth` is the best valid epoch — 1996 for exp197, 1544 for
-  exp198 — and at matched epochs exp198 fits train harder (97.76 vs 97.13 at
-  epoch 1996), so it is not the weaker run; its argmax landed earlier.
+  93.79. `<exp>_best.pth` is the best valid epoch — 1870 for exp197, 1227 for
+  exp198, as stored in each checkpoint — and at the same epoch, 1996, exp198
+  fits train harder (97.76 vs 97.13, `tensorboard/197.txt` and `198.txt`), so
+  it is not the weaker run; its best epoch came earlier.
 - The perturbation gaps likely follow the same thing: exp198's checkpoint is
-  ~450 epochs younger and less confident (0.93 vs 0.95), and a less confident
+  ~640 epochs younger and less confident (0.93 vs 0.95), and a less confident
   model flips more. Untested — no fixed-epoch checkpoint was saved.
 - Conclusion: the same model, as expected. Plateaus differ by 0.17 points and
   only the check the cleaning targets moves.
@@ -321,8 +324,7 @@ transform differs.
   exp194's 99.44/96.35. Valid plateaus at ~91.1 from epoch ~1300; 47m31s.
 - Off-orientation exp194 collapses (x/y swap 71.46, 70° pitch 2.05, random SO(3)
   13.05) where exp195 holds 90.4–91.6. Table in
-  [docs/lesson_learned.md](lesson_learned.md), from
-  `exps/eval_labeled.py`.
+  [docs/status.md](status.md), from `exps/eval_labeled.py`.
 - Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss; balanced valid
   F1 0.92 -> 0.84 (`exps/eval_labeled.py`).
 
@@ -366,52 +368,21 @@ A dash means the key is not set, so the `base_config` default applies.
 
 `split_seed` and `save_final` did not exist when exp196-exp198 ran.
 
-## Reference
+## Old model sizes
 
-Label map:
+Current parameter counts: `descriptions.md`, Models. These are from the old
+notes, kept for reading the old runs.
 
-```python
-ind2name = {0: "Flap", 1: "ExFlap", 2: "Soar", 3: "Boat", 4: "Float",
-            5: "SitStand", 6: "TerLoco", 7: "Other", 8: "Manouvre", 9: "Pecking"}
-```
-
-`s_data` burst counts (index): `{0:634, 1:38, 2:501, 3:176, 4:558, 5:894, 6:318, 7:25, 8:151, 9:210}`. `starts` (current pipeline, no Other): total 4338
-`{5:1502, 4:729, 0:643, 2:537, 6:337, 9:225, 3:176, 8:151, 1:38}`.
-
-Behavior grouping (peck labels are noisy):
-
-```
-Flight:  0 Flap 634, 1 ExFlap 38, 2 Soar 501 (thermal soaring), 8 Manoeuvre/Mixed 151
-Float:   4 Float 558
-SitStand:5 SitStand 894, 3 Boat 176
-TerLoco: 6 TerLoco/Walk 318, 9 Pecking 210 (paper 209)
-Other:   7 Other 25
-```
-
-Parameter counts, recomputed from the current code unless marked historical:
-
-- `BirdModel(4, 30, ·)`: **6,309** at 9 classes, **6,340** at 10. The class head
-  is in both — the 31-parameter gap is the extra class. The old notes quote the
-  10-class numbers throughout, so their width pair is 6,340 -> 58,282 (both
-  10-class); the 9-class width-96 model is 58,185.
-- `BirdModelWideRF`: **6,889**, RF 19 (three k=7 convs). `BirdModelSmallDilated`:
-  **5,129**, RF 25 (three k=5 convs, dilation 1/2/3). Both `mid_channels=20`.
-- `ResNet18_1D(9, dropout=0.3)`: **61,289**. (`model_descriptions.txt` says
-  60,964; that no longer reproduces — the stage/channel layout changed, and
-  `ResNet1D` only builds 3 of the 4 stages in `layers`.)
-- `MaskedAutoencoderViT` img_size=20: **9,557,508** (img_size=60: **9,577,988**).
-  An earlier 9,546,756 circulated in these docs; it is stale by 10,752, the two
-  21x256 position embeddings.
-- `TransformerEncoderMAE` embed_dim 256, depth 6: **4,748,297**.
+- `BirdModel` at width 96: 58,282 parameters at 10 classes, 58,185 at 9. The
+  old notes quote 10-class counts.
+- `MaskedAutoencoderViT` at `img_size=60`: 9,577,988.
 - Historical transformer sweep by embed_dim (from `model_descriptions.txt`,
   depth 1): 512 -> 3,170,816; 256 -> 798,976; "126" -> 196,686; 64 -> 52,288;
   32 -> 13,856; 16 -> 3,856; 8 -> 1,160. None reproduce exactly today (depth-1
   dim-256 is now 799,497) and 126 is not a legal embed_dim (must divide by
-  num_heads), so treat the whole row as historical. Note it is a *different*
-  depth from the 4,748,297 entry above, which is also embed_dim 256.
-
-Data note: IMU clipped to [-2, 2] (exp190; only 782/86,760 rows were outside),
-GPS 2D speed normalized by 22.3. Standard seed is 32984.
+  num_heads), so treat the whole row as historical. It is a *different* depth
+  from `TransformerEncoderMAE` in `descriptions.md` (depth 6, 4,748,297), which
+  is also embed_dim 256.
 
 ## Baselines and class subsets
 
@@ -481,7 +452,7 @@ dropout 0.7 (~2000 params); exp122–123 same on shifted data.
 ## Compact models and app reruns (exp190–194)
 
 All on the current pipeline. Numbers read from
-`~/Downloads/bird/results/failed/<exp>/app_loss_acc.txt`.
+`~/Downloads/bird/results/failed/<exp>_<data stem>/app_loss_acc.txt`.
 
 | exp    | model / data                                   | train | valid     |
 | ------ | ---------------------------------------------- | ----- | --------- |
@@ -504,7 +475,7 @@ All on the current pipeline. Numbers read from
 
 ## Rotation augmentation
 
-See exp195 at the top. SmallDilated was picked over BirdModel for its larger
+See exp195 above. SmallDilated was picked over BirdModel for its larger
 receptive field (RF 25 vs 7): it captures the global flap sine-wave, which the
 shorter-context BirdModel confuses with Manoeuvre (seen by eye on unlabeled data
 in `app/gps_burst_labeling_viz_app.py`).

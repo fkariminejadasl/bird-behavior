@@ -41,7 +41,7 @@ Nine behaviours. 1 second, 20 samples, 3 acceleration axes + GPS speed.
 
 ---
 
-## The catch: the tag records more than the behaviour
+## The tag records its mounting, not only behaviour
 
 The accelerometer measures in the **tag's own frame**, not the bird's. Every
 reading mixes:
@@ -56,7 +56,7 @@ same way on every bird**, so the standard test split cannot see any of this.
 
 ---
 
-## What happens on a differently mounted tag: rotation augmentation
+## A turned tag: 13% accuracy, or 91% with rotation
 
 | test bursts, accuracy % | no augmentation | with rotation |
 |---|---|---|
@@ -70,7 +70,7 @@ by guessing. *(exp194, exp195, 438 test bursts, exps/eval_labeled.py)*
 
 ---
 
-## The fix, and what it costs
+## Rotation costs 4 points, holds 91% when turned
 
 Train on the same bursts **rotated to every possible orientation**
 *(random SO(3) rotation of the acceleration axes)*.
@@ -85,7 +85,7 @@ Worth it whenever the model will meet a tag it was not trained on.
 
 ---
 
-## Getting half the cost back: more features
+## Three magnitude channels win back half the cost
 
 Turning the tag changes **which axis** records a movement, never **how big** it
 is. So we give the model three sizes it cannot be confused about: how hard the
@@ -114,7 +114,7 @@ It does not work.
 
 ---
 
-## Confidence does not notice the model failing
+## Confidence stays at 0.74 when accuracy is 13%
 
 Turned at random, exp194's accuracy fell from 96% to 13%:
 
@@ -130,7 +130,7 @@ whether the model is healthy.
 
 ---
 
-## Instead: count predictions that cannot be true
+## Counting impossible predictions needs no labels
 
 No labels needed. Each check contradicts the model with something we know
 independently.
@@ -147,7 +147,7 @@ another within a fix. Everything else counts
 
 ---
 
-## The two models on a new bird, no labels
+## New bird: fewer impossible speeds and flips
 
 115,266 bursts, device 6004: exp194, 196, 197 *(exps/eval_unlabeled.py)*
 
@@ -160,12 +160,11 @@ another within a fix. Everything else counts
 
 ---
 
-## A side benefit: finding bad labels
+## 26 of 4,338 bursts contradict their own label
 
 The same speed rule, pointed at the *labels* instead of the predictions.
 
 - 10 SitStand, 11 TerLoco, 5 Pecking *(exps/find_label_noise.py)*
-- **26 of 4,338 bursts** contradict their own label
 - Clearest: a bird labelled "sitting still" moving at **13.7 m/s**
 - 16 of the 26: one device in about 20 minutes — might be a **broken GPS**
 - Retrained without them: same accuracy, **impossible speed 2.5-3.3x rarer at
@@ -177,11 +176,10 @@ Mentioned in `behavior/data_processing.py::remove_label_noise`.
 
 ---
 
-## Making it fast enough to iterate
+## Rotating on the GPU: 47 to 5 minutes per run
 
 The augmentation was applied one burst at a time, in Python.
 
-- 47 minutes per run → **5 minutes**
 - Same result: 92.7% vs 92.2% accuracy, well inside run-to-run noise
 - The trick: rotate the whole batch at once on the GPU, and stop rebuilding the
   data every epoch
@@ -191,7 +189,7 @@ Nine times more experiments per day, for no change in the science.
 
 ---
 
-## A second species: spoonbill data
+## Spoonbills: few birds per behaviour
 
 Two published datasets *(Lok et al. 2023, 2025)*: 5,080 labelled 1 s
 segments, 14 behaviours, 9 birds *(exps/eval_spoonbill.py)*
@@ -209,7 +207,7 @@ Only 24% of prey-ingestion records fit in a whole 1 s segment
 
 ---
 
-## Spoonbills: how the test set is chosen
+## Spoonbills: split by fix, not by segment
 
 A fix: one GPS time of one bird, with up to 200 records (10 s). We cut it into
 segments of 20 records (1 s), one model input each.
@@ -223,7 +221,7 @@ segments of 20 records (1 s), one model input each.
 
 ---
 
-## Spoonbills: rotation hides posture
+## Spoonbills: rotation costs about 10 points
 
 505 test segments, 3 seeds each, F1 the mean of the 3
 *(exp206-211, exps/eval_spoonbill.py)*
@@ -241,7 +239,7 @@ segments of 20 records (1 s), one model input each.
 
 ---
 
-## Spoonbills: two ways to score the same test fixes
+## Spoonbills: paper windows can mix behaviours
 
 - **Segments** *(our training)*: cut where a behaviour starts, so each holds
   one behaviour. 505 test segments; a bout under 20 records gives none
@@ -258,7 +256,7 @@ One answer per window, checked against each of its 20 records
 
 ---
 
-## Spoonbills: against the published model
+## Spoonbills: level or better, except ingestion
 
 Scored on windows, as the papers score: F1 0–1 per record. Ours: without
 rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*

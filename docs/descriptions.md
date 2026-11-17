@@ -229,6 +229,18 @@ s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 
 shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
+#### Behaviour groups (old notes)
+
+Counts are `s_data` bursts.
+
+```
+Flight:  0 Flap 634, 1 ExFlap 38, 2 Soar 501 (thermal soaring), 8 Manoeuvre/Mixed 151
+Float:   4 Float 558
+SitStand:5 SitStand 894, 3 Boat 176
+TerLoco: 6 TerLoco/Walk 318, 9 Pecking 210 (paper 209)
+Other:   7 Other 25
+```
+
 #### Example row of the CSV format:
 
 ```bash
