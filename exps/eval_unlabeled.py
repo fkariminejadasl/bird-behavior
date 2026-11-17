@@ -1,10 +1,9 @@
 """Compare models on **unlabeled** data, without ground truth.
 
-Softmax confidence cannot answer "is this model healthy on a new bird". Measured
-on the orientation shift: exp194 keeps 0.735 mean confidence while its accuracy
-falls to 13%, so a confidence threshold raises no alarm (see
-docs/lesson_learned.md). Confidence is only good for *ranking* which bursts to
-inspect (AUROC 0.89 within a dataset).
+Softmax confidence cannot answer "is this model healthy on a new bird". On
+device 6004, exp194 and exp196 differ by 0.02 in mean confidence, while exp194
+has 16 times more speed conflicts (docs/lesson_learned.md, Measuring). At most,
+confidence ranks which bursts to look at.
 
 These four checks need no labels. Each counts predictions that contradict
 something we know independently of the model, so the rate is a real error rate,

@@ -2,7 +2,7 @@
 
 The labeled counterpart of `exps/eval_unlabeled.py`. Everything here needs
 ground truth; everything there needs none. Together they are the whole picture,
-and both print markdown ready to paste into docs/lesson_learned.md.
+and both print markdown ready to paste into docs/status.md.
 
 Three questions, three tables:
 

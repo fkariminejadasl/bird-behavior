@@ -18,6 +18,11 @@
   If a sentence needs re-reading, rewrite it. Name the unit of every count and
   table column (records, fixes, segments), so two numbers are never compared
   across units.
+- A title states the result in plain words, with its runs: "Three magnitude
+  channels win back half the accuracy that rotation costs (exp197)", not a
+  slogan like "Give the model an invariant". A bullet starts with its result
+  too, not a bold catchphrase. Take the result from the numbers, not from the
+  story told about them.
 - Name the metric of every score, and what it was scored on: accuracy in %,
   or F1 on 0-1 (per class or pooled, plain or class-balanced), over which
   items (segments or records) and which split. A bare 0.91 cannot be compared

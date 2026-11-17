@@ -53,7 +53,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
 ## Eval
 
 - `exps/eval_labeled.py` — accuracy, per-class F1 (plain + balanced), orientation
-  robustness. Markdown ready for `lesson_learned.md`
+  robustness. Markdown tables for `status.md`
 - `exps/eval_unlabeled.py` — no ground truth: impossible speed / place / flicker,
   and rotation instability
 - `exps/speed_reliance.py` — how much a model relies on GPS speed: speed swept,
@@ -447,36 +447,50 @@ The combination step in Method2 is the same as the current method in `scripts/da
 
 ## Models
 
-Number of parameters:
+Parameter counts, from the code below, at 9 classes unless noted. The working
+model and how it is trained: `docs/methods.md`, Model and Training.
 
-- BirdModel: 6,309
-- BirdModelSmallDilated: 5,129
-- BirdModelWideRF: ~6.9k
-- MaskedAutoencoderViT: 9,546,756
-- TransformerEncoderMAE: 4,748,297
+| model                   | arguments          | parameters                  | receptive field, time steps |
+| ----------------------- | ------------------ | --------------------------- | --------------------------- |
+| `BirdModelSmallDilated` | 4, 20, 9           | 5,129                       | 25                          |
+| `BirdModelSmallDilated` | 7, 20, 9           | 5,429                       | 25                          |
+| `BirdModelWideRF`       | 4, 20, 9           | 6,889                       | 19                          |
+| `BirdModel`             | 4, 30, 9           | 6,309 (6,340 at 10 classes) | 7                           |
+| `ResNet18_1D`           | 9, dropout=0.3     | 61,289                      |                             |
+| `MaskedAutoencoderViT`  | img_size=20, below | 9,557,508                   |                             |
+| `TransformerEncoderMAE` | below              | 4,748,297                   |                             |
 
 ```python
 from behavior import model as bm, model1d as bm1
+model = bm.BirdModelSmallDilated(4, 20, 9)  # or (7, 20, 9)
+model = bm.BirdModelWideRF(4, 20, 9)
 model = bm.BirdModel(4, 30, 9)
+model = bm.ResNet18_1D(9, dropout=0.3)
 model = bm1.MaskedAutoencoderViT(img_size=20, in_chans=4, patch_size=1, embed_dim=256, depth=6, num_heads=8, decoder_embed_dim=256, decoder_depth=6, decoder_num_heads=8, mlp_ratio=4, layer_norm_eps=1e-6)
 model = bm1.TransformerEncoderMAE(img_size=20, in_chans=4, out_chans=9, embed_dim=256, depth=6, num_heads=8, mlp_ratio=4, drop=0.0, layer_norm_eps=1e-6)
 f"{sum([p.numel() for p in model.parameters()]):,}"
 ```
 
-#### Small Bird Model
-
-The bird model consists of three 1-D convolution layers, each with a kernel size of 3 and 30 channels. Each convolution layer is followed by batch normalization and a ReLU nonlinearity. The final projection layer is a linear layer that maps the average pooled embeddings to the number of classes. Cross-entropy loss is used as the classification loss. During training, dropout with a probability of 0.25 is applied after each convolution layer. The dataset for training consists of 3,505 labeled samples, each with 3 IMU accelerations and one GPS 2D speed for a sequence length of 20. There are 9 classes in total. AdamW is used for optimization with a learning rate of 3e-4 and a weight decay of 1e-2, with a maximum of 4,000 iterations. The learning rate scheduler is StepLR with a step size of 2,000, reducing the learning rate by a factor of 0.1. With this small dataset and model, the total training time is only 20 minutes using an NVIDIA GeForce RTX 3070 laptop GPU.
+`BirdModel` (`behavior/model.py`) was the first model: three convolutions of
+kernel 3 and 30 channels, each with BatchNorm and ReLU, dropout 0.25, average
+pooling over time and one linear layer. `BirdModelSmallDilated` replaced it from
+exp194 (`lesson_learned.md`, the receptive-field lesson).
 
 ## List of scripts
 
 #### App
 
-- `app/gps_burst_labeling_viz_app.py`: Combines the IMU/behavior visualization app and the GPS locations app, with label editing added.
-  The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
-- `app/bird_behavior_viz_app.py`: Visualize IMU data with behavior labels and locations on a map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
-- `app/gps_locations_viz.py`: Visualize GPS traces on an interactive map. The data for this app comes from `scripts/data/{bird_behavior_app_data.py,merge_simon_data.py}`.
+- `app/gps_burst_labeling_viz_app.py`: the IMU and behaviour viewer and the GPS
+  map in one app, with label editing.
+- `app/bird_behavior_viz_app.py`: IMU data with behaviour labels, and the
+  locations on a map.
+- `app/gps_locations_viz.py`: GPS traces on an interactive map.
+- `app/testapp.py`, `app/testgradio.py`: early tests of a web service (FastAPI)
+  and a Gradio front end that classify a CSV file with `BirdModel`. No
+  docstring; read from the code.
 
-The data format for these apps is:
+The apps read the files of `scripts/data/bird_behavior_app_data.py` and
+`scripts/data/merge_simon_data.py`, in this format:
 
 ```bash
 device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,confidence,latitude,longitude,altitude(optional)
@@ -485,105 +499,237 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
 
 #### Visualization
 
-- `scripts/embeddings_plot.py`: Plot embeddings (currently t-SNE) for a given dataset and model.
-- `exps/save_plots_gt.py`: Save IMU plots for ground-truth data based on device IDs and starting times.
-- `exps/save_plots.py`: Save IMU plots for each label and run inference for the predictions.
-- `exps/plot_errors.py`: Plot the valid bursts a model gets wrong, one PNG per
-  burst, in `<true class>/<predicted class>,<device>,<datetime>,<start index>.png`.
-  Uses the split and predictions of `exps/eval_labeled.py`, so the plots are the
-  errors behind its per-class F1. Prints where each class went and what came in.
-- `generate_per_glen_figures_for_dt` used in `scripts/prepare_labeled_data.py`: Generate IMU plots for structured data (divisible by glen=20), such as `shift.csv`.
-- `exps/imu_3d_movie`: Make a movie from IMU data.
-- `exps/visualize`: old (I should remove)
+- `scripts/embeddings_plot.py`: t-SNE of the learned features, for a dataset
+  and a model.
+- `exps/save_plots_gt.py`: IMU plots of the labeled bursts, by device and start
+  time.
+- `exps/save_plots.py`: IMU plots per label, with the model's predictions.
+- `exps/plot_errors.py`: one PNG per valid burst a model gets wrong, in
+  `<true class>/<predicted class>,<device>,<datetime>,<start index>.png`, from
+  the split and predictions of `exps/eval_labeled.py`. Prints where each class
+  went.
+- `behavior/utils.py::generate_per_glen_figures_for_dt`: IMU plots of data cut
+  into bursts of 20 records, such as `shift.csv`.
+- `exps/imu_3d_movie.py`: a movie of IMU data.
+- `exps/figures_for_paper.py`: image grids for a paper. No docstring; read from
+  the code.
+- `exps/visualize.py`: old (I should remove)
 
-#### Training/Inference Scripts
+#### Training
 
-- `scripts/train.py`: Training script for supervised bird classification.
-- `scripts/train_contrastive.py`: Similar to `scripts/train.py`, but includes additional losses (supervised contrastive loss and mean entropy maximization loss). The mean entropy maximization loss is currently not used due to lower performance.
-- `scripts/train_sup_contrastive.py`: Supervised classification plus supervised-contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the model's embeddings; no augmentation by default. Includes the SimGCD-style `DINOHead`/`DistillLoss` helpers (unused in the default run).
-- `scripts/batch_train_supervised.py`: Self-contained batch runner for supervised training — several trainings in one go, one per config in `iter_batch_configs()`. Each config overrides `BASE_CONFIG` (model, labels, data file, schedule), and `main()` trains it, keeps the best-validation checkpoint, then writes the confusion matrices and per-class metrics for the train and valid splits to `save_path/failed/<exp>_<data stem>/`. In the `Combined` row of `per_class_metrics_{train,valid}.csv`, each wrong answer counts once as FP (for the class predicted) and once as FN (for the true class), so TP + FP is the number of segments, not TP + FP + FN: for exp206, 3814 + 761 = 4575 train and 433 + 72 = 505 valid. Its precision, recall and F1 all equal the accuracy. The compact `BirdModelWideRF` / `BirdModelSmallDilated` variants are registered here alongside `BirdModel`, the ResNet and the transformers. Augmentation is selected by the `transforms` object in `main()` and applied to the **training set only**: it is held by the `data.GpuBatches` train loader, while the eval `BirdDataset` is built with no transform. `cfg.add_magnitudes` switches the input to 7 channels and must match `cfg.model.parameters.in_channels`. `cfg.split_file` borrows another data file's valid split instead of splitting this one, so two runs on two data files validate on the same bursts. `cfg.save_final` also keeps the last epoch as `<exp>_<epoch>.pth`, for comparing runs at a fixed epoch rather than at a best-validation epoch that lands wherever the noise put it. `cfg.split_seed` seeds the split alone and defaults to `cfg.seed`, so the split can be held still while `seed` varies the training trajectory. `cfg.label_names`, a `{label: name}` map, names the classes in the confusion matrix and metrics; None means the gull `bu.ind2name`. The spoonbill run sets it, because the spoonbill codes differ. `cfg.augment` False turns the augmentation off. `cfg.split_by` set to `fix` keeps every fix whole, in train or in valid (`split_by_fix`, with scikit-learn `StratifiedGroupKFold`). A spoonbill fix holds up to 10 segments, and a split per segment puts most valid segments next to train segments of the same fix. `exps/eval_labeled.py` does not know `split_by` yet.
-- `scripts/ss_cluster_behavior.py`: Semi-supervised clustering script.
-- `scripts/batch_train_cluster.py`: Runs batch experiments for training and clustering. Combines `scripts/train.py` and `scripts/ss_cluster_behavior.py` to execute multiple experiments simultaneously.
-- `scripts/gcd_pipeline.py`: GCD pipeline.
-- `scripts/train_self_distill.py`: Training script for self-distillation. Currently, the InfoNCE model is not trained due to imbalanced data (9 classes cause false negatives in the InfoNCE loss). Instead, use DINO loss (positive pairs only) and change the augmentation to rotations of IMU data (now available as `RandomRotation3D`, see the Data augmentation section below).
+- `scripts/batch_train_supervised.py`: the training script. Several runs in one
+  go, one per entry of `experiments`, each overriding `base_config`. Writes
+  `<exp>_best.pth` (the epoch with the best valid accuracy), `app_loss_acc.txt`,
+  and the confusion matrices and per-class metrics of train and valid in
+  `save_path/failed/<exp>_<data stem>/`. The `Combined` row of
+  `per_class_metrics_*.csv` equals accuracy (`status.md`, How the numbers are
+  measured). Refuses an experiment number that already has results, unless
+  `overwrite`. Config switches:
+  - `add_magnitudes`: 7 input channels; must match
+    `model.parameters.in_channels`.
+  - `augment`: False turns the augmentation off. Which one is the `transforms`
+    object in `main()`; it sits on the train loader only.
+  - `split_file`: borrow another data file's valid split, so two runs on two
+    data files are scored on the same bursts.
+  - `split_seed`: the seed of the split alone (default `seed`), so the split
+    holds while `seed` moves the training.
+  - `split_by`: `fix` keeps every fix whole, in train or in valid
+    (`split_by_fix`, scikit-learn `StratifiedGroupKFold`).
+    `exps/eval_labeled.py` does not know it yet.
+  - `save_final`: also keep the last epoch, `<exp>_<epoch>.pth`.
+  - `label_names`: class names for other label codes, as for the spoonbills;
+    None means the gull names.
+- `scripts/train.py`: the older supervised training script.
+- `scripts/train_sup_contrastive.py`: supervised classification plus a
+  supervised contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the
+  model's features; no augmentation by default. Holds the SimGCD-style
+  `DINOHead` and `DistillLoss` helpers, unused in the default run.
+- `scripts/train_self_distill.py`: self-distillation with the DINO loss
+  (positive pairs only). InfoNCE is not used: with 9 classes it makes false
+  negatives.
+- `scripts/ss_cluster_behavior.py`: semi-supervised clustering.
+  `scripts/batch_train_cluster.py` runs `scripts/train.py` and it for several
+  experiments. `scripts/gcd_pipeline.py`: the GCD (generalized category
+  discovery) pipeline, after SimGCD.
+- `scripts/classify_birds.py`: classify the bursts of given devices and time
+  ranges with `BirdModel`; older, configured with `argparse`. No docstring; read
+  from the code.
+- Older: `exps/cluster_behavior.py` (unsupervised clustering), `exps/exps1.py`
+  (inference and metrics).
 
-**Older scripts**:
+#### Pretraining and foundation models
 
-- `exps/cluster_behavior.py`: Unsupervised clustering.
-- `exps/exps1`: Run inference and save the metrics.
+For the pretraining TODO in `status.md`. Only `exps/simGCD.py` has a docstring;
+the rest is read from the code.
+
+- `scripts/main_pretrain.py`: pretrain `MaskedAutoencoderViT` (MAE).
+  `scripts/main_finetune.py`: fine-tune `TransformerEncoderMAE`.
+  `scripts/pretrain_memory_load.py` and `scripts/finetune_memory_load.py` do the
+  same, reading the CSV files into memory.
+- `scripts/moment_pretrain.py`, `scripts/moment_finetune.py`: pretrain and
+  fine-tune MOMENT.
+- `exps/moment_test.py`: MOMENT features of the bursts, and a classifier on
+  them. `exps/chronos2.py`: Chronos-2 features of the bursts, plotted. Neither
+  has a recorded result.
+- `exps/simGCD.py`: self-supervised training without negative pairs (DINO and
+  similar).
+- `exps/distribution_metrics.py`: overlap measures between two point clouds
+  (Gaussian, convex hull, raster, kernel density).
 
 #### Data augmentation
 
-`behavior/data_augmentation.py` holds the time-series augmentations, each a
-callable on a `(T, C)` tensor (T=20, C=4: IMU x, y, z and GPS 2D speed). They
-run per sample in `BirdDataset.__getitem__` before the channel-first transpose,
-so a transform receives `(20, 4)`. Most skip the GPS channel (column 3).
+`behavior/data_augmentation.py`. Each transform has a per-sample form, on one
+`(T, C)` burst (T=20, C=4: IMU x, y, z and GPS speed) in
+`BirdDataset.__getitem__`, and a batched form, on a channel-first `(N, C, T)`
+batch on the GPU, used by `bd.GpuBatches` and
+`scripts/batch_train_supervised.py`. Most leave the GPS channel (column 3)
+alone.
 
-- `RandomJitter`, `RandomScaling`: element-wise Gaussian noise / per-channel scaling.
-- `TimeWarp`, `MagnitudeWarp`: time- and magnitude-domain warping (torch and numpy versions).
-- `RandomRotation3D`: full random 3D rotation (SO(3)) of the three IMU
-  acceleration channels via `random_rotation_matrix` (uniform Haar measure from a
-  normalized-Gaussian unit quaternion); GPS untouched, per-timestep acceleration
-  magnitude preserved.
+- `RandomJitter`, `RandomScaling` (and `Batch*`): Gaussian noise per element,
+  scaling per channel.
+- `TimeWarp`, `MagnitudeWarp` (and `Batch*`): warping in time and in magnitude.
+- `RandomRotation3D`, `BatchRandomRotation3D`: a random 3D rotation of the three
+  acceleration channels (`random_rotation_matrix`, a normalized Gaussian
+  quaternion, uniform over rotations). The GPS speed, and the length of the
+  acceleration at each time step, are unchanged.
 
-Each also has a batched form — `BatchRandomJitter`, `BatchRandomScaling`,
-`BatchRandomRotation3D`, `BatchTimeWarp`, `BatchMagnitudeWarp` — taking a whole
-channel-first `(N, C, T)` batch on the GPU instead of one `(T, C)` sample, with
-the same semantics (channel 3 handled identically). They are what
-`data.GpuBatches` and `scripts/batch_train_supervised.py` use; running the
-augmentation once per batch rather than once per sample is worth ~10x an epoch.
-The two forms are not interchangeable — the shape differs.
+What each costs or buys, and why augmentation must stay on the train data:
+`lesson_learned.md`, Model and training and Engineering pitfalls.
 
-Which augmentation to use, and what each one costs or buys, is in
-[docs/lesson_learned.md](lesson_learned.md). Note the augmentation must be
-attached to the **train data only**: `prepare_train_valid_dataset` would
-otherwise apply the same transform object to the eval set too.
+#### Data scripts
 
-#### Data Scripts / Helper Scripts
+- `scripts/data/prepare_labeled_data.py`: runs the pipeline of
+  `behavior/data_processing.py` (Labeled data, above).
+- `scripts/data/get_data_gull_20.py`, `scripts/data/get_data_gull_cp_60.py`:
+  download the unlabeled data (Unlabeled data, above).
+- `scripts/data/prepare_spoonbill_data.py`: writes the spoonbill training file
+  from both spoonbill datasets, in the `starts.csv` format. Cuts segments with
+  `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones.
+  Prints segments per label and bird, and reads the file back with
+  `load_csv_pandas`. Refuses to overwrite an existing file. `load_sources`
+  reads the three labeled files with labels as codes; `exps/eval_spoonbill.py`
+  reuses it. See Spoonbill data, Training file.
+- `scripts/data/bird_behavior_app_data.py`: app data (IMU, GPS, behaviour
+  classes by inference). Set `exp` and `model_parameters.in_channels` together
+  (7 for exp197, 4 otherwise); one output file per model,
+  `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data`
+  gives each burst the nearest GPS fix within 2 s (`docs/methods.md`, Ornitela
+  data).
+- `scripts/data/merge_simon_data.py`: app data from Simon's calibrated IMU data
+  of Rose, with behaviour classes by inference. GPS is matched and x and y are
+  swapped as in `prepare_calibrated_app_data`.
+- `behavior/data_processing.py::create_five_balanced_data_and_unbalanced`: five
+  random balanced and unbalanced datasets from one data file.
+- `exps/birdvis_query.py`: a query file to import directly into the birdvis
+  tool.
+- `exps/check_imu_calibration.py`: checks `behavior/data.py::acc_calibrate`
+  against the R output. Reads the raw `acc_x, acc_y, acc_z` of
+  `all_devices_calibrated.csv` and the R parameters of
+  `calibration_per_device_auto.csv`, both in `~/Downloads/bird/data/simon`, and
+  prints per device the Python and R scales, and the scale with `q_static` 0.10
+  against 0.85.
 
-- `scripts/data/prepare_labeled_data.py`: Script to run the pipeline in `data_processing.py`. See the description above.
-- `scripts/data/{get_data_gull_cp_60.py,get_data_gull_20.py}`: Script to retrieve unlabeled data. See the description above.
-- `scripts/data/prepare_spoonbill_data.py`: Write the spoonbill training file from both spoonbill datasets, in the `starts.csv` format. Cuts segments with `exps/spoonbill_data_stats.py::cut_segments` and keeps only complete ones. Prints segments per label and bird, and reads the file back with `load_csv_pandas`. Refuses to overwrite an existing file. `load_sources` reads the three labeled files with labels as codes; `exps/eval_spoonbill.py` reuses it. See Spoonbill data, Training file.
-- `scripts/data/bird_behavior_app_data.py`: Generate app data (IMU, GPS, behavior classes by inference). Set `exp` and `model_parameters.in_channels` together (7 for exp197, 4 otherwise); output is one file per model, `<input stem>_<exp>.csv`. For Ornitela files, `prepare_calibrated_app_data` gives each burst the nearest GPS fix within 2 s (rules in [docs/methods.md](methods.md)).
-- `scripts/data/merge_simon_data.py`: Generate app data (IMU, GPS, behavior classes by inference). It merge Simon calibrated IMU data of Rose and behavior classes. GPS is matched and x and y are swapped as in `prepare_calibrated_app_data`.
-- `exps/birdvis_query.py`: Generate a query file to import directly into the birdvis tool.
-- `exps/check_imu_calibration.py`: Check `data.py::acc_calibrate` against the R output. Reads the raw `acc_x, acc_y, acc_z` of `all_devices_calibrated.csv` and the R parameters of `calibration_per_device_auto.csv`, and prints per device the Python and R scales, and the scale with `q_static` 0.10 against 0.85. They are in `~/Downloads/bird/data/simon`.
+#### Analysis
 
-#### Data
+- `exps/eval_labeled.py`: compares models on the labeled valid split: accuracy,
+  average precision and loss on train and valid, pooled and per-class F1 (plain
+  and class-balanced), and valid accuracy with the tag turned. Recomputes from
+  the checkpoints with the functions training uses, so the numbers match
+  `app_loss_acc.txt` and the training CSVs. Config: `model_exps`, `in_channels`
+  (7 for the magnitude models), `checkpoints` (for example `<exp>_4000.pth`),
+  and `split_file`, as in training. Prints markdown tables for `status.md`, with
+  the valid bursts per class.
+- `exps/eval_unlabeled.py`: compares models on unlabeled data in the app format,
+  with four label-free checks: speed conflict, place conflict, unseen flip and
+  rotation flip (defined in `status.md`). Runs each model in `model_exps`
+  itself; `in_channels` and `checkpoints` as above. Prints a table and the
+  predicted class distribution, and writes a CSV of the lowest-confidence
+  bursts that fail a check, to open in the app.
+- `exps/label_cooccurrence.py`: which behaviours follow one another inside a
+  fix, from `combined.csv`: the unordered co-occurrence and the adjacent
+  transitions, symmetrised. Writes `label_transitions.csv`, which
+  `exps/eval_unlabeled.py` reads.
+- `exps/find_label_noise.py`: flags bursts whose GPS speed contradicts their
+  label's definition in Table S1 of the Judy supplement
+  (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`). Prints each
+  rule's threshold beside the speed distribution of its class, a model's
+  disagreement beside its base rate, and the flags per device and day. Writes
+  `label_noise_candidates.csv`, keyed by `device_id, datetime, start_index`.
+- `exps/eval_spoonbill.py`: compares the spoonbill runs with the two papers
+  (How the papers score, above). Pools the 14 labels into each paper's classes
+  and prints F1 (0-1) per class, mean and range over the seeds of each arm in
+  `arms`, beside the paper values. Scores on records, as the papers do (1 s
+  windows from the first record of each valid fix), and on the valid segments.
+  Reads `<exp>_4000.pth`, after checking that each best checkpoint reproduces
+  its `app_loss_acc.txt`.
+- `exps/spoonbill_data_stats.py`: counts the spoonbill data: records, fixes and
+  data quality per file, the 20 Hz check, and segments per behaviour and per
+  bird, with the bouts too short for one segment. Prints only; tables in
+  Spoonbill data, above.
+- `exps/speed_reliance.py`: how much a model relies on GPS speed. Keeps each
+  burst's acceleration and changes only its speed: one burst swept from 0 to 20
+  m/s, one class at 0 and at 20 m/s, all speeds shuffled between bursts, and all
+  speeds set to 0. Builds the input through `bd.BirdDataset`, as training does,
+  and loads models with `exps/eval_labeled.py`.
+- `exps/magnitude_features_prior.py`: a random forest on burst summaries in
+  place of the network, to test the magnitude channels without training.
+- `exps/recompute_doc_numbers.py`: recomputes numbers the docs quote that no
+  other script prints, one check each: the split shift when the data file
+  changes, GPS speed per class, the ExFlap valid bursts that flip to Flap, the
+  Ornitela GPS fixes before and after the nearest-fix rule, and the bursts and
+  rows the app files drop and clip. `checks` picks which to run. Prints only;
+  the results are in its docstring.
+- `exps/inspect_unlabeled_data.py`: builds and inspects the 20-length data.
+  `curate_data` applies rules 7-9 of `docs/methods.md` and the Parquet files are
+  written per device; `plot_hist_scatter_plots` and `write_stats` write the
+  per-device histograms, scatter plots and min and max to
+  `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20`. Also holds commented-out
+  one-offs. Run by editing the call blocks.
+- `exps/panda_csv_python_read_data_in_memory.py`: pandas, the `csv` module and
+  pure Python reading large CSV files into memory (Reading large CSV files,
+  above).
 
-- `create_five_balanced_data_and_unbalanced`: Create five random balanced and unbalanced datasets from the given data file and save them to the specified path.
+#### Checks in the tests and the code
 
-#### Analysis and Debugging
-
-- `exps/eval_labeled.py`: Compare models on the **labeled** split: train/valid accuracy, valid F1 plain and class-balanced, per-class F1 side by side with a flag on any class moving by `flag_delta`, and an orientation-robustness sweep. Reports accuracy, average precision and loss on both splits. Recomputes from the checkpoints and reuses `behavior.utils.per_class_statistics{,_balanced}`, so every number matches the CSVs and `app_loss_acc.txt` that training writes. Replaces the former `compare_per_class_metrics.py` and `eval_rotation_robustness.py`. Prints markdown ready to paste into [docs/lesson_learned.md](lesson_learned.md), and lists valid bursts per class so a rare-class swing can be read for what it is. The `in_channels` config map (`{"197": 7}`) says which checkpoints take the 7-channel input, so models of different width compare in one table. `split_file` mirrors the training option of the same name, rebuilding the valid split a run borrowed from another data file, which is what makes two runs on two data files comparable at all. `checkpoints` maps a run to a checkpoint file other than `<exp>_best.pth`, such as a fixed-epoch `<exp>_4000.pth`.
-- `exps/eval_unlabeled.py`: Compare models on **unlabeled** data (the app CSV format), with four label-free checks: `speed_conflict` (predicted class vs GPS speed, reusing the `find_label_noise.py` rules), `place_conflict` (land/sea class vs `global_land_mask` position, coastal strip excluded), `unseen_flip` (prediction changes between consecutive bursts of one fix, counting only transitions never seen in the labeled data) and `rotation_flip` (prediction changes under random SO(3) rotation). Runs every model in `model_exps` itself, so the file's own prediction columns are ignored and no per-model file needs regenerating; `in_channels` says which take the 7-channel input. Prints a comparison table and the predicted class distribution, and writes a lowest-confidence triage CSV to open in the app. `checkpoints` picks a checkpoint other than `<exp>_best.pth`, as in `exps/eval_labeled.py`.
-- `exps/label_cooccurrence.py`: Measure which behaviours follow one another inside one (device, datetime) fix, from `combined.csv`. Reports both the unordered co-occurrence (the number `test_labels_comes_together` recorded) and the adjacent transitions, symmetrised, and writes `label_transitions.csv`. Only 10 of 36 possible pairs ever occur. Used by `exps/eval_unlabeled.py` so that a normal behaviour change is not counted as model instability. Validates its fast groupby against `data_processing.get_label_ranges_per_dt`.
-- `exps/find_label_noise.py`: Flag bursts whose **GPS speed** contradicts their own label's definition in Table S1 of the Judy supplement (`/home/fatemeh/Downloads/bird/papers/Judy_features_supp1.pdf`) — a bird labelled as sitting still cannot be moving at 13 m/s. Each rule quotes the table and prints its threshold beside the speed distribution of the class it tests. Accelerometer-shape rules were tried and removed as unreliable (see [docs/lesson_learned.md](lesson_learned.md)). Reports a rotation-augmented model's prediction as a second opinion — never as a flag, and alongside its base disagreement rate — and counts flags per device and day so a device/GPS fault is not read as many annotation errors. Writes `label_noise_candidates.csv` keyed by `device_id, datetime, start_index`.
-- `exps/eval_spoonbill.py`: Compare the spoonbill models with the two spoonbill papers (How the papers score, above). Pools our 14 labels into the classes of each paper and prints F1 (0 to 1) per class, mean and range over the runs of each arm in `arms`, beside the paper values. Scores twice: on records, as the papers do (each valid fix cut into 1 s windows from its first record, every record scored against its own label), and on the valid segments of training. Rebuilds the split with `split_by_fix` and checks each run's best checkpoint reproduces its `app_loss_acc.txt`; reads `<exp>_4000.pth`. Also prints how many valid segments of the random split of exp205 share a fix with train, and two valid windows that hold for-intake and another behaviour, with the model's answer. A window is not a segment: a segment starts where a behaviour starts and holds one behaviour; a window starts every 20 records from the start of the fix, whatever the labels. So the 79 valid fixes give 505 segments but 602 windows, 133 of them with two behaviours.
-- `exps/spoonbill_data_stats.py`: Count the spoonbill data (`/home/fatemeh/Downloads/bird/data/spoonbill`): records, fixes and data quality per file, the 20 Hz check against the video clock, and 20-record segments per behaviour and per bird, cut as `data_processing.slice_from_first_label` cuts `starts.csv`, with the bouts too short for one and the share of records used. Checks that the soaring file is a copy of migration records. Prints only. Tables in Spoonbill data, above.
-- `exps/speed_reliance.py`: Measure how much a model relies on **GPS speed**, to compare models trained on `starts.csv` and `starts_clean.csv`. Keeps each burst's acceleration and changes only its speed: one burst with the speed swept from 0 to 20 m/s, one class at 0 and at 20 m/s, all speeds shuffled between bursts, and all speeds set to 0. Reports the class probabilities and the share of bursts whose class changes. Builds the input through `bd.BirdDataset`, so the speed scaling and magnitude channels are those of training, and loads models with `exps/eval_labeled.py`.
-- `exps/recompute_doc_numbers.py`: Recompute numbers the docs quote that no other script prints, one check each: the split shift when the data file changes, GPS speed per class, the ExFlap valid bursts that flip to Flap, the Ornitela GPS fixes before and after the nearest-fix rule, and the bursts and rows the app files drop and clip. `checks` picks which to run. Prints only; the results are in its docstring.
-- `test_labels_comes_together`: Check which labels appear together. This is obtained from `get_label_ranges` and `write_all_start_end_inds` by calculating the index ranges in which labels appear (device, time, label: start-end, ...).
-- `identify_mistakes`: Identify labeling mistakes by finding data points that are labeled differently. They are corrected in `correct_mistakes`, which is part of the data preparation pipeline.
-- `test_find_index_jumps`: Identify discontinuities in the indices. Determine whether the signal contains labeled segments separated by unlabeled intervals.
-- `test_issue_previous_m_data_format`: Check how impactful the bug is in the m_data format. The impact is not significant.
-- `check_batches`: Check that each batch with glen=20 meets certain conditions, such as consecutively increasing indices, unique values in columns 0, 1, 3, and 7, and unique batches.
-- `exps/panda_csv_python_read_data_in_memory`: Check the performance of pandas, the CSV library, and pure Python when reading large data into memory.
-- `exps/inspect_unlabeled_data.py`: Build and inspect the unlabeled 20-length dataset. `write_only_gimu_float32_norm_gps_batch` turns a device's CSV shards into one Parquet file of flat float32 `20 x 4` bursts after `curate_data` (drop GPS 2D speed >= `30 m/s`, clip IMU to [-2, 2], divide GPS by `22.3012351755624`); `plot_hist_scatter_plots` then writes, per device, a histogram of each channel and two scatter plots (imu_x vs GPS speed, imu_y vs imu_z), and `write_stats` the per-device min/max to `stats.txt`. The last run is in `/home/fatemeh/Downloads/bird/data/ssl/hist_ssl20` and is why the curation exists: raw GPS 2D speed reaches `521 m/s` and raw IMU `15.75 g`. Also holds commented-out one-offs for a min/max scan, line counts per device shard, and per-class counts from model inference. Run by editing the call blocks, not by a CLI.
+- `tests/test_data_processing.py::test_labels_comes_together`: which labels
+  appear together, from the index ranges of each label per device and time
+  (`get_label_ranges`, `write_all_start_end_inds`).
+- `behavior/data_processing.py::identify_mistakes`: the same data labeled
+  differently in two datasets. `correct_mistakes`, part of the pipeline, fixes
+  them.
+- `tests/test_data.py::test_find_index_jumps`: gaps in the indices: labeled
+  stretches of a signal with unlabeled ones between them.
+- `tests/test_data_processing.py::test_issue_previous_m_data_format`: how much
+  the old m_data bug matters; not much.
+- `behavior/data_processing.py::check_batches`: each burst of 20 records has
+  consecutive indices, one value in columns 0, 1, 3 and 7, and no duplicate.
 
 ## List of Functions
 
-- `data.py::GpuBatches`: Keeps a whole `BirdDataset` on the GPU and yields shuffled batches, applying a batched transform per batch. A drop-in for `DataLoader` in the training loop (`train_one_epoch` only iterates its loader), avoiding the per-sample `from_numpy`/transpose/collate work.
-- `data.py::add_magnitude_features`: `N x L x 4 -> N x L x 7`, appending `mag`
-  (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag` (`||a_t - a_{t-1}||`,
-  edge-replicated at `t=0`). All three are unchanged by rotation, so they are
-  computed once at load time and `RandomRotation3D` needs no change.
-- `data.py::burst_keys`: one `(device id, datetime text, start index)` per burst, in
-  the load order of `load_csv_pandas`. Names a burst so a split can be carried from
-  one data file to another, or two files compared burst by burst. The timestamp of
-  `load_csv_pandas` cannot do this: under pandas 3 it is 1000x too small.
-- `data.py::create_balanced_data`: Creates a balanced dataset by sampling an equal number of groups from each specified class.
-- `data.py::acc_calibrate`: Estimate the IMU calibration of one device from its raw data, as `acc_g = (raw - b) / s` per axis. Translated from the R code of Eldar Rakhimberdiev, sent by email with three options, worst to best: divide by 1058.8 (the mean of 5 Ornitela tags), one scale per device, an offset and a scale per axis. The R files and the email's plot are in `~/Downloads/bird/screenshots` (`calibration_functions 1.R`, `calibration_example 1.R`, `imu_calibration_plot.png`). The R functions become `detect_static`, `orientation_coverage`, `fit_scale_only`, `fit_diag_offset_bounded` and `acc_apply`. Left out: the multi-device mode (`id_col`; loop over devices instead) and `acc_apply_calibration`, a copy of `acc_apply`. `get_data` calls it through `estimate_calibration` when the database has no calibration values. Rules in [docs/methods.md](methods.md), rule 1.
-- `utils::stratified_split`: Class-wise data split.
-- `utils::equal_dataframe`: Compare two data frames.
-- `map.py`: Visualize a map from latitude and longitude.
+- `behavior/data.py::GpuBatches`: keeps a whole `BirdDataset` on the GPU and
+  yields shuffled batches, applying a batched transform per batch. Used in place
+  of a `DataLoader`: `train_one_epoch` only iterates its loader.
+- `behavior/data.py::add_magnitude_features`: `N x L x 4 -> N x L x 7`,
+  appending `mag` (`||a||`), `dyn_mag` (`||a - mean_t a||`) and `jerk_mag`
+  (`||a_t - a_{t-1}||`, edge-replicated at `t=0`).
+- `behavior/data.py::burst_keys`: one `(device id, datetime text, start index)`
+  per burst, in the load order of `load_csv_pandas`. Names a burst so a split
+  can be carried from one data file to another. The timestamp of
+  `load_csv_pandas` cannot do this: under pandas 3 it is 1000 times too small.
+- `behavior/data.py::create_balanced_data`: a balanced dataset, an equal number
+  of bursts sampled from each class.
+- `behavior/data.py::acc_calibrate`: estimates the IMU calibration of one device
+  from its raw data, `acc_g = (raw - b) / s` per axis. Translated from Eldar
+  Rakhimberdiev's R code, which came by email with three options, worst to best:
+  divide by 1058.8 (the mean of 5 Ornitela tags), one scale per device, an
+  offset and a scale per axis. The R files and the email's plot are in
+  `~/Downloads/bird/screenshots` (`calibration_functions 1.R`,
+  `calibration_example 1.R`, `imu_calibration_plot.png`). The R functions
+  become `detect_static`, `orientation_coverage`, `fit_scale_only`,
+  `fit_diag_offset_bounded` and `acc_apply`; the multi-device mode and
+  `acc_apply_calibration`, a copy of `acc_apply`, are left out. `get_data` calls
+  it through `estimate_calibration` when the database has no calibration values.
+  Rules in `docs/methods.md`, rule 1.
+- `behavior/utils.py::stratified_split`: the class-wise data split.
+- `behavior/utils.py::equal_dataframe`: compares two data frames.
+- `behavior/map.py`: a map from latitude and longitude.
