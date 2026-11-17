@@ -31,9 +31,13 @@ Every number in the talk comes from one of these. Rerun the script to refresh.
 
 | slide | source |
 |---|---|
-| accuracy, AP, loss, per-class F1, robustness by orientation | `exps/eval_labeled.py` (`model_exps: [194, 195]` for the talk's orientation table, `[194, 196]` for per-class) |
-| unlabelled comparison, confidence, impossible speed/place/rotation flip | `exps/eval_unlabeled.py` (`model_exps: [194, 196]`) |
-| bad labels, 26 of 4,338 | `exps/find_label_noise.py` |
+| accuracy, AP, loss, per-class F1, robustness by orientation | `exps/eval_labeled.py` (`model_exps: [194, 195]` for the talk's orientation table, `[194, 196, 197]` for per-class) |
+| per-class F1 of exp192 against exp194 (pecking 0.79 → 0.94) | `per_class_metrics_valid.csv` of each run, written by `scripts/batch_train_supervised.py` |
+| unlabelled comparison, confidence, impossible speed/place/rotation flip, agreement | `exps/eval_unlabeled.py` (`model_exps: [194, 196, 197]`; the agreement printed is of the first two) |
+| confidence under rotation, 0.96 → 0.74 | `exps/recompute_doc_numbers.py`, check `confidence_under_rotation` |
+| 10 of 36 behaviour pairs | `exps/label_cooccurrence.py` |
+| bad labels, 26 of 4,338, per class and per device | `exps/find_label_noise.py` |
+| spoonbill segments, birds, F1 against the papers | `exps/spoonbill_data_stats.py`, `exps/eval_spoonbill.py` |
 | training time 47 min → 5 min | wall clock in `~/Downloads/bird/results/tensorboard/{195,196}.txt` |
 | valid/train accuracy per run | `~/Downloads/bird/results/failed/<exp>_starts/app_loss_acc.txt` |
 

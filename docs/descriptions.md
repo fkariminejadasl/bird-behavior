@@ -677,8 +677,9 @@ What each costs or buys, and why augmentation must stay on the train data:
   other script prints, one check each: the split shift when the data file
   changes, GPS speed per class, the ExFlap valid bursts that flip to Flap, the
   Ornitela GPS fixes before and after the nearest-fix rule, and the bursts and
-  rows the app files drop and clip. `checks` picks which to run. Prints only;
-  the results are in its docstring.
+  rows the app files drop and clip, and exp194's confidence when the tag is
+  turned. `checks` picks which to run. Prints only; the results are in its
+  docstring.
 - `exps/inspect_unlabeled_data.py`: builds and inspects the 20-length data.
   `curate_data` applies rules 7-9 of `docs/methods.md` and the Parquet files are
   written per device; `plot_hist_scatter_plots` and `write_stats` write the

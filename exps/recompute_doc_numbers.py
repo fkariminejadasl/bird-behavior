@@ -25,8 +25,12 @@ them. Results of the last run, 2026-11-16:
    `rose_data_old.csv`, the app file of June, 6 bursts of 20 samples are at 30
    m/s or faster, and 4,621 rows have an IMU value beyond 2 g. In
    `rose_data.csv`, now: 6 and 4,622.
+6. `confidence_under_rotation`: exp194, trained without rotation, on its 438
+   valid bursts. Unrotated: 96.35% accuracy, mean softmax confidence 0.964.
+   Turned at random (the 20 rotations of `exps/eval_labeled.py`): 13.05%
+   accuracy, mean confidence 0.735.
 
-Checks 1 and 3 need the GPU: the split is drawn by a generator on the device,
+Checks 1, 3 and 6 need the GPU: the split is drawn by a generator on the device,
 and a CPU split is a different one (`exps/eval_labeled.py::build_splits`).
 Check 4 reads a 2.7 GB file and writes the new app file to a temporary
 directory, deleted at the end; it takes about 2 minutes. Nothing else is
@@ -214,12 +218,48 @@ def app_file_limits(cfg):
         )
 
 
+@torch.no_grad()
+def confidence_under_rotation(cfg):
+    """Accuracy and mean softmax confidence, unrotated and turned at random."""
+    run_cfg = OmegaConf.merge(
+        cfg,
+        {
+            "data_file": cfg.data_dir + "starts.csv",
+            "in_channels": {},
+            "checkpoints": {},
+        },
+    )
+    x, y = el.build_splits(run_cfg, gpu(), in_channels=4)["valid"]
+    model = el.load_model(run_cfg, cfg.confidence_run, gpu())
+
+    def score(xx):
+        prob = torch.softmax(model(xx), dim=1)
+        acc = (prob.argmax(1) == y).float().mean().item() * 100
+        return acc, prob.max(1).values.mean().item()
+
+    acc, conf = score(x)
+    print(f"exp{cfg.confidence_run}, {len(y)} valid bursts")
+    print(f"  unrotated: accuracy {acc:.2f}%, mean confidence {conf:.3f}")
+    torch.manual_seed(0)  # the same 20 rotations as exps/eval_labeled.py
+    mats = [
+        el.random_rotation_matrix(device=gpu(), dtype=x.dtype) for _ in range(cfg.n_so3)
+    ]
+    scores = [score(el.apply_rot(x, m)) for m in mats]
+    acc = sum(s[0] for s in scores) / len(scores)
+    conf = sum(s[1] for s in scores) / len(scores)
+    print(
+        f"  turned at random, mean of {cfg.n_so3}: accuracy {acc:.2f}%, "
+        f"mean confidence {conf:.3f}"
+    )
+
+
 CHECKS = {
     "split_shift": split_shift,
     "class_speeds": class_speeds,
     "exflap_flips": exflap_flips,
     "ornitela_nearest_fix": ornitela_nearest_fix,
     "app_file_limits": app_file_limits,
+    "confidence_under_rotation": confidence_under_rotation,
 }
 
 
@@ -241,5 +281,7 @@ if __name__ == "__main__":
         "train_per": 0.9,
         "seed": 32984,
         "gps_norm": 22.3012351755624,
+        "confidence_run": 194,  # trained without rotation
+        "n_so3": 20,  # random rotations, as in exps/eval_labeled.py
     }
     main(OmegaConf.create(config))

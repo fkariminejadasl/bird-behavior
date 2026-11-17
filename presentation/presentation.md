@@ -7,7 +7,7 @@ size: 16:9
 
 <!-- Slides. See README.md for where the figures come from and how to remake
 them. Render with Marp: see "How to present this" at the end of README.md.
-exp194 no augmentation (96.4), exp195/exp196 rotation (92.2/92.7, the same
+Valid accuracy, %: exp194 no augmentation (96.4), exp195/exp196 rotation (92.2/92.7, the same
 config rerun, difference is noise), exp197 rotation + magnitude channels (94.5).
 All BirdModelSmallDilated on starts.csv, seed 32984. Keep image height at 400;
 taller pushes the caption off the slide. -->
@@ -35,8 +35,9 @@ Nine behaviours. 1 second, 20 samples, 3 acceleration axes + GPS speed.
 - Three acceleration axes and one GPS speed, 20 samples each
 - A small stack of convolutions, widened to span the whole second
   *(dilated 1-D CNN, receptive field 25)*
-- **5,129 parameters.** Smaller than the plain version it replaced, and better
-- Context beat capacity: a wing beat is only visible if you see the whole second
+- **5,129 parameters**, fewer than before, yet 96.4% vs 94.8% accuracy
+- Seeing the whole second helps pecking most: F1 0.79 → 0.94
+  *(exp192 → exp194, scripts/batch_train_supervised.py)*
 
 ---
 
@@ -57,7 +58,7 @@ same way on every bird**, so the standard test split cannot see any of this.
 
 ## What happens on a differently mounted tag: rotation augmentation
 
-| test data | no augmentation | with rotation |
+| test bursts, accuracy % | no augmentation | with rotation |
 |---|---|---|
 | normal | **96.4** | 92.2 |
 | x/y axes swapped *(Ornitela convention)* | 71.5 | **90.4** |
@@ -65,7 +66,7 @@ same way on every bird**, so the standard test split cannot see any of this.
 | any random orientation | 13.1 | **90.7** |
 
 Not merely wrong — **confidently** wrong. 2% is far below the 11% you would get
-by guessing.
+by guessing. *(exp194, exp195, 438 test bursts, exps/eval_labeled.py)*
 
 ---
 
@@ -74,11 +75,11 @@ by guessing.
 Train on the same bursts **rotated to every possible orientation**
 *(random SO(3) rotation of the acceleration axes)*.
 
-- Costs **4 points** on the birds we already handle: 96.4 → 92.2
-- Holds **~91% at any mounting orientation**, instead of collapsing
-- The cost lands on the ground behaviours — manuver, walking and pecking — which are
-  told apart by the *direction* of small movements relative to gravity, exactly
-  what rotating destroys (`exps/eval_labeled.py`)
+- Costs **4 points** of accuracy on the birds we have: 96.4% → 92.2%
+- Holds **~91% accuracy at any mounting orientation**, instead of collapsing
+- The cost lands on walking and pecking *(F1 0.97 → 0.79, 0.94 → 0.68)*,
+  told apart by the *direction* of small movements relative to gravity,
+  exactly what rotating destroys *(exp194 → exp195, exps/eval_labeled.py)*
 
 Worth it whenever the model will meet a tag it was not trained on.
 
@@ -92,9 +93,11 @@ bird is accelerating, how much it moves once gravity is subtracted, and how
 abruptly that changes *(rotation-invariant magnitudes)*.
 
 - Costs **300 parameters**: 5,129 → 5,429
-- **92.7 → 94.5** on normal data, **92.0 → 93.7** at any orientation
-- Rare behaviours recover most: class-balanced score **0.83 → 0.90**
+- Accuracy **92.7% → 94.5%**; at any orientation **92.0% → 93.7%**
+- Rare behaviours recover most: class-balanced F1 **0.83 → 0.90**
 - On a new bird it changes its answer **3x less often** when the tag is turned
+
+*(exp196 → exp197; exps/eval_labeled.py, exps/eval_unlabeled.py)*
 
 <!-- All five numbers are one A/B pair, same seed and split. -->
 
@@ -113,14 +116,14 @@ It does not work.
 
 ## Confidence does not notice the model failing
 
-On the tilted data where accuracy fell from 96% to 13%:
+Turned at random, exp194's accuracy fell from 96% to 13%:
 
-- confidence fell only from **0.96 to 0.74**
-- 0.74 looks like a perfectly healthy model
+- its mean confidence fell only from **0.96 to 0.74**
+- 0.74 looks like a healthy model *(exps/recompute_doc_numbers.py)*
 
 On 115,266 unlabelled bursts from a new bird, confidence rates the two models
 **0.89 vs 0.91** — indistinguishable, while one makes 16x more impossible
-predictions.
+predictions *(exps/eval_unlabeled.py)*.
 
 Confidence is useful for **ranking** which bursts to look at, never for asking
 whether the model is healthy.
@@ -134,20 +137,21 @@ independently.
 
 - **Impossible speed** — "sitting still" at 13 m/s
 - **Impossible place** — "walking" a kilometre out to sea *(land/sea mask)*
-- **Impossible flicker** — behaviour changing every second within one recording
+- **Impossible flicker** — behaviour changing every second in one GPS fix
 - **Rotation flip** — a different answer when the tag is rotated
 
 For flicker, "impossible" has to be learned: gulls really do walk, peck and walk
 again. From the labelled data, only **10 of 36** behaviour pairs ever follow one
-another *(label co-occurrence within a fix)*. Everything else counts.
+another within a fix. Everything else counts
+*(label co-occurrence, exps/label_cooccurrence.py)*.
 
 ---
 
 ## The two models on a new bird, no labels
 
-115,266 bursts, device 6004
+115,266 bursts, device 6004: exp194, 196, 197 *(exps/eval_unlabeled.py)*
 
-| | confidence | impossible speed | impossible place | impossible flicker | rotation flip |
+| | mean confidence, 0–1 | impossible speed | impossible place | impossible flicker | rotation flip |
 |---|---|---|---|---|---|
 | no augmentation | 0.89 | 1.45% | 1.18% | 6.7% | 82.8% |
 | with rotation | 0.91 | **0.09%** | 1.45% | 4.9% | 5.4% |
@@ -160,12 +164,12 @@ another *(label co-occurrence within a fix)*. Everything else counts.
 
 The same speed rule, pointed at the *labels* instead of the predictions.
 
-- 10: SitStand, 5:Pecking, 11:TerLoco wrong
+- 10 SitStand, 11 TerLoco, 5 Pecking *(exps/find_label_noise.py)*
 - **26 of 4,338 bursts** contradict their own label
 - Clearest: a bird labelled "sitting still" moving at **13.7 m/s**
-- 16 of the 26 are one device in one 20-minute window — might be a **broken GPS**
-- Retrained without them: same accuracy, **impossible speed 2-3x rarer at every
-  seed tried** *(exp199-204, exps/eval_unlabeled.py)*
+- 16 of the 26: one device in about 20 minutes — might be a **broken GPS**
+- Retrained without them: same accuracy, **impossible speed 2.5-3.3x rarer at
+  every seed tried** *(exp199-204, exps/eval_unlabeled.py)*
 - GPS speed both **flags** the labels and **judges** the fix, so we keep the raw
   model *(exp197)*
 
@@ -178,11 +182,12 @@ Mentioned in `behavior/data_processing.py::remove_label_noise`.
 The augmentation was applied one burst at a time, in Python.
 
 - 47 minutes per run → **5 minutes**
-- Same result: 92.7 vs 92.2, well inside run-to-run noise
+- Same result: 92.7% vs 92.2% accuracy, well inside run-to-run noise
 - The trick: rotate the whole batch at once on the GPU, and stop rebuilding the
   data every epoch
 
 Nine times more experiments per day, for no change in the science.
+*(exp195 → exp196, exps/eval_labeled.py)*
 
 ---
 
@@ -276,8 +281,8 @@ rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 2. **Confidence is not a health check.** A model can be certain and wrong
 3. **You can measure a model without labels** — count predictions that break
    physics
-5. **Check the labels too.** Some of what we call error is bad ground truth
-6. **A cleaner dataset is not automatically a better model.** Ours scored
+4. **Check the labels too.** Some of what we call error is bad ground truth
+5. **A cleaner dataset is not automatically a better model.** Ours scored
    better only on the speed rule that had picked the bursts to remove
 
 ---
@@ -299,14 +304,15 @@ rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 ## Backup: numbers
 
 - 4,338 labelled bursts, 9 classes, 20 Hz, 90/10 split, seed 32984
-- exp194 no aug: 96.35 valid / 99.44 train — memorises, overfits
-- exp196 rotation: 92.69 valid / 91.56 train — underfits, never memorises
-- exp197 rotation + 3 invariant channels (5,429 params): 94.52 valid / 97.90 train
-- Per-class cost of rotation: walking .97 → .89, pecking .94 → .68, manoeuvre .84 → .67
-- exp196 → exp197 per-class F1: walking .89 → .89, pecking .67 → .77, manoeuvre .68 → .76
-- Class-balanced F1 0.92 → 0.83 (exp196) with rotation, back to 0.90 (exp197)
-- Rotation robustness: 13.1% → 90.7% → 93.7% mean over 20 random orientations
-- Unlabelled agreement between the two models: 87.5% (exp196 vs exp197: 93.0%)
+- Accuracy %, valid / train: exp194 no aug 96.35 / 99.44 — memorises
+- exp196 rotation 92.69 / 91.56 — underfits, never memorises
+- exp197 + 3 invariant channels (5,429 params) 94.52 / 97.90
+- F1, 194→196: walking .97→.89, pecking .94→.68, manoeuvre .84→.67
+- F1, 196→197: walking .89→.89, pecking .68→.76, manoeuvre .67→.79
+- Class-balanced F1: 0.92 (exp194), 0.83 (exp196), 0.90 (exp197)
+- Random orientation, accuracy %: 13.1, 90.7, 93.7 (exp194, 195, 197)
+- Agreement on unlabelled bursts: exp194/196 87.5%, exp196/197 93.0%
+  *(exps/eval_labeled.py, exps/eval_unlabeled.py)*
 
 ---
 
@@ -314,7 +320,7 @@ rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 
 - Label-noise check: 26 bursts dropped, `starts_clean.csv` 4,312 bursts
 - Raw vs cleaned, 3 seeds each, same split and epoch: impossible speed
-  0.10/0.15/0.13 → 0.03/0.06/0.04, no overlap *(exp199-204)*
+  0.10/0.15/0.13% → 0.03/0.06/0.04% of bursts, no overlap *(exp199-204)*
 - Everything else — accuracy, place, flicker, rotation — sits inside the seed
   spread *(exps/eval_labeled.py, exps/eval_unlabeled.py)*
 - Spoonbill, split by fix, 4,575/505 segments, accuracy % at epoch 4000:

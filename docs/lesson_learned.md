@@ -378,8 +378,11 @@ scored on the same bursts.
 
 On device 6004, exp194 and exp196 differ by 0.02 in mean confidence (0.89 and
 0.91), while exp194 has 16 times more speed conflicts: 1.45% against 0.09% of
-bursts (`exps/eval_unlabeled.py`). Confidence can at most rank which bursts to
-look at. It cannot say whether a model works on a new bird.
+bursts (`exps/eval_unlabeled.py`). Nor does confidence follow accuracy: turned
+at random, exp194 falls from 96.35% to 13.05% valid accuracy, but its mean
+confidence only from 0.964 to 0.735 (`exps/recompute_doc_numbers.py`).
+Confidence can at most rank which bursts to look at. It cannot say whether a
+model works on a new bird.
 
 ### Predictions that contradict speed or place give an error rate without labels
 
