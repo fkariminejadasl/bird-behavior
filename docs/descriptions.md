@@ -42,6 +42,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
 - `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds; begging data: 436 segments, one bird. Spoonbill data, below
 - `scripts/data/prepare_spoonbill_data.py` — the spoonbill training file, `spoonbill_starts.csv`: 5080 complete segments, 14 labels. Spoonbill data, Training file
+- Spoonbill to gull label map, an ecologist's table: Spoonbill data, Spoonbill to gull labels
 
 ## Model
 
@@ -61,6 +62,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
 - `exps/eval_spoonbill.py` — spoonbill models against the two spoonbill
   papers: F1 per pooled behaviour, scored on records as the papers do, and on
   segments
+- `exps/eval_cross_species.py` — each species' model on the other's data, scored by the label map
 
 Visual:
 
@@ -392,6 +394,28 @@ How the segment counts above add up to 5080, all in segments of 20 records:
 - Begging `Index` is written from 0, as in the other files.
 - Segments per label and bird: the script's output. Per label they equal the `complete` column of the first table, plus 434 beg and 4 stand-preen from begging.
 
+#### Spoonbill to gull labels
+
+A table by Julia, an ecologist, received by email on 2026-11-16:
+`/home/fatemeh/Downloads/behaviours_spoonbills_to_gulls.xlsx`, one sheet. One
+row per spoonbill behaviour of Lok et al., with whether gulls show it, the gull
+class she expects a model to give, an alternative, the general activity
+(Flight, Sit-Stand, Terrestrial locomotion, Float, Other) and comments. Gull
+names are those of Table S1 of the Judy supplement: Stationary is our SitStand,
+Walk TerLoco, Peck Pecking, Mixed Manouvre. Copied into
+`exps/eval_cross_species.py::SPOONBILL_TO_GULL`.
+
+- fly-flap can be Flap, ExFlap or Manouvre (three rows).
+- The preening, washing, shaking and stand-other labels go to Other, which our
+  gull data drops (label 7); their alternative is Stationary.
+- for-search, head swung in the water, is not found in gulls; her guess is
+  Peck, or Walk or Other.
+- drink is Stationary, or Other or Peck by its head movements.
+- Float and Boat have no spoonbill row: spoonbills seldom float or sit on boats.
+- beg is not in the table.
+- She hopes a model trained on both species splits gull Stationary into rest
+  and alert: alike in posture, different in meaning.
+
 ### Previous data preparation (replaced)
 
 How the labeled data was made before the current pipeline (Labeled data,
@@ -674,6 +698,13 @@ What each costs or buys, and why augmentation must stay on the train data:
   windows from the first record of each valid fix), and on the valid segments.
   Reads `<exp>_4000.pth`, after checking that each best checkpoint reproduces
   its `app_loss_acc.txt`.
+- `exps/eval_cross_species.py`: each species' model on every segment of the
+  other species: exp197 on `spoonbill_starts.csv`, the spoonbill runs on
+  `starts.csv`. Scores each class by the label map (Spoonbill to gull labels,
+  above): % given the expected class, the expected or alternative class, and
+  the same general activity; the spoonbill models with the map read backwards.
+  Prints a count table of where each class goes, the mean x, y and z per class
+  of both species, and each model's accuracy on its own species as a check.
 - `exps/spoonbill_data_stats.py`: counts the spoonbill data: records, fixes and
   data quality per file, the 20 Hz check, and segments per behaviour and per
   bird, with the bouts too short for one segment. Prints only; tables in

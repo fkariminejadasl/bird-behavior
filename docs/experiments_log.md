@@ -10,6 +10,33 @@ Accuracies are valid accuracy in %, unless noted; `tr-val` gives train then
 valid. A trailing `hash:...` is the git commit the run was made at. Numbering
 has gaps (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## Across species: exp197 on spoonbills, exp206-211 on gulls (no new run)
+
+`exps/eval_cross_species.py` on all 5080 spoonbill segments and all 4338 gull
+bursts. exp197 at `197_best.pth`, the spoonbill runs at `<exp>_4000.pth`.
+Scored by the ecologist's label map (`descriptions.md`, Spoonbill to gull
+labels). hash:71746e1 plus the new script. Tables in `status.md`, Across
+species.
+
+- Same axes: gravity along +z in every class of both species, mean z 0.82 to
+  1.06 g. x follows body pitch.
+- exp197 on spoonbills: the expected or alternative gull class for 86.9% of
+  4646 scored segments. Resting, alert, flight, handle and intake: 93.0-100%.
+  fly-flap: 98 Flap, 84 ExFlap of 185.
+- walk 67.2%, 34 of 177 to Pecking. for-search: 998 Pecking, 524 TerLoco, 358
+  SitStand of 1929. stand-shake-feathers: 5 of 18 SitStand, 6 ExFlap.
+- beg, not in the map: 232 of 434 TerLoco, 109 Pecking.
+- Spoonbill models on gulls, expected or alternative, of 3433 scored bursts:
+  rotation 79.6 (75.5-84.7), no rotation 66.7 (65.8-67.4). The ranges do not
+  overlap.
+- TerLoco: exp207 (no rotation) gives 104 stand-rest and 118 stand-preen of
+  337, exp206 (rotation) 4, and 196 for-search.
+- No counterpart: Float to exp207 334 for-search and 257 beg of 729, to exp206
+  408 beg. Boat to exp207 106 stand-alert of 176.
+- Flap to fly-flap swings with the seed: 46.2-84.1% without rotation,
+  48.8-96.7% with. exp207 gives 320 of 643 Flap bursts beg.
+- Next: one model on both species (`status.md`, TODO).
+
 ## exp208-211: three seeds a side, and the two spoonbill papers
 
 exp208/209 = exp206 (rotation) at seeds 1234 and 5678, exp210/211 = exp207

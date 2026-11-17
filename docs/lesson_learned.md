@@ -183,6 +183,24 @@ speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
+### Spoonbill models trained with rotation do better on gulls (exp206-211)
+
+Each spoonbill model on all 4338 gull bursts, scored by an ecologist's label
+map (`exps/eval_cross_species.py`; tables in `status.md`, Across species).
+
+- **The worse model on its own species carries over better.** Of 3433 scored
+  gull bursts, 75.5-84.7% get the expected or alternative spoonbill label with
+  rotation, 65.8-67.4% without, over three seeds. On the spoonbill valid
+  segments the order is reversed: 83.96-84.55% against 93.27-94.65%
+  (`exps/eval_spoonbill.py`).
+- **Without rotation a model reads posture, and posture differs between
+  species.** The mean x of a walking gull is -0.41 g, of a standing spoonbill
+  -0.38 g. exp207 calls 222 of 337 gull TerLoco bursts stand-rest or
+  stand-preen; exp206, with rotation, 4 (`exps/eval_cross_species.py`).
+- **Out of its training data, the seed decides.** Gull Flap gets fly-flap in
+  46.2-84.1% of bursts without rotation and 48.8-96.7% with, over three seeds
+  (`exps/eval_cross_species.py`). Judge a transfer over several seeds.
+
 ### Spoonbill: training with rotation lowers valid accuracy by about 10 points (exp205-exp211)
 
 The exp197 recipe on the spoonbill data: 505 valid segments, 3 seeds a side

@@ -1,6 +1,6 @@
 # Status
 
-Where the project stands, as of 2026-11-16. Read this first. The results tables
+Where the project stands, as of 2026-11-17. Read this first. The results tables
 live here only. The details of each run are in
 [experiments_log.md](experiments_log.md), the reasons in
 [lesson_learned.md](lesson_learned.md), and what each script does in
@@ -79,6 +79,15 @@ cut into 1 s windows from its first record, and every record is scored against
 its own label: 602 windows, 12,040 records. How the papers score:
 `descriptions.md`, How the papers score.
 
+Across species (`exps/eval_cross_species.py`): each model on every segment of
+the other species, all 5080 spoonbill segments or all 4338 gull bursts. What
+counts as right comes from an ecologist's table (`descriptions.md`, Spoonbill
+to gull labels); the spoonbill models are scored with it read backwards.
+
+- **% expected**: the share of a class's segments given the class the table
+  expects.
+- **% expected or alternative**: or the class it gives as the alternative.
+
 ## Results
 
 ### Gulls, labeled
@@ -139,6 +148,45 @@ ours does not.
 | Lok et al. 2023, best length   | 0.65 | 0.91   | 0.73           |
 | ours, 1 s                      | 0.81 | 0.90   | 0.59           |
 
+### Across species
+
+The gull model, exp197 (`197_best.pth`), on all 5080 spoonbill segments
+(`exps/eval_cross_species.py`). Other is not a class of the gull model, so a
+label mapped to it scores only through its alternative.
+
+| spoonbill label      | segments    | expected gull class (alternative) | % expected | % expected or alternative |
+| -------------------- | ----------- | --------------------------------- | ---------- | ------------------------- |
+| stand-rest           | 1357        | SitStand                          | 98.7       | 98.7                      |
+| stand-preen          | 299         | Other (SitStand)                  | -          | 76.9                      |
+| sit-alert            | 62          | SitStand                          | 100.0      | 100.0                     |
+| stand-alert          | 416         | SitStand                          | 93.0       | 93.0                      |
+| fly-flap             | 185         | Flap, ExFlap, Manouvre            | 98.4       | 98.4                      |
+| fly-soar             | 52          | Soar                              | 98.1       | 98.1                      |
+| walk                 | 177         | TerLoco                           | 67.2       | 67.2                      |
+| for-search           | 1929        | Pecking (TerLoco, Other)          | 51.7       | 78.9                      |
+| for-handle           | 14          | Pecking (Other)                   | 100.0      | 100.0                     |
+| for-intake           | 115         | Pecking (Other)                   | 100.0      | 100.0                     |
+| stand-other          | 15          | Other (SitStand)                  | -          | 53.3                      |
+| stand-shake-feathers | 18          | Other (SitStand)                  | -          | 27.8                      |
+| drink                | 7           | SitStand (Other, Pecking)         | 28.6       | 28.6                      |
+| beg                  | 434         | not in the table                  | -          | -                         |
+| **all scored**       | 4314 / 4646 |                                   | **75.8**   | **86.9**                  |
+
+The spoonbill models on all 4338 gull bursts, epoch 4000, mean (min-max) of
+three seeds: exp207, 210, 211 without rotation, exp206, 208, 209 with
+(`exps/eval_cross_species.py`). Float and Boat have no spoonbill counterpart.
+
+| gull class     | bursts | expected spoonbill label (alternative)                                           | no rotation, % expected | no rotation, % expected or alternative | rotation, % expected | rotation, % expected or alternative |
+| -------------- | ------ | -------------------------------------------------------------------------------- | ----------------------- | -------------------------------------- | -------------------- | ----------------------------------- |
+| Flap           | 643    | fly-flap                                                                         | 61.1 (46.2-84.1)        | 61.1 (46.2-84.1)                       | 71.7 (48.8-96.7)     | 71.7 (48.8-96.7)                    |
+| ExFlap         | 38     | fly-flap                                                                         | 55.3 (31.6-78.9)        | 55.3 (31.6-78.9)                       | 64.0 (60.5-65.8)     | 64.0 (60.5-65.8)                    |
+| Soar           | 537    | fly-soar                                                                         | 43.7 (37.2-52.1)        | 43.7 (37.2-52.1)                       | 76.4 (75.2-77.1)     | 76.4 (75.2-77.1)                    |
+| SitStand       | 1502   | stand-rest, sit-alert, stand-alert, drink (stand-preen, -other, -shake-feathers) | 82.1 (72.3-88.2)        | 92.1 (85.2-95.7)                       | 85.6 (84.6-87.1)     | 95.2 (94.0-96.6)                    |
+| TerLoco        | 337    | walk (for-search)                                                                | 22.7 (12.5-38.9)        | 29.1 (20.5-45.7)                       | 2.3 (1.5-3.0)        | 60.9 (60.5-61.1)                    |
+| Manouvre       | 151    | fly-flap                                                                         | 12.4 (9.3-15.2)         | 12.4 (9.3-15.2)                        | 31.8 (11.3-58.9)     | 31.8 (11.3-58.9)                    |
+| Pecking        | 225    | for-search, for-handle, for-intake (drink)                                       | 63.6 (60.4-66.7)        | 63.6 (60.4-66.7)                       | 68.1 (63.1-74.2)     | 68.1 (63.1-74.2)                    |
+| **all scored** | 3433   |                                                                                  | 61.8 (60.7-63.5)        | 66.7 (65.8-67.4)                       | 69.6 (65.6-74.9)     | 79.6 (75.5-84.7)                    |
+
 ## Done
 
 - Labeled data: one pipeline, `starts.csv`, 4,338 bursts
@@ -157,6 +205,8 @@ ours does not.
   (`behavior/data.py::acc_calibrate`). Ornitela bursts take the nearest GPS fix.
 - Spoonbills: data counted, training file built, exp205-211, scored against the
   two papers.
+- Across species: exp197 on spoonbill data, exp206-211 on gull data, scored
+  with an ecologist's label map (`exps/eval_cross_species.py`).
 
 ## TODO
 
@@ -179,9 +229,10 @@ Spoonbills:
   behaviours.
 - **Class-balanced F1 without a class.** It is NaN when a class has no valid
   segment (drink). Skip such a class instead.
-- **Across species.** The gull model on spoonbill data and the spoonbill model
-  on gull data, on the classes both have (flight, walking). Needs a label map
-  between the two first.
+- **One model for both species**, next on branch `spoonbill_gull_training`.
+  Train on gull and spoonbill data together and predict combined classes, as
+  the label map says (`descriptions.md`, Spoonbill to gull labels). The
+  ecologist hopes it splits gull SitStand into rest and alert.
 
 Gulls:
 
