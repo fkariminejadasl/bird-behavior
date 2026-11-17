@@ -3,7 +3,9 @@
 How raw data becomes the bursts the model sees, from the UvA-BiTS database
 and from Ornitela files, and how the model is trained.
 
-Words used below:
+Words used below. They follow the Terms table of `docs/descriptions.md`, with
+one difference: here a *sample* is one IMU reading, a record in the Terms,
+and a *burst of 20* is the model input, a segment in the Terms.
 
 - **fix**: one GPS record of one device, at one time in whole seconds.
 - **burst**: the accelerometer (IMU) samples recorded at a fix. In the database
@@ -200,11 +202,10 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
 - Checkpoint: the epoch with the best valid accuracy, `<exp>_best.pth`.
   `save_final=True` also keeps epoch 4,000.
 - About 5 minutes on the laptop GPU (exp197: 4m56s).
-- exp197: valid accuracy 94.52%, F1 0.95, class-balanced F1 0.90
-  (`exps/eval_labeled.py`).
+- Results: `docs/status.md`.
 - Spoonbill, exp205-207: the same recipe on `spoonbill_starts.csv`, 14
   classes. `label_names` gives the class names. exp206 and exp207 split by fix
   (`split_by`), so a fix is all train or all valid: 4,575 train and 505 valid
-  segments. exp207 has no augmentation (`augment` False): valid 94.85%.
+  segments. exp207 has no augmentation (`augment` False).
   exp208-211 repeat exp206 and exp207 at seeds 1234 and 5678, the split held
   still (`split_seed` 32984).
