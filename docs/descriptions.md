@@ -33,16 +33,12 @@ Terms (record, fix, burst, bout, segment): Data, Terms. The gull text says burst
 
 Tags per study, and how `starts.csv` matches the published Movebank data: Labeled data, Tags and the published data.
 
-```
-starts:       {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total 4338
-starts_clean: {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total 4312
-```
-
 - `scripts/data/prepare_labeled_data.py` — the whole labeled pipeline, ending in
   `starts.csv` then `starts_clean.csv`
 - `exps/find_label_noise.py` — the 26 dropped bursts (GPS speed contradicts the label)
 - `exps/label_cooccurrence.py` — which behaviours share a fix; 10 of 36 pairs
-- `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions
+- `exps/inspect_unlabeled_data.py` — unlabeled data: curation and per-device distributions. Device lists: Data, Unlabeled data, Device lists
+- How the labeled data was made before `starts.csv`: Data, Previous data preparation
 - `behavior/data.py::acc_calibrate` — IMU calibration from the data, for a device without one
 - `exps/spoonbill_data_stats.py` — spoonbill data (Lok et al.): 4718 segments, 13 behaviours, 8 birds; begging data: 436 segments, one bird. Spoonbill data, below
 - `scripts/data/prepare_spoonbill_data.py` — the spoonbill training file, `spoonbill_starts.csv`: 5080 complete segments, 14 labels. Spoonbill data, Training file
@@ -95,27 +91,40 @@ Lok et al. 2023 (Spoonbill data) also call the model input a segment, and a burs
 
 ### Unlabeled data
 
-#### 20-length data (Gull only, more data)
+#### 20-length data (gulls only, more data)
 
-The dataset includes `237` devices from `201` gulls. Of these, 15 devices do not have either IMU or calibration data, leaving `186` devices in total. It took `263` minutes to download the IMU and GPS data. GPS timestamps are downloaded quickly. The `4.3GB` Parquet dataset (`3.3GB` zipped Parquet; originally `35GB` of CSV data, or `6.3 GB` zipped, across `1075` files) contains `186` files, one for each device, and `24,585,627` data points, each with `20` items. The original data contained `25,543,410` data points before removing GPS 2D speeds above `30 m/s`. The IMU data is clipped between -2 and 2, and GPS 2D speed is normalized by `22 m/s`.
+- 237 devices from 201 gulls. 15 devices have no IMU or no calibration data,
+  which leaves 186 devices, one Parquet file each.
+- 24,585,627 bursts of 20 records, in
+  `/home/fatemeh/Downloads/bird/data/ssl/ssl20parquet`. Before the 30 m/s cut
+  there were 25,543,410. The IMU is clipped to [-2, 2] g and the GPS speed
+  divided by 22.3 (`docs/methods.md`, rules 7-9).
+- 4.3 GB of Parquet (3.3 GB zipped), from 35 GB of CSV (6.3 GB zipped) in 1075
+  files. Downloading the IMU and GPS took 263 minutes; the GPS timestamps
+  download quickly.
+- The largest device, 6210, has 1,562,699 GPS timestamps and 1,510,999 bursts.
+- Made in two steps. `scripts/data/get_data_gull_20.py` downloads the GPS
+  timestamps, then the IMU and GPS, in CSV shards of 21,000 timestamps per
+  device. `exps/inspect_unlabeled_data.py` curates the shards (the cut, the
+  clip and the division above), writes one Parquet file per device, and plots
+  the per-device distributions that motivate the curation.
 
-```python
-class_counts = 
-'0: 3,896,949', '1: 297,034', '2: 2,845,657', '3: 268,561', '4: 1,863,161', '5: 11,622,311', '6: 1,361,568', '8: 758,359', '9: 1,676,835'
-class_counts_percentage = 
-{1: 0.01, 3: 0.01, 8: 0.03, 6: 0.06, 9: 0.07, 4: 0.08, 2: 0.12, 0: 0.16, 5: 0.47}
-ind2name = 
-{0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
-```
+#### 60-length data (gulls and crab plovers, less data)
 
-For example, device ID 6210 contains 1,562,699 GPS timestamps and 1,510,999 IMU and GPS data points, each stored in sequences of length 20. This device has the largest total number of GPS timestamps.
+- 716,311 bursts of 60 records (42,978,660 records), 3.1 GB (458 MB zipped),
+  from CG_KREUPEL, LBBG_TEXEL, HG_TEXEL and CP_OMAN. The three gull studies
+  hold 19,830,960 records, the crab plovers (CP_OMAN) 23,147,700.
+- Of the 224 GPS timestamp files, one per device, 63 have bursts of 60 records
+  (`available_60points.csv`). A device is used if at least one of 10 download
+  attempts returns data.
+- Made by `scripts/data/get_data_gull_cp_60.py`.
 
-The script first downloads the GPS timestamps, then downloads and filters the IMU and GPS data before saving them to files. For each device, the data is split into shards of 21,000 timestamps.
+#### Device lists
 
-The code to generate the data is located in `get_data_gull_20.py`. The CSV shards are then curated (the `30 m/s` cut, the clipping and the normalization above) and written as one Parquet file per device by `exps/inspect_unlabeled_data.py`, which also plots the per-device distributions that motivate the curation.
+Kept here to look up which devices exist. Click to expand.
 
 <details>
-<summary>[Device: number of GPS timestamps. Click to expand]</summary>
+<summary>20-length data: devices without IMU or calibration, all gull devices, GPS timestamps per device</summary>
 no_imu = [45, 50, 51, 52, 53, 54, 130, 132, 135, 297, 326, 329]
 
 nan_calibration = [121, 133, 134] also for [45, 50, 51, 52, 53, 54, 121, 130, 132, 133, 134, 135]
@@ -129,18 +138,18 @@ device_dates_counts =
 
 </details>
 
-#### 60-length data (Gull and Crab Plover, less data)
-
-This dataset contains 42,978,660 IMU items (716,311 data points of length 60, also known as bursts or fixes), totaling 3.1 GB (458 MB zipped), from CG_KREUPEL, LBBG_TEXEL, HG_TEXEL, and CP_OMAN. From `224` GPS timestamp files per device, only `63` had groups of length 60, based on my 10-attempt code (`available_60points.csv`). For each device, if at least one of the 10 GPS timestamp attempts returns data, I use that device.
-
-Of the 42,978,660 IMU items, 19,830,960 (CG_KREUPEL, LBBG_TEXEL, HG_TEXEL) are Gull data, and 23,147,700 are Crab Plover data (CP_OMAN).
-
-The code to download the data is in `get_data_gull_cp_60.py`.
-
 <details>
-<summary>[Device: number of GPS timestamps. Click to expand]</summary>
+<summary>60-length data: GPS timestamps per device</summary>
 {45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 128710, 5996: 73367, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 222193, 6396: 193394, 6397: 118675, 6400: 22169, 6401: 86693, 6402: 155329, 6403: 60984, 6501: 100562, 6502: 53395, 6503: 92919, 6504: 115164, 6506: 63602, 6507: 92191, 6508: 94375, 6509: 82911, 6510: 74843, 6511: 36190, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 163355, 7045: 13362, 7046: 208593, 7047: 58469, 7048: 181939, 7050: 61365, 7055: 240955, 7056: 154, 7058: 40385, 7059: 83582, 7061: 151258, 7062: 117698, 7063: 69725, 7077: 4340, 7078: 6766, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 133660, 7132: 14299, 7133: 77046, 7135: 1259, 7137: 45824, 7138: 36336, 7139: 7034, 7140: 6120, 7142: 16013, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 29507, 7161: 10593, 7162: 5596}
 </details>
+
+#### Reading large CSV files
+
+Reading the CSV shards with pandas works where pure Python and the `csv` module
+run out of memory: on the 20-length data, pandas used 50% of the memory, and the
+other two were killed even with `gc.collect()`
+(`exps/panda_csv_python_read_data_in_memory.py`). Notes on loading the Parquet
+files for training: `docs/cheatsheets/efficient_data_loading.md`.
 
 ### Labeled data
 
@@ -151,8 +160,6 @@ The data is a combination of several datasets annotated by different experts. Ea
 The data contains missing values and inconsistent label mappings. Since we have access to the database, missing items can be retrieved as needed.
 
 The pipeline used to prepare the final dataset is implemented in `scripts/data/prepare_labeled_data.py`. It consists of two parts: one for individual datasets and one for the combined dataset.
-
-{45: 6835, 50: 964, 51: 18637, 52: 35364, 53: 6149, 54: 31670, 121: 1157, 130: 2091, 132: 1944, 133: 13828, 134: 7029, 135: 727, 297: 3775, 298: 5879, 304: 5607, 311: 35014, 317: 168310, 319: 1610, 320: 22565, 324: 2816, 325: 49112, 326: 5400, 327: 47999, 329: 42436, 344: 126109, 355: 25577, 373: 32871, 421: 18270, 446: 48857, 458: 3210, 533: 168583, 534: 253627, 535: 12524, 536: 11710, 537: 155853, 538: 14965, 540: 126638, 541: 75160, 542: 11624, 604: 9858, 606: 170982, 608: 65904, 640: 6428, 642: 1611, 644: 528, 646: 760, 657: 7567, 658: 8848, 659: 3251, 660: 128, 661: 932, 662: 23, 663: 1876, 670: 397, 671: 0, 672: 2412, 674: 25246, 675: 45738, 676: 5563, 680: 26947, 681: 20298, 682: 23444, 683: 18504, 688: 22403, 690: 13221, 752: 2066, 754: 205795, 757: 143468, 781: 41582, 782: 114749, 784: 2052, 798: 1490, 805: 313746, 806: 176918, 868: 5153, 870: 3774, 871: 238955, 1600: 176099, 2008: 6432, 2112: 7543, 2113: 1528, 2114: 4769, 2116: 7891, 2117: 54574, 2118: 31251, 2119: 21151, 2120: 339, 2121: 1638, 5387: 79123, 5388: 32062, 5390: 147831, 5391: 126108, 5392: 39381, 5393: 96670, 5415: 1433, 5416: 348618, 5472: 8262, 5473: 790625, 5496: 121257, 5586: 1404, 5587: 25, 5588: 197804, 5590: 3114, 5591: 37, 5592: 153421, 5593: 205762, 5594: 302808, 5599: 5220, 5601: 87504, 5603: 125455, 5687: 320396, 5689: 148628, 5690: 228, 5692: 35349, 5693: 460105, 5694: 227141, 5697: 83010, 5698: 86921, 5699: 46455, 5700: 80670, 5701: 23183, 5702: 52985, 5704: 235426, 5705: 116498, 5992: 6899, 5993: 32396, 5995: 128710, 5996: 73367, 5998: 145900, 5999: 47453, 6004: 47872, 6006: 435076, 6009: 72385, 6011: 147376, 6012: 34899, 6014: 9220, 6015: 320345, 6016: 331762, 6017: 373096, 6071: 15261, 6072: 128803, 6073: 689304, 6074: 146881, 6075: 5362, 6076: 24167, 6077: 52892, 6079: 50432, 6080: 361007, 6082: 2639, 6202: 213593, 6205: 88750, 6206: 332196, 6208: 91317, 6212: 94176, 6214: 288608, 6216: 107960, 6217: 233357, 6219: 23914, 6387: 129084, 6392: 169844, 6395: 222193, 6396: 193394, 6397: 118675, 6400: 22169, 6401: 86693, 6402: 155329, 6403: 60984, 6501: 100562, 6502: 53395, 6503: 92919, 6504: 115164, 6506: 63602, 6507: 92191, 6508: 94375, 6509: 82911, 6510: 74843, 6511: 36190, 7001: 11215, 7002: 5239, 7004: 5225, 7007: 1277, 7008: 7126, 7009: 4819, 7021: 19181, 7036: 163355, 7045: 13362, 7046: 208593, 7047: 58469, 7048: 181939, 7050: 61365, 7055: 240955, 7056: 154, 7058: 40385, 7059: 83582, 7061: 151258, 7062: 117698, 7063: 69725, 7077: 4340, 7078: 6766, 7079: 2773, 7080: 4503, 7081: 3263, 7083: 5073, 7085: 1635, 7086: 34059, 7120: 1902, 7123: 897, 7126: 1435, 7131: 133660, 7132: 14299, 7133: 77046, 7135: 1259, 7137: 45824, 7138: 36336, 7139: 7034, 7140: 6120, 7142: 16013, 7145: 22470, 7147: 2096, 7148: 2031, 7149: 2177, 7160: 29507, 7161: 10593, 7162: 5596}
 
 #### Individual Dataset Pipeline
 
@@ -199,27 +206,26 @@ w_data: (Willem CSV)
 - It is possible to have the same IMU and GPS values. This issue is resolved by looking at three consecutive IMU and GPS items.
 - Data can start from the middle of a burst (index not divisible by 20). Since we take bursts of 20 items, there are several ways to account for that. The rules are defined in `get_rules`.
   - Shift each item by one and take 20 elements. This can also be implemented as data augmentation.
-  - Map all data to values divisible by 20. (Old version in `exp/prepare_labeled_data`)
+  - Map all data to values divisible by 20. (Old version in `exps/prepare_labeled_data.py`)
   - Other options: take the start of the signal (`slice_from_first_label`), a random part of the signal, or samples at regular intervals.
 - j_data and m_data have extra classes. The Float_groyne and Handling_mussel classes are mapped to Float and Pecking, respectively; the other classes are removed.
 - j_data uses different IDs for the same labels (remap: s_map0).
 - j_data and s_data have 10 and 20 items per burst, respectively.
 - m_data, w_data: data of different lengths.
 
-#### Here is the number of labels:
+#### Counts per label at each step
+
+Labels as in the Quick reference table. `starts` and `starts_clean`: that table.
 
 ```bash
-{0: 'Flap', 1: 'ExFlap', 2: 'Soar', 3: 'Boat', 4: 'Float', 5: 'SitStand', 6: 'TerLoco', 7: 'Other', 8: 'Manouvre', 9: 'Pecking'}
-# items
+# records
 s_complete: {-1: 2422, 0: 12680, 1: 760, 2: 10020, 3: 3520, 4: 11160, 5: 17880, 6: 6280, 8: 2980, 9: 3740}
 j_complete: {-1: 68059, 0: 2640, 1: 240, 2: 2310, 4: 5060, 5: 4170, 6: 1310, 8: 780, 9: 850}
 m_complete: {-1: 5699, 0: 100, 4: 6587, 5: 12869, 6: 455, 9: 3327}
 w_complete: {-1: 1040, 0: 13059, 1: 847, 2: 9977, 3: 3530, 4: 11230, 5: 16100, 6: 5842, 8: 2875, 9: 2907}
 shift : {0: 161400, 1: 12040, 2: 113540, 3: 37760, 4: 168860, 5: 448760, 6: 86780, 8: 40700, 9: 92780}
-# burst
+# bursts of 20 records
 s_index: {0: 634, 1: 38, 2: 501, 3: 176, 4: 558, 5: 894, 6: 318, 7: 25, 8: 151, 9: 210}
-starts:  {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1502, 6: 337, 8: 151, 9: 225}: total: 4338
-starts_clean (label noise removed): {0: 643, 1: 38, 2: 537, 3: 176, 4: 729, 5: 1492, 6: 326, 8: 151, 9: 220}: total: 4312
 shift :  {0: 8070, 1: 602, 2: 5677, 3: 1888, 4: 8443, 5: 22438, 6: 4339, 8: 2035, 9: 4639}
 ```
 
@@ -374,9 +380,12 @@ How the segment counts above add up to 5080, all in segments of 20 records:
 - Begging `Index` is written from 0, as in the other files.
 - Segments per label and bird: the script's output. Per label they equal the `complete` column of the first table, plus 434 beg and 4 stand-preen from begging.
 
-### Previous Data Preparation
+### Previous data preparation (replaced)
 
-#### There were some issues with the previous version:
+How the labeled data was made before the current pipeline (Labeled data,
+above). Kept to explain old runs and files.
+
+#### What was wrong with it
 
 - Combining items into bursts: We used the first label as the label of the burst. Now, priority labels are defined in `get_rules`.
 - The StandForage label was treated as Pecking. Now it is removed.
@@ -384,11 +393,11 @@ How the segment counts above add up to 5080, all in segments of 20 records:
 - Up to three items might have the same IMU and GPS speed. Previously, it was assumed that only two items could have the same values. This is a very minor issue, since only a few items had this problem. It appears during reindexing when getting the index from the database.
 - The algorithm used to find the closest value divisible by 20 had a minor rounding issue. In Python, rounded values are rounded to the closest even number. For example, 2.5 is rounded to 2.0 instead of 3.0.
 
-#### Description
+#### Old steps
 
 The previous data preparation shifted the data to the closest value divisible by 20. In the end, each data entry contained a burst of 20.
 
-Data preparation is in `exp/prepare_labeled_data`. Here are the steps:
+Data preparation is in `exps/prepare_labeled_data.py`. Here are the steps:
 
 - Convert the original data to the CSV format
 - Get all data from the database
@@ -421,15 +430,9 @@ m_data: {0: 5,   1: 0,  2: 0,   3: 0,   4: 0,   5: 642,  6: 23,  7: 0,  8: 0,   
 w_data: {0: 652, 1: 45, 2: 504, 3: 176, 4: 558, 5: 806,  6: 304, 7: 30, 8: 143, 9: 153}
 ```
 
-### Data in memory
+#### Older methods
 
-#### CSV files
-
-Reading CSV files with pandas is more efficient than reading them with pure Python or the CSV library. This is due to memory management, such as contiguous memory blocks and garbage collection, as well as the inefficiency of for-loops in pure Python and the overhead of dynamic typing. For the data above, only the pandas version worked, using only 50% of memory, while the pure Python and CSV-reader versions were killed by the process due to high memory consumption, even when using the garbage collector (`gc.collect()`). The experiment is in `panda_csv_python_read_data_in_memory.py`.
-
-#### Older method to generate labeled data
-
-The older method is sandboxed in `sandbox_prepare_label_data` branch and in `scripts/prepare_labeled_data.py` file.
+Kept in the `sandbox_prepare_label_data` branch, as `scripts/prepare_labeled_data.py` there.
 
 Older methods to generate data are:
 
@@ -438,7 +441,7 @@ Older methods to generate data are:
 
 These methods are slow because they request data directly from the database. Method1 and Method2 share the database retrieval step, but the combination step differs.
 
-The combination step in Method2 is the same as the current method in `scripts/prepare_labeled_data.py`.
+The combination step in Method2 is the same as the current method in `scripts/data/prepare_labeled_data.py`.
 
 > The bug in Method2 is in `write_j_data` and `write_m_data`: the data might contain indices 0-19 and 40-59 with label1, and 20-39 with label2. Then 0-40 gets label1, and 20-40 gets label2. This happens because the maximum length is calculated based on common labels.
 

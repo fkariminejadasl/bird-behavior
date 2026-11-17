@@ -140,7 +140,8 @@ Keep these current whenever the code they describe changes:
   Ornitela rules), the model and the training. Update it with the code it
   describes.
 - `docs/cheatsheets/`: general how-to notes (pandas, OmegaConf configs,
-  database queries, clustering metrics). No findings here.
+  database queries, clustering metrics, loading large datasets). No findings
+  here.
 - `presentation/presentation.md`: the talk. Highlights only, short and
   itemised. Where `lesson_learned.md` gives the reasoning, this gives the conclusion
   in one line. Keep a technical name in italic parentheses after the plain-language
