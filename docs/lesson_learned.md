@@ -25,8 +25,8 @@ bursts of the gull `starts.csv`, but each behaviour comes from few birds
 - **A class can be one bird, so a model can learn the bird.** for-search is 90%
   bird 760, stand-rest 94% bird 763, sit-alert 100% bird 584. 51 of the 53
   fly-soar segments come from the three migration birds (6283, 6287, 6291),
-  which have no other label. Split by fix at least (Measuring, "Keep a fix
-  whole").
+  which have no other label. Split by fix at least (Measuring: split per
+  segment, most valid segments share a fix with train).
 - **Labels made by eye are a weaker test.** Those 51 soaring segments were
   labeled from plots, not from video. Of the 429 beg segments, all from juvenile
   6381, 329 were labeled from the signal alone. A model scored on them is scored
@@ -77,7 +77,7 @@ R code; the rules are in `docs/methods.md`, rule 1. The numbers below are from
   It stopped early under R's stopping rule, because the loss is very flat along
   the offsets.
 
-### Ornitela GPS: match by nearest time, not by file position
+### Ornitela: the nearest GPS fix changes 287 of 659,409 bursts
 
 `scripts/data/bird_behavior_app_data.py::prepare_calibrated_app_data` and
 `scripts/data/merge_simon_data.py::load_calibrated_rows` gave each burst the GPS
@@ -137,7 +137,7 @@ cleaned labels.
   - Nothing else improves: accuracy, place, flicker and rotation stay inside the
     seed spread, and reliance on speed barely changes.
 
-### Label noise: trust only the speed half of a label's definition
+### 26 of 4338 bursts have a GPS speed their label rules out
 
 `exps/find_label_noise.py` flags bursts whose GPS speed contradicts their own
 label's definition in Table S1 of the Judy supplement
@@ -173,7 +173,7 @@ bursts, 0.60%. They are listed in `label_noise_candidates.csv` and dropped by
   tells them apart. The four device-806 bursts, labeled SitStand at 9.4 and 13.7
   m/s, are the clearest mislabels, with that caveat.
 
-### Read GPS speed as truth only after the 30 m/s cut
+### Raw GPS speed reaches 521 m/s, so speeds of 30 m/s and up are dropped
 
 Raw GPS speed has a tail of sensor errors: on the unlabeled gull data it reaches
 521 m/s (`exps/inspect_unlabeled_data.py`, its `stats.txt` in
@@ -292,7 +292,7 @@ such as the Ornitela x/y swap, is a relabeling of the axes
 How each number is defined, with its unit, is in `status.md`, How the numbers
 are measured.
 
-### Score the way the paper scores, or the comparison means nothing
+### Spoonbill prey-ingestion F1 is 0.92 on segments and 0.59 on records
 
 The same spoonbill model (no rotation, mean of 3 seeds) gets prey ingestion F1
 0.92 on our valid segments and 0.59 on records, the papers' way
@@ -309,7 +309,7 @@ The same spoonbill model (no rotation, mean of 3 seeds) gets prey ingestion F1
   share fixes; ours share none. But theirs is the mean of 100 splits, ours one
   split of 79 fixes, and both test the training birds.
 
-### Keep a fix whole when it holds several segments
+### Split per segment, 502 of 514 spoonbill valid segments share a fix with train
 
 A spoonbill fix holds up to 10 consecutive 1 s segments. Split per segment, 502
 of 514 valid segments had a train segment from the same fix (exp205,
@@ -317,7 +317,7 @@ of 514 valid segments had a train segment from the same fix (exp205,
 is not possible: sit-alert, stand-other, drink and beg each come from one bird
 (`exps/spoonbill_data_stats.py`).
 
-### The highest accuracy can hide a total failure
+### exp194 has the highest accuracy and falls to 13% at a random orientation
 
 exp194 has the highest valid accuracy, 96.35%, and falls to 13.05% when the tag
 is turned at random. exp197 is 1.83 points lower and holds 93.66%
@@ -332,7 +332,7 @@ the same model trained with rotation, reaches 91.56% train and 92.69% valid: it
 underfits. The augmentation decides which, not the parameter count
 (`exps/eval_labeled.py`).
 
-### Give plain and class-balanced F1 together, with the bursts per class
+### Class-balanced F1 swings by 0.03 with one ExFlap burst
 
 - exp196 has a pooled plain F1 of 0.93 and a pooled class-balanced F1 of 0.83:
   the errors are in the rare classes. Per class, exp194 to exp196: TerLoco 0.97
@@ -346,7 +346,7 @@ underfits. The augmentation decides which, not the parameter count
   spoonbill valid split, `behavior/utils.py::per_class_statistics_balanced`
   divides by 0 and the whole table is NaN.
 
-### One seed is not a result; compare the seed spread
+### A 0.23-point gap at one seed disappears over three seeds
 
 At one seed, the clean-label model (exp200) was 0.23 points below the raw one
 (exp199). Over three seeds a side the ranges overlap: 93.36-94.05% against
@@ -354,7 +354,7 @@ At one seed, the clean-label model (exp200) was 0.23 points below the raw one
 overlap counts. Of all the checks, only speed conflict passed (`status.md`,
 Gulls, raw against cleaned labels).
 
-### Compare runs at a fixed epoch, not at `<exp>_best.pth`
+### The best-valid checkpoint lands at a different epoch in each run
 
 `<exp>_best.pth` is the best of 4000 epochs on about 438 valid bursts, so it
 rewards a lucky epoch, and it lands somewhere else in each run: epoch 1870 for
@@ -363,7 +363,7 @@ checkpoint, printed by `scripts/batch_train_supervised.py`). Two runs read at
 their best epochs differ in checkpoint age as well as in the change being
 tested. `save_final` keeps epoch 4000; compare there.
 
-### Pin the split when the data changes
+### Dropping 26 bursts moved 177 of 438 valid bursts into train
 
 `behavior/utils.py::stratified_split` draws every class from one random
 generator, in class order. When one class changes size, every class after it is
@@ -381,7 +381,7 @@ On device 6004, exp194 and exp196 differ by 0.02 in mean confidence (0.89 and
 bursts (`exps/eval_unlabeled.py`). Confidence can at most rank which bursts to
 look at. It cannot say whether a model works on a new bird.
 
-### Count predictions that cannot be true
+### Predictions that contradict speed or place give an error rate without labels
 
 - Without labels, a prediction that contradicts something known without the
   model is wrong on physical grounds: SitStand at 13 m/s, TerLoco a kilometre
@@ -396,7 +396,7 @@ look at. It cannot say whether a model works on a new bird.
   about 2 km of a coast are skipped; a gull on a beach is ambiguous at that
   scale.
 
-### A raw change rate is not an error rate
+### Only class changes never seen in the labels separate the models
 
 Counting every class change between consecutive bursts of a fix, exp194 and
 exp196 look the same: 17.65% and 16.14% of pairs. Counting only changes never

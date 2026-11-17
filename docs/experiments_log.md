@@ -159,8 +159,9 @@ at `<exp>_4000.pth`. hash:f6a0c49 plus the new script.
 
 Documented in commit a71729f, 2026-10-05.
 `prepare_calibrated_app_data` and `load_calibrated_rows` now give each burst
-the nearest GPS fix within 2 s (`lesson_learned.md`, Ornitela GPS). The counts
-below are from `exps/recompute_doc_numbers.py`, in bursts of 20 samples.
+the nearest GPS fix within 2 s (`lesson_learned.md`, Ornitela: the nearest GPS
+fix). The counts below are from `exps/recompute_doc_numbers.py`, in bursts of
+20 samples.
 
 - On `all_devices_calibrated.csv`, 287 of 659,409 bursts (160 fixes) get
   another fix, and 247 dropped bursts come back. For the 113 fixes whose speed
