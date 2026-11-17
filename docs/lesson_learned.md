@@ -414,153 +414,95 @@ them is a free check of new evaluation code. It was done once for
 
 ## Engineering pitfalls
 
-### `load_csv_pandas` timestamps are 1000x too small under pandas 3
-
-`bd.load_csv_pandas` builds its timestamp with `to_datetime(...).astype("int64") // 1_000_000_000`. Pandas 3 parses to `datetime64[us]`, not `[ns]`, so the
-division yields seconds/1000 and every burst dates to 1970. The label, device
-and index columns of `ldts` are fine; only column 2 is wrong. Training does not
-read it, but anything naming a burst does, so `exps/plot_errors.py` takes the
-datetime as text from `find_label_noise.load_bursts` instead. Not fixed yet:
-the loader is shared with the training scripts.
-
-### Rebuild the split on the same device as training
-
-- **Rebuild the split on the same device as training.** `stratified_split` seeds
-  a `torch.Generator(device=...)`, so passing a CPU label tensor gives a
-  different split and silently scores the model on bursts it trained on — which
-  showed up here as a suspiciously perfect 99.5% "valid" accuracy for exp194.
-
-### Batched augmentation on the GPU
-
-Per-sample transforms run inside `BirdDataset.__getitem__`, one Python call per
-sample per epoch. On the 3900-sample full batch `RandomRotation3D` alone cost
-~370 ms/epoch — that is why exp195 took 47 min against exp194's 12. The `Batch*`
-transforms in `behavior/data_augmentation.py` build all N at once, and
-`bd.GpuBatches` keeps the split on the GPU and applies them once per batch:
-**the same exp195 config now runs in ~5.5 min**, below the un-augmented baseline.
-
-- **Verify equivalence, not just speed.** exp196 is exp195 rerun through the new
-  path: val 92.69 vs 92.24, valid F1 within ±0.01 on 7 of 9 classes, same
-  orientation robustness — in 5m03s against 47m31s. The RNG stream differs, so
-  reruns are not bit-identical; expect seed-level noise, not equality.
-- `train_one_epoch` only iterates its loader, so any iterable works and
-  `behavior/model.py` needed no change at all.
-- Augmentation now lives on the train **loader**, not the dataset, which removes
-  the shared-transform footgun described under "Only augment the training
-  set" below.
-- Batched transforms take channel-first `(N, C, T)`; the per-sample ones take
-  `(T, C)`. They are not interchangeable, and the other scripts
-  (`train.py`, `train_sup_contrastive.py`, `train_self_distill.py`, `simGCD.py`)
-  still use the per-sample ones.
-
-### Only augment the training set
-
-- **Only augment the training set.** `prepare_train_valid_dataset` passes one
-  transform object to both the train and eval `BirdDataset`s, which would rotate
-  the evaluation data too — still a hazard for any script using it.
-  `batch_train_supervised.py` no longer can: the transform is held by the
-  `GpuBatches` train loader, and the eval `BirdDataset` has none.
-
-### Compare parameter counts at the same class count
-
-- **Compare parameter counts at the same class count.** `BirdModel(4,30,·)` is
-  6,309 at 9 classes and 6,340 at 10, and the old notes quote the 10-class
-  numbers throughout (their width pair 6,340 -> 58,282 is 10-class on both
-  sides). Reading one against the other invents differences that are not there.
-
-### Reproducibility / infrastructure bugs
-
-- **BatchNorm caused a large train/val divergence** early on; fixed with
-  `track_running_stats=False` (exp15 -> exp22/exp23). Per-conv BatchNorm layouts
-  also shifted results (exp30/exp34).
-- **Low batch size made runs non-reproducible** (exp29/exp31 could not reproduce
-  earlier numbers until reverting to commit ed7d9a389). Pin the commit hash with
-  each reported run.
-- **`drop_last=True` breaks length-based accuracy**: accumulate the sample count
-  per batch instead of using `len(loader.dataset)` (fixed in the train/eval
-  loops of the contrastive scripts).
-- A rounding subtlety in the old ÷20 mapping: Python rounds half to even (2.5 ->
-  2.0), which shifted a few indices. Minor, but it explains small dataset diffs.
-- **Recorded parameter counts go stale silently.** `MaskedAutoencoderViT` was
-  logged at 9,546,756; the current code gives 9,557,508 at img_size=20, the gap
-  being two 21x256 position embeddings that became learnable. `ResNet18_1D` was
-  logged at 60,964 and now gives 61,289. Nothing errors — the number just stops
-  being true. Recompute a count before quoting it, and say which constructor
-  arguments produced it.
+- Under pandas 3, the timestamp of `behavior/data.py::load_csv_pandas` (column 2
+  of `ldts`) is 1000 times too small, so every burst dates to 1970:
+  `to_datetime` now gives microseconds, and the code divides by 10^9 as if they
+  were nanoseconds (lines 1430-1433). Training does not read it.
+  `exps/plot_errors.py` takes the datetime as text from
+  `find_label_noise.load_bursts` instead. Not fixed (TODO in `status.md`).
+- `behavior/utils.py::stratified_split` seeds its generator on the device of the
+  label tensor. A split rebuilt on the CPU differs from the GPU split of
+  training and puts training bursts in valid. Rebuild it on the same device, as
+  `exps/eval_labeled.py::build_splits` does.
+- `behavior/data.py::prepare_train_valid_dataset` gives one transform object to
+  both the train and the eval dataset, so an augmentation would change the eval
+  data too (TODO in `status.md`). `scripts/batch_train_supervised.py` avoids
+  it: the transform sits on the `GpuBatches` train loader, and the eval dataset
+  has none.
+- Rotating each burst in Python, one at a time in `BirdDataset.__getitem__`,
+  made exp195 take 47 min. The batched transforms of
+  `behavior/data_augmentation.py`, applied per batch by `bd.GpuBatches`, ran the
+  same config in 5 min (exp196; start and end times in `tensorboard/195.txt` and
+  `196.txt`). The results agree within seed noise: 92.69% against 92.24% valid
+  accuracy, per-class F1 within 0.01 on 7 of 9 classes, and 92.03% against
+  90.67% at a random orientation (`exps/eval_labeled.py`). The two paths draw
+  different random numbers, so the runs are not identical.
+- The batched transforms take `(N, C, T)`, the per-sample ones `(T, C)`; they
+  are not interchangeable. `scripts/train.py`,
+  `scripts/train_sup_contrastive.py`, `scripts/train_self_distill.py` and
+  `exps/simGCD.py` still use the per-sample ones.
+- With `drop_last=True`, dividing by `len(loader.dataset)` gives a wrong
+  accuracy. Count the bursts batch by batch instead, as
+  `scripts/train_sup_contrastive.py` does.
+- A parameter count goes stale silently and depends on the class count.
+  Recompute it before quoting it, and name the constructor arguments.
+  `BirdModel(4, 30, ·)` has 6,309 parameters at 9 classes and 6,340 at 10; the
+  old notes quote 10-class counts. `MaskedAutoencoderViT` was logged at
+  9,546,756 and now has 9,557,508 at `img_size=20`, because two 21x256 position
+  embeddings became learnable. `ResNet18_1D(9, dropout=0.3)` was logged at
+  60,964 and now has 61,289.
 
 ## Early runs (exp15-exp133)
 
-From the training logs of old scripts; no script in the repo reruns them.
-The run details are in `experiments_log.md`.
+These come from the training logs of old scripts, mostly `BirdModel` on older
+data files; no script in the repo reruns them. Accuracy is valid accuracy in %,
+as recorded in `experiments_log.md`, which has the details. The data and the
+seed alone moved it by up to several points (see below), so small differences
+here are not reliable.
 
-### Training recipe
-
-- **AdamW with defaults is already the best.** The small 3-conv model trains
-  best with AdamW, lr=3e-4, weight decay 1e-2, StepLR (step 2000, γ=0.1). SGD
-  is ~5 points worse (exp42 90% vs exp45 95.4%).
-- **Weight decay barely matters** at this scale: wd from 1e-3 to 3e-1 all land
-  within noise of exp45 (exp53, exp54).
-- **Dropout stabilizes training and prevents overfitting** (exp46 overfits
-  after ~1000 epochs without it). But dropout lowers model capacity, so it can
-  make train accuracy *lower* than validation (dropout is off in `model.eval()`);
-  see the MAE note below.
-- **Cosine annealing did not beat StepLR** on accuracy. It reduces overfitting
-  (exp55 almost none) but going 3e-4 -> 2.5e-4 with cosine did not prevent the
-  overfitting that motivated it.
-- **Batch size**: smaller batches converge faster down to ~bs=25; bs=6 is worse
-  and very slow. There is no accuracy gain from large batches here.
-
-### Model size
-
-- **Bigger is worse on this small dataset.** Wider (30 -> 96 channels, 6.3k ->
-  58k params) drops 94.5 -> 93.7 with clear overfitting (exp67). Deeper (3 -> 4
-  layers) drops 94.5 -> 94.0 (exp70); a residual connection recovers most of it
-  (exp71, 94.8).
-- **Multi-head attention helped** the transformer variants (exp85–87).
-
-### Data
-
-- **No augmentation gave the best supervised results.** exp125 (no augmentation,
-  no sampling) is 96.94/95.36. Jitter/scaling (exp126), time/magnitude warp
-  (exp129), and warping GPS all made things worse; holding GPS fixed during
-  augmentation (exp130) beats warping it but still trails. **The best accuracy on
-  `starts.csv` is exp194 (BirdModelSmallDilated, no augmentation, 96.35 val)**,
-  and rotation (exp195, 92.24) is no exception — but it is kept anyway, for
-  robustness rather than accuracy; see the rotation section.
-- **The "sampling hurts" claim does not survive its own numbers.** exp127
-  (sampling only, no augmentation) is 94.29/95.84: validation is *above* exp125's
-  95.36 and only train is lower. The old notes call sampling worse; what the
-  numbers show is that it costs train accuracy and helps rare classes. Do not
-  cite exp127 against sampling without rerunning it.
-- **GPS speed is needed for some classes**, mainly Boat and SitStand
-  (IMU-only exp131 vs exp125; consistent with Judy's paper). Normalizing GPS by
-  its max was a large early win (25% -> 53%, exp19).
-- **Less data, larger drop**: 100% -> 20% of the data costs ~6 points
-  (95.5 -> 89.4). More data past exp45 (exp78, +25%) did not help, so the
-  dataset is near saturation for this model.
-- **The data is noisy**: different data slices and seeds shift validation by
-  ~2.5 points for reasons never fully explained (exp98, exp109–112). Report a
-  fixed seed (32984) and be wary of reading small val differences as real.
-- **Peck labels are noisy**; treat Pecking results with caution.
-
-### Contrastive and clustering
-
-- **Supervised contrastive loss** slightly improves the t-SNE structure and
-  tracks the plain classifier (con1/con2 ≈ exp125).
-- **Mean-entropy maximization hurts.** As a soft class-balancer it sacrifices
-  majority-class accuracy and worsens the t-SNE (con3/con4). Class balancing in
-  general (weights or resampling) trades overall accuracy for rare-class recall
-  (exp28, exp34, exp127).
-
-### MAE pretrain / finetune
-
-- **Average-pool without a class token is the best MAE head** (exp96, 91.08 /
-  train 94.55), beating class-token slicing and the ImageBind head. LayerNorm
-  before the pool/classifier helps slightly (exp96 vs exp97).
-- **Validation above training with the MAE encoder is a dropout artifact**, not a
-  bug. Heavy dropout (.7) lowers train accuracy (capacity down) while eval turns
-  dropout off; the gap shrinks with smaller dropout and higher accuracy (exp92),
-  and disappears without dropout (exp87, exp96). Verified by varying validation
-  size 10/30/50% (exp91/93/94): behavior unchanged.
-- Finetuning the whole network beats training only the class head by a wide
-  margin (f1 48.6 vs f2/f3 ~83).
+- AdamW (learning rate 3e-4, weight decay 1e-2, StepLR with step 2000 and factor
+  0.1) beat SGD: 95.4% against 90% (exp45, exp42). Weight decay from 1e-3 to
+  3e-1 changed little: 95.4% and 95.7% (exp53, exp54). Cosine schedules gave
+  93.1-95.7%, no clear gain (exp47, exp55-58).
+- Batch sizes from 1566 down to 25 gave 94.0-95.1% (exp59-63). A batch of 6 gave
+  92.8% and was very slow (exp64).
+- Without dropout, exp46 overfits after about 1000 epochs. Heavy dropout can put
+  train accuracy below valid, because dropout is off at evaluation. An MAE
+  encoder with dropout 0.7 reached 78.82% (exp91), with 0.1 86.93% and a smaller
+  gap (exp92); without dropout the gap is gone (exp87, exp96). A valid share of
+  10, 30 or 50% did not change this (exp91, exp93, exp94).
+- A wider `BirdModel` (width 96, 58,282 parameters at 10 classes) gave 93.7%
+  and overfit, against 94.5% at width 30 (exp67, exp45). Four layers gave 94.0%
+  (exp70), and 94.8% with a residual connection (exp71).
+- 8 attention heads gave the small transformer 85.8%, against 84.92% for exp85
+  (exp87, embedding size 16).
+- No augmentation was best: 95.36% for exp125 (`starts.csv`). Jitter and scaling
+  with sampling (exp126), plus time and magnitude warp (exp129), or with the GPS
+  speed held fixed (exp130), all gave 89.61%.
+- Sampling alone did not hurt, against what the old notes say: exp127 has 95.84%
+  valid against 95.36% for exp125; only its train accuracy is lower, 94.29%
+  against 96.94%. Rerun it before citing it either way.
+- GPS speed matters: without it, 93.76% against 95.36% (exp131, exp125); the
+  old notes name Boat and SitStand. Dividing the speed by its maximum raised
+  accuracy from 25% to 53% early on (exp19).
+- Less data costs accuracy: 20% of the data gave 89.4% (exp66), against about
+  95% for all of it (exp45). 25% more data than exp45 gave no gain, 94.3%
+  (exp78).
+- Small changes of the data or the seed moved valid accuracy by up to several
+  points, never fully explained (exp98, exp109-112). exp45 alone has three
+  recorded accuracies: 94.5%, 95.4% and 96.15%. Since then, runs fix the seed at
+  32984 and compare seed spreads (Measuring).
+- Supervised contrastive loss tracked the plain classifier (con1, con2).
+  Mean-entropy maximization, a soft class balance, lowered the accuracy on the
+  common classes (con3, con4). Balancing by weights or resampling traded overall
+  accuracy for rare-class recall: 87% with balancing against 90% without (exp28,
+  exp27).
+- The best MAE head pools the tokens without a class token: 91.08% valid, 94.55%
+  train (exp96); without LayerNorm before the pool, 89.47% (exp97). Fine-tuning
+  the whole pretrained network beat training only the class head by far: 82.5%
+  and 83.5% against 48.6% (f2, f3 against f1). This bears on the pretraining
+  TODO in `status.md`, which plans to fine-tune only the last layer.
+- BatchNorm caused a large train-valid gap until `track_running_stats=False`
+  (exp15, fixed in exp22 and exp23). With a very low batch size, exp29 and exp31
+  could not reproduce earlier numbers until the code went back to commit
+  ed7d9a389; since then each run in the log carries its commit hash.
