@@ -25,9 +25,8 @@ Three scores per class, in % of its segments (gull: bursts):
 
 A score is `-` where the table names no class the model has:
 
-- The gull model has no Other: label 7 is removed from `starts.csv`. A
-  spoonbill label mapped to Other (stand-preen, stand-other,
-  stand-shake-feathers) scores only through its alternative, SitStand.
+- stand-preen, stand-other and stand-shake-feathers have no expected gull
+  class, only the alternative SitStand.
 - Float and Boat have no spoonbill counterpart (X in the table). Boat's general
   activity, Sit-Stand, has one.
 - beg is not in the table: it is shown but not scored, and a gull burst
@@ -78,23 +77,23 @@ GULL_GENERAL = {
 }
 
 # Julia's table, spoonbill label: (expected gull classes, alternative gull
-# classes, general activity). Her names in our names: Stationary is SitStand,
-# Walk TerLoco, Peck Pecking, Mixed Manouvre. Other is kept as she wrote it,
-# though the gull model has no Other. fly-flap takes three rows of her table.
+# classes, general activity, None where there is none). Her names in our
+# names: Stationary is SitStand, Walk TerLoco, Peck Pecking, Mixed Manouvre.
+# fly-flap takes three rows of her table.
 SPOONBILL_TO_GULL = {
     "stand-rest": (["SitStand"], [], "Sit-Stand"),
-    "stand-preen": (["Other"], ["SitStand"], "Other"),
+    "stand-preen": ([], ["SitStand"], None),
     "sit-alert": (["SitStand"], [], "Sit-Stand"),
     "stand-alert": (["SitStand"], [], "Sit-Stand"),
     "fly-flap": (["Flap", "ExFlap", "Manouvre"], [], "Flight"),
     "fly-soar": (["Soar"], [], "Flight"),
     "walk": (["TerLoco"], [], "Terrestrial locomotion"),
-    "for-search": (["Pecking"], ["TerLoco", "Other"], "Terrestrial locomotion"),
-    "for-handle": (["Pecking"], ["Other"], "Terrestrial locomotion"),
-    "for-intake": (["Pecking"], ["Other"], "Terrestrial locomotion"),
-    "stand-other": (["Other"], ["SitStand"], "Other"),
-    "stand-shake-feathers": (["Other"], ["SitStand"], "Other"),
-    "drink": (["SitStand"], ["Other", "Pecking"], "Sit-Stand"),
+    "for-search": (["Pecking"], ["TerLoco"], "Terrestrial locomotion"),
+    "for-handle": (["Pecking"], [], "Terrestrial locomotion"),
+    "for-intake": (["Pecking"], [], "Terrestrial locomotion"),
+    "stand-other": ([], ["SitStand"], None),
+    "stand-shake-feathers": ([], ["SitStand"], None),
+    "drink": (["SitStand"], ["Pecking"], "Sit-Stand"),
 }
 
 
@@ -177,16 +176,13 @@ def cross_table(true, guess, true_order, guess_order):
     return t.rename_axis(index="true", columns=None)
 
 
-def hits(true, guess, targets, order, model_classes):
-    """Per true class and level: (hits, count), or None where nothing can hit.
-
-    A target the model cannot predict (Other) is dropped first.
-    """
+def hits(true, guess, targets, order):
+    """Per true class and level: (hits, count), or None where nothing can hit."""
     out = {}
     for c in order:
         m = true == c
         for level in LEVELS:
-            ok = [t for t in targets.get(c, {}).get(level, []) if t in model_classes]
+            ok = targets.get(c, {}).get(level, [])
             out[c, level] = (
                 (int(np.isin(guess[m], ok).sum()), int(m.sum())) if ok else None
             )
@@ -212,8 +208,7 @@ def fmt(pairs):
 def score_table(runs, true, order, targets, unit):
     """% right per true class and level. runs: one `hits` dict per run.
 
-    The table's classes are shown as written, Other included; the last row
-    pools the classes that have a score, with their count.
+    The last row pools the classes that have a score, with their count.
     """
     rows = []
     for c in order:
@@ -260,7 +255,7 @@ def main(cfg):
     guess = predict(cfg.save_path, cfg.gull_checkpoint, gull_names, xs, device)
     print(f"\n## exp{cfg.gull_exp} (gull) on spoonbill segments, segments\n")
     print(as_markdown(cross_table(ys, guess, sb_names, gull_names), index=True))
-    h = hits(ys, guess, targets, sb_names, gull_names)
+    h = hits(ys, guess, targets, sb_names)
     print(f"\n## exp{cfg.gull_exp} (gull) on spoonbill segments, % of segments\n")
     print(as_markdown(score_table([h], ys, sb_names, targets, "segments")))
 
@@ -270,7 +265,7 @@ def main(cfg):
         runs = []
         for e in exps:
             guess = predict(cfg.save_path, f"{e}_{cfg.epoch}.pth", sb_names, xg, device)
-            runs.append(hits(yg, guess, targets, gull_names, sb_names))
+            runs.append(hits(yg, guess, targets, gull_names))
             if e == exps[0]:
                 print(f"\n## exp{e} (spoonbill, {arm}) on gull bursts, bursts\n")
                 t = cross_table(yg, guess, gull_names, sb_names)

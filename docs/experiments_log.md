@@ -10,6 +10,41 @@ Accuracies are valid accuracy in %, unless noted; `tr-val` gives train then
 valid. A trailing `hash:...` is the git commit the run was made at. Numbering
 has gaps (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp214-215: one model for both species, 23 classes
+
+`scripts/train_joint.py` as exp212-213, but every gull and spoonbill label a
+class of its own, 9 + 14 = 23, plain cross-entropy (`SEPARATE_CLASSES`). Asked
+after the meeting with the ecologist: her map may be wrong, so let the
+confusions between the species suggest one. exp214 with rotation, exp215
+without, seed 32984. hash:3fc468a plus the uncommitted changes. About 45 s
+each, stdout in `tensorboard/214_215.txt`. Accuracy in %.
+
+| exp | rotation | gull, epoch 4000 | spoonbill, epoch 4000 | best epoch | gull, spoonbill at best |
+| --- | -------- | ---------------- | --------------------- | ---------- | ----------------------- |
+| 214 | yes      | 81.51            | 71.68                 | 1982       | 81.96, 72.87            |
+| 215 | no       | 87.90            | 87.13                 | 1771       | 88.36, 87.72            |
+
+- Below the set models (exp213: 91.32, 92.08): the right behaviour of the
+  other species now counts as wrong. Spoonbill stand-alert valid F1 0.65 in
+  exp215, 0.87 in exp213; 12 of its 41 valid segments go to gull SitStand
+  (`exps/eval_joint.py`).
+- Valid segments given a class of the other species: exp214 64 of 438 gull and
+  80 of 505 spoonbill, exp215 30 and 32. Without rotation the model keeps the
+  species apart more.
+- Cross-species counts, all segments, exp214: gull SitStand to stand-rest
+  254, stand-preen 59, stand-alert 28; spoonbill stand-rest and stand-alert to
+  SitStand 234 and 124; fly-soar to Soar 40 of 52; gull ExFlap to fly-flap 10
+  of 38. Table in `status.md`, Both species in one model.
+- for-search: gull Pecking gives it 73 of 225, gull TerLoco 42 of 337; it
+  gives Pecking 12 and TerLoco 7 of 1929 (exp214). Between the two, nearer
+  Pecking, as exp197 on spoonbills said (998 Pecking, 524 TerLoco).
+- Walking barely crosses: gull TerLoco to walk 1, spoonbill walk to TerLoco 0
+  (exp214) and 5 (exp215).
+- Tried and dropped: each segment's best class among the other species'
+  classes only. Arbitrary, as training pushed all of them down: exp215 put
+  most for-search segments in Soar. No script kept.
+- Next: `status.md`, TODO, Both species.
+
 ## exp212-213: one model for both species
 
 `scripts/train_joint.py`: the exp197 recipe (7 channels, full batch, 4000

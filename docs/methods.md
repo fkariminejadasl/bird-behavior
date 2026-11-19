@@ -215,6 +215,9 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
   can be. The loss is minus the log of the probability summed over that set,
   so inside the set the model chooses freely. Each species keeps its own
   split. About 40 s per run.
+- Both species, exp214-215: the same, but 23 classes, one per gull and
+  spoonbill label. Each set holds one class, so the loss is the plain
+  cross-entropy.
 - The set loss, by example. A gull SitStand burst has the set stand-rest,
   sit-alert, stand-alert, drink, and its loss is -log(p(stand-rest) +
   p(sit-alert) + p(stand-alert) + p(drink)). stand-rest 0.9 gives the same

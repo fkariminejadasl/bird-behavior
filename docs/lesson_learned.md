@@ -183,6 +183,23 @@ speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
+### One class per label: rotation mixes the species more (exp214-215)
+
+One model on both species with 23 classes, one per gull and spoonbill label
+(`scripts/train_joint.py`; numbers in `experiments_log.md`, exp214-215).
+
+- **The right behaviour of the other species counts as wrong.** exp215 gets
+  87.90% of gull and 87.13% of spoonbill valid segments, the set model exp213
+  91.32% and 92.08% (`exps/eval_joint.py`).
+- **Without rotation the model keeps the species apart.** 30 of 438 gull and
+  32 of 505 spoonbill valid segments get a class of the other species; with
+  rotation 64 and 80 (`exps/eval_joint.py`). Why is a guess: the tag sits
+  differently on the two species, and rotation hides that.
+- **Read the cells between the species, not a forced choice.** Taking each
+  segment's best class among the other species' classes only is arbitrary:
+  training pushed all of them down. exp215 put most for-search segments in
+  Soar (tried, no script kept).
+
 ### Set labels leave the split open: gull SitStand differs by run (exp212-213)
 
 One model on both species, each label a set of joint classes

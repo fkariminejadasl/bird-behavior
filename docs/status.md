@@ -91,7 +91,8 @@ to gull labels); the spoonbill models are scored with it read backwards.
 Both species in one model (`exps/eval_joint.py`): each species on the valid
 split of its own models, 438 gull bursts and 505 spoonbill segments. A joint
 prediction is right when it is in the set of joint classes the label can be
-(`scripts/train_joint.py`).
+(`scripts/train_joint.py`). With 23 classes, one per label, that is the label
+itself, so the right behaviour of the other species counts as wrong.
 
 ## Results
 
@@ -156,24 +157,25 @@ ours does not.
 ### Across species
 
 The gull model, exp197 (`197_best.pth`), on all 5080 spoonbill segments
-(`exps/eval_cross_species.py`). Other is not a class of the gull model, so a
-label mapped to it scores only through its alternative.
+(`exps/eval_cross_species.py`). The last column counts the expected and the
+alternative class together: of 1929 for-search segments, 998 get Pecking and
+524 TerLoco. The full counts are in `experiments_log.md`, Across species.
 
 | spoonbill label      | segments    | expected gull class (alternative) | % expected | % expected or alternative |
 | -------------------- | ----------- | --------------------------------- | ---------- | ------------------------- |
 | stand-rest           | 1357        | SitStand                          | 98.7       | 98.7                      |
-| stand-preen          | 299         | Other (SitStand)                  | -          | 76.9                      |
+| stand-preen          | 299         | - (SitStand)                      | -          | 76.9                      |
 | sit-alert            | 62          | SitStand                          | 100.0      | 100.0                     |
 | stand-alert          | 416         | SitStand                          | 93.0       | 93.0                      |
 | fly-flap             | 185         | Flap, ExFlap, Manouvre            | 98.4       | 98.4                      |
 | fly-soar             | 52          | Soar                              | 98.1       | 98.1                      |
 | walk                 | 177         | TerLoco                           | 67.2       | 67.2                      |
-| for-search           | 1929        | Pecking (TerLoco, Other)          | 51.7       | 78.9                      |
-| for-handle           | 14          | Pecking (Other)                   | 100.0      | 100.0                     |
-| for-intake           | 115         | Pecking (Other)                   | 100.0      | 100.0                     |
-| stand-other          | 15          | Other (SitStand)                  | -          | 53.3                      |
-| stand-shake-feathers | 18          | Other (SitStand)                  | -          | 27.8                      |
-| drink                | 7           | SitStand (Other, Pecking)         | 28.6       | 28.6                      |
+| for-search           | 1929        | Pecking (TerLoco)                 | 51.7       | 78.9                      |
+| for-handle           | 14          | Pecking                           | 100.0      | 100.0                     |
+| for-intake           | 115         | Pecking                           | 100.0      | 100.0                     |
+| stand-other          | 15          | - (SitStand)                      | -          | 53.3                      |
+| stand-shake-feathers | 18          | - (SitStand)                      | -          | 27.8                      |
+| drink                | 7           | SitStand (Pecking)                | 28.6       | 28.6                      |
 | beg                  | 434         | not in the table                  | -          | -                         |
 | **all scored**       | 4314 / 4646 |                                   | **75.8**   | **86.9**                  |
 
@@ -195,16 +197,40 @@ three seeds: exp207, 210, 211 without rotation, exp206, 208, 209 with
 ### Both species in one model
 
 Valid accuracy %, epoch 4000 (`exps/eval_joint.py`). Single-species models:
-mean (min-max) of 3 seeds. Joint models: one seed each, 32984.
+mean (min-max) of 3 seeds. Joint models: one seed each, 32984. Sets: 18 joint
+classes from the ecologist's map. 23 classes: one per label, no map.
 
-| species, valid split    | single species, rotation              | single species, no rotation           | joint, rotation, exp212 | joint, no rotation, exp213 |
-| ----------------------- | ------------------------------------- | ------------------------------------- | ----------------------- | -------------------------- |
-| gull, 438 bursts        | 93.99 (93.84-94.06), exp199, 201, 202 | -                                     | 89.27                   | 91.32                      |
-| spoonbill, 505 segments | 84.36 (83.96-84.55), exp206, 208, 209 | 94.06 (93.27-94.65), exp207, 210, 211 | 84.16                   | 92.08                      |
+| model                          | exp                          | gull, 438 bursts    | spoonbill, 505 segments |
+| ------------------------------ | ---------------------------- | ------------------- | ----------------------- |
+| single species, rotation       | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06) | 84.36 (83.96-84.55)     |
+| single species, no rotation    | 207, 210, 211                | -                   | 94.06 (93.27-94.65)     |
+| joint, sets, rotation          | 212                          | 89.27               | 84.16                   |
+| joint, sets, no rotation       | 213                          | 91.32               | 92.08                   |
+| joint, 23 classes, rotation    | 214                          | 81.51               | 71.68                   |
+| joint, 23 classes, no rotation | 215                          | 87.90               | 87.13                   |
 
 The joint models split the 1502 gull SitStand bursts (train and valid) into
 stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213, 819, 0 and
 606 for exp212 (`exps/eval_joint.py`). No gull label says which is right.
+
+Where the 23-class models give a label a class of the other species, the most
+frequent, over all segments, train and valid (`exps/eval_joint.py`). With
+rotation the species mix more: 64 of 438 gull and 80 of 505 spoonbill valid
+segments get a class of the other species, against 30 and 32 without.
+
+| label                 | segments | exp214, rotation                               | exp215, no rotation                           |
+| --------------------- | -------- | ---------------------------------------------- | --------------------------------------------- |
+| gull SitStand         | 1502     | stand-rest 254, stand-preen 59, stand-alert 28 | stand-rest 48, stand-preen 35, stand-alert 34 |
+| gull TerLoco          | 337      | for-search 42, beg 12, walk 1                  | beg 4, stand-preen 4, walk 1                  |
+| gull Pecking          | 225      | for-search 73, for-intake 15, stand-preen 11   | stand-preen 6, for-search 4                   |
+| gull ExFlap           | 38       | fly-flap 10                                    | fly-flap 4                                    |
+| spoonbill stand-rest  | 1357     | SitStand 234                                   | SitStand 12                                   |
+| spoonbill stand-alert | 416      | SitStand 124                                   | SitStand 40                                   |
+| spoonbill stand-preen | 299      | SitStand 29, Pecking 4                         | SitStand 23, Pecking 4                        |
+| spoonbill fly-soar    | 52       | Soar 40                                        | Boat 1                                        |
+| spoonbill walk        | 177      | SitStand 1, Float 1                            | TerLoco 5                                     |
+| spoonbill for-search  | 1929     | Pecking 12, TerLoco 7, SitStand 5              | Soar 4, Pecking 3                             |
+| spoonbill for-intake  | 115      | Pecking 5                                      | -                                             |
 
 ## Done
 
@@ -226,8 +252,8 @@ stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213, 819, 0 and
   two papers.
 - Across species: exp197 on spoonbill data, exp206-211 on gull data, scored
   with an ecologist's label map (`exps/eval_cross_species.py`).
-- Both species in one model, on joint classes: exp212-213
-  (`scripts/train_joint.py`).
+- Both species in one model: on the ecologist's joint classes (exp212-213),
+  and on 23 classes, one per label (exp214-215), `scripts/train_joint.py`.
 
 ## TODO
 
@@ -251,12 +277,13 @@ Spoonbills:
 - **Class-balanced F1 without a class.** It is NaN when a class has no valid
   segment (drink). Skip such a class instead.
 
-Both species, in one model (exp212-213):
+Both species, in one model (exp212-215):
 
-- **More seeds.** Rerun both at seeds 1234 and 5678 before trusting how they
-  split gull SitStand: the two runs disagree.
-- **Gull Pecking as for-search too.** The map leaves for-search out of gull
-  Pecking, and exp212 sends 61 of 225 gull Pecking bursts there anyway.
+- **A new map.** Revise the ecologist's map with the cross-species counts of
+  exp214-215 (Results, Both species in one model), then retrain the set model.
+  for-search sits between gull Pecking and TerLoco.
+- **More seeds.** Rerun at seeds 1234 and 5678 before trusting how the set
+  models split gull SitStand, or the cross-species counts.
 - **Check the gull rest and alert split.** Ask the ecologist whether some gull
   SitStand bursts can be labeled rest or alert, the only way to score it.
 

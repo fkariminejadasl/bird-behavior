@@ -15,12 +15,18 @@ among them; what it learns from the spoonbills decides which. So a set never
 holds a joint class of one species only: a gull-only SitStand class in that
 set would take every gull resting burst, and nothing would carry over.
 
-The map follows the ecologist's table, with two choices made here:
+The map of exp212-213 (`JOINT_CLASSES`, `GULL_TO_JOINT`, `SPOONBILL_TO_JOINT`)
+follows the ecologist's table, with two choices made here:
 
 - gull Pecking is for-handle or for-intake, not for-search: the table says
   gulls do not search that way.
 - the preening, shaking and stand-other labels are not in gull SitStand: the
-  table puts them under Other, which the gull data drops.
+  table gives SitStand only as their alternative.
+
+exp214-215 assume no map (`SEPARATE_CLASSES`): each of the 9 gull and 14
+spoonbill labels is a class of its own, 23 in all, and the loss is the plain
+cross-entropy. Where the model confuses a label of one species with one of the
+other, the two look alike, which is a way to find the map.
 
 Each species keeps the split of its own models, so the valid sets are those of
 exp197 (438 gull bursts, stratified, seed 32984) and exp206-211 (505 spoonbill
@@ -114,14 +120,27 @@ GULL_TO_JOINT = {
 SPOONBILL_TO_JOINT = {n: [n] for n in SPOONBILL_NAMES.values()}
 SPOONBILL_TO_JOINT["fly-flap"] = ["Flap", "ExFlap", "Manouvre"]
 SPOONBILL_TO_JOINT["fly-soar"] = ["Soar"]
+# All 23 labels, each a class of its own: 9 gull, then 14 spoonbill, each block
+# in the order of JOINT_CLASSES. Every set holds one class, so the loss is the
+# plain cross-entropy, and a confusion between the two species shows which
+# labels look alike, with no map assumed. exp214-215 were trained with these.
+SEPARATE_CLASSES = ["Flap", "ExFlap", "Manouvre", "Soar", "Float", "Boat"]
+SEPARATE_CLASSES += ["SitStand", "TerLoco", "Pecking", "fly-flap", "fly-soar"]
+SEPARATE_CLASSES += ["stand-rest", "sit-alert", "stand-alert", "drink"]
+SEPARATE_CLASSES += ["stand-preen", "stand-other", "stand-shake-feathers"]
+SEPARATE_CLASSES += ["walk", "for-search", "for-handle", "for-intake", "beg"]
+GULL_TO_SEPARATE = {n: [n] for n in GULL_NAMES.values()}
+SPOONBILL_TO_SEPARATE = {n: [n] for n in SPOONBILL_NAMES.values()}
 
 
-def species_config():
-    """The two species as exp212-213 use them: data, split and joint sets.
+def species_config(gull_to_joint=GULL_TO_JOINT, spoonbill_to_joint=SPOONBILL_TO_JOINT):
+    """The two species: data, split, and each label's set of joint classes.
 
-    Each keeps the split of its own models: gull stratified per segment as
-    exp197, spoonbill by fix as exp206-211. `check_exp` must reproduce its
-    valid accuracy on the rebuilt split.
+    The default sets are those of exp212-213; exp214-215 take
+    `GULL_TO_SEPARATE` and `SPOONBILL_TO_SEPARATE`. Each species keeps the
+    split of its own models: gull stratified per segment as exp197, spoonbill
+    by fix as exp206-211. `check_exp` must reproduce its valid accuracy on the
+    rebuilt split.
     """
     return {
         "gull": {
@@ -129,7 +148,7 @@ def species_config():
             "labels": GULL_NAMES,
             "split_by": None,
             "check_exp": 197,
-            "to_joint": GULL_TO_JOINT,
+            "to_joint": gull_to_joint,
         },
         "spoonbill": {
             "data_file": "/home/fatemeh/Downloads/bird/data/spoonbill_final/"
@@ -137,7 +156,7 @@ def species_config():
             "labels": SPOONBILL_NAMES,
             "split_by": "fix",
             "check_exp": 207,
-            "to_joint": SPOONBILL_TO_JOINT,
+            "to_joint": spoonbill_to_joint,
         },
     }
 
@@ -415,6 +434,34 @@ def report(cfg, data, device, best_epoch):
     plot_run(cfg, cfg.exp)
 
 
+def draw_counts(ax, counts, rows, cols, boxes):
+    """One confusion-matrix panel; returns the image, for a colorbar.
+
+    `counts`: rows x columns. The number is the count, blank for 0; the color
+    is the share of the row, so small rows show too. `boxes`: (row, column)
+    cells outlined in orange.
+    """
+    n = counts.sum(1)
+    share = 100 * counts / np.maximum(n, 1)[:, None]
+    im = ax.imshow(share, cmap="Blues", vmin=0, vmax=100, aspect="auto")
+    for r, c in boxes:
+        ax.add_patch(
+            Rectangle((c - 0.5, r - 0.5), 1, 1, fill=False, ec="#eb6834", lw=2)
+        )
+    for r in range(counts.shape[0]):
+        for c in range(counts.shape[1]):
+            if counts[r, c]:
+                ink = "white" if share[r, c] > 60 else "black"
+                ax.text(
+                    c, r, counts[r, c], ha="center", va="center", fontsize=8, color=ink
+                )
+    ax.set_yticks(range(len(rows)), [f"{lab} ({k})" for lab, k in zip(rows, n)])
+    ax.set_xticks(
+        range(len(cols)), cols, rotation=45, ha="right", rotation_mode="anchor"
+    )
+    return im
+
+
 def plot_counts(cfg, csv_path, title):
     """Draw a counts CSV of `report` as a confusion matrix, a PNG beside it.
 
@@ -441,40 +488,23 @@ def plot_counts(cfg, csv_path, title):
         t = table.loc[s]
         order = sorted(t.index, key=lambda lab: min(joint.index(m) for m in sets[lab]))
         counts = t.loc[order].values
-        n = counts.sum(1)
-        share = 100 * counts / np.maximum(n, 1)[:, None]
-        im = ax.imshow(share, cmap="Blues", vmin=0, vmax=100, aspect="auto")
-        right = 0
-        for r, lab in enumerate(order):
-            for c, j in enumerate(joint):
-                if j in sets[lab]:
-                    right += counts[r, c]
-                    box = Rectangle(
-                        (c - 0.5, r - 0.5), 1, 1, fill=False, ec="#eb6834", lw=2
-                    )
-                    ax.add_patch(box)
-                if counts[r, c]:
-                    ink = "white" if share[r, c] > 60 else "black"
-                    ax.text(
-                        c,
-                        r,
-                        counts[r, c],
-                        ha="center",
-                        va="center",
-                        fontsize=8,
-                        color=ink,
-                    )
-        ax.set_yticks(range(len(order)), [f"{lab} ({k})" for lab, k in zip(order, n)])
+        boxes = [
+            (r, c)
+            for r, lab in enumerate(order)
+            for c, j in enumerate(joint)
+            if j in sets[lab]
+        ]
+        im = draw_counts(ax, counts, order, joint, boxes)
+        right = sum(counts[r, c] for r, c in boxes)
         ax.set_ylabel("true label (segments)")
         ax.set_title(
-            f"{s}: {n.sum()} segments, {100 * right / n.sum():.2f}% in their "
-            "label's set",
+            f"{s}: {counts.sum()} segments, {100 * right / counts.sum():.2f}% in "
+            "their label's set",
             loc="left",
             fontsize=10,
         )
-    axes[-1].set_xticks(
-        range(len(joint)), joint, rotation=45, ha="right", rotation_mode="anchor"
-    )
+        if ax is not axes[-1]:
+            ax.tick_params(labelbottom=False)
     axes[-1].set_xlabel("predicted joint class")
     fig.colorbar(im, ax=axes, shrink=0.5, label="share of the row's segments, %")
     fig.suptitle(
@@ -509,14 +539,17 @@ def main(cfg):
 if __name__ == "__main__":
     base_config = {
         "save_path": "/home/fatemeh/Downloads/bird/results",
-        "exp": 212,
+        "exp": 214,
         "overwrite": False,  # True to replace the results of an experiment number
         "seed": 32984,
         "split_seed": 32984,  # both species keep the split of their own models
         "train_per": 0.9,
         "glen": 20,
-        "species": species_config(),  # data, split and joint sets per species
-        "joint_classes": JOINT_CLASSES,
+        # data, split and set of joint classes per label. exp212-213:
+        # species_config() and JOINT_CLASSES, the sets from the ecologist's map.
+        # exp214-215: every label its own class, 23 classes.
+        "species": species_config(GULL_TO_SEPARATE, SPOONBILL_TO_SEPARATE),
+        "joint_classes": SEPARATE_CLASSES,
         "add_magnitudes": True,  # 7 channels, as exp197 and exp206-211
         "augment": True,  # random 3D rotation of the acceleration
         # Training, as exp197: full batch, AdamW, StepLR
@@ -531,8 +564,8 @@ if __name__ == "__main__":
             "parameters": {"in_channels": 7, "mid_channels": 20, "dropout": 0.15},
         },
     }
-    # exp212: rotation, exp213: no rotation; seed 32984 each.
-    experiments = [{"exp": 212}, {"exp": 213, "augment": False}]
+    # exp212 and exp214: rotation; exp213 and exp215: no rotation; seed 32984.
+    experiments = [{"exp": 214}, {"exp": 215, "augment": False}]
 
     configs = [
         OmegaConf.merge(OmegaConf.create(deepcopy(base_config)), e) for e in experiments

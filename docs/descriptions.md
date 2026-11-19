@@ -49,7 +49,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
 - `behavior/model.py::BirdModelSmallDilated` — `in_channels=4` **5,129 params**, `in_channels=7` **5,429 params**, receptive field 25
   (three k=5 convs, dilation 1/2/3), the app and baseline model
 - `scripts/batch_train_supervised.py` — training; several configs in one run
-- `scripts/train_joint.py` — one model on gulls and spoonbills, 18 joint classes, each label a set of them
+- `scripts/train_joint.py` — one model on gulls and spoonbills: 18 joint classes, each label a set of them, or 23, one per label
 - `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
 
 ## Eval
@@ -402,17 +402,17 @@ A table by Julia, an ecologist, received by email on 2026-11-16:
 `/home/fatemeh/Downloads/behaviours_spoonbills_to_gulls.xlsx`, one sheet. One
 row per spoonbill behaviour of Lok et al., with whether gulls show it, the gull
 class she expects a model to give, an alternative, the general activity
-(Flight, Sit-Stand, Terrestrial locomotion, Float, Other) and comments. Gull
+(Flight, Sit-Stand, Terrestrial locomotion, Float) and comments. Gull
 names are those of Table S1 of the Judy supplement: Stationary is our SitStand,
 Walk TerLoco, Peck Pecking, Mixed Manouvre. Copied into
 `exps/eval_cross_species.py::SPOONBILL_TO_GULL`.
 
 - fly-flap can be Flap, ExFlap or Manouvre (three rows).
-- The preening, washing, shaking and stand-other labels go to Other, which our
-  gull data drops (label 7); their alternative is Stationary.
+- The preening, washing, shaking and stand-other labels have no gull class;
+  her alternative is Stationary.
 - for-search, head swung in the water, is not found in gulls; her guess is
-  Peck, or Walk or Other.
-- drink is Stationary, or Other or Peck by its head movements.
+  Peck, or Walk.
+- drink is Stationary, or Peck by its head movements.
 - Float and Boat have no spoonbill row: spoonbills seldom float or sit on boats.
 - beg is not in the table.
 - She hopes a model trained on both species splits gull Stationary into rest
@@ -582,7 +582,9 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
   differ. Each species label is the set of joint classes it can be
   (`GULL_TO_JOINT`, `SPOONBILL_TO_JOINT`, from Spoonbill to gull labels,
   above), and the loss is minus the log of the probability summed over that
-  set. Each species keeps the split of its own models, checked by reproducing
+  set. Or 23 classes, one per label, no map (`SEPARATE_CLASSES`, exp214-215):
+  plain cross-entropy. Each species keeps the split of its own models,
+  checked by reproducing
   the valid accuracy of exp197 and exp207. Writes the checkpoints, tensorboard
   and, in `failed/<exp>_joint/`, accuracy per species, counts per label and
   joint class, each also drawn as a confusion matrix
@@ -719,10 +721,11 @@ What each costs or buys, and why augmentation must stay on the train data:
   the same general activity; the spoonbill models with the map read backwards.
   Prints a count table of where each class goes, the mean x, y and z per class
   of both species, and each model's accuracy on its own species as a check.
-- `exps/eval_joint.py`: the joint models (exp212-213) beside the
+- `exps/eval_joint.py`: the joint models (exp212-215) beside the
   single-species models, on the same valid segments, at epoch 4000: accuracy
-  and F1 per label for each species, and where the joint models put gull
-  SitStand, gull Pecking and spoonbill fly-flap among their joint classes.
+  and F1 per label for each species; where the set models put gull SitStand,
+  gull Pecking and spoonbill fly-flap among their joint classes; and, for the
+  23-class models, which classes of the other species each label gets.
 - `exps/spoonbill_data_stats.py`: counts the spoonbill data: records, fixes and
   data quality per file, the 20 Hz check, and segments per behaviour and per
   bird, with the bouts too short for one segment. Prints only; tables in
