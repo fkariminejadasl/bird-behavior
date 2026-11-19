@@ -156,69 +156,75 @@ ours does not.
 
 ### Across species
 
-The gull model, exp197 (`197_best.pth`), on all 5080 spoonbill segments
-(`exps/eval_cross_species.py`). The last column counts the expected and the
-alternative class together: of 1929 for-search segments, 998 get Pecking and
-524 TerLoco. The full counts are in `experiments_log.md`, Across species.
+The gull model, exp197 at its best epoch (`197_best.pth`; it has no epoch-4000
+checkpoint), on all 5080 spoonbill segments (`exps/eval_cross_species.py`).
+The last column counts the expected and the alternative class together, so
+for-search there is Pecking or TerLoco; the count per class is in
+`experiments_log.md`, Across species.
 
-| spoonbill label      | segments    | expected gull class (alternative) | % expected | % expected or alternative |
-| -------------------- | ----------- | --------------------------------- | ---------- | ------------------------- |
-| stand-rest           | 1357        | SitStand                          | 98.7       | 98.7                      |
-| stand-preen          | 299         | - (SitStand)                      | -          | 76.9                      |
-| sit-alert            | 62          | SitStand                          | 100.0      | 100.0                     |
-| stand-alert          | 416         | SitStand                          | 93.0       | 93.0                      |
-| fly-flap             | 185         | Flap, ExFlap, Manouvre            | 98.4       | 98.4                      |
-| fly-soar             | 52          | Soar                              | 98.1       | 98.1                      |
-| walk                 | 177         | TerLoco                           | 67.2       | 67.2                      |
-| for-search           | 1929        | Pecking (TerLoco)                 | 51.7       | 78.9                      |
-| for-handle           | 14          | Pecking                           | 100.0      | 100.0                     |
-| for-intake           | 115         | Pecking                           | 100.0      | 100.0                     |
-| stand-other          | 15          | - (SitStand)                      | -          | 53.3                      |
-| stand-shake-feathers | 18          | - (SitStand)                      | -          | 27.8                      |
-| drink                | 7           | SitStand (Pecking)                | 28.6       | 28.6                      |
-| beg                  | 434         | not in the table                  | -          | -                         |
-| **all scored**       | 4314 / 4646 |                                   | **75.8**   | **86.9**                  |
+| spoonbill label      | segments    | expected gull class (alternative) | % expected, best epoch | % expected or alternative, best epoch |
+| -------------------- | ----------- | --------------------------------- | ---------------------- | ------------------------------------- |
+| stand-rest           | 1357        | SitStand                          | 98.7                   | 98.7                                  |
+| stand-preen          | 299         | - (SitStand)                      | -                      | 76.9                                  |
+| sit-alert            | 62          | SitStand                          | 100.0                  | 100.0                                 |
+| stand-alert          | 416         | SitStand                          | 93.0                   | 93.0                                  |
+| fly-flap             | 185         | Flap, ExFlap, Manouvre            | 98.4                   | 98.4                                  |
+| fly-soar             | 52          | Soar                              | 98.1                   | 98.1                                  |
+| walk                 | 177         | TerLoco                           | 67.2                   | 67.2                                  |
+| for-search           | 1929        | Pecking (TerLoco)                 | 51.7                   | 78.9                                  |
+| for-handle           | 14          | Pecking                           | 100.0                  | 100.0                                 |
+| for-intake           | 115         | Pecking                           | 100.0                  | 100.0                                 |
+| stand-other          | 15          | - (SitStand)                      | -                      | 53.3                                  |
+| stand-shake-feathers | 18          | - (SitStand)                      | -                      | 27.8                                  |
+| drink                | 7           | SitStand (Pecking)                | 28.6                   | 28.6                                  |
+| beg                  | 434         | not in the table                  | -                      | -                                     |
+| **all scored**       | 4314 / 4646 |                                   | **75.8**               | **86.9**                              |
 
-The spoonbill models on all 4338 gull bursts, epoch 4000, mean (min-max) of
-three seeds: exp207, 210, 211 without rotation, exp206, 208, 209 with
-(`exps/eval_cross_species.py`). Float and Boat have no spoonbill counterpart.
+The spoonbill models on all 4338 gull bursts, at epoch 4000, the last, mean
+(min-max) of three seeds: exp207, 210, 211 without rotation, exp206, 208, 209
+with (`exps/eval_cross_species.py`). Float and Boat have no spoonbill
+counterpart.
 
-| gull class     | bursts | expected spoonbill label (alternative)                                           | no rotation, % expected | no rotation, % expected or alternative | rotation, % expected | rotation, % expected or alternative |
-| -------------- | ------ | -------------------------------------------------------------------------------- | ----------------------- | -------------------------------------- | -------------------- | ----------------------------------- |
-| Flap           | 643    | fly-flap                                                                         | 61.1 (46.2-84.1)        | 61.1 (46.2-84.1)                       | 71.7 (48.8-96.7)     | 71.7 (48.8-96.7)                    |
-| ExFlap         | 38     | fly-flap                                                                         | 55.3 (31.6-78.9)        | 55.3 (31.6-78.9)                       | 64.0 (60.5-65.8)     | 64.0 (60.5-65.8)                    |
-| Soar           | 537    | fly-soar                                                                         | 43.7 (37.2-52.1)        | 43.7 (37.2-52.1)                       | 76.4 (75.2-77.1)     | 76.4 (75.2-77.1)                    |
-| SitStand       | 1502   | stand-rest, sit-alert, stand-alert, drink (stand-preen, -other, -shake-feathers) | 82.1 (72.3-88.2)        | 92.1 (85.2-95.7)                       | 85.6 (84.6-87.1)     | 95.2 (94.0-96.6)                    |
-| TerLoco        | 337    | walk (for-search)                                                                | 22.7 (12.5-38.9)        | 29.1 (20.5-45.7)                       | 2.3 (1.5-3.0)        | 60.9 (60.5-61.1)                    |
-| Manouvre       | 151    | fly-flap                                                                         | 12.4 (9.3-15.2)         | 12.4 (9.3-15.2)                        | 31.8 (11.3-58.9)     | 31.8 (11.3-58.9)                    |
-| Pecking        | 225    | for-search, for-handle, for-intake (drink)                                       | 63.6 (60.4-66.7)        | 63.6 (60.4-66.7)                       | 68.1 (63.1-74.2)     | 68.1 (63.1-74.2)                    |
-| **all scored** | 3433   |                                                                                  | 61.8 (60.7-63.5)        | 66.7 (65.8-67.4)                       | 69.6 (65.6-74.9)     | 79.6 (75.5-84.7)                    |
+| gull class     | bursts | expected spoonbill label (alternative)                                           | no rotation, % expected, epoch 4000 | no rotation, % expected or alternative, epoch 4000 | rotation, % expected, epoch 4000 | rotation, % expected or alternative, epoch 4000 |
+| -------------- | ------ | -------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------- | -------------------------------- | ----------------------------------------------- |
+| Flap           | 643    | fly-flap                                                                         | 61.1 (46.2-84.1)                    | 61.1 (46.2-84.1)                                   | 71.7 (48.8-96.7)                 | 71.7 (48.8-96.7)                                |
+| ExFlap         | 38     | fly-flap                                                                         | 55.3 (31.6-78.9)                    | 55.3 (31.6-78.9)                                   | 64.0 (60.5-65.8)                 | 64.0 (60.5-65.8)                                |
+| Soar           | 537    | fly-soar                                                                         | 43.7 (37.2-52.1)                    | 43.7 (37.2-52.1)                                   | 76.4 (75.2-77.1)                 | 76.4 (75.2-77.1)                                |
+| SitStand       | 1502   | stand-rest, sit-alert, stand-alert, drink (stand-preen, -other, -shake-feathers) | 82.1 (72.3-88.2)                    | 92.1 (85.2-95.7)                                   | 85.6 (84.6-87.1)                 | 95.2 (94.0-96.6)                                |
+| TerLoco        | 337    | walk (for-search)                                                                | 22.7 (12.5-38.9)                    | 29.1 (20.5-45.7)                                   | 2.3 (1.5-3.0)                    | 60.9 (60.5-61.1)                                |
+| Manouvre       | 151    | fly-flap                                                                         | 12.4 (9.3-15.2)                     | 12.4 (9.3-15.2)                                    | 31.8 (11.3-58.9)                 | 31.8 (11.3-58.9)                                |
+| Pecking        | 225    | for-search, for-handle, for-intake (drink)                                       | 63.6 (60.4-66.7)                    | 63.6 (60.4-66.7)                                   | 68.1 (63.1-74.2)                 | 68.1 (63.1-74.2)                                |
+| **all scored** | 3433   |                                                                                  | 61.8 (60.7-63.5)                    | 66.7 (65.8-67.4)                                   | 69.6 (65.6-74.9)                 | 79.6 (75.5-84.7)                                |
 
 ### Both species in one model
 
-Valid accuracy %, epoch 4000 (`exps/eval_joint.py`). Single-species models:
-mean (min-max) of 3 seeds. Joint models: one seed each, 32984. Sets: 18 joint
-classes from the ecologist's map. 23 classes: one per label, no map.
+Valid accuracy %, at epoch 4000, the last, for every run here
+(`exps/eval_joint.py`); exp197 at its best epoch is in Gulls, labeled.
+Single-species models: mean (min-max) of 3 seeds. Joint models: one seed,
+32984, each. Sets: 18 joint classes from the ecologist's map. 23 classes: one
+per label, no map.
 
-| model                          | exp                          | gull, 438 bursts    | spoonbill, 505 segments |
-| ------------------------------ | ---------------------------- | ------------------- | ----------------------- |
-| single species, rotation       | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06) | 84.36 (83.96-84.55)     |
-| single species, no rotation    | 207, 210, 211                | -                   | 94.06 (93.27-94.65)     |
-| joint, sets, rotation          | 212                          | 89.27               | 84.16                   |
-| joint, sets, no rotation       | 213                          | 91.32               | 92.08                   |
-| joint, 23 classes, rotation    | 214                          | 81.51               | 71.68                   |
-| joint, 23 classes, no rotation | 215                          | 87.90               | 87.13                   |
+| model                          | exp                          | gull, 438 bursts, % at epoch 4000 | spoonbill, 505 segments, % at epoch 4000 |
+| ------------------------------ | ---------------------------- | --------------------------------- | ---------------------------------------- |
+| single species, rotation       | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06)               | 84.36 (83.96-84.55)                      |
+| single species, no rotation    | 207, 210, 211                | -                                 | 94.06 (93.27-94.65)                      |
+| joint, sets, rotation          | 212                          | 89.27                             | 84.16                                    |
+| joint, sets, no rotation       | 213                          | 91.32                             | 92.08                                    |
+| joint, 23 classes, rotation    | 214                          | 81.51                             | 71.68                                    |
+| joint, 23 classes, no rotation | 215                          | 87.90                             | 87.13                                    |
 
-The joint models split the 1502 gull SitStand bursts (train and valid) into
-stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213, 819, 0 and
-606 for exp212 (`exps/eval_joint.py`). No gull label says which is right.
+At epoch 4000, the set models split the 1502 gull SitStand bursts (train and
+valid) into stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213,
+819, 0 and 606 for exp212 (`exps/eval_joint.py`). No gull label says which is
+right.
 
 Where the 23-class models give a label a class of the other species, the most
-frequent, over all segments, train and valid (`exps/eval_joint.py`). With
+frequent, at epoch 4000, over all segments, train and valid
+(`exps/eval_joint.py`). With
 rotation the species mix more: 64 of 438 gull and 80 of 505 spoonbill valid
 segments get a class of the other species, against 30 and 32 without.
 
-| label                 | segments | exp214, rotation                               | exp215, no rotation                           |
+| label                 | segments | exp214, rotation, epoch 4000                   | exp215, no rotation, epoch 4000               |
 | --------------------- | -------- | ---------------------------------------------- | --------------------------------------------- |
 | gull SitStand         | 1502     | stand-rest 254, stand-preen 59, stand-alert 28 | stand-rest 48, stand-preen 35, stand-alert 34 |
 | gull TerLoco          | 337      | for-search 42, beg 12, walk 1                  | beg 4, stand-preen 4, walk 1                  |

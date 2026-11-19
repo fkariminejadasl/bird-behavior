@@ -17,29 +17,21 @@ class of its own, 9 + 14 = 23, plain cross-entropy (`SEPARATE_CLASSES`). Asked
 after the meeting with the ecologist: her map may be wrong, so let the
 confusions between the species suggest one. exp214 with rotation, exp215
 without, seed 32984. hash:3fc468a plus the uncommitted changes. About 45 s
-each, stdout in `tensorboard/214_215.txt`. Accuracy in %.
+each, stdout in `tensorboard/214_215.txt`. Accuracy at epoch 4000 and the
+cross-species counts: `status.md`, Both species in one model.
 
-| exp | rotation | gull, epoch 4000 | spoonbill, epoch 4000 | best epoch | gull, spoonbill at best |
-| --- | -------- | ---------------- | --------------------- | ---------- | ----------------------- |
-| 214 | yes      | 81.51            | 71.68                 | 1982       | 81.96, 72.87            |
-| 215 | no       | 87.90            | 87.13                 | 1771       | 88.36, 87.72            |
+| exp | rotation | best epoch | gull, spoonbill valid accuracy % at best |
+| --- | -------- | ---------- | ---------------------------------------- |
+| 214 | yes      | 1982       | 81.96, 72.87                             |
+| 215 | no       | 1771       | 88.36, 87.72                             |
 
-- Below the set models (exp213: 91.32, 92.08): the right behaviour of the
-  other species now counts as wrong. Spoonbill stand-alert valid F1 0.65 in
-  exp215, 0.87 in exp213; 12 of its 41 valid segments go to gull SitStand
-  (`exps/eval_joint.py`).
-- Valid segments given a class of the other species: exp214 64 of 438 gull and
-  80 of 505 spoonbill, exp215 30 and 32. Without rotation the model keeps the
-  species apart more.
-- Cross-species counts, all segments, exp214: gull SitStand to stand-rest
-  254, stand-preen 59, stand-alert 28; spoonbill stand-rest and stand-alert to
-  SitStand 234 and 124; fly-soar to Soar 40 of 52; gull ExFlap to fly-flap 10
-  of 38. Table in `status.md`, Both species in one model.
-- for-search: gull Pecking gives it 73 of 225, gull TerLoco 42 of 337; it
-  gives Pecking 12 and TerLoco 7 of 1929 (exp214). Between the two, nearer
-  Pecking, as exp197 on spoonbills said (998 Pecking, 524 TerLoco).
-- Walking barely crosses: gull TerLoco to walk 1, spoonbill walk to TerLoco 0
-  (exp214) and 5 (exp215).
+- Below the set models: the right behaviour of the other species now counts
+  as wrong. Spoonbill stand-alert valid F1 0.65 in exp215, 0.87 in exp213; 12
+  of its 41 valid segments go to gull SitStand (`exps/eval_joint.py`).
+- Without rotation the model keeps the species apart more.
+- for-search sits between gull Pecking and TerLoco, nearer Pecking, as in the
+  cross test of exp197.
+- Walking barely crosses between the species.
 - Tried and dropped: each segment's best class among the other species'
   classes only. Arbitrary, as training pushed all of them down: exp215 put
   most for-search segments in Soar. No script kept.
@@ -53,23 +45,23 @@ segments. 18 joint classes; each label is the set of joint classes it can be,
 from the ecologist's map; the loss sums the probability over the set. Each
 species keeps its own split: 438 gull, 505 spoonbill valid. exp212 with
 rotation, exp213 without. hash:b5331a4 plus the new scripts. About 40 s each,
-stdout in `tensorboard/212_213.txt`. Accuracy in %.
+stdout in `tensorboard/212_213.txt`. Accuracy at epoch 4000 and the gull
+SitStand split: `status.md`, Both species in one model.
 
-| exp | rotation | gull, epoch 4000 | spoonbill, epoch 4000 | best epoch | gull, spoonbill at best |
-| --- | -------- | ---------------- | --------------------- | ---------- | ----------------------- |
-| 212 | yes      | 89.27            | 84.16                 | 2473       | 89.95, 84.75            |
-| 213 | no       | 91.32            | 92.08                 | 1703       | 91.55, 92.67            |
+| exp | rotation | best epoch | gull, spoonbill valid accuracy % at best |
+| --- | -------- | ---------- | ---------------------------------------- |
+| 212 | yes      | 2473       | 89.95, 84.75                             |
+| 213 | no       | 1703       | 91.55, 92.67                             |
 
-- Against the single-species models at epoch 4000 (`exps/eval_joint.py`):
-  gull 2.5 (exp213) and 4.6 (exp212) points below exp199, 201, 202
-  (93.84-94.06). Spoonbill: exp212 inside the rotation range (83.96-84.55),
-  exp213 1.2 points below the lowest run without rotation (93.27).
-- Gull F1 that falls: Pecking 0.71-0.75 to 0.50 (exp212) and 0.67 (exp213),
-  TerLoco 0.80 in exp212 (0.85-0.90), Boat 0.80 in exp213 (0.88-0.94).
-  Spoonbill, exp213: stand-preen 0.61 (0.75-0.84).
-- Gull SitStand, all 1502: exp213 952 stand-rest, 62 sit-alert, 443
-  stand-alert, 45 outside the set; exp212 819, 0, 606, 77. The two runs
-  disagree. SitStand F1 0.96 and 0.95 cannot show it.
+- At epoch 4000, gull 2.5 (exp213) and 4.6 (exp212) points below the lowest
+  single-species run; spoonbill: exp212 inside the rotation range, exp213 1.2
+  points below the lowest run without rotation.
+- Gull F1 that falls (`exps/eval_joint.py`): Pecking 0.71-0.75 to 0.50
+  (exp212) and 0.67 (exp213), TerLoco 0.80 in exp212 (0.85-0.90), Boat 0.80 in
+  exp213 (0.88-0.94). Spoonbill, exp213: stand-preen 0.61 (0.75-0.84).
+- Gull SitStand: the two runs split it differently. Outside the set 45
+  (exp213) and 77 (exp212) of 1502. SitStand F1 0.96 and 0.95 cannot show the
+  split.
 - Gull Pecking, all 225: for-intake 181 (exp213) and 110 (exp212), never
   for-handle. Outside the set 44 and 115, most often walk (15) and for-search
   (61).
@@ -86,28 +78,25 @@ stdout in `tensorboard/212_213.txt`. Accuracy in %.
 ## Across species: exp197 on spoonbills, exp206-211 on gulls (no new run)
 
 `exps/eval_cross_species.py` on all 5080 spoonbill segments and all 4338 gull
-bursts. exp197 at `197_best.pth`, the spoonbill runs at `<exp>_4000.pth`.
-Scored by the ecologist's label map (`descriptions.md`, Spoonbill to gull
-labels). hash:71746e1 plus the new script. Tables in `status.md`, Across
-species.
+bursts. exp197 at its best epoch (`197_best.pth`), the spoonbill runs at the
+last, epoch 4000. Scored by the ecologist's label map (`descriptions.md`,
+Spoonbill to gull labels). hash:71746e1 plus the new script. The percentages
+are in `status.md`, Across species; here the counts behind them.
 
 - Same axes: gravity along +z in every class of both species, mean z 0.82 to
   1.06 g. x follows body pitch.
-- exp197 on spoonbills: the expected or alternative gull class for 86.9% of
-  4646 scored segments. Resting, alert, flight, handle and intake: 93.0-100%.
-  fly-flap: 98 Flap, 84 ExFlap of 185.
-- walk 67.2%, 34 of 177 to Pecking. for-search: 998 Pecking, 524 TerLoco, 358
-  SitStand of 1929. stand-shake-feathers: 5 of 18 SitStand, 6 ExFlap.
+- exp197 on spoonbills: fly-flap 98 Flap, 84 ExFlap of 185. walk: 34 of 177 to
+  Pecking. for-search: 998 Pecking, 524 TerLoco, 358 SitStand of 1929.
+  stand-shake-feathers: 6 of 18 to ExFlap.
 - beg, not in the map: 232 of 434 TerLoco, 109 Pecking.
-- Spoonbill models on gulls, expected or alternative, of 3433 scored bursts:
-  rotation 79.6 (75.5-84.7), no rotation 66.7 (65.8-67.4). The ranges do not
+- Spoonbill models on gulls: the arms with and without rotation do not
   overlap.
 - TerLoco: exp207 (no rotation) gives 104 stand-rest and 118 stand-preen of
   337, exp206 (rotation) 4, and 196 for-search.
 - No counterpart: Float to exp207 334 for-search and 257 beg of 729, to exp206
   408 beg. Boat to exp207 106 stand-alert of 176.
-- Flap to fly-flap swings with the seed: 46.2-84.1% without rotation,
-  48.8-96.7% with. exp207 gives 320 of 643 Flap bursts beg.
+- Flap to fly-flap swings with the seed. exp207 gives 320 of 643 Flap bursts
+  beg.
 - Next: one model on both species (`status.md`, TODO).
 
 ## exp208-211: three seeds a side, and the two spoonbill papers
