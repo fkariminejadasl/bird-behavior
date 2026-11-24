@@ -59,8 +59,10 @@
   the set it counts, so two numbers are never compared across them.
 - Name the metric of every score and what it was scored on: accuracy in %, or
   F1 on 0-1 (per class or pooled, plain or class-balanced), over which items
-  (segments or records) and which split. A bare 0.91 cannot be compared with a
-  paper's number. On a slide, put the metric in the table header or the line.
+  (segments or records), which split, and which checkpoint: the best epoch
+  (`<exp>_best.pth`) or the last (`<exp>_4000.pth`). A bare 0.91 cannot be
+  compared with a paper's number. In `status.md` and on a slide, put the metric
+  and the checkpoint in the table header or the line above the table.
 - Every number in a doc needs code in the repo that prints it: in `exps/`, or a
   check in `exps/recompute_doc_numbers.py`. A number whose code is gone cannot
   be rechecked: drop it, or say there is no script.

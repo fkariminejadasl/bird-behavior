@@ -105,36 +105,34 @@ exp208/209 = exp206 (rotation) at seeds 1234 and 5678, exp210/211 = exp207
 (no rotation) at the same two. `split_seed` 32984, so all six share exp206's
 505 valid segments. hash:864b6c1 plus the uncommitted changes. 5m03s-5m28s
 each, stdout of all four in `tensorboard/208_211.txt`. Accuracy in % of the
-505 valid segments.
+505 valid segments; at epoch 4000 in `status.md`, Spoonbills.
 
-| exp | seed  | rotation | best (epoch) | epoch 4000 | last 500 epochs     |
-| --- | ----- | -------- | ------------ | ---------- | ------------------- |
-| 206 | 32984 | yes      | 85.74 (1460) | 84.55      | 84.41 (83.76-84.95) |
-| 208 | 1234  | yes      | 85.54 (1575) | 84.55      | 84.26 (83.76-84.95) |
-| 209 | 5678  | yes      | 85.15 (1696) | 83.96      | 83.99 (83.17-85.15) |
-| 207 | 32984 | no       | 94.85 (946)  | 94.26      | 94.12 (93.86-94.65) |
-| 210 | 1234  | no       | 93.66 (1982) | 93.27      | 93.44 (93.27-93.47) |
-| 211 | 5678  | no       | 95.05 (1399) | 94.65      | 94.68 (94.65-94.85) |
+| exp | seed  | rotation | best (epoch) | last 500 epochs     |
+| --- | ----- | -------- | ------------ | ------------------- |
+| 206 | 32984 | yes      | 85.74 (1460) | 84.41 (83.76-84.95) |
+| 208 | 1234  | yes      | 85.54 (1575) | 84.26 (83.76-84.95) |
+| 209 | 5678  | yes      | 85.15 (1696) | 83.99 (83.17-85.15) |
+| 207 | 32984 | no       | 94.85 (946)  | 94.12 (93.86-94.65) |
+| 210 | 1234  | no       | 93.66 (1982) | 93.44 (93.27-93.47) |
+| 211 | 5678  | no       | 95.05 (1399) | 94.68 (94.65-94.85) |
 
-- Rotation against none holds over seeds: 83.96-84.55 against 93.27-94.65 at
-  epoch 4000, 8.7 points apart. Seed spread at most 1.4 points.
+- Rotation against none holds over seeds: 8.7 points apart at epoch 4000. Seed
+  spread at most 1.4 points.
 - F1 on segments, mean of 3 (`exps/eval_spoonbill.py`): stand-alert 0.49 ->
   0.87, walk 0.42 -> 0.78, stand-preen 0.70 -> 0.79, stand-rest 0.90 -> 0.98.
-- Against the papers, scored on records as they score: the 79 valid fixes cut
-  into 1 s windows from the first record, 12,040 of 12,519 records in 602 full
-  windows, 133 windows mixed. No rotation, F1 mean (range), ours against Lok
-  et al. 2025 at 0.8 / 1.6 s: forage 0.98 against 0.96 / 0.96, walk 0.74
-  (0.71-0.75) against 0.60 / 0.61, fly 0.97 (0.96-0.98) against 0.97 / 0.98,
-  rest 1.00 (0.99-1.00) against 0.96 / 0.95, beg 0.92 (0.91-0.93) against 0.86
-  / 0.89.
-- Against Lok et al. 2023 (best segment length): walk 0.81 (0.78-0.83)
-  against 0.65, search 0.90 against 0.91, ingest 0.59 (0.56-0.63) against
-  0.73, handle 0.23 (0.00-0.38) where the paper never predicts it. fly-passive
-  0.89 against > 0.90 (6 windows).
+- Against the papers, scored on records as they score (means and the 1.6 s
+  values in `status.md`, Spoonbills): the 79 valid fixes hold 12,519 records,
+  and 133 of the scored windows hold two behaviours. No rotation, F1 range
+  over the seeds: walk 0.71-0.75, fly 0.96-0.98, rest 0.99-1.00, beg
+  0.91-0.93. Lok et al. 2025 at 0.8 s: forage 0.96, walk 0.60, fly 0.97, rest
+  0.96, beg 0.86.
+- Against Lok et al. 2023 (best segment length): range walk 0.78-0.83, ingest
+  0.56-0.63; handle 0.23 (0.00-0.38) where the paper never predicts it;
+  fly-passive 0.89 against > 0.90 (6 windows).
 - With rotation we are below the papers on walk, beg, search and ingest.
-- Same model, ingest on segments 0.92, on records 0.59. The record test adds
-  windows with two behaviours, where the short bouts sit; one answer per
-  window is scored against each of its 20 records.
+- Same model, ingest on segments 0.92, far above its score on records. The
+  record test adds windows with two behaviours, where the short bouts sit; one
+  answer per window is scored against each of its 20 records.
 - Conclusion: better than the papers on walking, resting and begging, level
   on flight and searching, worse on prey ingestion. The papers' split shares
   fixes between train and test; ours shares none.
@@ -162,8 +160,8 @@ uncommitted changes. 5m11s and 5m03s, stdout of both in
   the resting and alert classes. One seed each, but the plateaus are 10 points
   apart; the gull seed spread is under 1 point.
 - Still the same birds in train and valid. Without rotation the model can also
-  learn each tag's mounting, and on gulls a model without rotation fell to 13%
-  at a random orientation (exp194). Not tested on a new bird.
+  learn each tag's mounting, and on gulls a model without rotation collapsed at
+  a random orientation (exp194, `status.md`). Not tested on a new bird.
 - Balanced F1 is NaN for both: drink has no valid segment, and
   `utils.py::per_class_statistics_balanced` divides by the class count.
 - exp205 (random split) scored 83.07 and exp206 (fix split) 85.74, but on
@@ -180,7 +178,7 @@ pooling. Config: exp197's model entry with `out_channels` 14,
 per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
 5m20s, best epoch 3731, stdout in `tensorboard/205.txt`.
 
-- val **83.07** / train 86.95 (gulls, exp197: 94.52 / 97.90). Plateau over the
+- val **83.07** / train 86.95 (gulls, exp197: train 97.90). Plateau over the
   last 500 epochs 82.46 (81.52-83.07), final 82.88. Valid F1 0.83 plain, 0.52
   balanced.
 - Valid F1 per class: fly-soar 1.00 (6 segments), fly-flap 0.97, for-search
@@ -276,15 +274,15 @@ at 32984, so all six are scored on the same 437 bursts and the same 4 ExFlap
 ones, at epoch 4000; only the trajectory moves. hash:2e4bc39 plus the
 uncommitted changes. 4 runs, 5m each.
 
-- **Speed conflict is the one real effect, and it is clean.** raw 0.10/0.15/0.13
-  against clean 0.03/0.06/0.04 — the two ranges do not overlap, every clean run
-  beats every raw run (`exps/eval_unlabeled.py`).
-- **Every other check is inside the seed spread.** place 1.12/1.08/1.00 vs
-  1.03/1.07/1.04, unseen flip 4.09/3.97/3.46 vs 3.88/3.86/3.44, rotation flip
-  1.57/1.62/1.34 vs 1.61/1.53/1.36. Ranges overlap, no effect.
-- **The accuracy gap does not survive either.** valid 93.82/94.05/94.05 vs
-  93.59/93.36/94.05, means 93.97 and 93.67. The best clean seed ties the best
-  raw seed, so the 0.23 points exp199 vs exp200 showed was one seed pair.
+Every value per run is in `status.md`, Gulls, raw against cleaned labels.
+
+- **Speed conflict is the one real effect, and it is clean.** The two ranges do
+  not overlap; every clean run beats every raw run (`exps/eval_unlabeled.py`).
+- **Every other check is inside the seed spread**: place, unseen flip and
+  rotation flip. Ranges overlap, no effect.
+- **The accuracy gap does not survive either.** Means 93.97 and 93.67. The best
+  clean seed ties the best raw seed, so the 0.23 points exp199 vs exp200 showed
+  was one seed pair.
 - **ExFlap: a shift in the odds, not a break.** On b0 (534, 2012-06-08
   18:18:19, 15.84 m/s) raw is right 3 of 3, clean 1 of 3; on b3 (782,
   2014-05-26 10:41:11, 4.99 m/s) raw 3 of 3, clean 2 of 3. But one clean seed
@@ -319,17 +317,17 @@ hash:2e4bc39 plus the uncommitted changes. 3900/438 and 3875/437, 5m each.
 - The only difference between the two training sets is the **25 noise bursts**
   exp199 keeps: 3,900 against 3,875 train bursts (`exps/eval_labeled.py`); the
   26th is in the valid split of both.
-- Labeled, epoch 4000, the same 437 bursts: valid **93.82 vs 93.59** — 1 burst.
-  Plain F1 0.94 both, every class within 0.03 except ExFlap.
+- Labeled, epoch 4000, the same 437 bursts: 1 burst apart (`status.md`). Plain
+  F1 0.94 both, every class within 0.03 except ExFlap.
 - **Orientation robustness is now level**, on both measures. Labeled SO(3)
   accuracy 93.94 vs 93.90 (`exps/eval_labeled.py`), where exp197 vs exp198 on
-  their 260 shared bursts was 95.04 vs 94.31. Unlabeled rotation flip 1.57 vs
-  1.61 (`exps/eval_unlabeled.py`), where exp197 vs exp198 was 1.72 vs 2.00.
-  Two different measurements from two different scripts; both gaps fall to 0.04.
-- Unlabeled (device 6004): speed conflict **0.10 vs 0.03**, place **1.12 vs
-  1.03**, unseen flip **4.09 vs 3.88**, rotation flip 1.57 vs 1.61, mean
-  confidence 0.95 vs 0.96. Agree on 97.2%. exp200 is better or level on every
-  check — place and unseen flip **change sign** from the exp197/exp198 reading.
+  their 260 shared bursts was 95.04 vs 94.31. Unlabeled rotation flip 0.04
+  apart (`exps/eval_unlabeled.py`, `status.md`), where exp198 was 0.28 above
+  exp197. Two different measurements from two different scripts; both gaps
+  fall to 0.04.
+- Unlabeled (device 6004, values in `status.md`): mean confidence 0.95 vs 0.96,
+  agree on 97.2%. exp200 is better or level on every check — place and unseen
+  flip **change sign** from the exp197/exp198 reading.
 - The ExFlap bursts and the accuracy gap are followed up in exp201-204; one
   seed each settles neither.
 - Conclusion: cleaning the labels is neutral to positive. The earlier
@@ -342,17 +340,17 @@ Model, seed, augmentation and schedule unchanged, so it is a clean A/B on the
 data. hash:2e4bc39 plus the uncommitted config change. 3877/435 split, 5m14s,
 best epoch 1227.
 
-- val **94.02** / train 95.98 vs exp197's 94.52 / 97.90. Valid F1 0.94 plain,
-  0.84 balanced (exp197 0.95 / 0.90).
+- val **94.02** / train 95.98 vs exp197's train 97.90 (its valid in
+  `status.md`). Valid F1 0.94 plain, 0.84 balanced.
 - The two runs do not share a valid split: dropping bursts reshuffles
   `stratified_split`, so 177 of exp197's 438 valid bursts are in exp198's train
   set (`exps/recompute_doc_numbers.py`). Neither number above is comparable;
   exp199/exp200 redo it properly.
 - The balanced F1 gap is 2 bursts: ExFlap 2 of 4 wrong, both called Flap, where
   exp197 got 4 of 4. Every other class within 0.05 plain F1.
-- Unlabeled (device 6004, `exps/eval_unlabeled.py`): speed conflict **0.03 vs
-  0.11%**, place 1.16 vs 1.09, unseen flip 4.82 vs 4.04, rotation flip 2.00 vs
-  1.72. Agree on 96.8%.
+- Unlabeled (device 6004, `exps/eval_unlabeled.py`; exp197 in `status.md`):
+  speed conflict **0.03%**, place 1.16, unseen flip 4.82, rotation flip 2.00.
+  Agree with exp197 on 96.8%.
 - **The 0.50 headline gap is checkpoint choice, not data.** Plateaus: exp197
   93.96 mean over the last 500 epochs (93.61–94.29, final 93.84), exp198 flat
   93.79. `<exp>_best.pth` is the best valid epoch — 1870 for exp197, 1227 for
@@ -371,15 +369,15 @@ exp196 with `add_magnitudes=True`: input `[x, y, z, gps, mag, dyn_mag, jerk_mag]
 augmentation and schedule unchanged, so it is a clean A/B on the features.
 hash:202bf6f plus the uncommitted 7-channel change. 4m56s, best epoch 1870.
 
-- val **94.52** / train 97.90 vs exp196's 92.69 / 91.56. Valid F1 0.95 plain,
-  **0.90 balanced** (exp196 0.93 / 0.83).
+- train 97.90 vs exp196's 91.56; valid accuracy and class-balanced F1 in
+  `status.md`, Gulls, labeled. Plain valid F1 exp196 0.93.
 - Not seed noise: last-500-epoch plateaus do not overlap, 92.29 (91.78–92.69) vs
   93.95 (93.61–94.29).
-- Orientation: SO(3) mean 93.66 vs 92.03, 70° pitch 93.61 vs 91.55.
+- Orientation: random rotation in `status.md`; 70° pitch 93.61 vs 91.55.
 - Per-class valid F1: Manouvre +0.12, Pecking +0.08, Boat +0.06, TerLoco +0.00.
   ExFlap +0.14 is 4 bursts, ignore.
-- Unlabeled (device 6004): rotation flip **1.72 vs 5.37%**, unseen flip 4.04 vs
-  4.92, place 1.09 vs 1.45, speed 0.11 vs 0.09 (worse). Agree on 93.0%.
+- Unlabeled (device 6004, `status.md`): better on rotation flip, unseen flip
+  and place, slightly worse on speed conflict. Agree on 93.0%.
 - Where the three weak classes go wrong (`exps/plot_errors.py`, 15 plots in
   `/home/fatemeh/Downloads/bird/results/errors_exp197`): TerLoco 3 of 34 wrong
   (2 to Pecking) and 5 wrongly predicted (3 from Pecking); Pecking 7 of 23 wrong
@@ -392,13 +390,13 @@ Same model, data, seed and split as exp195; only the augmentation wiring differs
 (`bd.GpuBatches` + `bau.BatchRandomRotation3D` instead of the per-sample
 transform in `BirdDataset`). hash:520efd0. **5m03s against exp195's 47m31s, 9.4x.**
 
-- val **92.69** (best, epoch 1885) / train 91.56, against exp195's 92.24 / 90.21.
+- best epoch 1885, train 91.56 against exp195's 90.21; valid in `status.md`.
   Plateau 92.24–92.47 over the last 500 epochs (exp195: ~91.1), final epoch 92.24.
 - Valid F1 within ±0.01 of exp195 on 7 of 9 classes. The two that move are the
   smallest: TerLoco +0.10 (34 valid bursts) and Manouvre -0.14 (16 bursts, so
-  1–2 samples). Class-balanced valid F1 0.84 -> 0.83.
-- Orientation robustness holds: random SO(3) mean 92.03 (std 0.47) against
-  exp195's 90.67 (std 1.00); x/y swap 93.15 vs 90.41.
+  1–2 samples). Class-balanced valid F1 down 0.01 (`status.md`).
+- Orientation robustness holds (`status.md`); the spread over the 20 random
+  rotations is smaller, std 0.47 against 1.00.
 - **Conclusion: same result, within the seed noise this dataset already shows.**
   The RNG stream differs between the two paths, so equality was never expected.
 
@@ -409,13 +407,12 @@ BirdModelSmallDilated + full SO(3) IMU rotation (train set only), starts.csv,
 (`mid_channels=20`, `dropout=0.15`), split (3900/438) and seed (32984); only the
 transform differs.
 
-- val **92.24** (best, epoch 1308) / train 90.21 on unaugmented train data, vs
-  exp194's 99.44/96.35. Valid plateaus at ~91.1 from epoch ~1300; 47m31s.
-- Off-orientation exp194 collapses (x/y swap 71.46, 70° pitch 2.05, random SO(3)
-  13.05) where exp195 holds 90.4–91.6. Table in
-  [docs/status.md](status.md), from `exps/eval_labeled.py`.
-- Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss; balanced valid
-  F1 0.92 -> 0.84 (`exps/eval_labeled.py`).
+- best epoch 1308, train 90.21 on unaugmented train data vs exp194's 99.44;
+  valid in `status.md`. Valid plateaus at ~91.1 from epoch ~1300; 47m31s.
+- Off-orientation exp194 collapses, to 2.05 at a 70° pitch, where exp195 holds.
+  Table in [docs/status.md](status.md), from `exps/eval_labeled.py`.
+- Valid F1 TerLoco .97 -> .79 and Pecking .94 -> .68 carry the loss;
+  class-balanced F1 in `status.md` (`exps/eval_labeled.py`).
 
 ## Configs for exp196-exp204
 
@@ -518,7 +515,7 @@ exp144–179 drop 2 (7-class, 36 models); exp180–184 and exp185–189 drop 1 o
   recorded value. Rerun if the number matters.
 - **exp125**: new pipeline, `starts.csv` (start labels only), 9 class -> 96.94/95.36.
   Best of the exp124–exp131 family and the long-standing reference; beaten since
-  by exp194 (96.35 val, same data) — see "Compact models and app reruns".
+  by exp194 (same data, `status.md`) — see "Compact models and app reruns".
 - exp131: as exp125 but no GPS -> tr-val 92.11/93.76. GPS mainly helps Boat and
   SitStand (consistent with Judy's paper).
 
@@ -543,13 +540,13 @@ dropout 0.7 (~2000 params); exp122–123 same on shifted data.
 All on the current pipeline. Numbers read from
 `~/Downloads/bird/results/failed/<exp>_<data stem>/app_loss_acc.txt`.
 
-| exp    | model / data                                   | train | valid     |
-| ------ | ---------------------------------------------- | ----- | --------- |
-| exp190 | BirdModel, starts.csv (IMU clipped to [-2, 2]) | 95.49 | 94.98     |
-| exp191 | BirdModel, s_index (repeat exp45)              | 94.92 | 94.32     |
-| exp192 | BirdModel, starts.csv (repeat exp125)          | 95.95 | 94.75     |
-| exp193 | BirdModelWideRF, starts.csv                    | 99.67 | 95.21     |
-| exp194 | BirdModelSmallDilated, starts.csv              | 99.44 | **96.35** |
+| exp    | model / data                                   | train | valid       |
+| ------ | ---------------------------------------------- | ----- | ----------- |
+| exp190 | BirdModel, starts.csv (IMU clipped to [-2, 2]) | 95.49 | 94.98       |
+| exp191 | BirdModel, s_index (repeat exp45)              | 94.92 | 94.32       |
+| exp192 | BirdModel, starts.csv (repeat exp125)          | 95.95 | 94.75       |
+| exp193 | BirdModelWideRF, starts.csv                    | 99.67 | 95.21       |
+| exp194 | BirdModelSmallDilated, starts.csv              | 99.44 | `status.md` |
 
 - **exp194 is the best supervised run on `starts.csv` so far**, a point above
   exp125 (95.36) and 1.6 above exp192 (BirdModel on the same data). It is the
