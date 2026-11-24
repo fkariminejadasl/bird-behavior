@@ -18,12 +18,9 @@ after the meeting with the ecologist: her map may be wrong, so let the
 confusions between the species suggest one. exp214 with rotation, exp215
 without, seed 32984. hash:3fc468a plus the uncommitted changes. About 45 s
 each, stdout in `tensorboard/214_215.txt`. Accuracy at epoch 4000 and the
-cross-species counts: `status.md`, Both species in one model.
-
-| exp | rotation | best epoch | gull, spoonbill valid accuracy % at best |
-| --- | -------- | ---------- | ---------------------------------------- |
-| 214 | yes      | 1982       | 81.96, 72.87                             |
-| 215 | no       | 1771       | 88.36, 87.72                             |
+cross-species counts: `status.md`, Both species in one model. Best epochs 1982
+(exp214) and 1771 (exp215); valid accuracy % there, gull and spoonbill: 81.96
+and 72.87, 88.36 and 87.72.
 
 - Below the set models: the right behaviour of the other species now counts
   as wrong. Spoonbill stand-alert valid F1 0.65 in exp215, 0.87 in exp213; 12
@@ -46,12 +43,9 @@ from the ecologist's map; the loss sums the probability over the set. Each
 species keeps its own split: 438 gull, 505 spoonbill valid. exp212 with
 rotation, exp213 without. hash:b5331a4 plus the new scripts. About 40 s each,
 stdout in `tensorboard/212_213.txt`. Accuracy at epoch 4000 and the gull
-SitStand split: `status.md`, Both species in one model.
-
-| exp | rotation | best epoch | gull, spoonbill valid accuracy % at best |
-| --- | -------- | ---------- | ---------------------------------------- |
-| 212 | yes      | 2473       | 89.95, 84.75                             |
-| 213 | no       | 1703       | 91.55, 92.67                             |
+SitStand split: `status.md`, Both species in one model. Best epochs 2473
+(exp212) and 1703 (exp213); valid accuracy % there, gull and spoonbill: 89.95
+and 84.75, 91.55 and 92.67.
 
 - At epoch 4000, gull 2.5 (exp213) and 4.6 (exp212) points below the lowest
   single-species run; spoonbill: exp212 inside the rotation range, exp213 1.2
@@ -144,12 +138,9 @@ exp206 = exp205 with `split_by` fix: every fix whole in train or valid, 0
 shared, 4575/505 segments, 79 valid fixes. exp207 = exp206 with `augment`
 False. Only the augmentation differs between the two. hash:5367360 plus the
 uncommitted changes. 5m11s and 5m03s, stdout of both in
-`tensorboard/206_207.txt`.
-
-| exp | rotation | val (best epoch) | train | last 500 epochs     | F1 plain |
-| --- | -------- | ---------------- | ----- | ------------------- | -------- |
-| 206 | yes      | 85.74 (1460)     | 83.37 | 84.41 (83.76-84.95) | 0.86     |
-| 207 | no       | **94.85** (946)  | 95.19 | 94.12 (93.86-94.65) | **0.95** |
+`tensorboard/206_207.txt`. Best epoch and plateau: the exp208-211 table,
+above. Train accuracy 83.37% (exp206) and 95.19% (exp207); plain valid F1 0.86
+and 0.95.
 
 - Valid F1 per class, 206 -> 207 (valid segments): stand-alert 0.58 -> 0.87
   (41), walk 0.40 -> 0.83 (19), stand-preen 0.71 -> 0.83 (30), stand-rest 0.92
@@ -164,7 +155,7 @@ uncommitted changes. 5m11s and 5m03s, stdout of both in
   a random orientation (exp194, `status.md`). Not tested on a new bird.
 - Balanced F1 is NaN for both: drink has no valid segment, and
   `utils.py::per_class_statistics_balanced` divides by the class count.
-- exp205 (random split) scored 83.07 and exp206 (fix split) 85.74, but on
+- exp205 (random split) scored 83.07 and exp206 (fix split) higher, but on
   different valid sets: sit-alert has 7 valid segments in exp205, 1 here. The
   gap does not measure the leak.
 
@@ -220,24 +211,15 @@ per segment: 4566/514 segments. hash:7066e61 plus the uncommitted changes.
 Does a model trained on `starts_clean.csv` lean more on GPS speed? Only the
 speed is changed, the acceleration is kept. `exps/speed_reliance.py` on all
 4338 bursts of `starts.csv`. exp197 is read at its best checkpoint, the others
-at `<exp>_4000.pth`. hash:f6a0c49 plus the new script.
+at `<exp>_4000.pth`. hash:f6a0c49 plus the new script. The table: `status.md`,
+Gulls, reliance on GPS speed.
 
-| model  | labels | b3 P(ExFlap), 0/5/10/15/20 m/s | ExFlap mean P, 0 vs 20 m/s | changed, shuffled % | changed, speed 0 % |
-| ------ | ------ | ------------------------------ | -------------------------- | ------------------- | ------------------ |
-| exp197 | raw    | 0.67 0.60 0.51 0.42 0.34       | 0.79 vs 0.75               | 30.0                | 13.7               |
-| exp199 | raw    | 0.79 0.76 0.66 0.55 0.44       | 0.85 vs 0.83               | 29.5                | 13.2               |
-| exp201 | raw    | 0.47 0.67 0.66 0.43 0.19       | 0.81 vs 0.75               | 28.0                | 12.4               |
-| exp202 | raw    | 0.84 0.66 0.64 0.65 0.65       | 0.86 vs 0.85               | 27.8                | 12.0               |
-| exp200 | clean  | 0.45 0.32 0.16 0.08 0.06       | 0.83 vs 0.72               | 31.1                | 12.9               |
-| exp203 | clean  | 0.55 0.69 0.54 0.33 0.24       | 0.84 vs 0.77               | 30.6                | 13.0               |
-| exp204 | clean  | 0.84 0.80 0.71 0.58 0.52       | 0.87 vs 0.84               | 29.5                | 11.5               |
-
-- b3 is the ExFlap burst at 4.99 m/s (782, 2014-05-26 10:41:11, index 14).
-  Its sweep depends on the seed: raw exp201 falls about as far as clean exp203.
-- Shuffled speeds: raw 27.8-29.5%, clean 29.5-31.1%. About 2 points more for
-  clean, ranges touching. Speed set to 0: no difference.
+- The sweep of the ExFlap burst b3 depends on the seed: raw exp201 falls about
+  as far as clean exp203.
+- Shuffled speeds: about 2 points more for clean, ranges touching. Speed set to
+  0: no difference.
 - Conclusion: clean models lean only a little more on speed. The exp199 vs
-  exp200 sweep below (0.45 -> 0.06 against 0.79 -> 0.44) was one seed pair.
+  exp200 sweep below was one seed pair.
 - Decision: keep exp197 as the working model, against the exp201-204
   conclusion below. The reasons are in `lesson_learned.md`, Retraining on the
   cleaned labels.
@@ -295,8 +277,8 @@ Every value per run is in `status.md`, Gulls, raw against cleaned labels.
   never wrong in any run. The 26 dropped bursts are the only fast-but-not-flying
   training examples there were (3.24-17.78 m/s, all SitStand/TerLoco/Pecking),
   so dropping them sharpens **fast -> Flap**. Sweeping the GPS channel with the
-  accelerometer held fixed: exp200 P(ExFlap) on b3 falls 0.45 -> 0.06 from 0 to
-  20 m/s where exp199 stays flat at 0.79 -> 0.44.
+  accelerometer held fixed, exp200's P(ExFlap) on b3 falls far more than
+  exp199's (`status.md`, Gulls, reliance on GPS speed).
 - Conclusion: **clean the labels.** The fix lands where it was aimed, 2-3x
   fewer physically impossible predictions, and costs nothing measurable else.
   Cleaning a land class can still move a flight class, because the classes share

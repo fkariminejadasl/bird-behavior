@@ -130,6 +130,29 @@ its ranges do not overlap.
 | raw, `starts.csv`         | 199, 201, 202 | 93.82, 94.05, 94.05 | 0.10, 0.15, 0.13 | 1.12, 1.08, 1.00 | 4.09, 3.97, 3.46 | 1.57, 1.62, 1.34 |
 | clean, `starts_clean.csv` | 200, 203, 204 | 93.59, 93.36, 94.05 | 0.03, 0.06, 0.04 | 1.03, 1.07, 1.04 | 3.88, 3.86, 3.44 | 1.61, 1.53, 1.36 |
 
+### Gulls, reliance on GPS speed
+
+All 4338 bursts of `starts.csv`, the acceleration kept and only the speed
+changed (`exps/speed_reliance.py`). b3 is one ExFlap burst at 4.99 m/s (782,
+2014-05-26 10:41:11, index 14).
+
+- **b3 P(ExFlap), 0-1**: its ExFlap probability with the speed set to 0, 5,
+  10, 15 and 20 m/s.
+- **ExFlap mean P, 0-1**: the mean ExFlap probability of the 38 ExFlap bursts,
+  with the speed set to 0 and to 20 m/s.
+- **Changed, %**: bursts whose class changes when each gets another burst's
+  speed (mean of 5 shuffles), or when the speed is set to 0.
+
+| exp | labels | checkpoint | b3 P(ExFlap), 0/5/10/15/20 m/s | ExFlap mean P, 0 vs 20 m/s | changed, shuffled, % of bursts | changed, speed 0, % of bursts |
+| --- | ------ | ---------- | ------------------------------ | -------------------------- | ------------------------------ | ----------------------------- |
+| 197 | raw    | best epoch | 0.67 0.60 0.51 0.42 0.34       | 0.79 vs 0.75               | 30.0                           | 13.7                          |
+| 199 | raw    | epoch 4000 | 0.79 0.76 0.66 0.55 0.44       | 0.85 vs 0.83               | 29.5                           | 13.2                          |
+| 201 | raw    | epoch 4000 | 0.47 0.67 0.66 0.43 0.19       | 0.81 vs 0.75               | 28.0                           | 12.4                          |
+| 202 | raw    | epoch 4000 | 0.84 0.66 0.64 0.65 0.65       | 0.86 vs 0.85               | 27.8                           | 12.0                          |
+| 200 | clean  | epoch 4000 | 0.45 0.32 0.16 0.08 0.06       | 0.83 vs 0.72               | 31.1                           | 12.9                          |
+| 203 | clean  | epoch 4000 | 0.55 0.69 0.54 0.33 0.24       | 0.84 vs 0.77               | 30.6                           | 13.0                          |
+| 204 | clean  | epoch 4000 | 0.84 0.80 0.71 0.58 0.52       | 0.87 vs 0.84               | 29.5                           | 11.5                          |
+
 ### Spoonbills
 
 505 valid segments, epoch 4000, seeds 32984, 1234, 5678
