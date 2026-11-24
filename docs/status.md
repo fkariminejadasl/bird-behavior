@@ -94,6 +94,16 @@ prediction is right when it is in the set of joint classes the label can be
 (`scripts/train_joint.py`). With 23 classes, one per label, that is the label
 itself, so the right behaviour of the other species counts as wrong.
 
+Coarse and per-species heads (`exps/eval_species_heads.py`): the same valid
+splits.
+
+- **Fine accuracy, %**: the segment's own species' head gives its label.
+- **Coarse accuracy, %**: the coarse head gives the label's group (`COARSE` of
+  `scripts/train_species_heads.py`). For a single-species model, its fine
+  prediction mapped to the group.
+- **Token given or dropped**: the species token set, or both channels 0, as for
+  an unknown species.
+
 ## Results
 
 ### Gulls, labeled
@@ -261,6 +271,34 @@ segments get a class of the other species, against 30 and 32 without.
 | spoonbill for-search  | 1929     | Pecking 12, TerLoco 7, SitStand 5              | Soar 4, Pecking 3                             |
 | spoonbill for-intake  | 115      | Pecking 5                                      | -                                             |
 
+### Both species, coarse and per-species heads
+
+One shared network, a coarse head on 4 groups and a fine head per species,
+with a species token (`scripts/train_species_heads.py`). Three seeds per arm,
+mean (min-max), all at epoch 4000, the last (`exps/eval_species_heads.py`).
+
+| model                             | exp                          | gull, fine % at epoch 4000 | gull, coarse % at epoch 4000 | spoonbill, fine % at epoch 4000 | spoonbill, coarse % at epoch 4000 |
+| --------------------------------- | ---------------------------- | -------------------------- | ---------------------------- | ------------------------------- | --------------------------------- |
+| single species, rotation          | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06)        | 96.88 (96.35-97.26)          | 84.36 (83.96-84.55)             | 95.97 (95.64-96.24)               |
+| single species, no rotation       | 207, 210, 211                | -                          | -                            | 94.06 (93.27-94.65)             | 99.41 (99.41-99.41)               |
+| heads, rotation, token given      | 216, 218, 220                | 93.99 (93.84-94.06)        | 97.11 (96.58-97.49)          | 84.16 (83.17-85.94)             | 96.17 (96.04-96.44)               |
+| heads, rotation, token dropped    | 216, 218, 220                | 93.84 (93.38-94.29)        | 96.96 (96.58-97.26)          | 83.89 (83.37-84.55)             | 96.37 (96.24-96.63)               |
+| heads, no rotation, token given   | 217, 219, 221                | 93.91 (93.38-94.75)        | 96.19 (95.66-96.58)          | 93.93 (93.27-94.26)             | 99.01 (99.01-99.01)               |
+| heads, no rotation, token dropped | 217, 219, 221                | 94.37 (94.06-94.75)        | 96.27 (95.89-96.80)          | 94.06 (93.86-94.26)             | 98.94 (98.81-99.01)               |
+
+Gull bursts read through the spoonbill head, token dropped, all 1502 SitStand
+and 337 TerLoco bursts, train and valid, at epoch 4000
+(`exps/eval_species_heads.py`). No gull label checks it.
+
+| exp | rotation | SitStand: stand-rest, stand-alert, sit-alert, stand-preen | TerLoco: walk, for-search |
+| --- | -------- | --------------------------------------------------------- | ------------------------- |
+| 216 | yes      | 846, 463, 0, 144                                          | 18, 177                   |
+| 218 | yes      | 877, 434, 0, 158                                          | 5, 196                    |
+| 220 | yes      | 890, 406, 0, 157                                          | 4, 224                    |
+| 217 | no       | 956, 264, 131, 126                                        | 270, 5                    |
+| 219 | no       | 980, 288, 65, 139                                         | 261, 5                    |
+| 221 | no       | 386, 904, 69, 116                                         | 194, 11                   |
+
 ## Done
 
 - Labeled data: one pipeline, `starts.csv`, 4,338 bursts
@@ -283,6 +321,8 @@ segments get a class of the other species, against 30 and 32 without.
   with an ecologist's label map (`exps/eval_cross_species.py`).
 - Both species in one model: on the ecologist's joint classes (exp212-213),
   and on 23 classes, one per label (exp214-215), `scripts/train_joint.py`.
+- Both species, a coarse head and a fine head per species, with a species token
+  (exp216-221, `scripts/train_species_heads.py`).
 
 ## TODO
 
@@ -306,15 +346,13 @@ Spoonbills:
 - **Class-balanced F1 without a class.** It is NaN when a class has no valid
   segment (drink). Skip such a class instead.
 
-Both species, in one model (exp212-215):
+Both species, in one model:
 
-- **A new map.** Revise the ecologist's map with the cross-species counts of
-  exp214-215 (Results, Both species in one model), then retrain the set model.
-  for-search sits between gull Pecking and TerLoco.
-- **More seeds.** Rerun at seeds 1234 and 5678 before trusting how the set
-  models split gull SitStand, or the cross-species counts.
 - **Check the gull rest and alert split.** Ask the ecologist whether some gull
-  SitStand bursts can be labeled rest or alert, the only way to score it.
+  SitStand bursts can be labeled rest or alert, the only way to score it. The
+  species-heads models split them differently over seeds (exp221).
+- **A third species.** Run the species-heads model with the token dropped on
+  another species, such as the unlabeled crab plover bursts.
 
 Gulls:
 
@@ -355,3 +393,6 @@ The reasons are in `lesson_learned.md`.
 - `BirdModelWideRF` (exp193): 1.14 points below `BirdModelSmallDilated`.
 - Mean-entropy maximization (con3, con4): it lowers the accuracy on the common
   classes.
+- One class set for both species (exp212-215), with the ecologist's sets or 23
+  classes: below the single-species models, where a fine head per species
+  (exp216-221) is not. The revised set map is not needed.

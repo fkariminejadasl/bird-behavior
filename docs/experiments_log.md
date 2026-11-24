@@ -10,6 +10,40 @@ Accuracies are valid accuracy in %, unless noted; `tr-val` gives train then
 valid. A trailing `hash:...` is the git commit the run was made at. Numbering
 has gaps (runs that were abandoned or folded elsewhere). Newest entries first.
 
+## exp216-221: coarse and per-species heads, with a species token
+
+`scripts/train_species_heads.py`, `BirdModelSpeciesHeads`, 6,666 parameters:
+the exp197 trunk, a species token (two constant input channels) dropped for
+half the training segments, a coarse head on 4 groups (fly, water, land
+inactive, land active; walking and feeding together) and a fine head per
+species. drink left out after the split, 7 train segments. Rotation: exp216,
+218, 220; none: exp217, 219, 221; seeds 32984, 1234, 5678, and `split_seed`
+32984 for all. hash:ce077dd plus the uncommitted changes. About 1 min each,
+stdout in `tensorboard/216_221.txt`. Accuracy at epoch 4000 and the gull
+translations: `status.md`, Both species, coarse and per-species heads.
+
+- Best epochs: 1988, 3916, 2580 (rotation), 3723, 1663, 3802 (none).
+- Fine accuracy equals the single-species models within the seed ranges, the
+  first joint model that does: sets and 23 classes (exp212-215) lost points.
+- Dropping the token moves accuracy less than the seed spread: the signal
+  carries the species.
+- Coarse accuracy is high already for the single-species models mapped to the
+  groups, so the coarse head has little to win there.
+- F1 per label (`exps/eval_species_heads.py`): gull Pecking 0.80 (0.77-0.82)
+  and TerLoco 0.93 (0.91-0.96) without rotation; spoonbill stand-alert 0.35
+  (0.32-0.40) with rotation, below the 0.49 (0.45-0.57) of the rotation runs
+  alone.
+- Read through the other species' head: gull Flap and ExFlap go to fly-flap,
+  Soar to fly-soar, spoonbill for-search to Pecking (1898 of 1929, exp217),
+  walk to TerLoco, beg to TerLoco. With no counterpart, Float goes to beg, and
+  Boat to stand-rest (exp216) or beg (exp217).
+- Gull walking reads as spoonbill walk in all three runs without rotation and
+  as for-search in all three with. The gull SitStand split into rest and alert
+  holds over the rotation seeds but flips in exp221.
+- Confusion matrices per checkpoint, split and token in
+  `failed/<exp>_heads/counts_*.png`.
+- Next: `status.md`, TODO, Both species.
+
 ## exp214-215: one model for both species, 23 classes
 
 `scripts/train_joint.py` as exp212-213, but every gull and spoonbill label a

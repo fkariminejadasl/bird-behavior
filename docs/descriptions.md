@@ -50,6 +50,8 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
   (three k=5 convs, dilation 1/2/3), the app and baseline model
 - `scripts/batch_train_supervised.py` — training; several configs in one run
 - `scripts/train_joint.py` — one model on gulls and spoonbills: 18 joint classes, each label a set of them, or 23, one per label
+- `behavior/model.py::BirdModelSpeciesHeads` — that trunk with a species token and one head per task, **6,666 params** (7 channels, heads 4, 9, 13)
+- `scripts/train_species_heads.py` — one model on both species: a coarse head, a fine head per species, a species token
 - `behavior/data_augmentation.py` — per-sample `(T, C)` and batched `Batch*` `(N, C, T)`
 
 ## Eval
@@ -65,6 +67,7 @@ Tags per study, and how `starts.csv` matches the published Movebank data: Labele
   segments
 - `exps/eval_cross_species.py` — each species' model on the other's data, scored by the label map
 - `exps/eval_joint.py` — the joint models beside the single-species ones, on the same valid splits
+- `exps/eval_species_heads.py` — the species-heads models beside the single-species ones, fine and coarse
 
 Visual:
 
@@ -492,6 +495,7 @@ model and how it is trained: `docs/methods.md`, Model and Training.
 | ----------------------- | ------------------ | --------------------------- | --------------------------- |
 | `BirdModelSmallDilated` | 4, 20, 9           | 5,129                       | 25                          |
 | `BirdModelSmallDilated` | 7, 20, 9           | 5,429                       | 25                          |
+| `BirdModelSpeciesHeads` | 7, 2, heads below  | 6,666                       | 25                          |
 | `BirdModelWideRF`       | 4, 20, 9           | 6,889                       | 19                          |
 | `BirdModel`             | 4, 30, 9           | 6,309 (6,340 at 10 classes) | 7                           |
 | `ResNet18_1D`           | 9, dropout=0.3     | 61,289                      |                             |
@@ -501,6 +505,7 @@ model and how it is trained: `docs/methods.md`, Model and Training.
 ```python
 from behavior import model as bm, model1d as bm1
 model = bm.BirdModelSmallDilated(4, 20, 9)  # or (7, 20, 9)
+model = bm.BirdModelSpeciesHeads(7, 2, {"coarse": 4, "gull": 9, "spoonbill": 13})
 model = bm.BirdModelWideRF(4, 20, 9)
 model = bm.BirdModel(4, 30, 9)
 model = bm.ResNet18_1D(9, dropout=0.3)
@@ -584,13 +589,23 @@ device_id, date_time,index,groun_truth label,imu_x,imu_y,imu_z,gps_m/s,label,con
   above), and the loss is minus the log of the probability summed over that
   set. Or 23 classes, one per label, no map (`SEPARATE_CLASSES`, exp214-215):
   plain cross-entropy. Each species keeps the split of its own models,
-  checked by reproducing
-  the valid accuracy of exp197 and exp207. Writes the checkpoints, tensorboard
+  checked by reproducing the valid accuracy of exp197 and exp207. Writes the
+  checkpoints, tensorboard
   and, in `failed/<exp>_joint/`, accuracy per species, counts per label and
   joint class, each also drawn as a confusion matrix
   (`counts_<checkpoint>_<split>.png`, `plot_counts`: an orange box marks the
   label's set), and F1 per label. A new map needs new constant names, so that
   `exps/eval_joint.py` still reads exp212-213 right.
+- `scripts/train_species_heads.py`: one model on gulls and spoonbills with
+  three heads on shared features (`BirdModelSpeciesHeads`, exp216-221): a
+  coarse head on 4 groups both species share (`COARSE`: fly, water, land
+  inactive, land active), and a fine head per species, so a fine prediction is
+  always a class of the segment's own species. A species token, two constant
+  input channels, is dropped (both 0) for a share `token_drop` of the training
+  segments, so the model also runs on an unknown species. drink is left out
+  after the split; both valid sets stay those of the single-species models.
+  Writes accuracies and a confusion matrix per checkpoint, split and token in
+  `failed/<exp>_heads/`.
 - `scripts/train.py`: the older supervised training script.
 - `scripts/train_sup_contrastive.py`: supervised classification plus a
   supervised contrastive loss (`SupConLoss`, `contrast_mode="one"`) on the
@@ -726,6 +741,12 @@ What each costs or buys, and why augmentation must stay on the train data:
   and F1 per label for each species; where the set models put gull SitStand,
   gull Pecking and spoonbill fly-flap among their joint classes; and, for the
   23-class models, which classes of the other species each label gets.
+- `exps/eval_species_heads.py`: the species-heads models (exp216-221) beside
+  the single-species models, on the same valid segments, at epoch 4000: fine
+  and coarse accuracy per species, token given and dropped (a single-species
+  model's coarse accuracy maps its prediction to its group), F1 per label, and
+  each species read through the other species' fine head, for the labels in
+  `track` over every run.
 - `exps/spoonbill_data_stats.py`: counts the spoonbill data: records, fixes and
   data quality per file, the 20 Hz check, and segments per behaviour and per
   bird, with the bouts too short for one segment. Prints only; tables in

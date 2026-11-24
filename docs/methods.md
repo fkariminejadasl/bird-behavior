@@ -218,6 +218,12 @@ Then rules 7-9 apply when the CSV is loaded, as for the database data.
 - Both species, exp214-215: the same, but 23 classes, one per gull and
   spoonbill label. Each set holds one class, so the loss is the plain
   cross-entropy.
+- Both species, exp216-221: `scripts/train_species_heads.py`, the same recipe,
+  with three heads on the shared features: a coarse head on 4 groups shared by
+  both species, and a fine head per species. Loss: the coarse cross-entropy
+  plus the cross-entropy of the segment's own fine head. A species token, two
+  constant input channels, is dropped for half of the training segments.
+  drink, 7 segments, is left out.
 - The set loss, by example. A gull SitStand burst has the set stand-rest,
   sit-alert, stand-alert, drink, and its loss is -log(p(stand-rest) +
   p(sit-alert) + p(stand-alert) + p(drink)). stand-rest 0.9 gives the same

@@ -218,6 +218,40 @@ class BirdModelSmallDilated(nn.Module):
         return self.fc(self.dropout(x))
 
 
+class BirdModelSpeciesHeads(nn.Module):
+    """`BirdModelSmallDilated`'s trunk, a species token, and one linear head per task.
+
+    The token is `n_species` extra input channels, constant over time: one-hot
+    for a known species, all 0 for an unknown one. `heads` maps a head name to
+    its number of classes, for example {"coarse": 4, "gull": 9}. `forward(x,
+    species)` takes x as N x in_channels x L and species as N indices, -1 for
+    unknown, and returns {head name: N x classes logits}.
+    """
+
+    def __init__(
+        self, in_channels=7, n_species=2, heads=None, mid_channels=20, dropout=0.15
+    ):
+        super().__init__()
+        self.n_species = n_species
+        trunk = BirdModelSmallDilated(in_channels + n_species, mid_channels, 1, dropout)
+        self.net = trunk.net
+        self.dropout = nn.Dropout(dropout)
+        self.heads = nn.ModuleDict(
+            {name: nn.Linear(mid_channels * 3, n) for name, n in heads.items()}
+        )
+
+    def forward(self, x, species):
+        token = torch.zeros(x.shape[0], self.n_species, x.shape[2], device=x.device)
+        known = species >= 0
+        token[known, species[known]] = 1.0
+        x = self.net(torch.cat([x, token], dim=1))
+        x = torch.cat(
+            [x.mean(dim=-1), x.amax(dim=-1), x.std(dim=-1, unbiased=False)], dim=1
+        )
+        x = self.dropout(x)
+        return {name: head(x) for name, head in self.heads.items()}
+
+
 # model = BirdModelWideRF(in_channels=4, mid_channels=20, out_channels=9, dropout=0.15)
 # model = BirdModelSmallDilated(in_channels=4, mid_channels=20, out_channels=9, dropout=0.15)
 # model = BirdModel(in_channels=4, mid_channels=30, out_channels=9)
