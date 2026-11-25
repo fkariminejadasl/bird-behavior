@@ -272,6 +272,107 @@ rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 
 ---
 
+## Gull model on spoonbills: most behaviours match
+
+The gull model on all 5,080 spoonbill segments: which gull class does
+each spoonbill behaviour get? *(exp197, exps/eval_cross_species.py)*
+
+| spoonbill behaviour | gull class given | % of segments |
+|---|---|---|
+| standing rest, sitting or standing alert | sit/stand | 93–100 |
+| preening | sit/stand | 77 |
+| flapping, soaring | flapping, soaring | 98 |
+| handling, swallowing prey | pecking | 100 |
+| walking | walking | 67 |
+| searching for food | pecking, walking, sit/stand | 52, 27, 19 |
+
+87% of 4,646 segments get the ecologist's first or second choice
+
+---
+
+## Spoonbill models on gulls: higher with rotation
+
+Spoonbill models on all 4,338 gull bursts, 3 seeds per arm, epoch 4000
+*(exp206-211, exps/eval_cross_species.py)*
+
+| | with rotation | without rotation |
+|---|---|---|
+| ecologist's class, % of 3,433 bursts | 75.5–84.7 | 65.8–67.4 |
+
+- Without rotation a walking gull reads as a standing spoonbill: 222 of
+  337 *(exp207)*. Both tilt the tag forward alike: x −0.41 and −0.38 g
+- Flapping gulls read as flapping spoonbills in 46–97% of bursts,
+  depending on the seed
+
+---
+
+## One class list for both species: lower accuracy
+
+One model on both species, no rotation, one seed, epoch 4000
+*(exps/eval_joint.py)*
+
+- **Sets** *(exp213)*: gull sit/stand may be any spoonbill rest or alert
+- **23 classes** *(exp215)*: each behaviour of each species its own class
+
+| valid accuracy, % | gull, 438 bursts | spoonbill, 505 segments |
+|---|---|---|
+| one model per species, 3 seeds | 93.84–94.06 | 93.27–94.65 |
+| sets | 91.32 | 92.08 |
+| 23 classes | 87.90 | 87.13 |
+
+23 classes: the right behaviour of the other species counts as wrong
+
+---
+
+## Coarse-fine model, species token: same accuracy
+
+One shared network, a species token *(gull, spoonbill or unknown)*, set to
+unknown for half the training. Outputs: 4 coarse groups for both species
+*(flying, water, still or active on land)* and a fine output per species
+
+| valid accuracy, %, mean of 3 seeds | gull, 438 bursts | spoonbill, 505 segments |
+|---|---|---|
+| one model per species, rotation | 93.99 | 84.36 |
+| coarse-fine, rotation | 93.99 | 84.16 |
+| one model per species, no rotation | – | 94.06 |
+| coarse-fine, no rotation | 93.91 | 93.93 |
+| coarse-fine, no rotation, token unknown | 94.37 | 94.06 |
+
+*(exp216-221, epoch 4000, exps/eval_species_heads.py)*
+
+---
+
+## Gull rest or alert: not testable without labels
+
+Gull bursts read through the spoonbill fine output, token unknown
+*(exp216-221, exps/eval_species_heads.py)*
+
+- Flying reads as flying; walking as walking in all 3 runs without
+  rotation: 194–270 of 337 walking bursts
+- Sit/stand → rest or alert: with rotation 3 runs agree, 846–890 of 1,502
+  rest; without, one reverses it: 386 rest, 904 alert *(exp221)*
+- Rest and alert: both a still bird, the same tag tilt, x −0.38 and
+  −0.40 g *(exps/eval_cross_species.py)*. Alert: head up, watching
+- **Ask:** 50–100 gull sit/stand bursts labelled rest or alert, from
+  video or field notes
+
+---
+
+## Two species: what we learned
+
+1. **Coarse behaviours transfer between species**: still, flying, active
+   on land
+2. **With rotation, more gull bursts get the expected spoonbill class**;
+   without, spoonbill accuracy is higher, as posture separates behaviours
+3. **One class list for both species lowers accuracy**; the coarse-fine
+   model stays within the seed range of one model per species
+4. **Accuracy is unchanged with the species token unknown**: the signal
+   identifies the species
+5. **Fine behaviours need labels of the target species**: rest or alert,
+   walking or searching
+
+---
+
 ## What we learned
 
 1. **A high score on your own test split can hide a total failure.** Ours could

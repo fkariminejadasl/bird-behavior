@@ -183,7 +183,7 @@ speed as truth, such as `exps/find_label_noise.py`, assumes that cut.
 
 ## Model and training
 
-### Per-species fine heads cost nothing; one shared class set did (exp212-221)
+### Fine heads per species keep accuracy, one class set does not (exp212-221)
 
 One network on gulls and spoonbills (numbers in `status.md`, Both species).
 
@@ -192,9 +192,9 @@ One network on gulls and spoonbills (numbers in `status.md`, Both species).
   their own models (`exps/eval_species_heads.py`). With one class set for both,
   sets or 23 classes, the gull lost 2.5 points or more (`exps/eval_joint.py`):
   one output made the species share or compete for its classes.
-- **The species token hardly matters.** Dropped, accuracy moves less than the
-  seed spread: the signal already tells a gull from a spoonbill. So dropping it
-  in training costs nothing, and the model can run on a new species.
+- **Accuracy is the same with the species token unknown.** It moves less than
+  the seed spread: the signal already tells a gull from a spoonbill. So the
+  model can also run on a species it was not trained on.
 - **A translation can hold for one label and not another.** Through the
   spoonbill head, gull walking reads as spoonbill walk in all three runs
   without rotation, but the gull SitStand split into rest and alert flips in

@@ -36,7 +36,8 @@
 ## How to write
 
 - Explain short, in chat and in the docs. Plain words, short sentences, no
-  clever phrasing. Spell out an acronym the first time (VeDBA, ODBA). If a
+  clever or journalistic phrasing: "the same accuracy, within the seed range",
+  not "costs nothing". Spell out an acronym the first time (VeDBA, ODBA). If a
   sentence needs re-reading, rewrite it. Asked what something is, give the
   definition, one real example and the counts.
 - Use the words of the Terms table in `docs/descriptions.md` (record, fix,
