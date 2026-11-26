@@ -233,18 +233,19 @@ counterpart.
 
 Valid accuracy %, at epoch 4000, the last, for every run here
 (`exps/eval_joint.py`); exp197 at its best epoch is in Gulls, labeled.
-Single-species models: mean (min-max) of 3 seeds. Joint models: one seed,
-32984, each. Sets: 18 joint classes from the ecologist's map. 23 classes: one
-per label, no map.
+Gull-only and spoonbill-only models: mean (min-max) of 3 seeds. Joint models:
+one seed, 32984, each. Sets: 18 joint classes from the ecologist's map. 23
+classes: one per label, no map.
 
-| model                          | exp                          | gull, 438 bursts, % at epoch 4000 | spoonbill, 505 segments, % at epoch 4000 |
-| ------------------------------ | ---------------------------- | --------------------------------- | ---------------------------------------- |
-| single species, rotation       | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06)               | 84.36 (83.96-84.55)                      |
-| single species, no rotation    | 207, 210, 211                | -                                 | 94.06 (93.27-94.65)                      |
-| joint, sets, rotation          | 212                          | 89.27                             | 84.16                                    |
-| joint, sets, no rotation       | 213                          | 91.32                             | 92.08                                    |
-| joint, 23 classes, rotation    | 214                          | 81.51                             | 71.68                                    |
-| joint, 23 classes, no rotation | 215                          | 87.90                             | 87.13                                    |
+| model                             | exp           | gull, 438 bursts, % at epoch 4000 | spoonbill, 505 segments, % at epoch 4000 |
+| --------------------------------- | ------------- | --------------------------------- | ---------------------------------------- |
+| gull-only model, rotation         | 199, 201, 202 | 93.99 (93.84-94.06)               | -                                        |
+| spoonbill-only model, rotation    | 206, 208, 209 | -                                 | 84.36 (83.96-84.55)                      |
+| spoonbill-only model, no rotation | 207, 210, 211 | -                                 | 94.06 (93.27-94.65)                      |
+| joint, sets, rotation             | 212           | 89.27                             | 84.16                                    |
+| joint, sets, no rotation          | 213           | 91.32                             | 92.08                                    |
+| joint, 23 classes, rotation       | 214           | 81.51                             | 71.68                                    |
+| joint, 23 classes, no rotation    | 215           | 87.90                             | 87.13                                    |
 
 At epoch 4000, the set models split the 1502 gull SitStand bursts (train and
 valid) into stand-rest, sit-alert and stand-alert: 952, 62 and 443 for exp213,
@@ -277,14 +278,15 @@ One shared network, a coarse head on 4 groups and a fine head per species,
 with a species token (`scripts/train_species_heads.py`). Three seeds per arm,
 mean (min-max), all at epoch 4000, the last (`exps/eval_species_heads.py`).
 
-| model                             | exp                          | gull, fine % at epoch 4000 | gull, coarse % at epoch 4000 | spoonbill, fine % at epoch 4000 | spoonbill, coarse % at epoch 4000 |
-| --------------------------------- | ---------------------------- | -------------------------- | ---------------------------- | ------------------------------- | --------------------------------- |
-| single species, rotation          | 199, 201, 202; 206, 208, 209 | 93.99 (93.84-94.06)        | 96.88 (96.35-97.26)          | 84.36 (83.96-84.55)             | 95.97 (95.64-96.24)               |
-| single species, no rotation       | 207, 210, 211                | -                          | -                            | 94.06 (93.27-94.65)             | 99.41 (99.41-99.41)               |
-| heads, rotation, token given      | 216, 218, 220                | 93.99 (93.84-94.06)        | 97.11 (96.58-97.49)          | 84.16 (83.17-85.94)             | 96.17 (96.04-96.44)               |
-| heads, rotation, token dropped    | 216, 218, 220                | 93.84 (93.38-94.29)        | 96.96 (96.58-97.26)          | 83.89 (83.37-84.55)             | 96.37 (96.24-96.63)               |
-| heads, no rotation, token given   | 217, 219, 221                | 93.91 (93.38-94.75)        | 96.19 (95.66-96.58)          | 93.93 (93.27-94.26)             | 99.01 (99.01-99.01)               |
-| heads, no rotation, token dropped | 217, 219, 221                | 94.37 (94.06-94.75)        | 96.27 (95.89-96.80)          | 94.06 (93.86-94.26)             | 98.94 (98.81-99.01)               |
+| model                             | exp           | gull, fine % at epoch 4000 | gull, coarse % at epoch 4000 | spoonbill, fine % at epoch 4000 | spoonbill, coarse % at epoch 4000 |
+| --------------------------------- | ------------- | -------------------------- | ---------------------------- | ------------------------------- | --------------------------------- |
+| gull-only model, rotation         | 199, 201, 202 | 93.99 (93.84-94.06)        | 96.88 (96.35-97.26)          | -                               | -                                 |
+| spoonbill-only model, rotation    | 206, 208, 209 | -                          | -                            | 84.36 (83.96-84.55)             | 95.97 (95.64-96.24)               |
+| spoonbill-only model, no rotation | 207, 210, 211 | -                          | -                            | 94.06 (93.27-94.65)             | 99.41 (99.41-99.41)               |
+| heads, rotation, token given      | 216, 218, 220 | 93.99 (93.84-94.06)        | 97.11 (96.58-97.49)          | 84.16 (83.17-85.94)             | 96.17 (96.04-96.44)               |
+| heads, rotation, token dropped    | 216, 218, 220 | 93.84 (93.38-94.29)        | 96.96 (96.58-97.26)          | 83.89 (83.37-84.55)             | 96.37 (96.24-96.63)               |
+| heads, no rotation, token given   | 217, 219, 221 | 93.91 (93.38-94.75)        | 96.19 (95.66-96.58)          | 93.93 (93.27-94.26)             | 99.01 (99.01-99.01)               |
+| heads, no rotation, token dropped | 217, 219, 221 | 94.37 (94.06-94.75)        | 96.27 (95.89-96.80)          | 94.06 (93.86-94.26)             | 98.94 (98.81-99.01)               |
 
 Gull bursts read through the spoonbill head, token dropped, all 1502 SitStand
 and 337 TerLoco bursts, train and valid, at epoch 4000

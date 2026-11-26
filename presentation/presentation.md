@@ -191,8 +191,8 @@ Nine times more experiments per day, for no change in the science.
 
 ## Spoonbills: few birds per behaviour
 
-Two published datasets *(Lok et al. 2023, 2025)*: 5,080 labelled 1 s
-segments, 14 behaviours, 9 birds *(exps/eval_spoonbill.py)*
+Data counts, no model run *(Lok et al. 2023, 2025; exps/eval_spoonbill.py)*:
+5,080 labelled 1 s segments, 14 behaviours, 9 birds
 
 | group: behaviours | segments | birds | share of the top bird |
 |---|---|---|---|
@@ -274,17 +274,16 @@ rotation, mean of 3 seeds *(exps/eval_spoonbill.py)*
 
 ## Gull model on spoonbills: most behaviours match
 
-The gull model on all 5,080 spoonbill segments: which gull class does
-each spoonbill behaviour get? *(exp197, exps/eval_cross_species.py)*
+exp197 on all 5,080 spoonbill segments *(exps/eval_cross_species.py)*
 
-| spoonbill behaviour | gull class given | % of segments |
-|---|---|---|
-| standing rest, sitting or standing alert | sit/stand | 93–100 |
-| preening | sit/stand | 77 |
-| flapping, soaring | flapping, soaring | 98 |
-| handling, swallowing prey | pecking | 100 |
-| walking | walking | 67 |
-| searching for food | pecking, walking, sit/stand | 52, 27, 19 |
+| spoonbill behaviour | gull class given, % of the behaviour's segments |
+|---|---|
+| rest, alert | sit/stand 93–100 |
+| preening | sit/stand 77 |
+| flapping, soaring | flapping, soaring 98 |
+| handling, swallowing prey | pecking 100 |
+| walking | walking 67 |
+| searching for food | pecking 52, walking 27, sit/stand 19 |
 
 87% of 4,646 segments get the ecologist's first or second choice
 
@@ -308,8 +307,7 @@ Spoonbill models on all 4,338 gull bursts, 3 seeds per arm, epoch 4000
 
 ## One class list for both species: lower accuracy
 
-One model on both species, no rotation, one seed, epoch 4000
-*(exps/eval_joint.py)*
+Both species, no rotation, one seed, epoch 4000 *(exps/eval_joint.py)*
 
 - **Sets** *(exp213)*: gull sit/stand may be any spoonbill rest or alert
 - **23 classes** *(exp215)*: each behaviour of each species its own class
@@ -320,25 +318,37 @@ One model on both species, no rotation, one seed, epoch 4000
 | sets | 91.32 | 92.08 |
 | 23 classes | 87.90 | 87.13 |
 
-23 classes: the right behaviour of the other species counts as wrong
+One model per species: gull exp199, 201, 202 *(rotation)*, spoonbill exp207,
+210, 211. 23 classes: the other species' behaviour counts as wrong
+
+---
+
+## Coarse-fine model with a species token
+
+- **One shared network** for gulls and spoonbills, 6,666 parameters
+  *(scripts/train_species_heads.py)*
+- **Coarse output**, the same 4 groups for both species: flying, water,
+  still on land, active on land
+- **Fine output per species**: 9 gull classes, 13 spoonbill classes
+- **Species token**: gull, spoonbill or unknown. Unknown for half of the
+  training, so the model can also run on another species
 
 ---
 
 ## Coarse-fine model, species token: same accuracy
 
-One shared network, a species token *(gull, spoonbill or unknown)*, set to
-unknown for half the training. Outputs: 4 coarse groups for both species
-*(flying, water, still or active on land)* and a fine output per species
+Valid accuracy %, epoch 4000, mean of 3 seeds, on 438 gull bursts and 505
+spoonbill segments *(exp216-221, exps/eval_species_heads.py)*. One model per
+species: gull exp199, 201, 202 *(exp197's settings)*; spoonbill exp206, 208,
+209 *(rotation)* and exp207, 210, 211 *(no rotation)*
 
-| valid accuracy, %, mean of 3 seeds | gull, 438 bursts | spoonbill, 505 segments |
+| model | gull | spoonbill |
 |---|---|---|
 | one model per species, rotation | 93.99 | 84.36 |
 | coarse-fine, rotation | 93.99 | 84.16 |
 | one model per species, no rotation | – | 94.06 |
 | coarse-fine, no rotation | 93.91 | 93.93 |
 | coarse-fine, no rotation, token unknown | 94.37 | 94.06 |
-
-*(exp216-221, epoch 4000, exps/eval_species_heads.py)*
 
 ---
 
@@ -351,8 +361,8 @@ Gull bursts read through the spoonbill fine output, token unknown
   rotation: 194–270 of 337 walking bursts
 - Sit/stand → rest or alert: with rotation 3 runs agree, 846–890 of 1,502
   rest; without, one reverses it: 386 rest, 904 alert *(exp221)*
-- Rest and alert: both a still bird, the same tag tilt, x −0.38 and
-  −0.40 g *(exps/eval_cross_species.py)*. Alert: head up, watching
+- Rest and alert: both a still bird with the same tag tilt, x −0.38 and
+  −0.40 g *(exps/eval_cross_species.py)*
 - **Ask:** 50–100 gull sit/stand bursts labelled rest or alert, from
   video or field notes
 
@@ -361,28 +371,30 @@ Gull bursts read through the spoonbill fine output, token unknown
 ## Two species: what we learned
 
 1. **Coarse behaviours transfer between species**: still, flying, active
-   on land
-2. **With rotation, more gull bursts get the expected spoonbill class**;
-   without, spoonbill accuracy is higher, as posture separates behaviours
-3. **One class list for both species lowers accuracy**; the coarse-fine
-   model stays within the seed range of one model per species
-4. **Accuracy is unchanged with the species token unknown**: the signal
-   identifies the species
-5. **Fine behaviours need labels of the target species**: rest or alert,
-   walking or searching
+   on land *(exp197, exp206-211, exps/eval_cross_species.py)*
+2. **Rotation: about 10 points less on spoonbills, more expected classes on
+   gulls** *(exp206-211, exps/eval_spoonbill.py, exps/eval_cross_species.py)*
+3. **One class list for both species lowers accuracy** *(exp212-215,
+   exps/eval_joint.py)*
+4. **Coarse-fine model: the accuracy of one model per species, also with
+   the token unknown** *(exp216-221, exps/eval_species_heads.py)*
+5. **Fine behaviours, such as gull rest or alert, need labels of that
+   species** *(exp216-221, exps/eval_species_heads.py)*
 
 ---
 
 ## What we learned
 
-1. **A high score on your own test split can hide a total failure.** Ours could
-   not see mounting orientation at all
-2. **Confidence is not a health check.** A model can be certain and wrong
-3. **You can measure a model without labels** — count predictions that break
-   physics
-4. **Check the labels too.** Some of what we call error is bad ground truth
-5. **A cleaner dataset is not automatically a better model.** Ours scored
-   better only on the speed rule that had picked the bursts to remove
+1. **A high test score can hide a total failure**: 96.35% valid accuracy,
+   13.05% with the tag turned *(exp194, exps/eval_labeled.py)*
+2. **Confidence is not a health check**: mean 0.74 at 13% accuracy
+   *(exp194, exps/recompute_doc_numbers.py)*
+3. **A model can be measured without labels**: count predictions that
+   break physics *(exp194-197, exps/eval_unlabeled.py)*
+4. **Check the labels too**: 26 of 4,338 bursts contradict their own label
+   *(exps/find_label_noise.py)*
+5. **Cleaner labels improved only the rule that chose them**: speed
+   conflict *(exp199-204, exps/eval_unlabeled.py)*
 
 ---
 

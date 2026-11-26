@@ -124,8 +124,10 @@ git diff -U0 -- 'docs/*.md' | grep '^+[^+|]' | awk 'length > 81'
 - Never run mdformat on `presentation/`. A Marp slide must fit one page; Marp
   silently cuts the bottom. Keep about 12 lines of body text: a line over about
   72 visible characters counts twice, and a title over about 48 characters
-  takes two lines. Estimates only; Marp is not rendered here, so say which
-  slides to export and check.
+  takes two lines. A table row counts as about one and a half lines, two when
+  a cell wraps. Estimates only; Marp is not rendered here, so say which slides
+  to export and check. When `presentation/presentation.pdf` is newer than
+  `presentation.md`, `pdftoppm` renders its pages to see what was cut.
 
 ## Workspace
 
